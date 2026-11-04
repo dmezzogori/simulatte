@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "rows": [
+    {
+      "engine": "chromium",
+      "metadata_ms": 923,
+      "charts_after_metadata_ms": 1333,
+      "view": {
+        "info": "kpi trace · completed · recorded layout · KPI-only: no entity animation or event stepping · Native production · experimental · KPI snapshots every 0.97582 time units · 4096 samples per KPI (spacing increased to fit limit)",
+        "tiles": 8,
+        "charts": 8,
+        "alerts": []
+      },
+      "errors": []
+    },
+    {
+      "engine": "firefox",
+      "metadata_ms": 1092,
+      "charts_after_metadata_ms": 1850,
+      "view": {
+        "info": "kpi trace · completed · recorded layout · KPI-only: no entity animation or event stepping · Native production · experimental · KPI snapshots every 0.97582 time units · 4096 samples per KPI (spacing increased to fit limit)",
+        "tiles": 8,
+        "charts": 8,
+        "alerts": []
+      },
+      "errors": []
+    },
+    {
+      "engine": "webkit",
+      "metadata_ms": 940,
+      "charts_after_metadata_ms": 1812,
+      "view": {
+        "info": "kpi trace · completed · recorded layout · KPI-only: no entity animation or event stepping · Native production · experimental · KPI snapshots every 0.97582 time units · 4096 samples per KPI (spacing increased to fit limit)",
+        "tiles": 8,
+        "charts": 8,
+        "alerts": []
+      },
+      "errors": []
+    }
+  ]
+}

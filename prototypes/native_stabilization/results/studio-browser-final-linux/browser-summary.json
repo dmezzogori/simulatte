@@ -1,0 +1,80 @@
+{
+  "passed": false,
+  "seconds": 900.969,
+  "engines": [
+    "chromium",
+    "firefox",
+    "webkit"
+  ],
+  "observed": {
+    "71650b81a6ccf78fa5556b9c17e91f9f": "succeeded",
+    "cfb5fe32763547f4183a5b01bffdd56d": "succeeded",
+    "b58140c7c1acab0988dcb32effb014c4": "succeeded",
+    "a68a125f68a9c5fbbc66c9af142d34c3": "succeeded",
+    "06e22f79f5fef23b36a0d41c557eef7c": "succeeded",
+    "504d36787f79877374819fbbf2ffb767": "cancelled",
+    "df026e0ea264cdc0ea9e4e97b9aa9254": "succeeded",
+    "8411bb81bee51506449f166010c1e2df": "succeeded",
+    "6b205a4e1d24202c5b046954d2ed8eee": "failed",
+    "90125b2ebac14efa91a1b962f7f96d8d": "succeeded",
+    "e197b974ef770a625838681d0ad18be4": "succeeded",
+    "60472767e5785c1381ccf6bf284b0e4b": "succeeded",
+    "7793e15ebff65bc0fff7c604d5385c05": "cancelled",
+    "e8f1dcd94ea2206744f6fd4431495e48": "succeeded",
+    "97ebd46747316eca92fbeaddc14c8431": "succeeded",
+    "bdd271ef317ea53e0f18255f50e284dc": "succeeded",
+    "9758036510ce08708645fc15bb596a1b": "succeeded",
+    "64aad259cbbfb8843cdfbc674aad177c": "failed",
+    "49987cf89b9281636bfdc60457b7ad2a": "succeeded",
+    "0b84b4f5bf6ae6aead004e04287e3f7d": "cancelled",
+    "aef33def75d43b2399c57497a3434506": "succeeded",
+    "4c69ae13001f9884366e8ab03508b85f": "succeeded",
+    "be76bfcd35b32ea69bae0c6b160ce2f6": "succeeded",
+    "1a3bf9d171a225e9c42b155132fdecc5": "succeeded",
+    "8f6fc8a6af3a3c45715bba6e37459bb1": "succeeded",
+    "7f8766c515df901511a3f88d719dabb0": "succeeded",
+    "b0da516bd88c050c8a61446c38d52d67": "failed",
+    "23f3d6f599bc16c0c79e1611e3ed2752": "succeeded",
+    "deeb7c7f6f3a40563d6ab9e697b1d5c0": "succeeded",
+    "84fe77307b49da152fe59d032da72edb": "succeeded",
+    "42b2a979f8c3d4752b1e5e17c851367e": "succeeded",
+    "e8358b3b417c8ad8580d491e2afddf22": "succeeded",
+    "7fdde17cca02dbfdb8bafc06fd7be4de": "succeeded",
+    "5ba6f7d0d92cc26efc3341b600a1e049": "cancelled",
+    "626add0fdf172f468a9c01297824a566": "succeeded",
+    "0ee624ed21ed4a7380683e66a0fcf547": "failed",
+    "4c5fb11d70d6c259e00816afb2dc3842": "succeeded",
+    "ef2e11ade444a2f4ee9ebe0b300f8532": "succeeded"
+  },
+  "cancelled": [
+    "504d36787f79877374819fbbf2ffb767",
+    "7793e15ebff65bc0fff7c604d5385c05",
+    "0b84b4f5bf6ae6aead004e04287e3f7d",
+    "5ba6f7d0d92cc26efc3341b600a1e049"
+  ],
+  "reloads": 9,
+  "reconnect_actions": 29,
+  "seeks": 12,
+  "snapshots": 58,
+  "errors": [
+    {
+      "engine": "webkit",
+      "message": "Failed to load resource: The network connection was lost."
+    },
+    {
+      "engine": "chromium",
+      "message": "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH"
+    }
+  ],
+  "latest": {
+    "key": {
+      "request_id": "01377f0c4a8c08906c97d2cbcb261d9dc918fd12a430fd3afda4919bde0b9466",
+      "attempt_id": "46cee20180329b752900c1611ca1e467",
+      "generation": 48
+    },
+    "revision": 52,
+    "status": "running",
+    "details": {}
+  },
+  "results": 20
+}

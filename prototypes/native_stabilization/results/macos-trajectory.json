@@ -1,0 +1,726 @@
+{
+  "passed": true,
+  "cases": 36,
+  "rows": [
+    {
+      "case": "flow",
+      "policy": "fifo",
+      "seed": 3,
+      "warmup": 0,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "fifo",
+      "seed": 3,
+      "warmup": 64,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "fifo",
+      "seed": 21,
+      "warmup": 0,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "fifo",
+      "seed": 21,
+      "warmup": 64,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "fifo",
+      "seed": 77,
+      "warmup": 0,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "fifo",
+      "seed": 77,
+      "warmup": 64,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "spt",
+      "seed": 3,
+      "warmup": 0,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "spt",
+      "seed": 3,
+      "warmup": 64,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "spt",
+      "seed": 21,
+      "warmup": 0,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "spt",
+      "seed": 21,
+      "warmup": 64,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "spt",
+      "seed": 77,
+      "warmup": 0,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "flow",
+      "policy": "spt",
+      "seed": 77,
+      "warmup": 64,
+      "admitted": 512,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "flow",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 512,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 0,
+        "actions": "d97047f61d10613adfe3418802c929858858d28525b445922fab2a57908ecccd",
+        "hard_limit": 64
+      },
+      "trajectory": "3dd73705ec7ceee7b0efdc7091aff76ce7e0b73551d4d76d36ffd60c8b3370cb"
+    },
+    {
+      "case": "mixed",
+      "policy": "fifo",
+      "seed": 3,
+      "warmup": 0,
+      "admitted": 460,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 460,
+        "tick": 256,
+        "blocked": 52,
+        "tight": 0,
+        "actions": "9d9dcf54a190ab516e0017a1712b26989c1f83ce3b83f11d1fc6e21346f68d8f",
+        "hard_limit": 64
+      },
+      "trajectory": "8c877a26174a1c67ecc0055c91b8c6a2b4b1af1e6c1dd8b50f25ef1251d2466a"
+    },
+    {
+      "case": "mixed",
+      "policy": "fifo",
+      "seed": 3,
+      "warmup": 64,
+      "admitted": 460,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 460,
+        "tick": 256,
+        "blocked": 52,
+        "tight": 0,
+        "actions": "9d9dcf54a190ab516e0017a1712b26989c1f83ce3b83f11d1fc6e21346f68d8f",
+        "hard_limit": 64
+      },
+      "trajectory": "8c877a26174a1c67ecc0055c91b8c6a2b4b1af1e6c1dd8b50f25ef1251d2466a"
+    },
+    {
+      "case": "mixed",
+      "policy": "fifo",
+      "seed": 21,
+      "warmup": 0,
+      "admitted": 444,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 444,
+        "tick": 256,
+        "blocked": 68,
+        "tight": 0,
+        "actions": "e60055aa8a64d5a4688b28e8e5500f9a1631231bf229eceafa960d74696591f5",
+        "hard_limit": 64
+      },
+      "trajectory": "6c96eeb730d48b4cbe459456415ed3367ae1339e83c305346c978f6d5ab02ad0"
+    },
+    {
+      "case": "mixed",
+      "policy": "fifo",
+      "seed": 21,
+      "warmup": 64,
+      "admitted": 444,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 444,
+        "tick": 256,
+        "blocked": 68,
+        "tight": 0,
+        "actions": "e60055aa8a64d5a4688b28e8e5500f9a1631231bf229eceafa960d74696591f5",
+        "hard_limit": 64
+      },
+      "trajectory": "6c96eeb730d48b4cbe459456415ed3367ae1339e83c305346c978f6d5ab02ad0"
+    },
+    {
+      "case": "mixed",
+      "policy": "fifo",
+      "seed": 77,
+      "warmup": 0,
+      "admitted": 447,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 447,
+        "tick": 256,
+        "blocked": 65,
+        "tight": 0,
+        "actions": "ab333c3ebb2a14aff016f5186e9f7724149f04b4479e6246654626abc183e7f1",
+        "hard_limit": 64
+      },
+      "trajectory": "d6003a10308866b4b06f79fb1c80e5eaabff61368e65760c243aec904d1263e5"
+    },
+    {
+      "case": "mixed",
+      "policy": "fifo",
+      "seed": 77,
+      "warmup": 64,
+      "admitted": 447,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 447,
+        "tick": 256,
+        "blocked": 65,
+        "tight": 0,
+        "actions": "ab333c3ebb2a14aff016f5186e9f7724149f04b4479e6246654626abc183e7f1",
+        "hard_limit": 64
+      },
+      "trajectory": "d6003a10308866b4b06f79fb1c80e5eaabff61368e65760c243aec904d1263e5"
+    },
+    {
+      "case": "mixed",
+      "policy": "spt",
+      "seed": 3,
+      "warmup": 0,
+      "admitted": 486,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 486,
+        "tick": 256,
+        "blocked": 26,
+        "tight": 0,
+        "actions": "82b43da561fe0cb9ee0b5e6bf71d1b99af593db8eaeb0e76e800a16e0d9a05fa",
+        "hard_limit": 64
+      },
+      "trajectory": "f20e5b7418c3a7f9d067701437d4d2184fe6a1db08b813b475b842f2d0681bad"
+    },
+    {
+      "case": "mixed",
+      "policy": "spt",
+      "seed": 3,
+      "warmup": 64,
+      "admitted": 486,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 486,
+        "tick": 256,
+        "blocked": 26,
+        "tight": 0,
+        "actions": "82b43da561fe0cb9ee0b5e6bf71d1b99af593db8eaeb0e76e800a16e0d9a05fa",
+        "hard_limit": 64
+      },
+      "trajectory": "f20e5b7418c3a7f9d067701437d4d2184fe6a1db08b813b475b842f2d0681bad"
+    },
+    {
+      "case": "mixed",
+      "policy": "spt",
+      "seed": 21,
+      "warmup": 0,
+      "admitted": 468,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 468,
+        "tick": 256,
+        "blocked": 44,
+        "tight": 0,
+        "actions": "2248a3d061f5d7dbba8126182ac8706fbdddeacfd145433e1b23e25c3ec3dabb",
+        "hard_limit": 64
+      },
+      "trajectory": "12098a757276372e7cc7f2c37446e9cda0a7e104abedb7bd7b62990906e6a204"
+    },
+    {
+      "case": "mixed",
+      "policy": "spt",
+      "seed": 21,
+      "warmup": 64,
+      "admitted": 468,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 468,
+        "tick": 256,
+        "blocked": 44,
+        "tight": 0,
+        "actions": "2248a3d061f5d7dbba8126182ac8706fbdddeacfd145433e1b23e25c3ec3dabb",
+        "hard_limit": 64
+      },
+      "trajectory": "12098a757276372e7cc7f2c37446e9cda0a7e104abedb7bd7b62990906e6a204"
+    },
+    {
+      "case": "mixed",
+      "policy": "spt",
+      "seed": 77,
+      "warmup": 0,
+      "admitted": 482,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 482,
+        "tick": 256,
+        "blocked": 30,
+        "tight": 0,
+        "actions": "d59bd654facfffa628e7fe0a7c2e5744d14d65739e919db6f82f29a20318141c",
+        "hard_limit": 64
+      },
+      "trajectory": "2f08341098f4837565660858a4c68ca504ba69dd36fdb1491739d0928215c6fd"
+    },
+    {
+      "case": "mixed",
+      "policy": "spt",
+      "seed": 77,
+      "warmup": 64,
+      "admitted": 482,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "mixed",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 482,
+        "tick": 256,
+        "blocked": 30,
+        "tight": 0,
+        "actions": "d59bd654facfffa628e7fe0a7c2e5744d14d65739e919db6f82f29a20318141c",
+        "hard_limit": 64
+      },
+      "trajectory": "2f08341098f4837565660858a4c68ca504ba69dd36fdb1491739d0928215c6fd"
+    },
+    {
+      "case": "burst",
+      "policy": "fifo",
+      "seed": 3,
+      "warmup": 0,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 215,
+        "actions": "a646cda521b24ab3172307553b576502986a6b91fafa4f5453093d423b73bcbb",
+        "hard_limit": 64
+      },
+      "trajectory": "bc1097f7a38d5a4b66154dafd349dbea3b49c25b05668bf4903795421fed65c0"
+    },
+    {
+      "case": "burst",
+      "policy": "fifo",
+      "seed": 3,
+      "warmup": 64,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 215,
+        "actions": "a646cda521b24ab3172307553b576502986a6b91fafa4f5453093d423b73bcbb",
+        "hard_limit": 64
+      },
+      "trajectory": "bc1097f7a38d5a4b66154dafd349dbea3b49c25b05668bf4903795421fed65c0"
+    },
+    {
+      "case": "burst",
+      "policy": "fifo",
+      "seed": 21,
+      "warmup": 0,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 217,
+        "actions": "6940963bbdb94164b8da619ff9d63a5a76d00fcec7e7d6ebbed0794719bcaa50",
+        "hard_limit": 64
+      },
+      "trajectory": "bf4f77bc49a4219234a8d1a422f90367f504dbe80e7551b2dd62b6362962cd6b"
+    },
+    {
+      "case": "burst",
+      "policy": "fifo",
+      "seed": 21,
+      "warmup": 64,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 217,
+        "actions": "6940963bbdb94164b8da619ff9d63a5a76d00fcec7e7d6ebbed0794719bcaa50",
+        "hard_limit": 64
+      },
+      "trajectory": "bf4f77bc49a4219234a8d1a422f90367f504dbe80e7551b2dd62b6362962cd6b"
+    },
+    {
+      "case": "burst",
+      "policy": "fifo",
+      "seed": 77,
+      "warmup": 0,
+      "admitted": 201,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 201,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 211,
+        "actions": "e64609056c360c2e9044214edc113705f2e6a4588693693552f79d8e7958e4dc",
+        "hard_limit": 64
+      },
+      "trajectory": "c4c405f6af41a8c53f396d4bf359a040f9c4dee9c9e80956c8d21ca97a519931"
+    },
+    {
+      "case": "burst",
+      "policy": "fifo",
+      "seed": 77,
+      "warmup": 64,
+      "admitted": 201,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 201,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 211,
+        "actions": "e64609056c360c2e9044214edc113705f2e6a4588693693552f79d8e7958e4dc",
+        "hard_limit": 64
+      },
+      "trajectory": "c4c405f6af41a8c53f396d4bf359a040f9c4dee9c9e80956c8d21ca97a519931"
+    },
+    {
+      "case": "burst",
+      "policy": "spt",
+      "seed": 3,
+      "warmup": 0,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 215,
+        "actions": "a646cda521b24ab3172307553b576502986a6b91fafa4f5453093d423b73bcbb",
+        "hard_limit": 64
+      },
+      "trajectory": "bc1097f7a38d5a4b66154dafd349dbea3b49c25b05668bf4903795421fed65c0"
+    },
+    {
+      "case": "burst",
+      "policy": "spt",
+      "seed": 3,
+      "warmup": 64,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 3,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 215,
+        "actions": "a646cda521b24ab3172307553b576502986a6b91fafa4f5453093d423b73bcbb",
+        "hard_limit": 64
+      },
+      "trajectory": "bc1097f7a38d5a4b66154dafd349dbea3b49c25b05668bf4903795421fed65c0"
+    },
+    {
+      "case": "burst",
+      "policy": "spt",
+      "seed": 21,
+      "warmup": 0,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 217,
+        "actions": "6940963bbdb94164b8da619ff9d63a5a76d00fcec7e7d6ebbed0794719bcaa50",
+        "hard_limit": 64
+      },
+      "trajectory": "bf4f77bc49a4219234a8d1a422f90367f504dbe80e7551b2dd62b6362962cd6b"
+    },
+    {
+      "case": "burst",
+      "policy": "spt",
+      "seed": 21,
+      "warmup": 64,
+      "admitted": 206,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 21,
+        "jobs": 600,
+        "cursor": 206,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 217,
+        "actions": "6940963bbdb94164b8da619ff9d63a5a76d00fcec7e7d6ebbed0794719bcaa50",
+        "hard_limit": 64
+      },
+      "trajectory": "bf4f77bc49a4219234a8d1a422f90367f504dbe80e7551b2dd62b6362962cd6b"
+    },
+    {
+      "case": "burst",
+      "policy": "spt",
+      "seed": 77,
+      "warmup": 0,
+      "admitted": 201,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 201,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 211,
+        "actions": "e64609056c360c2e9044214edc113705f2e6a4588693693552f79d8e7958e4dc",
+        "hard_limit": 64
+      },
+      "trajectory": "c4c405f6af41a8c53f396d4bf359a040f9c4dee9c9e80956c8d21ca97a519931"
+    },
+    {
+      "case": "burst",
+      "policy": "spt",
+      "seed": 77,
+      "warmup": 64,
+      "admitted": 201,
+      "control": {
+        "schema": "native-stabilization-input-v1",
+        "case": "burst",
+        "seed": 77,
+        "jobs": 600,
+        "cursor": 201,
+        "tick": 256,
+        "blocked": 0,
+        "tight": 211,
+        "actions": "e64609056c360c2e9044214edc113705f2e6a4588693693552f79d8e7958e4dc",
+        "hard_limit": 64
+      },
+      "trajectory": "c4c405f6af41a8c53f396d4bf359a040f9c4dee9c9e80956c8d21ca97a519931"
+    }
+  ]
+}

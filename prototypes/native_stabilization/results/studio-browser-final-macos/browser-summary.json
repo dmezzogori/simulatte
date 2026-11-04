@@ -1,0 +1,65 @@
+{
+  "passed": true,
+  "seconds": 900.957,
+  "engines": [
+    "chromium",
+    "firefox",
+    "webkit"
+  ],
+  "observed": {
+    "2c3df644b45fa6f5e473c32f1fd10836": "succeeded",
+    "69016d36fe43df265ed93fb613ea5910": "succeeded",
+    "084ab3aa96fe5ee570927a49d88c5ee8": "succeeded",
+    "38d28c322925e89023bf9c901caafe49": "succeeded",
+    "aecf03ecaca6dc8056118b58479ae4c7": "succeeded",
+    "79120cab8e2c92990c4f4e8f238b9e56": "cancelled",
+    "cef8b3d00d57f004961c63bf5c62f952": "succeeded",
+    "ddd1e697ebd0ab72538b7b848e1956fb": "succeeded",
+    "7ac919a25fb91fa3703e3b1ce852314d": "failed",
+    "3f0c267794aa2b5884629854785397ca": "succeeded",
+    "ddacd2ff2227787a05db1a008a3c05b6": "succeeded",
+    "395d71f38a67466eca62ec127d21f06c": "succeeded",
+    "fb94a57d5ab6363becf14bd037b20101": "cancelled",
+    "704c0d7670d1512d7a91fc862ad9bf84": "succeeded",
+    "10679eb5bc4330b803cba4b897368bae": "succeeded",
+    "6cf949d794b6edb19bf3cc85a9f6f171": "succeeded",
+    "f682f476c588e40d438d21d4a083976c": "succeeded",
+    "c636ec063065ba31465087dd62691335": "failed",
+    "db5aa60bd5ad38c5a400d5da8af1fbf6": "succeeded",
+    "5467d27ff752f937cd3185b1325f2073": "cancelled",
+    "dd990af168b23061136082f2a750f3d0": "succeeded",
+    "a35e20885cec6038930a608c46ebe983": "succeeded",
+    "2a361860456b84c0f0c93df018fd17f0": "succeeded",
+    "b648c74c3eb0a118b203f1f1bb7a0877": "succeeded",
+    "a38e66f428a9993a6eed24654972e613": "succeeded",
+    "b13e6f5d2e9031d5421efa956a034c3b": "succeeded",
+    "ce1201d3f6a5234b315ff9d5135350b9": "failed",
+    "ef22b1c1b9e97abd91e157c862039ff0": "succeeded",
+    "0229ba0b225da7c8dc03a8900d75b7b1": "succeeded",
+    "abb8c6d4195aa14cf37ef544ebffdda5": "succeeded",
+    "cfd7d6187ae53d92376fd5e83bccaf85": "succeeded",
+    "ffa177488afa17b48ef2eadc73354ebc": "succeeded",
+    "adb81846b6160b49d9989c38f9549ffd": "succeeded"
+  },
+  "cancelled": [
+    "79120cab8e2c92990c4f4e8f238b9e56",
+    "fb94a57d5ab6363becf14bd037b20101",
+    "5467d27ff752f937cd3185b1325f2073"
+  ],
+  "reloads": 9,
+  "reconnect_actions": 29,
+  "seeks": 13,
+  "snapshots": 58,
+  "errors": [],
+  "latest": {
+    "key": {
+      "request_id": "1505b425eeca3a5adb3c0e35a0282e061c5e3712b8304462614eb84ec32ed414",
+      "attempt_id": "adb81846b6160b49d9989c38f9549ffd",
+      "generation": 42
+    },
+    "revision": 46,
+    "status": "succeeded",
+    "details": {}
+  },
+  "results": 20
+}

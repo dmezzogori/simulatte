@@ -1,0 +1,2356 @@
+{
+  "passed": true,
+  "statuses": {
+    "succeeded": 30,
+    "cancelled": 4,
+    "failed": 4
+  },
+  "rows": [
+    {
+      "attempt": "71650b81a6ccf78fa5556b9c17e91f9f",
+      "request": "52045b76e340558343a18c682178193f260a5b244d516c100ca2c903bea98806",
+      "generation": 10,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 512,
+        "events": 46084,
+        "forgotten": 2730,
+        "job_capacity": 64,
+        "native_bytes": 12476,
+        "op_capacity": 128,
+        "retained_jobs": 36,
+        "retained_operations": 108,
+        "state_capacity": 256
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "440f7b5843b313d45df05caee7caea3c2e3b80644b1d1dd6453d116358fdfc9d",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "38fb4f8db71bb45468c031e687c04ceece9811d806fff14ad493a0ab34ffec1d"
+    },
+    {
+      "attempt": "cfb5fe32763547f4183a5b01bffdd56d",
+      "request": "fab653e29e101d529ef5f08e26d34062e24634688818995572d229f3cf28db65",
+      "generation": 11,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+        "admitted": 6344,
+        "blocked": 1848,
+        "case": "mixed",
+        "completed": 6284,
+        "cursor": 6344,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 60,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 461.3082856207935,
+        "shopfloor/makespan": 40.486594143613736,
+        "shopfloor/tardiness": 461.3083755929839,
+        "shopfloor/tardy_fraction": 0.9995092425977425,
+        "shopfloor/throughput": 1.5297797797797799,
+        "shopfloor/total_queue_time": 3.051455913626624,
+        "shopfloor/utilization": 0.48126320765209674
+      },
+      "storage": {
+        "admitted": 6344,
+        "calendar_capacity": 32,
+        "completed": 6284,
+        "completion_capacity": 0,
+        "events": 120242,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911108,
+        "op_capacity": 32768,
+        "retained_jobs": 6344,
+        "retained_operations": 22159,
+        "state_capacity": 0
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "cb42e360e17c28d3985787f932c7bd05c93062099c4181d0f5bed4c94436511f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 461.3082856207935,
+          "shopfloor/makespan": 40.486594143613736,
+          "shopfloor/tardiness": 461.3083755929839,
+          "shopfloor/tardy_fraction": 0.9995092425977425,
+          "shopfloor/throughput": 1.5297797797797799,
+          "shopfloor/total_queue_time": 3.051455913626624,
+          "shopfloor/utilization": 0.48126320765209674
+        }
+      },
+      "trace_sha256": "4ff443ef7bd81177122d12ac0990679b8ba32d25a0c2ca2c956cd77f7509a007"
+    },
+    {
+      "attempt": "b58140c7c1acab0988dcb32effb014c4",
+      "request": "8f9a2d98bffb5c2e980f5e3115bf0771c115a92567948786954d29f751ca05f4",
+      "generation": 12,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 512,
+        "events": 46084,
+        "forgotten": 2730,
+        "job_capacity": 64,
+        "native_bytes": 12476,
+        "op_capacity": 128,
+        "retained_jobs": 36,
+        "retained_operations": 108,
+        "state_capacity": 256
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "440f7b5843b313d45df05caee7caea3c2e3b80644b1d1dd6453d116358fdfc9d",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "f02be5936a746428221cce8d8c7b94d616190990b5d6046eb3afd2444fd03240"
+    },
+    {
+      "attempt": "a68a125f68a9c5fbbc66c9af142d34c3",
+      "request": "08725e3a2f87970d5adb115b2ed2d09e3215f71f7287376594eaf743bfaf858e",
+      "generation": 13,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 0,
+        "events": 126960,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911060,
+        "op_capacity": 32768,
+        "retained_jobs": 8192,
+        "retained_operations": 24576,
+        "state_capacity": 0
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "1a9ebcfba6b0d312a854df5e63faec43b41da34969ca1c27aae6091793204aa4",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "6b427067a6955b8e8b00d46688d82b92687c75d8eb2a68f50104e096d5e027cd"
+    },
+    {
+      "attempt": "06e22f79f5fef23b36a0d41c557eef7c",
+      "request": "5c7cddaa2a1e4bc9f607f0951b4a4b921f443438b22dcf98e59d0c5df8c8a78e",
+      "generation": 14,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "bounded"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+        "admitted": 6765,
+        "blocked": 1427,
+        "case": "mixed",
+        "completed": 6704,
+        "cursor": 6765,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 61,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 338.22374597329014,
+        "shopfloor/makespan": 37.45261543179608,
+        "shopfloor/tardiness": 338.27409878813904,
+        "shopfloor/tardy_fraction": 0.9875747814081914,
+        "shopfloor/throughput": 1.6313813813813813,
+        "shopfloor/total_queue_time": 2.6779414020554517,
+        "shopfloor/utilization": 0.514771716160604
+      },
+      "storage": {
+        "admitted": 6765,
+        "calendar_capacity": 32,
+        "completed": 6704,
+        "completion_capacity": 2048,
+        "events": 128383,
+        "forgotten": 6704,
+        "job_capacity": 64,
+        "native_bytes": 20460,
+        "op_capacity": 256,
+        "retained_jobs": 61,
+        "retained_operations": 215,
+        "state_capacity": 512
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "0f86d2fe7103416e247fa113079e00e7bf92626b3f1dd8e546477577fe3d9bb9",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 338.22374597329014,
+          "shopfloor/makespan": 37.45261543179608,
+          "shopfloor/tardiness": 338.27409878813904,
+          "shopfloor/tardy_fraction": 0.9875747814081914,
+          "shopfloor/throughput": 1.6313813813813813,
+          "shopfloor/total_queue_time": 2.6779414020554517,
+          "shopfloor/utilization": 0.514771716160604
+        }
+      },
+      "trace_sha256": "dccafeb6068662ca4886c34c9b22b15142e68161c50be975deb6af1a9a381b76"
+    },
+    {
+      "attempt": "504d36787f79877374819fbbf2ffb767",
+      "request": "375b5c2cc1fd099c9523f2d695b7bdaa594062c34a9982396f7835ac49a73c23",
+      "generation": 15,
+      "status": "cancelled",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 2
+    },
+    {
+      "attempt": "df026e0ea264cdc0ea9e4e97b9aa9254",
+      "request": "4ed90724311c2daadf1c96a5ac2ab9524b8ba63fd2a41a3ea285cb34e54d98d6",
+      "generation": 16,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 512,
+        "events": 126960,
+        "forgotten": 8190,
+        "job_capacity": 16,
+        "native_bytes": 4748,
+        "op_capacity": 16,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "state_capacity": 256
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "a5d11bbd713d1034019b6d3035bc569f4b4b9bb3130a7621ea291f08b75da40f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "2dd4f233cc6676609fd655f9c254ea2f41848184115f10fb06d10be855a0e37b"
+    },
+    {
+      "attempt": "8411bb81bee51506449f166010c1e2df",
+      "request": "d95ec862bc358b1550992e299ed9354aa6d185a6b34f7905b76b52f9e96ae293",
+      "generation": 17,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+        "admitted": 6344,
+        "blocked": 1848,
+        "case": "mixed",
+        "completed": 6284,
+        "cursor": 6344,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 60,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 461.3082856207935,
+        "shopfloor/makespan": 40.486594143613736,
+        "shopfloor/tardiness": 461.3083755929839,
+        "shopfloor/tardy_fraction": 0.9995092425977425,
+        "shopfloor/throughput": 1.5297797797797799,
+        "shopfloor/total_queue_time": 3.051455913626624,
+        "shopfloor/utilization": 0.48126320765209674
+      },
+      "storage": {
+        "admitted": 6344,
+        "calendar_capacity": 32,
+        "completed": 6284,
+        "completion_capacity": 0,
+        "events": 120242,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911108,
+        "op_capacity": 32768,
+        "retained_jobs": 6344,
+        "retained_operations": 22159,
+        "state_capacity": 0
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "cb42e360e17c28d3985787f932c7bd05c93062099c4181d0f5bed4c94436511f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 461.3082856207935,
+          "shopfloor/makespan": 40.486594143613736,
+          "shopfloor/tardiness": 461.3083755929839,
+          "shopfloor/tardy_fraction": 0.9995092425977425,
+          "shopfloor/throughput": 1.5297797797797799,
+          "shopfloor/total_queue_time": 3.051455913626624,
+          "shopfloor/utilization": 0.48126320765209674
+        }
+      },
+      "trace_sha256": "4afa15b4955a474c4439689b3cf3b6871586236162f41f46e686aa7c8211d9a4"
+    },
+    {
+      "attempt": "6b205a4e1d24202c5b046954d2ed8eee",
+      "request": "6ce9113da636937867afa0ce4378fb22b6c416f9f06dd5105d0f360f9688d7e7",
+      "generation": 18,
+      "status": "failed",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": true,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2
+    },
+    {
+      "attempt": "90125b2ebac14efa91a1b962f7f96d8d",
+      "request": "c711cc06c23e1c56b95247a8f66a176d22b56ef7f53ad39940e82874c2253905",
+      "generation": 19,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 0,
+        "events": 126960,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911060,
+        "op_capacity": 32768,
+        "retained_jobs": 8192,
+        "retained_operations": 24576,
+        "state_capacity": 0
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "1a9ebcfba6b0d312a854df5e63faec43b41da34969ca1c27aae6091793204aa4",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "2b23409addd9aca8a824588670b6d017011719afd5ba71cc233184cec48b6ce7"
+    },
+    {
+      "attempt": "e197b974ef770a625838681d0ad18be4",
+      "request": "805bce03c199f95df03bb001886a38ec62904bfd5661b440329fb98f903769c1",
+      "generation": 20,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "bounded"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+        "admitted": 6765,
+        "blocked": 1427,
+        "case": "mixed",
+        "completed": 6704,
+        "cursor": 6765,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 61,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 338.22374597329014,
+        "shopfloor/makespan": 37.45261543179608,
+        "shopfloor/tardiness": 338.27409878813904,
+        "shopfloor/tardy_fraction": 0.9875747814081914,
+        "shopfloor/throughput": 1.6313813813813813,
+        "shopfloor/total_queue_time": 2.6779414020554517,
+        "shopfloor/utilization": 0.514771716160604
+      },
+      "storage": {
+        "admitted": 6765,
+        "calendar_capacity": 32,
+        "completed": 6704,
+        "completion_capacity": 2048,
+        "events": 128383,
+        "forgotten": 6704,
+        "job_capacity": 64,
+        "native_bytes": 20460,
+        "op_capacity": 256,
+        "retained_jobs": 61,
+        "retained_operations": 215,
+        "state_capacity": 512
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "0f86d2fe7103416e247fa113079e00e7bf92626b3f1dd8e546477577fe3d9bb9",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 338.22374597329014,
+          "shopfloor/makespan": 37.45261543179608,
+          "shopfloor/tardiness": 338.27409878813904,
+          "shopfloor/tardy_fraction": 0.9875747814081914,
+          "shopfloor/throughput": 1.6313813813813813,
+          "shopfloor/total_queue_time": 2.6779414020554517,
+          "shopfloor/utilization": 0.514771716160604
+        }
+      },
+      "trace_sha256": "51160c9efdf7203ac3560c5f0fecf7ec2524a8bacc49956af15a91c0252e7e16"
+    },
+    {
+      "attempt": "60472767e5785c1381ccf6bf284b0e4b",
+      "request": "3288d76a4b0cc633b5d389a7c6f11e5b29139bb4552343f69f704e4d87626c86",
+      "generation": 21,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 0,
+        "events": 46084,
+        "forgotten": 0,
+        "job_capacity": 4096,
+        "native_bytes": 956692,
+        "op_capacity": 16384,
+        "retained_jobs": 2766,
+        "retained_operations": 8298,
+        "state_capacity": 0
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "8bda28b9ecf27eef45018e958e8c659a8e40617f7a1c63dd1a50ac997121a273",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "4de159d218c40eff6958304a3e7bb629de012097ec31e5dd2bb8183fe1ece51d"
+    },
+    {
+      "attempt": "7793e15ebff65bc0fff7c604d5385c05",
+      "request": "b17bd18defb1ff0f71cc0f03288019167b00bfafec64d9c5c08e6234889c27b9",
+      "generation": 22,
+      "status": "cancelled",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 0
+    },
+    {
+      "attempt": "e8f1dcd94ea2206744f6fd4431495e48",
+      "request": "4c8dde29b1e472615277c36c775c4c6c933dcf91ab68002f45a3f25d101ba63b",
+      "generation": 23,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+        "admitted": 6344,
+        "blocked": 1848,
+        "case": "mixed",
+        "completed": 6284,
+        "cursor": 6344,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 60,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 461.3082856207935,
+        "shopfloor/makespan": 40.486594143613736,
+        "shopfloor/tardiness": 461.3083755929839,
+        "shopfloor/tardy_fraction": 0.9995092425977425,
+        "shopfloor/throughput": 1.5297797797797799,
+        "shopfloor/total_queue_time": 3.051455913626624,
+        "shopfloor/utilization": 0.48126320765209674
+      },
+      "storage": {
+        "admitted": 6344,
+        "calendar_capacity": 32,
+        "completed": 6284,
+        "completion_capacity": 0,
+        "events": 120242,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911108,
+        "op_capacity": 32768,
+        "retained_jobs": 6344,
+        "retained_operations": 22159,
+        "state_capacity": 0
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "cb42e360e17c28d3985787f932c7bd05c93062099c4181d0f5bed4c94436511f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 461.3082856207935,
+          "shopfloor/makespan": 40.486594143613736,
+          "shopfloor/tardiness": 461.3083755929839,
+          "shopfloor/tardy_fraction": 0.9995092425977425,
+          "shopfloor/throughput": 1.5297797797797799,
+          "shopfloor/total_queue_time": 3.051455913626624,
+          "shopfloor/utilization": 0.48126320765209674
+        }
+      },
+      "trace_sha256": "58d050cfc3b57a6e2a07d9d91802355aafdc28e69098ca7c17e098dcd2964dab"
+    },
+    {
+      "attempt": "97ebd46747316eca92fbeaddc14c8431",
+      "request": "ba4d3b042afa11bb81736a2d5482ec1d5a5b3fa745559d6ff0224ab25a974557",
+      "generation": 24,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 512,
+        "events": 46084,
+        "forgotten": 2730,
+        "job_capacity": 64,
+        "native_bytes": 12476,
+        "op_capacity": 128,
+        "retained_jobs": 36,
+        "retained_operations": 108,
+        "state_capacity": 256
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "440f7b5843b313d45df05caee7caea3c2e3b80644b1d1dd6453d116358fdfc9d",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "1347ef4e32ba5d71fdb3546c44ef6b590379bf24a89227336251ed8076e4e3a8"
+    },
+    {
+      "attempt": "bdd271ef317ea53e0f18255f50e284dc",
+      "request": "5694b69f520f36bbb3a80e908010c45f6c8aa679b193eccb89eb06b07baf7609",
+      "generation": 25,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 0,
+        "events": 126960,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911060,
+        "op_capacity": 32768,
+        "retained_jobs": 8192,
+        "retained_operations": 24576,
+        "state_capacity": 0
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "1a9ebcfba6b0d312a854df5e63faec43b41da34969ca1c27aae6091793204aa4",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "fbcf70584676d757b9e97f7fd3e610f9397c7d02694f96c6b9162927e3dd1688"
+    },
+    {
+      "attempt": "9758036510ce08708645fc15bb596a1b",
+      "request": "0aef9d3330648a5d692cdc0f62f9a0a225c4d18aa25dee0b49c37a88ad6309c0",
+      "generation": 26,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "bounded"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+        "admitted": 6765,
+        "blocked": 1427,
+        "case": "mixed",
+        "completed": 6704,
+        "cursor": 6765,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 61,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 338.22374597329014,
+        "shopfloor/makespan": 37.45261543179608,
+        "shopfloor/tardiness": 338.27409878813904,
+        "shopfloor/tardy_fraction": 0.9875747814081914,
+        "shopfloor/throughput": 1.6313813813813813,
+        "shopfloor/total_queue_time": 2.6779414020554517,
+        "shopfloor/utilization": 0.514771716160604
+      },
+      "storage": {
+        "admitted": 6765,
+        "calendar_capacity": 32,
+        "completed": 6704,
+        "completion_capacity": 2048,
+        "events": 128383,
+        "forgotten": 6704,
+        "job_capacity": 64,
+        "native_bytes": 20460,
+        "op_capacity": 256,
+        "retained_jobs": 61,
+        "retained_operations": 215,
+        "state_capacity": 512
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "0f86d2fe7103416e247fa113079e00e7bf92626b3f1dd8e546477577fe3d9bb9",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 338.22374597329014,
+          "shopfloor/makespan": 37.45261543179608,
+          "shopfloor/tardiness": 338.27409878813904,
+          "shopfloor/tardy_fraction": 0.9875747814081914,
+          "shopfloor/throughput": 1.6313813813813813,
+          "shopfloor/total_queue_time": 2.6779414020554517,
+          "shopfloor/utilization": 0.514771716160604
+        }
+      },
+      "trace_sha256": "35457991a5e4e15ef1af121291c0021b52726a7b563cc161383c9109767b2a0e"
+    },
+    {
+      "attempt": "64aad259cbbfb8843cdfbc674aad177c",
+      "request": "8b93f3bb78e187054497e03d3d5b6bedd41836c6116479465f88a8c239f28576",
+      "generation": 27,
+      "status": "failed",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": true,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 2
+    },
+    {
+      "attempt": "49987cf89b9281636bfdc60457b7ad2a",
+      "request": "cc454f3042e31b19461780591ca6a6f6052e082599f30153de4c560377010c03",
+      "generation": 28,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 512,
+        "events": 126960,
+        "forgotten": 8190,
+        "job_capacity": 16,
+        "native_bytes": 4748,
+        "op_capacity": 16,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "state_capacity": 256
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "a5d11bbd713d1034019b6d3035bc569f4b4b9bb3130a7621ea291f08b75da40f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "7742e942e82a409e57ceaa11f9da28a24acc143ebf22bd5c2a115ac65a55d844"
+    },
+    {
+      "attempt": "0b84b4f5bf6ae6aead004e04287e3f7d",
+      "request": "cfbd5590ec59f99f6eef685ba8f03b581101e9e436421c3da08e1a2aae4f493e",
+      "generation": 29,
+      "status": "cancelled",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1
+    },
+    {
+      "attempt": "aef33def75d43b2399c57497a3434506",
+      "request": "ce12a54d635d74978d0332b94e6a2c8d0dd2e3cf99eb8eaa760614a9d6c7744a",
+      "generation": 30,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 512,
+        "events": 46084,
+        "forgotten": 2730,
+        "job_capacity": 64,
+        "native_bytes": 12476,
+        "op_capacity": 128,
+        "retained_jobs": 36,
+        "retained_operations": 108,
+        "state_capacity": 256
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "440f7b5843b313d45df05caee7caea3c2e3b80644b1d1dd6453d116358fdfc9d",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "cfc08b8413b944edb3da209700e673d8b9c8ccd526cbf43c58823cbb84c25b5f"
+    },
+    {
+      "attempt": "4c69ae13001f9884366e8ab03508b85f",
+      "request": "4b60d479f8ffb878008003cfa5a7ff87e309186ffdbdeff02d6484891e9060dc",
+      "generation": 31,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 0,
+        "events": 126960,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911060,
+        "op_capacity": 32768,
+        "retained_jobs": 8192,
+        "retained_operations": 24576,
+        "state_capacity": 0
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "1a9ebcfba6b0d312a854df5e63faec43b41da34969ca1c27aae6091793204aa4",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "44eb5fe3f8092a159b98990c040c8bcffe0bb647d6b43510720ac75840cff573"
+    },
+    {
+      "attempt": "be76bfcd35b32ea69bae0c6b160ce2f6",
+      "request": "a9474c8b196a5bdc2fcf776cbfd158163028b7fce1ff42a0ff009342622aa6f1",
+      "generation": 32,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "bounded"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+        "admitted": 6765,
+        "blocked": 1427,
+        "case": "mixed",
+        "completed": 6704,
+        "cursor": 6765,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 61,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 338.22374597329014,
+        "shopfloor/makespan": 37.45261543179608,
+        "shopfloor/tardiness": 338.27409878813904,
+        "shopfloor/tardy_fraction": 0.9875747814081914,
+        "shopfloor/throughput": 1.6313813813813813,
+        "shopfloor/total_queue_time": 2.6779414020554517,
+        "shopfloor/utilization": 0.514771716160604
+      },
+      "storage": {
+        "admitted": 6765,
+        "calendar_capacity": 32,
+        "completed": 6704,
+        "completion_capacity": 2048,
+        "events": 128383,
+        "forgotten": 6704,
+        "job_capacity": 64,
+        "native_bytes": 20460,
+        "op_capacity": 256,
+        "retained_jobs": 61,
+        "retained_operations": 215,
+        "state_capacity": 512
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "0f86d2fe7103416e247fa113079e00e7bf92626b3f1dd8e546477577fe3d9bb9",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 338.22374597329014,
+          "shopfloor/makespan": 37.45261543179608,
+          "shopfloor/tardiness": 338.27409878813904,
+          "shopfloor/tardy_fraction": 0.9875747814081914,
+          "shopfloor/throughput": 1.6313813813813813,
+          "shopfloor/total_queue_time": 2.6779414020554517,
+          "shopfloor/utilization": 0.514771716160604
+        }
+      },
+      "trace_sha256": "78bd92157c71d878b80052f25a349aa69bbb8b084311409a72bbe79665ce32af"
+    },
+    {
+      "attempt": "1a3bf9d171a225e9c42b155132fdecc5",
+      "request": "2bda3b6512a4912adf175603bc69aed0075375498fa423d3677d1c3f1c4b7780",
+      "generation": 33,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 0,
+        "events": 46084,
+        "forgotten": 0,
+        "job_capacity": 4096,
+        "native_bytes": 956692,
+        "op_capacity": 16384,
+        "retained_jobs": 2766,
+        "retained_operations": 8298,
+        "state_capacity": 0
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "8bda28b9ecf27eef45018e958e8c659a8e40617f7a1c63dd1a50ac997121a273",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "45ab3a341fa0a421ce15a6d3f391789bd4c514d8a7fc616aa2db4d14865e1af1"
+    },
+    {
+      "attempt": "8f6fc8a6af3a3c45715bba6e37459bb1",
+      "request": "79569f6f196850dc8448c0d334465a925c9be930f247ec4303241087b4ab803c",
+      "generation": 34,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 512,
+        "events": 126960,
+        "forgotten": 8190,
+        "job_capacity": 16,
+        "native_bytes": 4748,
+        "op_capacity": 16,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "state_capacity": 256
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "a5d11bbd713d1034019b6d3035bc569f4b4b9bb3130a7621ea291f08b75da40f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "7136328984a5ec3c12735080a62ce3ff3d1c26a9cb9b9205aca20243bf278067"
+    },
+    {
+      "attempt": "7f8766c515df901511a3f88d719dabb0",
+      "request": "d617928e7440460611e4b1ef05210c317ffd150d9694756e519da3b653fb7d2c",
+      "generation": 35,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+        "admitted": 6344,
+        "blocked": 1848,
+        "case": "mixed",
+        "completed": 6284,
+        "cursor": 6344,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 60,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 461.3082856207935,
+        "shopfloor/makespan": 40.486594143613736,
+        "shopfloor/tardiness": 461.3083755929839,
+        "shopfloor/tardy_fraction": 0.9995092425977425,
+        "shopfloor/throughput": 1.5297797797797799,
+        "shopfloor/total_queue_time": 3.051455913626624,
+        "shopfloor/utilization": 0.48126320765209674
+      },
+      "storage": {
+        "admitted": 6344,
+        "calendar_capacity": 32,
+        "completed": 6284,
+        "completion_capacity": 0,
+        "events": 120242,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911108,
+        "op_capacity": 32768,
+        "retained_jobs": 6344,
+        "retained_operations": 22159,
+        "state_capacity": 0
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "cb42e360e17c28d3985787f932c7bd05c93062099c4181d0f5bed4c94436511f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 461.3082856207935,
+          "shopfloor/makespan": 40.486594143613736,
+          "shopfloor/tardiness": 461.3083755929839,
+          "shopfloor/tardy_fraction": 0.9995092425977425,
+          "shopfloor/throughput": 1.5297797797797799,
+          "shopfloor/total_queue_time": 3.051455913626624,
+          "shopfloor/utilization": 0.48126320765209674
+        }
+      },
+      "trace_sha256": "5e2b7a7efe1a91c5457ec3ad4ce243d922ca4c8029413df86cc525ba909275f1"
+    },
+    {
+      "attempt": "b0da516bd88c050c8a61446c38d52d67",
+      "request": "561946db9c8b546039ed8be3fe38ab0b5e2a0f7127d306b947d37bd07404bf0c",
+      "generation": 36,
+      "status": "failed",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": true,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2
+    },
+    {
+      "attempt": "23f3d6f599bc16c0c79e1611e3ed2752",
+      "request": "0783967197efa63c33907d51d2e374e9a8e0af7bc93ccc2590b5c2907e6996c2",
+      "generation": 37,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 0,
+        "events": 126960,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911060,
+        "op_capacity": 32768,
+        "retained_jobs": 8192,
+        "retained_operations": 24576,
+        "state_capacity": 0
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "1a9ebcfba6b0d312a854df5e63faec43b41da34969ca1c27aae6091793204aa4",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "b28c3b891023d1ac876c138d511582ec37e326fe6f98f723d96dc354a0e86494"
+    },
+    {
+      "attempt": "deeb7c7f6f3a40563d6ab9e697b1d5c0",
+      "request": "322695a9ef22fb5ad2c39e0d836773c08f95527a3bf78d61752f14b05285b384",
+      "generation": 38,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "bounded"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+        "admitted": 6765,
+        "blocked": 1427,
+        "case": "mixed",
+        "completed": 6704,
+        "cursor": 6765,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 61,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 338.22374597329014,
+        "shopfloor/makespan": 37.45261543179608,
+        "shopfloor/tardiness": 338.27409878813904,
+        "shopfloor/tardy_fraction": 0.9875747814081914,
+        "shopfloor/throughput": 1.6313813813813813,
+        "shopfloor/total_queue_time": 2.6779414020554517,
+        "shopfloor/utilization": 0.514771716160604
+      },
+      "storage": {
+        "admitted": 6765,
+        "calendar_capacity": 32,
+        "completed": 6704,
+        "completion_capacity": 2048,
+        "events": 128383,
+        "forgotten": 6704,
+        "job_capacity": 64,
+        "native_bytes": 20460,
+        "op_capacity": 256,
+        "retained_jobs": 61,
+        "retained_operations": 215,
+        "state_capacity": 512
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "0f86d2fe7103416e247fa113079e00e7bf92626b3f1dd8e546477577fe3d9bb9",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 338.22374597329014,
+          "shopfloor/makespan": 37.45261543179608,
+          "shopfloor/tardiness": 338.27409878813904,
+          "shopfloor/tardy_fraction": 0.9875747814081914,
+          "shopfloor/throughput": 1.6313813813813813,
+          "shopfloor/total_queue_time": 2.6779414020554517,
+          "shopfloor/utilization": 0.514771716160604
+        }
+      },
+      "trace_sha256": "d5b2df3d4c084763f5fbf252b88651198179f813e7a828ba53b527f3b9a5c6ba"
+    },
+    {
+      "attempt": "84fe77307b49da152fe59d032da72edb",
+      "request": "ef37d1035a23cec29107c5ffe2632206b12544b35fd07b9fa7b9aa2ebdf63ad0",
+      "generation": 39,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 0,
+        "events": 46084,
+        "forgotten": 0,
+        "job_capacity": 4096,
+        "native_bytes": 956692,
+        "op_capacity": 16384,
+        "retained_jobs": 2766,
+        "retained_operations": 8298,
+        "state_capacity": 0
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "8bda28b9ecf27eef45018e958e8c659a8e40617f7a1c63dd1a50ac997121a273",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "a942ab3102b779d169945b9caa0f3eaf7361f866c2d77a8284772a03f8455c3f"
+    },
+    {
+      "attempt": "42b2a979f8c3d4752b1e5e17c851367e",
+      "request": "f13166ac1c047b47af95ffcebd2a4c0ce264ae7df82fffdc838a47016c26f938",
+      "generation": 40,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 512,
+        "events": 126960,
+        "forgotten": 8190,
+        "job_capacity": 16,
+        "native_bytes": 4748,
+        "op_capacity": 16,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "state_capacity": 256
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "a5d11bbd713d1034019b6d3035bc569f4b4b9bb3130a7621ea291f08b75da40f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "f53cf944b0e5093136b406b193af55b431d5be1dec640386aa58ce418e66b409"
+    },
+    {
+      "attempt": "e8358b3b417c8ad8580d491e2afddf22",
+      "request": "71b82f7f86ea16f1f0b9e5d63003b17ebb63ab1f348eedcc004d5a30c177ae23",
+      "generation": 41,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+        "admitted": 6344,
+        "blocked": 1848,
+        "case": "mixed",
+        "completed": 6284,
+        "cursor": 6344,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 60,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 461.3082856207935,
+        "shopfloor/makespan": 40.486594143613736,
+        "shopfloor/tardiness": 461.3083755929839,
+        "shopfloor/tardy_fraction": 0.9995092425977425,
+        "shopfloor/throughput": 1.5297797797797799,
+        "shopfloor/total_queue_time": 3.051455913626624,
+        "shopfloor/utilization": 0.48126320765209674
+      },
+      "storage": {
+        "admitted": 6344,
+        "calendar_capacity": 32,
+        "completed": 6284,
+        "completion_capacity": 0,
+        "events": 120242,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911108,
+        "op_capacity": 32768,
+        "retained_jobs": 6344,
+        "retained_operations": 22159,
+        "state_capacity": 0
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "cb42e360e17c28d3985787f932c7bd05c93062099c4181d0f5bed4c94436511f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 461.3082856207935,
+          "shopfloor/makespan": 40.486594143613736,
+          "shopfloor/tardiness": 461.3083755929839,
+          "shopfloor/tardy_fraction": 0.9995092425977425,
+          "shopfloor/throughput": 1.5297797797797799,
+          "shopfloor/total_queue_time": 3.051455913626624,
+          "shopfloor/utilization": 0.48126320765209674
+        }
+      },
+      "trace_sha256": "7f21a655b6fd9d13ec60e9be8ece8d09d2fcf8090384d51bcae2d54279c09210"
+    },
+    {
+      "attempt": "7fdde17cca02dbfdb8bafc06fd7be4de",
+      "request": "4d86051040ffcfb4b7781a7f4ef1145f491ed8c59cd3604abe9fdb39f7e55d87",
+      "generation": 42,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 2,
+      "control": {
+        "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+        "admitted": 2766,
+        "blocked": 0,
+        "case": "burst",
+        "completed": 2730,
+        "cursor": 2766,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 36,
+        "peak": 37,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2378575790,
+        "tick": 4096,
+        "tight": 3733
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 8.0,
+        "shopfloor/lateness": 1387.3390578078079,
+        "shopfloor/makespan": 50.872841591591595,
+        "shopfloor/tardiness": 1387.3390578078079,
+        "shopfloor/tardy_fraction": 1.0,
+        "shopfloor/throughput": 0.6666666666666666,
+        "shopfloor/total_queue_time": 9.249155405405405,
+        "shopfloor/utilization": 0.30551384718051383
+      },
+      "storage": {
+        "admitted": 2766,
+        "calendar_capacity": 32,
+        "completed": 2730,
+        "completion_capacity": 512,
+        "events": 46084,
+        "forgotten": 2730,
+        "job_capacity": 64,
+        "native_bytes": 12476,
+        "op_capacity": 128,
+        "retained_jobs": 36,
+        "retained_operations": 108,
+        "state_capacity": 256
+      },
+      "samples": 4096,
+      "fingerprint": {
+        "digest": "440f7b5843b313d45df05caee7caea3c2e3b80644b1d1dd6453d116358fdfc9d",
+        "kpis": {
+          "shopfloor/jobs_in_system": 8.0,
+          "shopfloor/lateness": 1387.3390578078079,
+          "shopfloor/makespan": 50.872841591591595,
+          "shopfloor/tardiness": 1387.3390578078079,
+          "shopfloor/tardy_fraction": 1.0,
+          "shopfloor/throughput": 0.6666666666666666,
+          "shopfloor/total_queue_time": 9.249155405405405,
+          "shopfloor/utilization": 0.30551384718051383
+        }
+      },
+      "trace_sha256": "4de735ba06731c90a4f74c505127e97be0aaf924e83479a24cb5d657057769b6"
+    },
+    {
+      "attempt": "5ba6f7d0d92cc26efc3341b600a1e049",
+      "request": "709d1253da97fab314adecf1984d991b3c1e529e884a1acfe606b851a3fb5841",
+      "generation": 43,
+      "status": "cancelled",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 0
+    },
+    {
+      "attempt": "626add0fdf172f468a9c01297824a566",
+      "request": "a967415710e5c2a5f26225d2b9f89651216285a92b6620b27a5bc960ebd8b504",
+      "generation": 44,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "bounded"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+        "admitted": 6765,
+        "blocked": 1427,
+        "case": "mixed",
+        "completed": 6704,
+        "cursor": 6765,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 61,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 338.22374597329014,
+        "shopfloor/makespan": 37.45261543179608,
+        "shopfloor/tardiness": 338.27409878813904,
+        "shopfloor/tardy_fraction": 0.9875747814081914,
+        "shopfloor/throughput": 1.6313813813813813,
+        "shopfloor/total_queue_time": 2.6779414020554517,
+        "shopfloor/utilization": 0.514771716160604
+      },
+      "storage": {
+        "admitted": 6765,
+        "calendar_capacity": 32,
+        "completed": 6704,
+        "completion_capacity": 2048,
+        "events": 128383,
+        "forgotten": 6704,
+        "job_capacity": 64,
+        "native_bytes": 20460,
+        "op_capacity": 256,
+        "retained_jobs": 61,
+        "retained_operations": 215,
+        "state_capacity": 512
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "0f86d2fe7103416e247fa113079e00e7bf92626b3f1dd8e546477577fe3d9bb9",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 338.22374597329014,
+          "shopfloor/makespan": 37.45261543179608,
+          "shopfloor/tardiness": 338.27409878813904,
+          "shopfloor/tardy_fraction": 0.9875747814081914,
+          "shopfloor/throughput": 1.6313813813813813,
+          "shopfloor/total_queue_time": 2.6779414020554517,
+          "shopfloor/utilization": 0.514771716160604
+        }
+      },
+      "trace_sha256": "34484732ea57c9538680588971805d4e655d3b19f10c45aa5e09e883ba9b02ce"
+    },
+    {
+      "attempt": "0ee624ed21ed4a7380683e66a0fcf547",
+      "request": "d304f85930298df2aee6b2905a0d987994a5b45fe9d610d13f8922784a6476de",
+      "generation": 45,
+      "status": "failed",
+      "parameters": {
+        "budget": 4096,
+        "case": "burst",
+        "engine": "native",
+        "fault": true,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "spt",
+        "retention": "full"
+      },
+      "seed": 2
+    },
+    {
+      "attempt": "4c5fb11d70d6c259e00816afb2dc3842",
+      "request": "3a039ca1b0343873c581da33dcb7dafd0b8eb84676005de853bb15dd57d6dff1",
+      "generation": 46,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 257,
+        "case": "flow",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "bounded"
+      },
+      "seed": 0,
+      "control": {
+        "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+        "admitted": 8192,
+        "blocked": 0,
+        "case": "flow",
+        "completed": 8190,
+        "cursor": 8192,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 2,
+        "peak": 4,
+        "schema": "native-stabilization-input-v1",
+        "seed": 2563285475,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.5,
+        "shopfloor/lateness": -11.784284284284285,
+        "shopfloor/makespan": 1.75,
+        "shopfloor/tardiness": 0.0,
+        "shopfloor/tardy_fraction": 0.0,
+        "shopfloor/throughput": 2.0,
+        "shopfloor/total_queue_time": 0.0,
+        "shopfloor/utilization": 0.5833333333333334
+      },
+      "storage": {
+        "admitted": 8192,
+        "calendar_capacity": 32,
+        "completed": 8190,
+        "completion_capacity": 512,
+        "events": 126960,
+        "forgotten": 8190,
+        "job_capacity": 16,
+        "native_bytes": 4748,
+        "op_capacity": 16,
+        "retained_jobs": 2,
+        "retained_operations": 6,
+        "state_capacity": 256
+      },
+      "samples": 257,
+      "fingerprint": {
+        "digest": "a5d11bbd713d1034019b6d3035bc569f4b4b9bb3130a7621ea291f08b75da40f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 3.5,
+          "shopfloor/lateness": -11.784284284284285,
+          "shopfloor/makespan": 1.75,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 2.0,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 0.5833333333333334
+        }
+      },
+      "trace_sha256": "22777300ba3eaa025503e12b47644df4cd1c498a72511778f897a06c4c99fd1d"
+    },
+    {
+      "attempt": "ef2e11ade444a2f4ee9ebe0b300f8532",
+      "request": "4cfdac33351830987167c1264024421ba61d896e62f306b6d0fdbe19c63ff2b9",
+      "generation": 47,
+      "status": "succeeded",
+      "parameters": {
+        "budget": 1000,
+        "case": "mixed",
+        "engine": "native",
+        "fault": false,
+        "jobs": 16000,
+        "pace": 0.006,
+        "policy": "fifo",
+        "retention": "full"
+      },
+      "seed": 1,
+      "control": {
+        "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+        "admitted": 6344,
+        "blocked": 1848,
+        "case": "mixed",
+        "completed": 6284,
+        "cursor": 6344,
+        "hard_limit": 64,
+        "jobs": 16000,
+        "outstanding": 60,
+        "peak": 64,
+        "schema": "native-stabilization-input-v1",
+        "seed": 644334647,
+        "tick": 4096,
+        "tight": 0
+      },
+      "kpis": {
+        "shopfloor/jobs_in_system": 9.0,
+        "shopfloor/lateness": 461.3082856207935,
+        "shopfloor/makespan": 40.486594143613736,
+        "shopfloor/tardiness": 461.3083755929839,
+        "shopfloor/tardy_fraction": 0.9995092425977425,
+        "shopfloor/throughput": 1.5297797797797799,
+        "shopfloor/total_queue_time": 3.051455913626624,
+        "shopfloor/utilization": 0.48126320765209674
+      },
+      "storage": {
+        "admitted": 6344,
+        "calendar_capacity": 32,
+        "completed": 6284,
+        "completion_capacity": 0,
+        "events": 120242,
+        "forgotten": 0,
+        "job_capacity": 8192,
+        "native_bytes": 1911108,
+        "op_capacity": 32768,
+        "retained_jobs": 6344,
+        "retained_operations": 22159,
+        "state_capacity": 0
+      },
+      "samples": 1000,
+      "fingerprint": {
+        "digest": "cb42e360e17c28d3985787f932c7bd05c93062099c4181d0f5bed4c94436511f",
+        "kpis": {
+          "shopfloor/jobs_in_system": 9.0,
+          "shopfloor/lateness": 461.3082856207935,
+          "shopfloor/makespan": 40.486594143613736,
+          "shopfloor/tardiness": 461.3083755929839,
+          "shopfloor/tardy_fraction": 0.9995092425977425,
+          "shopfloor/throughput": 1.5297797797797799,
+          "shopfloor/total_queue_time": 3.051455913626624,
+          "shopfloor/utilization": 0.48126320765209674
+        }
+      },
+      "trace_sha256": "52315f49af016bb9c570190e4f35050825afefeb977632ff8f7370949dec556d"
+    }
+  ],
+  "reproductions": [
+    {
+      "original": "7fdde17cca02dbfdb8bafc06fd7be4de",
+      "key": {
+        "request_id": "4d86051040ffcfb4b7781a7f4ef1145f491ed8c59cd3604abe9fdb39f7e55d87",
+        "attempt_id": "345b4f17eded637c56ccf60997e1980e",
+        "generation": 49
+      }
+    },
+    {
+      "original": "ef2e11ade444a2f4ee9ebe0b300f8532",
+      "key": {
+        "request_id": "4cfdac33351830987167c1264024421ba61d896e62f306b6d0fdbe19c63ff2b9",
+        "attempt_id": "43d6bfc884f15e9db66a3a90cd52cd33",
+        "generation": 50
+      }
+    },
+    {
+      "original": "23f3d6f599bc16c0c79e1611e3ed2752",
+      "key": {
+        "request_id": "0783967197efa63c33907d51d2e374e9a8e0af7bc93ccc2590b5c2907e6996c2",
+        "attempt_id": "247a7424ad303afb3f5d7d4e1ddb2dd5",
+        "generation": 51
+      }
+    },
+    {
+      "original": "626add0fdf172f468a9c01297824a566",
+      "key": {
+        "request_id": "a967415710e5c2a5f26225d2b9f89651216285a92b6620b27a5bc960ebd8b504",
+        "attempt_id": "8e68ea56936e86759b236abbfb4c86c2",
+        "generation": 52
+      }
+    },
+    {
+      "original": "4c5fb11d70d6c259e00816afb2dc3842",
+      "key": {
+        "request_id": "3a039ca1b0343873c581da33dcb7dafd0b8eb84676005de853bb15dd57d6dff1",
+        "attempt_id": "4916894a2655d5c9205cd5c08a1daff3",
+        "generation": 53
+      }
+    },
+    {
+      "original": "84fe77307b49da152fe59d032da72edb",
+      "key": {
+        "request_id": "ef37d1035a23cec29107c5ffe2632206b12544b35fd07b9fa7b9aa2ebdf63ad0",
+        "attempt_id": "de7c4424598b082e94bd4d5cc89f83b4",
+        "generation": 54
+      }
+    }
+  ]
+}

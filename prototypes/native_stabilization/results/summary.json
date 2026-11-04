@@ -1,0 +1,782 @@
+{
+  "study_complete": true,
+  "passed": false,
+  "modeling_gate_passed": true,
+  "publication_reproduction_gate_passed": true,
+  "studio_browser_gate_passed": false,
+  "matrix_requests_per_host": 168,
+  "matrix_reproductions_per_host": 12,
+  "physical_trajectory_cases_per_host": 36,
+  "physical_cross_host_equal": true,
+  "soak_reproductions_per_host": 6,
+  "endurance_requests_per_host": 18,
+  "product_changes": false,
+  "hosts": [
+    {
+      "host": "macos",
+      "browser_error_gate_passed": true,
+      "browser_errors": [],
+      "settled": [
+        {
+          "engine": "chromium",
+          "metadata_ms": 400,
+          "charts_after_metadata_ms": 823,
+          "view": {
+            "info": "kpi trace \u00b7 completed \u00b7 recorded layout \u00b7 KPI-only: no entity animation or event stepping \u00b7 Native production \u00b7 experimental \u00b7 KPI snapshots every 0.97582 time units \u00b7 4096 samples per KPI (spacing increased to fit limit)",
+            "tiles": 8,
+            "charts": 8,
+            "alerts": []
+          },
+          "errors": []
+        },
+        {
+          "engine": "firefox",
+          "metadata_ms": 1013,
+          "charts_after_metadata_ms": 847,
+          "view": {
+            "info": "kpi trace \u00b7 completed \u00b7 recorded layout \u00b7 KPI-only: no entity animation or event stepping \u00b7 Native production \u00b7 experimental \u00b7 KPI snapshots every 0.97582 time units \u00b7 4096 samples per KPI (spacing increased to fit limit)",
+            "tiles": 8,
+            "charts": 8,
+            "alerts": []
+          },
+          "errors": []
+        },
+        {
+          "engine": "webkit",
+          "metadata_ms": 948,
+          "charts_after_metadata_ms": 825,
+          "view": {
+            "info": "kpi trace \u00b7 completed \u00b7 recorded layout \u00b7 KPI-only: no entity animation or event stepping \u00b7 Native production \u00b7 experimental \u00b7 KPI snapshots every 0.97582 time units \u00b7 4096 samples per KPI (spacing increased to fit limit)",
+            "tiles": 8,
+            "charts": 8,
+            "alerts": []
+          },
+          "errors": []
+        }
+      ],
+      "duration": 900.957,
+      "statuses": {
+        "succeeded": 27,
+        "cancelled": 3,
+        "failed": 3
+      },
+      "browser_actions": {
+        "reconnect": 15,
+        "seek-follow": 14,
+        "reload": 9,
+        "cancel": 3
+      },
+      "successful_seeks": 13,
+      "browser": {
+        "chromium": {
+          "samples": 58,
+          "complete_tile_samples": 1,
+          "nodes": {
+            "min": 379,
+            "median": 403.0,
+            "max": 615,
+            "first": 410,
+            "last": 403
+          },
+          "canvases": {
+            "min": 2,
+            "median": 2.0,
+            "max": 10,
+            "first": 3,
+            "last": 2
+          },
+          "late_process_tree_rss": {
+            "min": 789528576,
+            "median": 814727168.0,
+            "max": 867352576,
+            "first": 816939008,
+            "last": 822771712
+          }
+        },
+        "firefox": {
+          "samples": 58,
+          "complete_tile_samples": 0,
+          "nodes": {
+            "min": 379,
+            "median": 402.0,
+            "max": 555,
+            "first": 555,
+            "last": 403
+          },
+          "canvases": {
+            "min": 2,
+            "median": 2.0,
+            "max": 8,
+            "first": 8,
+            "last": 2
+          },
+          "late_process_tree_rss": {
+            "min": 1307377664,
+            "median": 1361141760.0,
+            "max": 1598275584,
+            "first": 1356103680,
+            "last": 1489289216
+          }
+        },
+        "webkit": {
+          "samples": 58,
+          "complete_tile_samples": 1,
+          "nodes": {
+            "min": 379,
+            "median": 401.0,
+            "max": 635,
+            "first": 497,
+            "last": 403
+          },
+          "canvases": {
+            "min": 2,
+            "median": 2.0,
+            "max": 10,
+            "first": 6,
+            "last": 2
+          },
+          "late_process_tree_rss": {
+            "min": 117997568,
+            "median": 118603776.0,
+            "max": 118669312,
+            "first": 118226944,
+            "last": 118669312
+          }
+        }
+      },
+      "chromium_collected_heap": {
+        "min": 9673656,
+        "median": 12406680.0,
+        "max": 13349224,
+        "first": 10830836,
+        "last": 12785588
+      },
+      "chromium_heap_first10_median": 11642610.0,
+      "chromium_heap_last10_median": 12406680.0,
+      "server_rss": {
+        "min": 78233600,
+        "median": 92553216.0,
+        "max": 95961088,
+        "first": 78233600,
+        "last": 93650944
+      },
+      "server_first_third_rss_median": 90324992,
+      "server_last_third_rss_median": 93315072.0,
+      "server_late_rss_range": 3489792,
+      "server_fds": {
+        "min": 22,
+        "median": 24.0,
+        "max": 35,
+        "first": 35,
+        "last": 22
+      },
+      "largest_child_rss": 50135040,
+      "store_bytes": {
+        "first": 37713707,
+        "last": 103484096
+      },
+      "retained_examples": [
+        {
+          "case": "burst",
+          "retention": "bounded",
+          "control": {
+            "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+            "admitted": 2766,
+            "blocked": 0,
+            "case": "burst",
+            "completed": 2730,
+            "cursor": 2766,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 36,
+            "peak": 37,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2378575790,
+            "tick": 4096,
+            "tight": 3733
+          },
+          "storage": {
+            "admitted": 2766,
+            "calendar_capacity": 32,
+            "completed": 2730,
+            "completion_capacity": 512,
+            "events": 46084,
+            "forgotten": 2730,
+            "job_capacity": 64,
+            "native_bytes": 12476,
+            "op_capacity": 128,
+            "retained_jobs": 36,
+            "retained_operations": 108,
+            "state_capacity": 256
+          }
+        },
+        {
+          "case": "burst",
+          "retention": "full",
+          "control": {
+            "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+            "admitted": 2766,
+            "blocked": 0,
+            "case": "burst",
+            "completed": 2730,
+            "cursor": 2766,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 36,
+            "peak": 37,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2378575790,
+            "tick": 4096,
+            "tight": 3733
+          },
+          "storage": {
+            "admitted": 2766,
+            "calendar_capacity": 32,
+            "completed": 2730,
+            "completion_capacity": 0,
+            "events": 46084,
+            "forgotten": 0,
+            "job_capacity": 4096,
+            "native_bytes": 956692,
+            "op_capacity": 16384,
+            "retained_jobs": 2766,
+            "retained_operations": 8298,
+            "state_capacity": 0
+          }
+        },
+        {
+          "case": "flow",
+          "retention": "bounded",
+          "control": {
+            "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+            "admitted": 8192,
+            "blocked": 0,
+            "case": "flow",
+            "completed": 8190,
+            "cursor": 8192,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 2,
+            "peak": 4,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2563285475,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 8192,
+            "calendar_capacity": 32,
+            "completed": 8190,
+            "completion_capacity": 512,
+            "events": 126960,
+            "forgotten": 8190,
+            "job_capacity": 16,
+            "native_bytes": 4748,
+            "op_capacity": 16,
+            "retained_jobs": 2,
+            "retained_operations": 6,
+            "state_capacity": 256
+          }
+        },
+        {
+          "case": "flow",
+          "retention": "full",
+          "control": {
+            "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+            "admitted": 8192,
+            "blocked": 0,
+            "case": "flow",
+            "completed": 8190,
+            "cursor": 8192,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 2,
+            "peak": 4,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2563285475,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 8192,
+            "calendar_capacity": 32,
+            "completed": 8190,
+            "completion_capacity": 0,
+            "events": 126960,
+            "forgotten": 0,
+            "job_capacity": 8192,
+            "native_bytes": 1911060,
+            "op_capacity": 32768,
+            "retained_jobs": 8192,
+            "retained_operations": 24576,
+            "state_capacity": 0
+          }
+        },
+        {
+          "case": "mixed",
+          "retention": "bounded",
+          "control": {
+            "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+            "admitted": 6765,
+            "blocked": 1427,
+            "case": "mixed",
+            "completed": 6704,
+            "cursor": 6765,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 61,
+            "peak": 64,
+            "schema": "native-stabilization-input-v1",
+            "seed": 644334647,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 6765,
+            "calendar_capacity": 32,
+            "completed": 6704,
+            "completion_capacity": 2048,
+            "events": 128383,
+            "forgotten": 6704,
+            "job_capacity": 64,
+            "native_bytes": 20460,
+            "op_capacity": 256,
+            "retained_jobs": 61,
+            "retained_operations": 215,
+            "state_capacity": 512
+          }
+        },
+        {
+          "case": "mixed",
+          "retention": "full",
+          "control": {
+            "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+            "admitted": 6344,
+            "blocked": 1848,
+            "case": "mixed",
+            "completed": 6284,
+            "cursor": 6344,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 60,
+            "peak": 64,
+            "schema": "native-stabilization-input-v1",
+            "seed": 644334647,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 6344,
+            "calendar_capacity": 32,
+            "completed": 6284,
+            "completion_capacity": 0,
+            "events": 120242,
+            "forgotten": 0,
+            "job_capacity": 8192,
+            "native_bytes": 1911108,
+            "op_capacity": 32768,
+            "retained_jobs": 6344,
+            "retained_operations": 22159,
+            "state_capacity": 0
+          }
+        }
+      ]
+    },
+    {
+      "host": "linux",
+      "browser_error_gate_passed": false,
+      "browser_errors": [
+        {
+          "engine": "webkit",
+          "message": "Failed to load resource: The network connection was lost."
+        },
+        {
+          "engine": "chromium",
+          "message": "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH"
+        }
+      ],
+      "settled": [
+        {
+          "engine": "chromium",
+          "metadata_ms": 923,
+          "charts_after_metadata_ms": 1333,
+          "view": {
+            "info": "kpi trace \u00b7 completed \u00b7 recorded layout \u00b7 KPI-only: no entity animation or event stepping \u00b7 Native production \u00b7 experimental \u00b7 KPI snapshots every 0.97582 time units \u00b7 4096 samples per KPI (spacing increased to fit limit)",
+            "tiles": 8,
+            "charts": 8,
+            "alerts": []
+          },
+          "errors": []
+        },
+        {
+          "engine": "firefox",
+          "metadata_ms": 1092,
+          "charts_after_metadata_ms": 1850,
+          "view": {
+            "info": "kpi trace \u00b7 completed \u00b7 recorded layout \u00b7 KPI-only: no entity animation or event stepping \u00b7 Native production \u00b7 experimental \u00b7 KPI snapshots every 0.97582 time units \u00b7 4096 samples per KPI (spacing increased to fit limit)",
+            "tiles": 8,
+            "charts": 8,
+            "alerts": []
+          },
+          "errors": []
+        },
+        {
+          "engine": "webkit",
+          "metadata_ms": 940,
+          "charts_after_metadata_ms": 1812,
+          "view": {
+            "info": "kpi trace \u00b7 completed \u00b7 recorded layout \u00b7 KPI-only: no entity animation or event stepping \u00b7 Native production \u00b7 experimental \u00b7 KPI snapshots every 0.97582 time units \u00b7 4096 samples per KPI (spacing increased to fit limit)",
+            "tiles": 8,
+            "charts": 8,
+            "alerts": []
+          },
+          "errors": []
+        }
+      ],
+      "duration": 900.969,
+      "statuses": {
+        "succeeded": 30,
+        "cancelled": 4,
+        "failed": 4
+      },
+      "browser_actions": {
+        "reconnect": 15,
+        "seek-follow": 14,
+        "reload": 9,
+        "cancel": 4
+      },
+      "successful_seeks": 12,
+      "browser": {
+        "chromium": {
+          "samples": 58,
+          "complete_tile_samples": 0,
+          "nodes": {
+            "min": 377,
+            "median": 403.0,
+            "max": 450,
+            "first": 381,
+            "last": 403
+          },
+          "canvases": {
+            "min": 2,
+            "median": 2.0,
+            "max": 4,
+            "first": 2,
+            "last": 2
+          },
+          "late_process_tree_rss": {
+            "min": 585121792,
+            "median": 605257728.0,
+            "max": 637190144,
+            "first": 592609280,
+            "last": 620773376
+          }
+        },
+        "firefox": {
+          "samples": 58,
+          "complete_tile_samples": 0,
+          "nodes": {
+            "min": 377,
+            "median": 403.0,
+            "max": 421,
+            "first": 381,
+            "last": 403
+          },
+          "canvases": {
+            "min": 1,
+            "median": 2.0,
+            "max": 3,
+            "first": 2,
+            "last": 2
+          },
+          "late_process_tree_rss": {
+            "min": 1333657600,
+            "median": 1445937152.0,
+            "max": 1612595200,
+            "first": 1344487424,
+            "last": 1446559744
+          }
+        },
+        "webkit": {
+          "samples": 58,
+          "complete_tile_samples": 0,
+          "nodes": {
+            "min": 377,
+            "median": 403.0,
+            "max": 403,
+            "first": 380,
+            "last": 403
+          },
+          "canvases": {
+            "min": 1,
+            "median": 2.0,
+            "max": 2,
+            "first": 2,
+            "last": 2
+          },
+          "late_process_tree_rss": {
+            "min": 117030912,
+            "median": 117358592.0,
+            "max": 117538816,
+            "first": 117112832,
+            "last": 117538816
+          }
+        }
+      },
+      "chromium_collected_heap": {
+        "min": 9718728,
+        "median": 12375090.0,
+        "max": 13620340,
+        "first": 11029404,
+        "last": 13620340
+      },
+      "chromium_heap_first10_median": 11634382.0,
+      "chromium_heap_last10_median": 12730286.0,
+      "server_rss": {
+        "min": 86888448,
+        "median": 105902080.0,
+        "max": 108904448,
+        "first": 87605248,
+        "last": 108904448
+      },
+      "server_first_third_rss_median": 98467840.0,
+      "server_last_third_rss_median": 108748800,
+      "server_late_rss_range": 413696,
+      "server_fds": {
+        "min": 23,
+        "median": 28.0,
+        "max": 40,
+        "first": 40,
+        "last": 29
+      },
+      "largest_child_rss": 42008576,
+      "store_bytes": {
+        "first": 38084432,
+        "last": 108882432
+      },
+      "retained_examples": [
+        {
+          "case": "burst",
+          "retention": "bounded",
+          "control": {
+            "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+            "admitted": 2766,
+            "blocked": 0,
+            "case": "burst",
+            "completed": 2730,
+            "cursor": 2766,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 36,
+            "peak": 37,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2378575790,
+            "tick": 4096,
+            "tight": 3733
+          },
+          "storage": {
+            "admitted": 2766,
+            "calendar_capacity": 32,
+            "completed": 2730,
+            "completion_capacity": 512,
+            "events": 46084,
+            "forgotten": 2730,
+            "job_capacity": 64,
+            "native_bytes": 12476,
+            "op_capacity": 128,
+            "retained_jobs": 36,
+            "retained_operations": 108,
+            "state_capacity": 256
+          }
+        },
+        {
+          "case": "burst",
+          "retention": "full",
+          "control": {
+            "actions": "b00ea511a534922f5976588e8daf7a1cbdb4dc7b676c79977cb155f58748786c",
+            "admitted": 2766,
+            "blocked": 0,
+            "case": "burst",
+            "completed": 2730,
+            "cursor": 2766,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 36,
+            "peak": 37,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2378575790,
+            "tick": 4096,
+            "tight": 3733
+          },
+          "storage": {
+            "admitted": 2766,
+            "calendar_capacity": 32,
+            "completed": 2730,
+            "completion_capacity": 0,
+            "events": 46084,
+            "forgotten": 0,
+            "job_capacity": 4096,
+            "native_bytes": 956692,
+            "op_capacity": 16384,
+            "retained_jobs": 2766,
+            "retained_operations": 8298,
+            "state_capacity": 0
+          }
+        },
+        {
+          "case": "flow",
+          "retention": "bounded",
+          "control": {
+            "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+            "admitted": 8192,
+            "blocked": 0,
+            "case": "flow",
+            "completed": 8190,
+            "cursor": 8192,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 2,
+            "peak": 4,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2563285475,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 8192,
+            "calendar_capacity": 32,
+            "completed": 8190,
+            "completion_capacity": 512,
+            "events": 126960,
+            "forgotten": 8190,
+            "job_capacity": 16,
+            "native_bytes": 4748,
+            "op_capacity": 16,
+            "retained_jobs": 2,
+            "retained_operations": 6,
+            "state_capacity": 256
+          }
+        },
+        {
+          "case": "flow",
+          "retention": "full",
+          "control": {
+            "actions": "726b951d72b5adba48943ba7abb75ab13e8bd7ba34a6a3bf4559efe954fd2d79",
+            "admitted": 8192,
+            "blocked": 0,
+            "case": "flow",
+            "completed": 8190,
+            "cursor": 8192,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 2,
+            "peak": 4,
+            "schema": "native-stabilization-input-v1",
+            "seed": 2563285475,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 8192,
+            "calendar_capacity": 32,
+            "completed": 8190,
+            "completion_capacity": 0,
+            "events": 126960,
+            "forgotten": 0,
+            "job_capacity": 8192,
+            "native_bytes": 1911060,
+            "op_capacity": 32768,
+            "retained_jobs": 8192,
+            "retained_operations": 24576,
+            "state_capacity": 0
+          }
+        },
+        {
+          "case": "mixed",
+          "retention": "bounded",
+          "control": {
+            "actions": "7a5bcd69d8e182865aae68ae3a87cb97a8e36bede1ab55a96b31b384a784fdda",
+            "admitted": 6765,
+            "blocked": 1427,
+            "case": "mixed",
+            "completed": 6704,
+            "cursor": 6765,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 61,
+            "peak": 64,
+            "schema": "native-stabilization-input-v1",
+            "seed": 644334647,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 6765,
+            "calendar_capacity": 32,
+            "completed": 6704,
+            "completion_capacity": 2048,
+            "events": 128383,
+            "forgotten": 6704,
+            "job_capacity": 64,
+            "native_bytes": 20460,
+            "op_capacity": 256,
+            "retained_jobs": 61,
+            "retained_operations": 215,
+            "state_capacity": 512
+          }
+        },
+        {
+          "case": "mixed",
+          "retention": "full",
+          "control": {
+            "actions": "d99f9e777f3cec3c0469ff7f0c6c190af16ba32ca9ed2c1a65bcef68393c0a1d",
+            "admitted": 6344,
+            "blocked": 1848,
+            "case": "mixed",
+            "completed": 6284,
+            "cursor": 6344,
+            "hard_limit": 64,
+            "jobs": 16000,
+            "outstanding": 60,
+            "peak": 64,
+            "schema": "native-stabilization-input-v1",
+            "seed": 644334647,
+            "tick": 4096,
+            "tight": 0
+          },
+          "storage": {
+            "admitted": 6344,
+            "calendar_capacity": 32,
+            "completed": 6284,
+            "completion_capacity": 0,
+            "events": 120242,
+            "forgotten": 0,
+            "job_capacity": 8192,
+            "native_bytes": 1911108,
+            "op_capacity": 32768,
+            "retained_jobs": 6344,
+            "retained_operations": 22159,
+            "state_capacity": 0
+          }
+        }
+      ]
+    }
+  ],
+  "source": {
+    "README.md": "dff3196ba8df1b054e10604a04218f245f1926a601693defe0120a24d0cd9d0e",
+    "analyze.py": "bb0130dddb68036dd0b3517243b0470669afd30668033cdf552f2d0597cab2df",
+    "audit.py": "cfafff6928263c8250ee67bf32e4a0a5ce3a469d189e5fd3915083b9814eebc0",
+    "browser_resources.py": "79e8f0fc0ab9f2ea04a8b0994da4eb404aada4702cae95124695a2e73183ed06",
+    "endurance.py": "89f7154a0b591ec6cbf83071705c23607520482393f962ce6e198f54396b9956",
+    "environment.py": "1f5bdbf80e12ea6e7c76cb6a5354ccbd67df6ac45ee843b150aad6d0ca22a5a9",
+    "gate.py": "d7ea70ca034a56664591357c4d50bd3387099c7279ca07255254a0f65012c306",
+    "plant.py": "7130e90a05ff6a193f7e49d0a940617205ce05acffb514e19847057b06313bcd",
+    "prepare.py": "3b80c9ffeeb40139b5878d93089e3f12b41526c7ff225a5eba4cc909823af665",
+    "serve.py": "d64132d01254376e0ae3a8b01199e3e2a7ef67e435d175fbd760fddbfd113c58",
+    "settled.mjs": "8a696f8df13f63297e12228130b09599aad1f6baebb7a84b2784921f29bacbd7",
+    "soak.mjs": "ddc3f994b0462e69bf0c00bcdc28a70ae027a2fe3fa1659bb4a725d82235584e",
+    "trajectory.py": "0d56c6062916780a91de200d4e3f48043776af99167cb16f733d4c560908b98f",
+    "transport_probe.py": "a9cdb32c60645831659e341a2a030eee9ad436283c8e6a9fbc8f8dadf72af36a",
+    "workloads.py": "90075bf1b0c7c9f04f323c38e74009ce715202d621778b03bbccc9718380a862"
+  }
+}
