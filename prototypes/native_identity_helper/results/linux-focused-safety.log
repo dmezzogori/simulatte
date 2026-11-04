@@ -1,0 +1,34 @@
+Using CPython 3.14.0
+Creating virtual environment at: prototypes/native_identity_helper/.build/verify-env
+Activate with: source prototypes/native_identity_helper/.build/verify-env/bin/activate
+Using Python 3.14.0 environment at: prototypes/native_identity_helper/.build/verify-env
+Resolved 12 packages in 95ms
+Prepared 2 packages in 37ms
+Installed 12 packages in 29ms
+ + iniconfig==2.3.1
+ + msgpack==1.2.4
+ + packaging==26.3
+ + pluggy==1.7.0
+ + pygments==2.21.0
+ + pytest==9.2.0
+ + pytest-timeout==2.4.0
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-identity-helper-20261104/prototypes/native_identity_helper/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///home/davide/Developer/simulatte-identity-helper-20261104/prototypes/native_identity_helper/.build/linux/cp314/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1
+........................................................................ [ 41%]
+........................................................................ [ 82%]
+..............................                                           [100%]
+174 passed in 7.83s
+Traceback (most recent call last):
+  File "/home/davide/Developer/simulatte-identity-helper-20261104/prototypes/native_provider_projection/safety.py", line 196, in <module>
+    main(parser.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/home/davide/Developer/simulatte-identity-helper-20261104/prototypes/native_provider_projection/safety.py", line 26, in main
+    build.mkdir(exist_ok=False)
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/davide/.local/share/uv/python/cpython-3.14-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py", line 1016, in mkdir
+    os.mkdir(self, mode)
+    ~~~~~~~~^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/davide/Developer/simulatte-identity-helper-20261104/prototypes/native_provider_projection/.build/sanitized-linux-safety'

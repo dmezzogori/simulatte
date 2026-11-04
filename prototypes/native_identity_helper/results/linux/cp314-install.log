@@ -1,0 +1,1 @@
+{"passed": true, "output": "/home/davide/Developer/simulatte-identity-helper-20261104/prototypes/native_identity_helper/results/linux/cp314", "rejected": ["abi", "api", "manifest", "binary", "dependency", "runtime-mutation", "wheel-tag"]}

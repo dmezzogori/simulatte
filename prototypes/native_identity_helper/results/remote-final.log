@@ -1,0 +1,6 @@
+{"source_files": 199, "source_sha256": "acecc121d52e4b3b1c61694f219ed9d409ec06b4358b6e0e3b7b44a062ccc696", "unchanged_after_safety": true}
+## HEAD (no branch)
+?? prototypes/native_retention_integration/linux-results/
+?? prototypes/native_retention_integration/linux/
+?? specs/research/2026-11-03-native-retention-linux-plan.md
+3d6cc7ee892cd54b9705002cb69d7ee08a8972dde67a3a5eb51c9e313b892be8  /home/davide/Developer/simulatte-0.17.0-py3-none-any.whl

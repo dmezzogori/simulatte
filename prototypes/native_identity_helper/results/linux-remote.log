@@ -1,0 +1,35 @@
+Cloning into '/home/davide/Developer/simulatte-identity-helper-20261104'...
+done.
+Note: switching to 'dfbb1a1e21eb885013f44ada987c8172e469aef1'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+From /home/davide/Developer/simulatte-identity-helper-20261104-inputs/source.bundle
+ * branch            feature/native-engine-feasibility -> FETCH_HEAD
+Previous HEAD position was dfbb1a1 feat: integrate bounded retention into native provider
+HEAD is now at 3588e09 perf: prepare canonical identity values once per query
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+{"python": "3.11", "wheel": "simulatte_native-0.17.0-cp311-cp311-linux_x86_64.whl", "wheel_sha256": "47fa8354fb2766f4debda210c8a008c251ea91e6028936a3dba72037fc020705", "sdist_sha256": "c993f476b7c9ce7adc763006e33576f51ef4d588a8c4c263f6b60feaabae0fbb", "managed_runs": 8, "identity_direct_runs": 16, "identity_managed_runs": 4, "identity_source_deleted_reproductions": 4, "reproductions": 4}
+{"python": "3.12", "wheel": "simulatte_native-0.17.0-cp312-cp312-linux_x86_64.whl", "wheel_sha256": "8ea61a63bd756207970789fcb9c72beeb2c51f64704691f40de15348dc61eaca", "sdist_sha256": "c993f476b7c9ce7adc763006e33576f51ef4d588a8c4c263f6b60feaabae0fbb", "managed_runs": 8, "identity_direct_runs": 16, "identity_managed_runs": 4, "identity_source_deleted_reproductions": 4, "reproductions": 4}
+{"python": "3.13", "wheel": "simulatte_native-0.17.0-cp313-cp313-linux_x86_64.whl", "wheel_sha256": "11a0491bf6d1be58c7f808bffc6fe2a184a808b6c66af63dd55e91ab86c38263", "sdist_sha256": "c993f476b7c9ce7adc763006e33576f51ef4d588a8c4c263f6b60feaabae0fbb", "managed_runs": 8, "identity_direct_runs": 16, "identity_managed_runs": 4, "identity_source_deleted_reproductions": 4, "reproductions": 4}
+{"python": "3.14", "wheel": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl", "wheel_sha256": "b7b4534b3cd186d3d42acd52a04185ebc191227134854ac942ddd69ddabfd627", "sdist_sha256": "c993f476b7c9ce7adc763006e33576f51ef4d588a8c4c263f6b60feaabae0fbb", "managed_runs": 8, "identity_direct_runs": 16, "identity_managed_runs": 4, "identity_source_deleted_reproductions": 4, "reproductions": 4}
+{"python": "3.15", "wheel": "simulatte_native-0.17.0-cp315-cp315-linux_x86_64.whl", "wheel_sha256": "7e7db43c0fd818c7f44f3e44063d1f70cb0ec39488bd9324593dd406d5e322fc", "sdist_sha256": "9b57c89c76cb990d6657e84777952a8acea491f0a86f77e88888587ea02c5948", "managed_runs": 8, "identity_direct_runs": 16, "identity_managed_runs": 4, "identity_source_deleted_reproductions": 4, "reproductions": 4}

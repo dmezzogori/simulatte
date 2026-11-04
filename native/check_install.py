@@ -89,7 +89,9 @@ def main(args):
                 """import importlib.util,sys
 from simulatte import Environment
 from simulatte.experimental.native import NativeStream
+from simulatte.experimental.native_identity import compose_native_identity
 assert importlib.util.find_spec('simulatte_native') is None
+assert callable(compose_native_identity) and 'simulatte_native' not in sys.modules
 try: NativeStream(1)
 except ImportError as error: assert 'simulatte[native]' in str(error)
 else: raise AssertionError('base install unexpectedly provided native code')
@@ -118,6 +120,31 @@ print('pure base and optional dependency error pass')
         installed = root / "installed.json"
         execute([python, "-I", probe, installed], env=env, cwd=root)
         shutil.copyfile(installed, output / "installed.json")
+        identity_probe = root / "identity_probe.py"
+        shutil.copyfile(Path(__file__).with_name("identity_probe.py"), identity_probe)
+        fixtures = root / "identity-fixtures"
+        fixtures.mkdir()
+        repository = Path(__file__).resolve().parents[1]
+        frozen = repository / "prototypes/native_prepared_identity"
+        fixture_sources = {}
+        for name in (
+            "plant.py",
+            "fixed_case.py",
+            "coupled_case.py",
+            "reference_projection.py",
+            "unprepared_projection.py",
+        ):
+            source = frozen / name
+            shutil.copyfile(source, fixtures / name)
+            fixture_sources[str(source.relative_to(repository))] = digest(source)
+        shutil.copyfile(frozen / "projection.py", fixtures / "prepared_projection.py")
+        fixture_sources["prototypes/native_prepared_identity/projection.py"] = digest(frozen / "projection.py")
+        adapter = repository / "prototypes/native_identity_helper/projection.py"
+        shutil.copyfile(adapter, fixtures / "projection.py")
+        fixture_sources[str(adapter.relative_to(repository))] = digest(adapter)
+        identities = root / "identities.json"
+        execute([python, "-I", identity_probe, identities, fixtures], env=env, cwd=root)
+        shutil.copyfile(identities, output / "identities.json")
         rejected = {}
         for kind in ("abi", "api", "manifest", "binary", "dependency", "runtime-mutation"):
             copy = root / kind
@@ -192,6 +219,8 @@ else: raise AssertionError('invalid native assets accepted')
             native_extra_installs_provider=True,
             runner_sha256=digest(Path(__file__)),
             probe_sha256=digest(Path(__file__).with_name("install_probe.py")),
+            identity_probe_sha256=digest(Path(__file__).with_name("identity_probe.py")),
+            identity_fixtures=fixture_sources,
             python=execute([python, "-I", "-c", "import sys; print(sys.version)"]).stdout.strip(),
         )
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")

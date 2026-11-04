@@ -1,0 +1,13 @@
+{
+  "macos": {
+    "command": ".venv/bin/python -m pytest -o addopts=-q tests/experimental/test_native.py tests/experimental/test_native_retention.py tests/experimental/test_native_projection.py tests/experimental/test_native_identity.py prototypes/native_provider_projection/tests prototypes/native_projection_profile/tests prototypes/native_prepared_identity/tests",
+    "passed": 174,
+    "seconds": 4.8,
+    "evidence": "tool output 4af4f3 and completion 1dee1e"
+  },
+  "linux": {
+    "passed": 174,
+    "seconds": 7.83,
+    "evidence": "linux-focused-safety.log"
+  }
+}

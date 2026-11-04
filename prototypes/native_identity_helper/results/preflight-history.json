@@ -1,0 +1,21 @@
+{
+  "attempts": [
+    {
+      "name": "preflight",
+      "outcome": "harness failure: stopping expected dictionary, supplied Horizon object"
+    },
+    {
+      "name": "preflight-v2",
+      "outcome": "harness failure: expected external wheel path for core origin, actual trusted runtime snapshot"
+    },
+    {
+      "name": "preflight-v3",
+      "outcome": "harness evidence serialization failure: Fingerprint dataclass must become dictionary; managed reproductions already passed"
+    },
+    {
+      "name": "preflight-v4",
+      "outcome": "passed all checks"
+    }
+  ],
+  "runtime_code_changed_after_initial_tests": false
+}

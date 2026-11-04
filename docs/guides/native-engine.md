@@ -37,7 +37,7 @@ Source builds need a compiler; installing a built wheel does not.
 
 Wheels target a specific GIL-enabled CPython ABI and macOS/Linux architecture.
 They are neither universal nor `abi3`. PyPy, free-threading and Windows are not
-supported. CI builds and clean-installs CPython 3.11, 3.14 and 3.15 on macOS/Linux.
+supported. CI builds and clean-installs CPython 3.11–3.15 on macOS/Linux.
 Locally built wheels use the current host's deployment/platform tag; portable
 release baselines and coordinated version bumps belong to the release process.
 
@@ -152,6 +152,48 @@ existing stream operations and report an actionable error if projection is
 requested. The local package pair remains 0.17.0. Queries copy/hash current native
 state; full retention cost grows with retained history. Use on-demand or periodic
 queries and measure their cost before capturing at every control poll.
+
+### Composing experimental identities
+
+`simulatte.experimental.native_identity` provides a pure-Python consumer of the
+managed projection. It prepares each supplied observation once and returns an
+immutable `IdentityComposition`; it does not query the backend or load native code.
+For example, inside a synchronized live controller boundary:
+
+```python
+from simulatte.experimental.native_identity import compose_native_identity
+
+# actions.state() is this model's wire-compatible realized-action commitment.
+identity = compose_native_identity(backend.state_projection(), actions=actions.state())
+payload = identity.to_dict()  # fresh detached dictionaries/lists on every call
+print(payload["trajectory_control"]["digest"])
+print(payload["reporting"]["digest"])
+print(payload["reproduction_state"]["digest"])
+assert len(identity.canonical_bytes) == identity.size_bytes
+```
+
+The `native-identity-set-v1` envelope preserves three experimental components:
+
+| Component | Binds |
+| --- | --- |
+| `trajectory_control` | Scope, native trajectory material and supplied realized actions |
+| `reporting` | Scope, reporting configuration, KPI catalog and current stock snapshot |
+| `reproduction_state` | Scope, both component identities and the complete backend authority |
+
+The envelope includes the full evidence and authority preimage. `canonical_bytes`
+is its canonical MessagePack encoding; `size_bytes` is that encoding's length.
+`native_bytes` is the provider's queried native-state size, not a memory estimate.
+Full and bounded retention keep their distinct native encodings and authorities.
+Keeping an `IdentityComposition` retains a snapshot; call the backend hook again
+to observe a new boundary. Mutating the supplied data or a returned dictionary
+does not change the composition or its bytes.
+
+The caller owns the meaning and completeness of `actions` and `input_state`.
+Realized actions alone do not describe unconsumed seeds or future control state.
+The helper checks projection structure and wire compatibility; it does not verify
+forged observations or authorize reuse. It neither restores an engine nor changes
+default fingerprints, result reuse or pinned Coordinator reproduction. Its schema
+and API remain experimental.
 
 ## Managed experiments
 

@@ -1,0 +1,53 @@
+{
+  "files": [
+    {
+      "path": "prototypes/native_engine_dynamic/assets_experiment.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/assets_model.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/immutable_assets.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/linux_gate.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/loading-results/independent_audit.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/loading-results/original-control-check.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/loading_experiment.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/phase-results/original-control-check.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/phase_experiment.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/phase_instrument.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/phase_probe.py",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "prototypes/native_engine_dynamic/tests/test_immutable_assets.py",
+      "unchanged_from_base": true
+    }
+  ],
+  "changed_files_clean": true
+}

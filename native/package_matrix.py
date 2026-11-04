@@ -28,6 +28,10 @@ def sources():
         ".github/workflows/ci.yml",
         "zensical.toml",
         "tests/experimental/test_native.py",
+        "tests/experimental/test_native_retention.py",
+        "tests/experimental/test_native_projection.py",
+        "tests/experimental/test_native_identity.py",
+        "prototypes/native_identity_helper/projection.py",
         "tests/execution/test_snapshot.py",
         "tests/execution/test_native_assets.py",
         "tests/execution/test_backend.py",
@@ -37,8 +41,20 @@ def sources():
         "docs/guides/execution-backends.md",
         "docs/api/experimental.md",
         "specs/research/2026-11-03-native-package-plan.md",
+        "specs/research/2026-11-04-native-identity-helper-plan.md",
     ]
     paths = [ROOT / name for name in names]
+    paths.extend(
+        ROOT / "prototypes/native_prepared_identity" / name
+        for name in (
+            "plant.py",
+            "fixed_case.py",
+            "coupled_case.py",
+            "projection.py",
+            "reference_projection.py",
+            "unprepared_projection.py",
+        )
+    )
     paths.extend((ROOT / "src/simulatte").rglob("*.py"))
     paths.extend(
         p
@@ -84,7 +100,7 @@ def main(args):
             assert not any(name.startswith(("native/", "prototypes/")) for name in members)
         metadata["core_sdist_sha256"] = sha(sdist)
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    rows, seen = [], {}
+    rows, seen, identity_seen = [], {}, {}
     uv = args.uv or shutil.which("uv")
     assert uv
     for version in args.pythons:
@@ -118,6 +134,11 @@ def main(args):
             output / (name + "-install.log"),
         )
         installed = json.loads((output / name / "installed.json").read_text())
+        identities = json.loads((output / name / "identities.json").read_text())
+        for row in identities["direct"]:
+            key = row["fixture"], row["retention"], row["mode"]
+            exact = row["fingerprint"], row["artifacts"]
+            assert identity_seen.setdefault(key, exact) == exact, key
         for row in installed["rows"]:
             key = row["configuration"], row["seed"]
             assert seen.setdefault(key, row["kpis"]) == row["kpis"], key
@@ -128,6 +149,9 @@ def main(args):
                 wheel_sha256=sha(wheel),
                 sdist_sha256=sha(sdist),
                 managed_runs=len(installed["rows"]),
+                identity_direct_runs=len(identities["direct"]),
+                identity_managed_runs=len(identities["managed"]),
+                identity_source_deleted_reproductions=len(identities["source_deleted_reproductions"]),
                 reproductions=len(installed["source_deleted_reproductions"]),
             )
         )
@@ -137,6 +161,7 @@ def main(args):
         source_sha256=metadata["source_sha256"],
         rows=rows,
         exact_seeded_kpis_across_abis=True,
+        exact_identity_artifacts_across_abis=True,
         evidence={p.relative_to(output).as_posix(): sha(p) for p in sorted(output.rglob("*")) if p.is_file()},
     )
     (output / "verification.json").write_text(json.dumps(certificate, indent=2) + "\n")
@@ -147,6 +172,6 @@ if __name__ == "__main__":
     parser.add_argument("--core-wheel", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path, required=True)
-    parser.add_argument("--pythons", nargs="+", default=["3.11", "3.14", "3.15"])
+    parser.add_argument("--pythons", nargs="+", default=["3.11", "3.12", "3.13", "3.14", "3.15"])
     parser.add_argument("--uv")
     main(parser.parse_args())

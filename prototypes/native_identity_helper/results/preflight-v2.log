@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/native/check_install.py", line 237, in <module>
+    main(parser.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/native/check_install.py", line 144, in main
+    execute([python, "-I", identity_probe, identities, fixtures], env=env, cwd=root)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/native/check_install.py", line 25, in execute
+    raise RuntimeError(result.stdout + result.stderr)
+RuntimeError: Traceback (most recent call last):
+  File "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-811h3_su/identity_probe.py", line 187, in <module>
+    main(Path(sys.argv[1]), Path(sys.argv[2]))
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/native-installed-gate-811h3_su/identity_probe.py", line 146, in main
+    "site-packages/simulatte/experimental/native_identity.py"
+    in imports["simulatte.experimental.native_identity"]
+AssertionError
