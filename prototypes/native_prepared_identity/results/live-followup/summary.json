@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "pairs": [
+    {
+      "pair": 0,
+      "unprepared_seconds": 10.678406417002407,
+      "prepared_seconds": 9.262731708000501,
+      "reduction_percent": 13.25735932608666
+    },
+    {
+      "pair": 1,
+      "unprepared_seconds": 10.598216250000405,
+      "prepared_seconds": 9.534470624999813,
+      "reduction_percent": 10.037025098450425
+    },
+    {
+      "pair": 2,
+      "unprepared_seconds": 10.933009708998725,
+      "prepared_seconds": 9.303979291002179,
+      "reduction_percent": 14.900109497348435
+    }
+  ],
+  "median_paired_reduction_percent": 13.25735932608666,
+  "note": "Supplemental follow-up; primary outlier retained; all three randomly selected orders were unprepared then prepared."
+}

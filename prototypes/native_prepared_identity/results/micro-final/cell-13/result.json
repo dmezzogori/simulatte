@@ -1,0 +1,3815 @@
+{
+  "parameters": {
+    "kind": "live",
+    "fixture": "fixed",
+    "retention": "bounded",
+    "seed": 102,
+    "policy": "fifo",
+    "jobs": 128,
+    "padding": 0
+  },
+  "baseline": {
+    "fingerprint": {
+      "digest": "11ddb22beeaf92c7b93a80c51b2482dd9cbd87b769aa62ff48aeba82c5f2895e",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.86046511627907,
+        "shopfloor/lateness": -4.209615384615384,
+        "shopfloor/makespan": 6.384615384615385,
+        "shopfloor/tardiness": 0.38653846153846155,
+        "shopfloor/tardy_fraction": 0.12307692307692308,
+        "shopfloor/throughput": 0.7558139534883721,
+        "shopfloor/total_queue_time": 1.353846153846154,
+        "shopfloor/utilization": 0.6337209302325582
+      }
+    },
+    "artifacts": {
+      "control.json": "d103dd23f3cef520c489dd0c154f84a675d9d0f6f299bde5ae253a14867f8052",
+      "controls.jsonl.gz": "5949941c504d122bf0daab2c295ab44be024aa0dadb3deffb313a37a2fc15e09",
+      "identities.json": "b056b5d29130ca82caffda41530f0eddee1314d14f0993e1e8de7dc3ee30ac0d",
+      "native.json": "c3920093b60b56fe796e4f1484445c1afac4014be3c5f19d2593bc4f65c719d0",
+      "reporting.json": "13f87eb3d444b7b022ed744dc934f6da3e76906b09f23561ecf85fcc3c78dae7",
+      "reports.jsonl.gz": "964b3668d9e2a42c67b62438ffa6345f82f17277672783770b129e65165e32bd"
+    }
+  },
+  "profiled": {
+    "fingerprint": {
+      "digest": "11ddb22beeaf92c7b93a80c51b2482dd9cbd87b769aa62ff48aeba82c5f2895e",
+      "kpis": {
+        "shopfloor/jobs_in_system": 2.86046511627907,
+        "shopfloor/lateness": -4.209615384615384,
+        "shopfloor/makespan": 6.384615384615385,
+        "shopfloor/tardiness": 0.38653846153846155,
+        "shopfloor/tardy_fraction": 0.12307692307692308,
+        "shopfloor/throughput": 0.7558139534883721,
+        "shopfloor/total_queue_time": 1.353846153846154,
+        "shopfloor/utilization": 0.6337209302325582
+      }
+    },
+    "artifacts": {
+      "control.json": "d103dd23f3cef520c489dd0c154f84a675d9d0f6f299bde5ae253a14867f8052",
+      "controls.jsonl.gz": "5949941c504d122bf0daab2c295ab44be024aa0dadb3deffb313a37a2fc15e09",
+      "identities.json": "b056b5d29130ca82caffda41530f0eddee1314d14f0993e1e8de7dc3ee30ac0d",
+      "native.json": "c3920093b60b56fe796e4f1484445c1afac4014be3c5f19d2593bc4f65c719d0",
+      "reporting.json": "13f87eb3d444b7b022ed744dc934f6da3e76906b09f23561ecf85fcc3c78dae7",
+      "reports.jsonl.gz": "964b3668d9e2a42c67b62438ffa6345f82f17277672783770b129e65165e32bd"
+    }
+  },
+  "query": {
+    "context": {
+      "state": {
+        "native": "01f5bd538485cc61a578a8ebb34c87c4fbc99309dd849b70f77a0493a98a129e",
+        "inputs": "67b94982ff8f5ba9cbdb3f437f81ab76baee4045ccc1d4c2b70a6dba8a2e338a",
+        "authority": "439de27fcd6f5c7899175c5ebd0020a5e361ecec750510890b03f9f6a6960a04",
+        "generation": 183
+      },
+      "native_bytes": 1399,
+      "callback_bytes": 729,
+      "managed_view_bytes": 2237,
+      "identity_bytes": 3326,
+      "identity_sha256": "6249bbf2b334ea88cb8093e094dc3916e4106cfbdc195c316b39658dd1790c59",
+      "actions": {
+        "schema": "admission-actuation-v1",
+        "rows": 130,
+        "digest": "a690711367dfb7ac989ffe4fca8fbfe649d0fe9b3d97118e6bce0ccd1f29683b"
+      },
+      "snapshot": {
+        "scalars": {
+          "shopfloor/jobs_in_system": 3.0136363636363637,
+          "shopfloor/lateness": -3.6859756097560976,
+          "shopfloor/makespan": 6.902439024390244,
+          "shopfloor/tardiness": 0.47560975609756095,
+          "shopfloor/tardy_fraction": 0.14634146341463414,
+          "shopfloor/throughput": 0.7454545454545455,
+          "shopfloor/total_queue_time": 1.5670731707317074,
+          "shopfloor/utilization": 0.6439393939393939
+        },
+        "window": [
+          10.0,
+          65.0,
+          false
+        ]
+      }
+    },
+    "batches": {
+      "noop": [
+        {
+          "calls": 32768,
+          "wall_ns": 413958,
+          "cpu_ns": 413583,
+          "block": 0,
+          "order": 9
+        },
+        {
+          "calls": 32768,
+          "wall_ns": 407875,
+          "cpu_ns": 407667,
+          "block": 1,
+          "order": 5
+        },
+        {
+          "calls": 32768,
+          "wall_ns": 416917,
+          "cpu_ns": 415791,
+          "block": 2,
+          "order": 0
+        },
+        {
+          "calls": 32768,
+          "wall_ns": 447833,
+          "cpu_ns": 444792,
+          "block": 3,
+          "order": 3
+        },
+        {
+          "calls": 32768,
+          "wall_ns": 411709,
+          "cpu_ns": 411334,
+          "block": 4,
+          "order": 0
+        }
+      ],
+      "native_atomic": [
+        {
+          "calls": 16439,
+          "wall_ns": 22627500,
+          "cpu_ns": 22627208,
+          "block": 0,
+          "order": 3
+        },
+        {
+          "calls": 16439,
+          "wall_ns": 22420750,
+          "cpu_ns": 22418167,
+          "block": 1,
+          "order": 18
+        },
+        {
+          "calls": 16439,
+          "wall_ns": 22697000,
+          "cpu_ns": 22696792,
+          "block": 2,
+          "order": 9
+        },
+        {
+          "calls": 16439,
+          "wall_ns": 22617209,
+          "cpu_ns": 22616958,
+          "block": 3,
+          "order": 2
+        },
+        {
+          "calls": 16439,
+          "wall_ns": 23085834,
+          "cpu_ns": 23085458,
+          "block": 4,
+          "order": 6
+        }
+      ],
+      "stream_hook": [
+        {
+          "calls": 3275,
+          "wall_ns": 24937166,
+          "cpu_ns": 24936500,
+          "block": 0,
+          "order": 7
+        },
+        {
+          "calls": 3275,
+          "wall_ns": 24415292,
+          "cpu_ns": 24415000,
+          "block": 1,
+          "order": 19
+        },
+        {
+          "calls": 3275,
+          "wall_ns": 24454417,
+          "cpu_ns": 24454041,
+          "block": 2,
+          "order": 14
+        },
+        {
+          "calls": 3275,
+          "wall_ns": 24859292,
+          "cpu_ns": 24859083,
+          "block": 3,
+          "order": 7
+        },
+        {
+          "calls": 3275,
+          "wall_ns": 24867708,
+          "cpu_ns": 24861000,
+          "block": 4,
+          "order": 16
+        }
+      ],
+      "managed_hook": [
+        {
+          "calls": 368,
+          "wall_ns": 25872833,
+          "cpu_ns": 25867542,
+          "block": 0,
+          "order": 5
+        },
+        {
+          "calls": 368,
+          "wall_ns": 25985833,
+          "cpu_ns": 25984292,
+          "block": 1,
+          "order": 0
+        },
+        {
+          "calls": 368,
+          "wall_ns": 25028000,
+          "cpu_ns": 25019125,
+          "block": 2,
+          "order": 10
+        },
+        {
+          "calls": 368,
+          "wall_ns": 25004583,
+          "cpu_ns": 24996416,
+          "block": 3,
+          "order": 13
+        },
+        {
+          "calls": 368,
+          "wall_ns": 25665959,
+          "cpu_ns": 25664917,
+          "block": 4,
+          "order": 9
+        }
+      ],
+      "composition_only": [
+        {
+          "calls": 367,
+          "wall_ns": 26059083,
+          "cpu_ns": 26050917,
+          "block": 0,
+          "order": 19
+        },
+        {
+          "calls": 367,
+          "wall_ns": 25688542,
+          "cpu_ns": 25686084,
+          "block": 1,
+          "order": 2
+        },
+        {
+          "calls": 367,
+          "wall_ns": 25076584,
+          "cpu_ns": 25076291,
+          "block": 2,
+          "order": 7
+        },
+        {
+          "calls": 367,
+          "wall_ns": 25361000,
+          "cpu_ns": 25360750,
+          "block": 3,
+          "order": 6
+        },
+        {
+          "calls": 367,
+          "wall_ns": 25292500,
+          "cpu_ns": 25291708,
+          "block": 4,
+          "order": 13
+        }
+      ],
+      "validation_only": [
+        {
+          "calls": 739,
+          "wall_ns": 25503834,
+          "cpu_ns": 25503125,
+          "block": 0,
+          "order": 17
+        },
+        {
+          "calls": 739,
+          "wall_ns": 24911542,
+          "cpu_ns": 24911167,
+          "block": 1,
+          "order": 17
+        },
+        {
+          "calls": 739,
+          "wall_ns": 25101125,
+          "cpu_ns": 25100750,
+          "block": 2,
+          "order": 11
+        },
+        {
+          "calls": 739,
+          "wall_ns": 24922834,
+          "cpu_ns": 24922125,
+          "block": 3,
+          "order": 0
+        },
+        {
+          "calls": 739,
+          "wall_ns": 25200917,
+          "cpu_ns": 25193459,
+          "block": 4,
+          "order": 18
+        }
+      ],
+      "hook_identity": [
+        {
+          "calls": 180,
+          "wall_ns": 25502541,
+          "cpu_ns": 25502041,
+          "block": 0,
+          "order": 12
+        },
+        {
+          "calls": 180,
+          "wall_ns": 25697833,
+          "cpu_ns": 25687375,
+          "block": 1,
+          "order": 8
+        },
+        {
+          "calls": 180,
+          "wall_ns": 24896708,
+          "cpu_ns": 24896375,
+          "block": 2,
+          "order": 19
+        },
+        {
+          "calls": 180,
+          "wall_ns": 24782959,
+          "cpu_ns": 24782709,
+          "block": 3,
+          "order": 15
+        },
+        {
+          "calls": 180,
+          "wall_ns": 25017834,
+          "cpu_ns": 25017166,
+          "block": 4,
+          "order": 12
+        }
+      ],
+      "pipeline": [
+        {
+          "calls": 143,
+          "wall_ns": 25277792,
+          "cpu_ns": 25266333,
+          "block": 0,
+          "order": 2
+        },
+        {
+          "calls": 143,
+          "wall_ns": 25642500,
+          "cpu_ns": 25632583,
+          "block": 1,
+          "order": 15
+        },
+        {
+          "calls": 143,
+          "wall_ns": 25752709,
+          "cpu_ns": 25747542,
+          "block": 2,
+          "order": 4
+        },
+        {
+          "calls": 143,
+          "wall_ns": 25353875,
+          "cpu_ns": 25353583,
+          "block": 3,
+          "order": 5
+        },
+        {
+          "calls": 143,
+          "wall_ns": 25718209,
+          "cpu_ns": 25717041,
+          "block": 4,
+          "order": 7
+        }
+      ],
+      "parser_pipeline": [
+        {
+          "calls": 118,
+          "wall_ns": 26083500,
+          "cpu_ns": 26078417,
+          "block": 0,
+          "order": 8
+        },
+        {
+          "calls": 118,
+          "wall_ns": 26113416,
+          "cpu_ns": 26112458,
+          "block": 1,
+          "order": 13
+        },
+        {
+          "calls": 118,
+          "wall_ns": 25010041,
+          "cpu_ns": 25009667,
+          "block": 2,
+          "order": 6
+        },
+        {
+          "calls": 118,
+          "wall_ns": 25233167,
+          "cpu_ns": 25232917,
+          "block": 3,
+          "order": 8
+        },
+        {
+          "calls": 118,
+          "wall_ns": 25989625,
+          "cpu_ns": 25979541,
+          "block": 4,
+          "order": 5
+        }
+      ],
+      "unprepared_composition": [
+        {
+          "calls": 235,
+          "wall_ns": 25664625,
+          "cpu_ns": 25650584,
+          "block": 0,
+          "order": 13
+        },
+        {
+          "calls": 235,
+          "wall_ns": 26087917,
+          "cpu_ns": 26075709,
+          "block": 1,
+          "order": 9
+        },
+        {
+          "calls": 235,
+          "wall_ns": 25232583,
+          "cpu_ns": 25232167,
+          "block": 2,
+          "order": 5
+        },
+        {
+          "calls": 235,
+          "wall_ns": 25198042,
+          "cpu_ns": 25197791,
+          "block": 3,
+          "order": 10
+        },
+        {
+          "calls": 235,
+          "wall_ns": 25617750,
+          "cpu_ns": 25609875,
+          "block": 4,
+          "order": 17
+        }
+      ],
+      "unprepared_identity": [
+        {
+          "calls": 141,
+          "wall_ns": 25237792,
+          "cpu_ns": 25237542,
+          "block": 0,
+          "order": 1
+        },
+        {
+          "calls": 141,
+          "wall_ns": 26473166,
+          "cpu_ns": 26462334,
+          "block": 1,
+          "order": 7
+        },
+        {
+          "calls": 141,
+          "wall_ns": 25078208,
+          "cpu_ns": 25077916,
+          "block": 2,
+          "order": 8
+        },
+        {
+          "calls": 141,
+          "wall_ns": 25007000,
+          "cpu_ns": 25006708,
+          "block": 3,
+          "order": 19
+        },
+        {
+          "calls": 141,
+          "wall_ns": 25593583,
+          "cpu_ns": 25592458,
+          "block": 4,
+          "order": 11
+        }
+      ],
+      "unprepared_pipeline": [
+        {
+          "calls": 117,
+          "wall_ns": 25809083,
+          "cpu_ns": 25803375,
+          "block": 0,
+          "order": 18
+        },
+        {
+          "calls": 117,
+          "wall_ns": 25704583,
+          "cpu_ns": 25703542,
+          "block": 1,
+          "order": 14
+        },
+        {
+          "calls": 117,
+          "wall_ns": 25308041,
+          "cpu_ns": 25296500,
+          "block": 2,
+          "order": 1
+        },
+        {
+          "calls": 117,
+          "wall_ns": 25038834,
+          "cpu_ns": 25038541,
+          "block": 3,
+          "order": 12
+        },
+        {
+          "calls": 117,
+          "wall_ns": 25543458,
+          "cpu_ns": 25535250,
+          "block": 4,
+          "order": 14
+        }
+      ],
+      "callback_only": [
+        {
+          "calls": 16027,
+          "wall_ns": 24968416,
+          "cpu_ns": 24962542,
+          "block": 0,
+          "order": 15
+        },
+        {
+          "calls": 16027,
+          "wall_ns": 24921833,
+          "cpu_ns": 24921542,
+          "block": 1,
+          "order": 3
+        },
+        {
+          "calls": 16027,
+          "wall_ns": 24102791,
+          "cpu_ns": 24088792,
+          "block": 2,
+          "order": 15
+        },
+        {
+          "calls": 16027,
+          "wall_ns": 23943125,
+          "cpu_ns": 23931500,
+          "block": 3,
+          "order": 1
+        },
+        {
+          "calls": 16027,
+          "wall_ns": 25041291,
+          "cpu_ns": 25033417,
+          "block": 4,
+          "order": 15
+        }
+      ],
+      "callback_freeze": [
+        {
+          "calls": 2964,
+          "wall_ns": 25512041,
+          "cpu_ns": 25511583,
+          "block": 0,
+          "order": 11
+        },
+        {
+          "calls": 2964,
+          "wall_ns": 25654375,
+          "cpu_ns": 25644291,
+          "block": 1,
+          "order": 12
+        },
+        {
+          "calls": 2964,
+          "wall_ns": 24780625,
+          "cpu_ns": 24780291,
+          "block": 2,
+          "order": 17
+        },
+        {
+          "calls": 2964,
+          "wall_ns": 24798500,
+          "cpu_ns": 24798292,
+          "block": 3,
+          "order": 11
+        },
+        {
+          "calls": 2964,
+          "wall_ns": 25405709,
+          "cpu_ns": 25394333,
+          "block": 4,
+          "order": 3
+        }
+      ],
+      "callback_freeze_pack": [
+        {
+          "calls": 2377,
+          "wall_ns": 24990042,
+          "cpu_ns": 24987042,
+          "block": 0,
+          "order": 0
+        },
+        {
+          "calls": 2377,
+          "wall_ns": 24797042,
+          "cpu_ns": 24793875,
+          "block": 1,
+          "order": 16
+        },
+        {
+          "calls": 2377,
+          "wall_ns": 24654917,
+          "cpu_ns": 24654708,
+          "block": 2,
+          "order": 12
+        },
+        {
+          "calls": 2377,
+          "wall_ns": 24614375,
+          "cpu_ns": 24614083,
+          "block": 3,
+          "order": 16
+        },
+        {
+          "calls": 2377,
+          "wall_ns": 25068416,
+          "cpu_ns": 25067958,
+          "block": 4,
+          "order": 2
+        }
+      ],
+      "callback_prepared_pack": [
+        {
+          "calls": 13541,
+          "wall_ns": 24603750,
+          "cpu_ns": 24603417,
+          "block": 0,
+          "order": 4
+        },
+        {
+          "calls": 13541,
+          "wall_ns": 24831667,
+          "cpu_ns": 24824625,
+          "block": 1,
+          "order": 10
+        },
+        {
+          "calls": 13541,
+          "wall_ns": 24647958,
+          "cpu_ns": 24647625,
+          "block": 2,
+          "order": 13
+        },
+        {
+          "calls": 13541,
+          "wall_ns": 24576500,
+          "cpu_ns": 24576125,
+          "block": 3,
+          "order": 18
+        },
+        {
+          "calls": 13541,
+          "wall_ns": 24519000,
+          "cpu_ns": 24518208,
+          "block": 4,
+          "order": 19
+        }
+      ],
+      "detach_view": [
+        {
+          "calls": 1266,
+          "wall_ns": 25615292,
+          "cpu_ns": 25614583,
+          "block": 0,
+          "order": 6
+        },
+        {
+          "calls": 1266,
+          "wall_ns": 25827583,
+          "cpu_ns": 25827334,
+          "block": 1,
+          "order": 1
+        },
+        {
+          "calls": 1266,
+          "wall_ns": 25534250,
+          "cpu_ns": 25534042,
+          "block": 2,
+          "order": 18
+        },
+        {
+          "calls": 1266,
+          "wall_ns": 25611583,
+          "cpu_ns": 25608500,
+          "block": 3,
+          "order": 4
+        },
+        {
+          "calls": 1266,
+          "wall_ns": 26036875,
+          "cpu_ns": 26030958,
+          "block": 4,
+          "order": 10
+        }
+      ],
+      "freeze_view": [
+        {
+          "calls": 1396,
+          "wall_ns": 25418542,
+          "cpu_ns": 25418000,
+          "block": 0,
+          "order": 16
+        },
+        {
+          "calls": 1396,
+          "wall_ns": 25523583,
+          "cpu_ns": 25514667,
+          "block": 1,
+          "order": 6
+        },
+        {
+          "calls": 1396,
+          "wall_ns": 25507417,
+          "cpu_ns": 25506917,
+          "block": 2,
+          "order": 16
+        },
+        {
+          "calls": 1396,
+          "wall_ns": 24921500,
+          "cpu_ns": 24921167,
+          "block": 3,
+          "order": 17
+        },
+        {
+          "calls": 1396,
+          "wall_ns": 24985583,
+          "cpu_ns": 24977708,
+          "block": 4,
+          "order": 1
+        }
+      ],
+      "prepared_pack_view": [
+        {
+          "calls": 4861,
+          "wall_ns": 24685750,
+          "cpu_ns": 24685250,
+          "block": 0,
+          "order": 10
+        },
+        {
+          "calls": 4861,
+          "wall_ns": 26127083,
+          "cpu_ns": 26103000,
+          "block": 1,
+          "order": 4
+        },
+        {
+          "calls": 4861,
+          "wall_ns": 24292791,
+          "cpu_ns": 24292458,
+          "block": 2,
+          "order": 2
+        },
+        {
+          "calls": 4861,
+          "wall_ns": 24399083,
+          "cpu_ns": 24398792,
+          "block": 3,
+          "order": 14
+        },
+        {
+          "calls": 4861,
+          "wall_ns": 25055125,
+          "cpu_ns": 25050333,
+          "block": 4,
+          "order": 8
+        }
+      ],
+      "identity_size_pack": [
+        {
+          "calls": 782,
+          "wall_ns": 25249583,
+          "cpu_ns": 25235166,
+          "block": 0,
+          "order": 14
+        },
+        {
+          "calls": 782,
+          "wall_ns": 25533792,
+          "cpu_ns": 25533167,
+          "block": 1,
+          "order": 11
+        },
+        {
+          "calls": 782,
+          "wall_ns": 25755208,
+          "cpu_ns": 25754292,
+          "block": 2,
+          "order": 3
+        },
+        {
+          "calls": 782,
+          "wall_ns": 24895625,
+          "cpu_ns": 24884875,
+          "block": 3,
+          "order": 9
+        },
+        {
+          "calls": 782,
+          "wall_ns": 25120916,
+          "cpu_ns": 25120417,
+          "block": 4,
+          "order": 4
+        }
+      ]
+    },
+    "calibrations_ns": {
+      "noop": 296.875,
+      "native_atomic": 1520.8125,
+      "stream_hook": 7632.8125,
+      "managed_hook": 67960.9375,
+      "composition_only": 68091.125,
+      "validation_only": 33807.25,
+      "hook_identity": 139010.4375,
+      "pipeline": 174388.0625,
+      "parser_pipeline": 212468.75,
+      "unprepared_composition": 106554.6875,
+      "unprepared_identity": 177742.1875,
+      "unprepared_pipeline": 214427.0625,
+      "callback_only": 1559.875,
+      "callback_freeze": 8434.875,
+      "callback_freeze_pack": 10518.25,
+      "callback_prepared_pack": 1846.3125,
+      "detach_view": 19747.4375,
+      "freeze_view": 17911.4375,
+      "prepared_pack_view": 5143.25,
+      "identity_size_pack": 31974.0
+    },
+    "profiles": {
+      "managed_hook": {
+        "calls": 128,
+        "elapsed_wall_ns": 34074167,
+        "accounted_seconds": 0.03403787499999999,
+        "self_categories": {
+          "other_glue": 0.009239154,
+          "detachment_access": 0.009076527000000001,
+          "native_atomic": 0.00020962700000000002,
+          "wire_preparation": 0.012675539000000003,
+          "messagepack": 0.00159979,
+          "sha256": 0.000526489,
+          "harness": 0.00020744800000000002,
+          "callback": 0.000503301
+        },
+        "functions": [
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 105,
+            "name": "freeze",
+            "category": "wire_preparation",
+            "primitive_calls": 640,
+            "total_calls": 23808,
+            "self_seconds": 0.007867451000000001,
+            "cumulative_seconds": 0.014828833000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 89,
+            "name": "_detached",
+            "category": "detachment_access",
+            "primitive_calls": 128,
+            "total_calls": 15616,
+            "self_seconds": 0.005398179,
+            "cumulative_seconds": 0.013069632000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 304,
+            "name": "_canonical_map",
+            "category": "wire_preparation",
+            "primitive_calls": 3840,
+            "total_calls": 3840,
+            "self_seconds": 0.002432295,
+            "cumulative_seconds": 0.004365183
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 881,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 16384,
+            "total_calls": 16384,
+            "self_seconds": 0.001959105,
+            "cumulative_seconds": 0.00321956
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.isinstance>",
+            "category": "other_glue",
+            "primitive_calls": 17920,
+            "total_calls": 17920,
+            "self_seconds": 0.001852537,
+            "cumulative_seconds": 0.003948542
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 427,
+            "name": "_check_key",
+            "category": "wire_preparation",
+            "primitive_calls": 20352,
+            "total_calls": 20352,
+            "self_seconds": 0.001514563,
+            "cumulative_seconds": 0.001514563
+          },
+          {
+            "file": "<frozen abc>",
+            "line": 117,
+            "name": "__instancecheck__",
+            "category": "other_glue",
+            "primitive_calls": 12800,
+            "total_calls": 12800,
+            "self_seconds": 0.0012101570000000001,
+            "cumulative_seconds": 0.002096005
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/msgpack/__init__.py",
+            "line": 30,
+            "name": "packb",
+            "category": "messagepack",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.001031723,
+            "cumulative_seconds": 0.001447574
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _abc._abc_instancecheck>",
+            "category": "other_glue",
+            "primitive_calls": 12800,
+            "total_calls": 12800,
+            "self_seconds": 0.0008858480000000001,
+            "cumulative_seconds": 0.0008858480000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 9,
+            "name": "project",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.0007806390000000001,
+            "cumulative_seconds": 0.0031257140000000004
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 81,
+            "name": "__getitem__",
+            "category": "detachment_access",
+            "primitive_calls": 13568,
+            "total_calls": 13568,
+            "self_seconds": 0.000758284,
+            "cumulative_seconds": 0.000758284
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.sorted>",
+            "category": "other_glue",
+            "primitive_calls": 3840,
+            "total_calls": 3840,
+            "self_seconds": 0.000668952,
+            "cumulative_seconds": 0.000668952
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 410,
+            "name": "state_projection",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.0006660850000000001,
+            "cumulative_seconds": 0.033830427
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/fixed_case.py",
+            "line": 136,
+            "name": "state",
+            "category": "callback",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 0.000503301,
+            "cumulative_seconds": 0.000687496
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 811,
+            "name": "items",
+            "category": "detachment_access",
+            "primitive_calls": 2816,
+            "total_calls": 2816,
+            "self_seconds": 0.000488617,
+            "cumulative_seconds": 0.00062641
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 126,
+            "name": "<genexpr>",
+            "category": "wire_preparation",
+            "primitive_calls": 3456,
+            "total_calls": 3456,
+            "self_seconds": 0.000444393,
+            "cumulative_seconds": 0.006500257000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'isdisjoint' of 'frozenset' objects>",
+            "category": "other_glue",
+            "primitive_calls": 3840,
+            "total_calls": 3840,
+            "self_seconds": 0.000418901,
+            "cumulative_seconds": 0.000418901
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 422,
+            "name": "_check_int",
+            "category": "wire_preparation",
+            "primitive_calls": 4736,
+            "total_calls": 4736,
+            "self_seconds": 0.00035687500000000004,
+            "cumulative_seconds": 0.00035687500000000004
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 84,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 2816,
+            "total_calls": 2816,
+            "self_seconds": 0.000334549,
+            "cumulative_seconds": 0.000502171
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method __new__ of type object at 0x103028928>",
+            "category": "other_glue",
+            "primitive_calls": 3840,
+            "total_calls": 3840,
+            "self_seconds": 0.000332076,
+            "cumulative_seconds": 0.000332076
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'items' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 4224,
+            "total_calls": 4224,
+            "self_seconds": 0.000311144,
+            "cumulative_seconds": 0.000311144
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 440,
+            "name": "_pack_default",
+            "category": "messagepack",
+            "primitive_calls": 2304,
+            "total_calls": 2304,
+            "self_seconds": 0.000292792,
+            "cumulative_seconds": 0.000415851
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _bisect.bisect_left>",
+            "category": "other_glue",
+            "primitive_calls": 3840,
+            "total_calls": 3840,
+            "self_seconds": 0.000290812,
+            "cumulative_seconds": 0.000290812
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.len>",
+            "category": "other_glue",
+            "primitive_calls": 4608,
+            "total_calls": 4608,
+            "self_seconds": 0.000285632,
+            "cumulative_seconds": 0.000285632
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 1152,
+            "total_calls": 1152,
+            "self_seconds": 0.000252805,
+            "cumulative_seconds": 0.000252805
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 39,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 1152,
+            "total_calls": 1152,
+            "self_seconds": 0.000217862,
+            "cumulative_seconds": 0.000271064
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method simulatte_native._nd_scalar.retention_state_projection>",
+            "category": "native_atomic",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.00020962700000000002,
+            "cumulative_seconds": 0.00020962700000000002
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 216,
+            "name": "state_projection",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.00019541300000000002,
+            "cumulative_seconds": 0.003566136
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 23,
+            "name": "run_calls",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 0.000184073,
+            "cumulative_seconds": 0.0340145
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 144,
+            "name": "now",
+            "category": "other_glue",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 0.000183895,
+            "cumulative_seconds": 0.00029754200000000003
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.iter>",
+            "category": "other_glue",
+            "primitive_calls": 2816,
+            "total_calls": 2816,
+            "self_seconds": 0.000167622,
+            "cumulative_seconds": 0.000167622
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 345,
+            "name": "canonical_pack",
+            "category": "messagepack",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.00015044600000000002,
+            "cumulative_seconds": 0.001782811
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _hashlib.openssl_sha256>",
+            "category": "sha256",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 0.000142279,
+            "cumulative_seconds": 0.000142279
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 834,
+            "name": "__init__",
+            "category": "detachment_access",
+            "primitive_calls": 2816,
+            "total_calls": 2816,
+            "self_seconds": 0.00013779300000000001,
+            "cumulative_seconds": 0.00013779300000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 436,
+            "name": "_packb",
+            "category": "messagepack",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.00012482900000000002,
+            "cumulative_seconds": 0.001572403
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 385,
+            "name": "_synchronized",
+            "category": "other_glue",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 0.000114105,
+            "cumulative_seconds": 0.00045592800000000003
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/__init__.py",
+            "line": 120,
+            "name": "project_state",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.00011055200000000001,
+            "cumulative_seconds": 0.0032463450000000003
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'update' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.00010261100000000001,
+            "cumulative_seconds": 0.00010261100000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method math.isfinite>",
+            "category": "other_glue",
+            "primitive_calls": 1280,
+            "total_calls": 1280,
+            "self_seconds": 7.0221e-05,
+            "cumulative_seconds": 7.0221e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 37,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 6.8503e-05,
+            "cumulative_seconds": 8.5522e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 447,
+            "name": "_prepare",
+            "category": "wire_preparation",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 5.9962000000000006e-05,
+            "cumulative_seconds": 5.9962000000000006e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method '__exit__' of '_thread.RLock' objects>",
+            "category": "other_glue",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 5.6542e-05,
+            "cumulative_seconds": 5.6542e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method '__enter__' of '_thread.RLock' objects>",
+            "category": "other_glue",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 5.3317000000000005e-05,
+            "cumulative_seconds": 5.3317000000000005e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 140,
+            "name": "retention",
+            "category": "other_glue",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 3.4356e-05,
+            "cumulative_seconds": 3.4356e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 355,
+            "name": "_live",
+            "category": "other_glue",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 3.3699000000000004e-05,
+            "cumulative_seconds": 3.3699000000000004e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.getattr>",
+            "category": "other_glue",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 2.9135e-05,
+            "cumulative_seconds": 2.9135e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'digest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 2.8794000000000002e-05,
+            "cumulative_seconds": 2.8794000000000002e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 136,
+            "name": "_check",
+            "category": "other_glue",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 2.7565e-05,
+            "cumulative_seconds": 2.7565e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method simulatte_native._nd_scalar.retention_now>",
+            "category": "other_glue",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 2.6006e-05,
+            "cumulative_seconds": 2.6006e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'disable' of '_lsprof.Profiler' objects>",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 2.3375000000000002e-05,
+            "cumulative_seconds": 2.3375000000000002e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simpy/core.py",
+            "line": 116,
+            "name": "now",
+            "category": "other_glue",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 2.3133e-05,
+            "cumulative_seconds": 2.3133e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.callable>",
+            "category": "other_glue",
+            "primitive_calls": 256,
+            "total_calls": 256,
+            "self_seconds": 2.0247e-05,
+            "cumulative_seconds": 2.0247e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/stopping.py",
+            "line": 37,
+            "name": "to_dict",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.7284000000000003e-05,
+            "cumulative_seconds": 1.7284000000000003e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hex' of 'bytes' objects>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.6702e-05,
+            "cumulative_seconds": 1.6702e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'encode' of 'str' objects>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.5833000000000002e-05,
+            "cumulative_seconds": 1.5833000000000002e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'startswith' of 'bytes' objects>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.5424e-05,
+            "cumulative_seconds": 1.5424e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'to_bytes' of 'int' objects>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.5172000000000001e-05,
+            "cumulative_seconds": 1.5172000000000001e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'get' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.3704000000000001e-05,
+            "cumulative_seconds": 1.3704000000000001e-05
+          },
+          {
+            "file": "<frozen importlib._bootstrap>",
+            "line": 648,
+            "name": "parent",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 1.0079000000000001e-05,
+            "cumulative_seconds": 1.0079000000000001e-05
+          }
+        ]
+      },
+      "composition_only": {
+        "calls": 128,
+        "elapsed_wall_ns": 34760333,
+        "accounted_seconds": 0.034732917,
+        "self_categories": {
+          "other_glue": 0.008047638999999999,
+          "detachment_access": 0.011862329000000001,
+          "wire_preparation": 0.011480375000000001,
+          "messagepack": 0.0029938700000000005,
+          "sha256": 0.000228251,
+          "harness": 0.00012045300000000001
+        },
+        "functions": [
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 105,
+            "name": "freeze",
+            "category": "wire_preparation",
+            "primitive_calls": 1152,
+            "total_calls": 21888,
+            "self_seconds": 0.007098699000000001,
+            "cumulative_seconds": 0.013520017
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 26,
+            "name": "plain",
+            "category": "detachment_access",
+            "primitive_calls": 128,
+            "total_calls": 20096,
+            "self_seconds": 0.006746986000000001,
+            "cumulative_seconds": 0.016611159
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 881,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 22400,
+            "total_calls": 22400,
+            "self_seconds": 0.002680426,
+            "cumulative_seconds": 0.0043798150000000004
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.isinstance>",
+            "category": "other_glue",
+            "primitive_calls": 27264,
+            "total_calls": 27264,
+            "self_seconds": 0.002409159,
+            "cumulative_seconds": 0.004874604
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 304,
+            "name": "_canonical_map",
+            "category": "wire_preparation",
+            "primitive_calls": 3968,
+            "total_calls": 3968,
+            "self_seconds": 0.002391036,
+            "cumulative_seconds": 0.004185166000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/msgpack/__init__.py",
+            "line": 30,
+            "name": "packb",
+            "category": "messagepack",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.0019969410000000003,
+            "cumulative_seconds": 0.003050609
+          },
+          {
+            "file": "<frozen abc>",
+            "line": 117,
+            "name": "__instancecheck__",
+            "category": "other_glue",
+            "primitive_calls": 15744,
+            "total_calls": 15744,
+            "self_seconds": 0.001427043,
+            "cumulative_seconds": 0.002465445
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 427,
+            "name": "_check_key",
+            "category": "wire_preparation",
+            "primitive_calls": 17792,
+            "total_calls": 17792,
+            "self_seconds": 0.0012957350000000001,
+            "cumulative_seconds": 0.0012957350000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _abc._abc_instancecheck>",
+            "category": "other_glue",
+            "primitive_calls": 15744,
+            "total_calls": 15744,
+            "self_seconds": 0.0010384020000000001,
+            "cumulative_seconds": 0.0010384020000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 81,
+            "name": "__getitem__",
+            "category": "detachment_access",
+            "primitive_calls": 19072,
+            "total_calls": 19072,
+            "self_seconds": 0.0010298,
+            "cumulative_seconds": 0.0010298
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 440,
+            "name": "_pack_default",
+            "category": "messagepack",
+            "primitive_calls": 7168,
+            "total_calls": 7168,
+            "self_seconds": 0.000742438,
+            "cumulative_seconds": 0.001053668
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 811,
+            "name": "items",
+            "category": "detachment_access",
+            "primitive_calls": 4352,
+            "total_calls": 4352,
+            "self_seconds": 0.000723347,
+            "cumulative_seconds": 0.000920984
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.sorted>",
+            "category": "other_glue",
+            "primitive_calls": 3968,
+            "total_calls": 3968,
+            "self_seconds": 0.000532563,
+            "cumulative_seconds": 0.000532563
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 84,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 4352,
+            "total_calls": 4352,
+            "self_seconds": 0.00048413300000000004,
+            "cumulative_seconds": 0.0007275420000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 126,
+            "name": "<genexpr>",
+            "category": "wire_preparation",
+            "primitive_calls": 3456,
+            "total_calls": 3456,
+            "self_seconds": 0.00043851800000000005,
+            "cumulative_seconds": 0.004993785000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'isdisjoint' of 'frozenset' objects>",
+            "category": "other_glue",
+            "primitive_calls": 3968,
+            "total_calls": 3968,
+            "self_seconds": 0.00041583500000000003,
+            "cumulative_seconds": 0.00041583500000000003
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method __new__ of type object at 0x103028928>",
+            "category": "other_glue",
+            "primitive_calls": 3968,
+            "total_calls": 3968,
+            "self_seconds": 0.00032393900000000003,
+            "cumulative_seconds": 0.00032393900000000003
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/projection.py",
+            "line": 25,
+            "name": "prepare",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.00031366,
+            "cumulative_seconds": 0.015941431000000002
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'items' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 3968,
+            "total_calls": 3968,
+            "self_seconds": 0.00030318900000000004,
+            "cumulative_seconds": 0.00030318900000000004
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _bisect.bisect_left>",
+            "category": "other_glue",
+            "primitive_calls": 3968,
+            "total_calls": 3968,
+            "self_seconds": 0.00029695000000000004,
+            "cumulative_seconds": 0.00029695000000000004
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.iter>",
+            "category": "other_glue",
+            "primitive_calls": 4352,
+            "total_calls": 4352,
+            "self_seconds": 0.00024340900000000001,
+            "cumulative_seconds": 0.00024340900000000001
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/projection.py",
+            "line": 21,
+            "name": "component",
+            "category": "other_glue",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 0.000238936,
+            "cumulative_seconds": 0.002885349
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.len>",
+            "category": "other_glue",
+            "primitive_calls": 4096,
+            "total_calls": 4096,
+            "self_seconds": 0.00023521700000000002,
+            "cumulative_seconds": 0.00023521700000000002
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 422,
+            "name": "_check_int",
+            "category": "wire_preparation",
+            "primitive_calls": 2560,
+            "total_calls": 2560,
+            "self_seconds": 0.00019871,
+            "cumulative_seconds": 0.00019871
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 834,
+            "name": "__init__",
+            "category": "detachment_access",
+            "primitive_calls": 4352,
+            "total_calls": 4352,
+            "self_seconds": 0.00019763700000000002,
+            "cumulative_seconds": 0.00019763700000000002
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _hashlib.openssl_sha256>",
+            "category": "sha256",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 0.000139213,
+            "cumulative_seconds": 0.000139213
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 345,
+            "name": "canonical_pack",
+            "category": "messagepack",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.000138068,
+            "cumulative_seconds": 0.0033627770000000004
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 170,
+            "name": "<lambda>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.00013467,
+            "cumulative_seconds": 0.034612464
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/projection.py",
+            "line": 61,
+            "name": "hook_capture",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 0.000128619,
+            "cumulative_seconds": 0.034477794
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 436,
+            "name": "_packb",
+            "category": "messagepack",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 0.000116423,
+            "cumulative_seconds": 0.003167032
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 23,
+            "name": "run_calls",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 9.387000000000001e-05,
+            "cumulative_seconds": 0.034706334000000005
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 384,
+            "total_calls": 384,
+            "self_seconds": 8.903800000000001e-05,
+            "cumulative_seconds": 8.903800000000001e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 447,
+            "name": "_prepare",
+            "category": "wire_preparation",
+            "primitive_calls": 512,
+            "total_calls": 512,
+            "self_seconds": 5.7677000000000004e-05,
+            "cumulative_seconds": 5.7677000000000004e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'disable' of '_lsprof.Profiler' objects>",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 2.6583000000000003e-05,
+            "cumulative_seconds": 2.6583000000000003e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 163,
+            "name": "<lambda>",
+            "category": "other_glue",
+            "primitive_calls": 128,
+            "total_calls": 128,
+            "self_seconds": 6.048e-06,
+            "cumulative_seconds": 6.048e-06
+          }
+        ]
+      },
+      "pipeline": {
+        "calls": 57,
+        "elapsed_wall_ns": 38369125,
+        "accounted_seconds": 0.038342540999999994,
+        "self_categories": {
+          "other_glue": 0.009799574000000004,
+          "detachment_access": 0.009533149000000001,
+          "native_atomic": 0.00011996100000000001,
+          "wire_preparation": 0.015096234,
+          "messagepack": 0.0029517680000000004,
+          "sha256": 0.00048453100000000007,
+          "harness": 0.00010492300000000001,
+          "callback": 0.000252401
+        },
+        "functions": [
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 105,
+            "name": "freeze",
+            "category": "wire_preparation",
+            "primitive_calls": 1026,
+            "total_calls": 28443,
+            "self_seconds": 0.009299143000000001,
+            "cumulative_seconds": 0.017773066
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 304,
+            "name": "_canonical_map",
+            "category": "wire_preparation",
+            "primitive_calls": 5073,
+            "total_calls": 5073,
+            "self_seconds": 0.003104814,
+            "cumulative_seconds": 0.005490936
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 26,
+            "name": "plain",
+            "category": "detachment_access",
+            "primitive_calls": 57,
+            "total_calls": 8949,
+            "self_seconds": 0.003042565,
+            "cumulative_seconds": 0.0075388750000000004
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 89,
+            "name": "_detached",
+            "category": "detachment_access",
+            "primitive_calls": 57,
+            "total_calls": 6954,
+            "self_seconds": 0.002441196,
+            "cumulative_seconds": 0.005969379
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 881,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 17271,
+            "total_calls": 17271,
+            "self_seconds": 0.002146387,
+            "cumulative_seconds": 0.003507342
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.isinstance>",
+            "category": "other_glue",
+            "primitive_calls": 21717,
+            "total_calls": 21717,
+            "self_seconds": 0.002010483,
+            "cumulative_seconds": 0.00408998
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/msgpack/__init__.py",
+            "line": 30,
+            "name": "packb",
+            "category": "messagepack",
+            "primitive_calls": 684,
+            "total_calls": 684,
+            "self_seconds": 0.0019323550000000002,
+            "cumulative_seconds": 0.0028625290000000004
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 427,
+            "name": "_check_key",
+            "category": "wire_preparation",
+            "primitive_calls": 23997,
+            "total_calls": 23997,
+            "self_seconds": 0.001759291,
+            "cumulative_seconds": 0.001759291
+          },
+          {
+            "file": "<frozen abc>",
+            "line": 117,
+            "name": "__instancecheck__",
+            "category": "other_glue",
+            "primitive_calls": 12711,
+            "total_calls": 12711,
+            "self_seconds": 0.001201196,
+            "cumulative_seconds": 0.002079497
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _abc._abc_instancecheck>",
+            "category": "other_glue",
+            "primitive_calls": 12711,
+            "total_calls": 12711,
+            "self_seconds": 0.0008783010000000001,
+            "cumulative_seconds": 0.0008783010000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 81,
+            "name": "__getitem__",
+            "category": "detachment_access",
+            "primitive_calls": 14535,
+            "total_calls": 14535,
+            "self_seconds": 0.000820856,
+            "cumulative_seconds": 0.000820856
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.sorted>",
+            "category": "other_glue",
+            "primitive_calls": 5073,
+            "total_calls": 5073,
+            "self_seconds": 0.0007516620000000001,
+            "cumulative_seconds": 0.0007516620000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 440,
+            "name": "_pack_default",
+            "category": "messagepack",
+            "primitive_calls": 5814,
+            "total_calls": 5814,
+            "self_seconds": 0.000653908,
+            "cumulative_seconds": 0.0009301740000000001
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 811,
+            "name": "items",
+            "category": "detachment_access",
+            "primitive_calls": 3192,
+            "total_calls": 3192,
+            "self_seconds": 0.000552541,
+            "cumulative_seconds": 0.000703437
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'isdisjoint' of 'frozenset' objects>",
+            "category": "other_glue",
+            "primitive_calls": 5073,
+            "total_calls": 5073,
+            "self_seconds": 0.000533059,
+            "cumulative_seconds": 0.000533059
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 126,
+            "name": "<genexpr>",
+            "category": "wire_preparation",
+            "primitive_calls": 4104,
+            "total_calls": 4104,
+            "self_seconds": 0.000521635,
+            "cumulative_seconds": 0.007178089
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method __new__ of type object at 0x103028928>",
+            "category": "other_glue",
+            "primitive_calls": 5073,
+            "total_calls": 5073,
+            "self_seconds": 0.00042819,
+            "cumulative_seconds": 0.00042819
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 9,
+            "name": "project",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.00039977400000000004,
+            "cumulative_seconds": 0.0014852490000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'items' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 5301,
+            "total_calls": 5301,
+            "self_seconds": 0.000385993,
+            "cumulative_seconds": 0.000385993
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _bisect.bisect_left>",
+            "category": "other_glue",
+            "primitive_calls": 5073,
+            "total_calls": 5073,
+            "self_seconds": 0.000382104,
+            "cumulative_seconds": 0.000382104
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 84,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 3192,
+            "total_calls": 3192,
+            "self_seconds": 0.000378708,
+            "cumulative_seconds": 0.000566711
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 410,
+            "name": "state_projection",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.000343658,
+            "cumulative_seconds": 0.015374333
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 422,
+            "name": "_check_int",
+            "category": "wire_preparation",
+            "primitive_calls": 4332,
+            "total_calls": 4332,
+            "self_seconds": 0.000334457,
+            "cumulative_seconds": 0.000334457
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.len>",
+            "category": "other_glue",
+            "primitive_calls": 5529,
+            "total_calls": 5529,
+            "self_seconds": 0.000327512,
+            "cumulative_seconds": 0.000327512
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/fixed_case.py",
+            "line": 136,
+            "name": "state",
+            "category": "callback",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 0.000252401,
+            "cumulative_seconds": 0.000337706
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _hashlib.openssl_sha256>",
+            "category": "sha256",
+            "primitive_calls": 570,
+            "total_calls": 570,
+            "self_seconds": 0.00021290300000000002,
+            "cumulative_seconds": 0.00021290300000000002
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 912,
+            "total_calls": 912,
+            "self_seconds": 0.000210411,
+            "cumulative_seconds": 0.000210411
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 345,
+            "name": "canonical_pack",
+            "category": "messagepack",
+            "primitive_calls": 684,
+            "total_calls": 684,
+            "self_seconds": 0.000196843,
+            "cumulative_seconds": 0.0033049280000000004
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.iter>",
+            "category": "other_glue",
+            "primitive_calls": 3192,
+            "total_calls": 3192,
+            "self_seconds": 0.000188003,
+            "cumulative_seconds": 0.000188003
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 188,
+            "name": "validate",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.00016882300000000002,
+            "cumulative_seconds": 0.007124005
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 436,
+            "name": "_packb",
+            "category": "messagepack",
+            "primitive_calls": 684,
+            "total_calls": 684,
+            "self_seconds": 0.000168662,
+            "cumulative_seconds": 0.0030311910000000004
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/projection.py",
+            "line": 25,
+            "name": "prepare",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.000159943,
+            "cumulative_seconds": 0.007145331
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 834,
+            "name": "__init__",
+            "category": "detachment_access",
+            "primitive_calls": 3192,
+            "total_calls": 3192,
+            "self_seconds": 0.000150896,
+            "cumulative_seconds": 0.000150896
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 108,
+            "name": "_snapshot",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.000137424,
+            "cumulative_seconds": 0.00031754
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/projection.py",
+            "line": 61,
+            "name": "hook_capture",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.000119994,
+            "cumulative_seconds": 0.031004329
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method simulatte_native._nd_scalar.retention_state_projection>",
+            "category": "native_atomic",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.00011996100000000001,
+            "cumulative_seconds": 0.00011996100000000001
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 18,
+            "name": "pack",
+            "category": "other_glue",
+            "primitive_calls": 228,
+            "total_calls": 228,
+            "self_seconds": 0.00011719000000000001,
+            "cumulative_seconds": 0.006316841
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/projection.py",
+            "line": 21,
+            "name": "component",
+            "category": "other_glue",
+            "primitive_calls": 171,
+            "total_calls": 171,
+            "self_seconds": 0.00011377400000000001,
+            "cumulative_seconds": 0.001332929
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 148,
+            "name": "full_pipeline",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 0.000109284,
+            "cumulative_seconds": 0.038237618
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 22,
+            "name": "digest",
+            "category": "other_glue",
+            "primitive_calls": 228,
+            "total_calls": 228,
+            "self_seconds": 0.00010755000000000001,
+            "cumulative_seconds": 0.006560468000000001
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 116,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 513,
+            "total_calls": 513,
+            "self_seconds": 0.00010426200000000001,
+            "cumulative_seconds": 0.000129371
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 216,
+            "name": "state_projection",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 9.9554e-05,
+            "cumulative_seconds": 0.001717212
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 39,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 513,
+            "total_calls": 513,
+            "self_seconds": 9.605400000000001e-05,
+            "cumulative_seconds": 0.000118924
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 144,
+            "name": "now",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 9.340700000000001e-05,
+            "cumulative_seconds": 0.000149965
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 447,
+            "name": "_prepare",
+            "category": "wire_preparation",
+            "primitive_calls": 684,
+            "total_calls": 684,
+            "self_seconds": 7.6894e-05,
+            "cumulative_seconds": 7.6894e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 23,
+            "name": "run_calls",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 7.529800000000001e-05,
+            "cumulative_seconds": 0.038312916
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method math.isfinite>",
+            "category": "other_glue",
+            "primitive_calls": 1140,
+            "total_calls": 1140,
+            "self_seconds": 6.390600000000001e-05,
+            "cumulative_seconds": 6.390600000000001e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/__init__.py",
+            "line": 120,
+            "name": "project_state",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 6.3373e-05,
+            "cumulative_seconds": 0.0015538750000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 385,
+            "name": "_synchronized",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 5.7196000000000006e-05,
+            "cumulative_seconds": 0.00023000400000000002
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'update' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 228,
+            "total_calls": 228,
+            "self_seconds": 4.6921e-05,
+            "cumulative_seconds": 4.6921e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'fullmatch' of 're.Pattern' objects>",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 3.9454000000000005e-05,
+            "cumulative_seconds": 3.9454000000000005e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 114,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 171,
+            "total_calls": 171,
+            "self_seconds": 3.4614000000000004e-05,
+            "cumulative_seconds": 4.3117e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 37,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 171,
+            "total_calls": 171,
+            "self_seconds": 3.3657e-05,
+            "cumulative_seconds": 4.1081e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 223,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 171,
+            "total_calls": 171,
+            "self_seconds": 3.0883e-05,
+            "cumulative_seconds": 7.0337e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'disable' of '_lsprof.Profiler' objects>",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 2.9625000000000002e-05,
+            "cumulative_seconds": 2.9625000000000002e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method '__exit__' of '_thread.RLock' objects>",
+            "category": "other_glue",
+            "primitive_calls": 228,
+            "total_calls": 228,
+            "self_seconds": 2.8206e-05,
+            "cumulative_seconds": 2.8206e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method '__enter__' of '_thread.RLock' objects>",
+            "category": "other_glue",
+            "primitive_calls": 228,
+            "total_calls": 228,
+            "self_seconds": 2.6886000000000003e-05,
+            "cumulative_seconds": 2.6886000000000003e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 140,
+            "name": "retention",
+            "category": "other_glue",
+            "primitive_calls": 228,
+            "total_calls": 228,
+            "self_seconds": 1.9219e-05,
+            "cumulative_seconds": 1.9219e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 355,
+            "name": "_live",
+            "category": "other_glue",
+            "primitive_calls": 171,
+            "total_calls": 171,
+            "self_seconds": 1.7630000000000002e-05,
+            "cumulative_seconds": 1.7630000000000002e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method simulatte_native._nd_scalar.retention_now>",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 1.4585e-05,
+            "cumulative_seconds": 1.4585e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.getattr>",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 1.4540000000000001e-05,
+            "cumulative_seconds": 1.4540000000000001e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'digest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 1.4296000000000002e-05,
+            "cumulative_seconds": 1.4296000000000002e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'get' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 1.3127000000000002e-05,
+            "cumulative_seconds": 1.3127000000000002e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 136,
+            "name": "_check",
+            "category": "other_glue",
+            "primitive_calls": 171,
+            "total_calls": 171,
+            "self_seconds": 1.2973000000000001e-05,
+            "cumulative_seconds": 1.2973000000000001e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simpy/core.py",
+            "line": 116,
+            "name": "now",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 1.2296e-05,
+            "cumulative_seconds": 1.2296e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/stopping.py",
+            "line": 37,
+            "name": "to_dict",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 1.0993000000000001e-05,
+            "cumulative_seconds": 1.0993000000000001e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'to_bytes' of 'int' objects>",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 9.207e-06,
+            "cumulative_seconds": 9.207e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.callable>",
+            "category": "other_glue",
+            "primitive_calls": 114,
+            "total_calls": 114,
+            "self_seconds": 9.142e-06,
+            "cumulative_seconds": 9.142e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'encode' of 'str' objects>",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 8.496000000000001e-06,
+            "cumulative_seconds": 8.496000000000001e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hex' of 'bytes' objects>",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 8.456e-06,
+            "cumulative_seconds": 8.456e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'startswith' of 'bytes' objects>",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 8.288000000000001e-06,
+            "cumulative_seconds": 8.288000000000001e-06
+          },
+          {
+            "file": "<frozen importlib._bootstrap>",
+            "line": 648,
+            "name": "parent",
+            "category": "other_glue",
+            "primitive_calls": 57,
+            "total_calls": 57,
+            "self_seconds": 5.253e-06,
+            "cumulative_seconds": 5.253e-06
+          }
+        ]
+      },
+      "unprepared_composition": {
+        "calls": 94,
+        "elapsed_wall_ns": 40561250,
+        "accounted_seconds": 0.040533042,
+        "self_categories": {
+          "other_glue": 0.008718990999999999,
+          "detachment_access": 0.009041865,
+          "wire_preparation": 0.020289074,
+          "messagepack": 0.0022177460000000005,
+          "sha256": 0.000168278,
+          "harness": 9.7088e-05
+        },
+        "functions": [
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 105,
+            "name": "freeze",
+            "category": "wire_preparation",
+            "primitive_calls": 470,
+            "total_calls": 38352,
+            "self_seconds": 0.012350452000000001,
+            "cumulative_seconds": 0.024314383000000002
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 26,
+            "name": "plain",
+            "category": "detachment_access",
+            "primitive_calls": 94,
+            "total_calls": 14758,
+            "self_seconds": 0.005198155,
+            "cumulative_seconds": 0.012737040000000002
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 304,
+            "name": "_canonical_map",
+            "category": "wire_preparation",
+            "primitive_calls": 8460,
+            "total_calls": 8460,
+            "self_seconds": 0.004681734,
+            "cumulative_seconds": 0.008161224
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 427,
+            "name": "_check_key",
+            "category": "wire_preparation",
+            "primitive_calls": 34028,
+            "total_calls": 34028,
+            "self_seconds": 0.0023898360000000002,
+            "cumulative_seconds": 0.0023898360000000002
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 881,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 16450,
+            "total_calls": 16450,
+            "self_seconds": 0.002043365,
+            "cumulative_seconds": 0.003328983
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.isinstance>",
+            "category": "other_glue",
+            "primitive_calls": 20022,
+            "total_calls": 20022,
+            "self_seconds": 0.0018617210000000002,
+            "cumulative_seconds": 0.003742261
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/msgpack/__init__.py",
+            "line": 30,
+            "name": "packb",
+            "category": "messagepack",
+            "primitive_calls": 376,
+            "total_calls": 376,
+            "self_seconds": 0.0014584910000000001,
+            "cumulative_seconds": 0.002254808
+          },
+          {
+            "file": "<frozen abc>",
+            "line": 117,
+            "name": "__instancecheck__",
+            "category": "other_glue",
+            "primitive_calls": 11562,
+            "total_calls": 11562,
+            "self_seconds": 0.001085496,
+            "cumulative_seconds": 0.0018805400000000002
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.sorted>",
+            "category": "other_glue",
+            "primitive_calls": 8460,
+            "total_calls": 8460,
+            "self_seconds": 0.001004887,
+            "cumulative_seconds": 0.001004887
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'isdisjoint' of 'frozenset' objects>",
+            "category": "other_glue",
+            "primitive_calls": 8460,
+            "total_calls": 8460,
+            "self_seconds": 0.0008022890000000001,
+            "cumulative_seconds": 0.0008022890000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _abc._abc_instancecheck>",
+            "category": "other_glue",
+            "primitive_calls": 11562,
+            "total_calls": 11562,
+            "self_seconds": 0.0007950440000000001,
+            "cumulative_seconds": 0.0007950440000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 81,
+            "name": "__getitem__",
+            "category": "detachment_access",
+            "primitive_calls": 13254,
+            "total_calls": 13254,
+            "self_seconds": 0.000724799,
+            "cumulative_seconds": 0.000724799
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method __new__ of type object at 0x103028928>",
+            "category": "other_glue",
+            "primitive_calls": 8460,
+            "total_calls": 8460,
+            "self_seconds": 0.000643907,
+            "cumulative_seconds": 0.000643907
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _bisect.bisect_left>",
+            "category": "other_glue",
+            "primitive_calls": 8460,
+            "total_calls": 8460,
+            "self_seconds": 0.000588159,
+            "cumulative_seconds": 0.000588159
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'items' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 8460,
+            "total_calls": 8460,
+            "self_seconds": 0.000587009,
+            "cumulative_seconds": 0.000587009
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 440,
+            "name": "_pack_default",
+            "category": "messagepack",
+            "primitive_calls": 5264,
+            "total_calls": 5264,
+            "self_seconds": 0.0005605580000000001,
+            "cumulative_seconds": 0.000796317
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 811,
+            "name": "items",
+            "category": "detachment_access",
+            "primitive_calls": 3196,
+            "total_calls": 3196,
+            "self_seconds": 0.0005543550000000001,
+            "cumulative_seconds": 0.0007034000000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 126,
+            "name": "<genexpr>",
+            "category": "wire_preparation",
+            "primitive_calls": 4606,
+            "total_calls": 4606,
+            "self_seconds": 0.000548085,
+            "cumulative_seconds": 0.008706237
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.len>",
+            "category": "other_glue",
+            "primitive_calls": 8554,
+            "total_calls": 8554,
+            "self_seconds": 0.000448204,
+            "cumulative_seconds": 0.000448204
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 84,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 3196,
+            "total_calls": 3196,
+            "self_seconds": 0.000372146,
+            "cumulative_seconds": 0.000560819
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/unprepared_projection.py",
+            "line": 17,
+            "name": "hook_capture",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 0.000305493,
+            "cumulative_seconds": 0.040404792
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 422,
+            "name": "_check_int",
+            "category": "wire_preparation",
+            "primitive_calls": 3666,
+            "total_calls": 3666,
+            "self_seconds": 0.000277777,
+            "cumulative_seconds": 0.000277777
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 18,
+            "name": "pack",
+            "category": "other_glue",
+            "primitive_calls": 376,
+            "total_calls": 376,
+            "self_seconds": 0.000243462,
+            "cumulative_seconds": 0.017824235
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.iter>",
+            "category": "other_glue",
+            "primitive_calls": 3196,
+            "total_calls": 3196,
+            "self_seconds": 0.00018867300000000001,
+            "cumulative_seconds": 0.00018867300000000001
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 834,
+            "name": "__init__",
+            "category": "detachment_access",
+            "primitive_calls": 3196,
+            "total_calls": 3196,
+            "self_seconds": 0.00014904500000000002,
+            "cumulative_seconds": 0.00014904500000000002
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 22,
+            "name": "digest",
+            "category": "other_glue",
+            "primitive_calls": 282,
+            "total_calls": 282,
+            "self_seconds": 0.00012736,
+            "cumulative_seconds": 0.007142545
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 345,
+            "name": "canonical_pack",
+            "category": "messagepack",
+            "primitive_calls": 376,
+            "total_calls": 376,
+            "self_seconds": 0.000106458,
+            "cumulative_seconds": 0.0024946950000000003
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _hashlib.openssl_sha256>",
+            "category": "sha256",
+            "primitive_calls": 282,
+            "total_calls": 282,
+            "self_seconds": 0.00010186,
+            "cumulative_seconds": 0.00010186
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 436,
+            "name": "_packb",
+            "category": "messagepack",
+            "primitive_calls": 376,
+            "total_calls": 376,
+            "self_seconds": 9.223900000000001e-05,
+            "cumulative_seconds": 0.002347047
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 23,
+            "name": "run_calls",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 7.4213e-05,
+            "cumulative_seconds": 0.040510167
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 282,
+            "total_calls": 282,
+            "self_seconds": 6.6418e-05,
+            "cumulative_seconds": 6.6418e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 447,
+            "name": "_prepare",
+            "category": "wire_preparation",
+            "primitive_calls": 376,
+            "total_calls": 376,
+            "self_seconds": 4.1190000000000004e-05,
+            "cumulative_seconds": 4.1190000000000004e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 175,
+            "name": "<lambda>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 3.1162000000000004e-05,
+            "cumulative_seconds": 0.040435954
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'disable' of '_lsprof.Profiler' objects>",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 2.2875e-05,
+            "cumulative_seconds": 2.2875e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 163,
+            "name": "<lambda>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 6.125000000000001e-06,
+            "cumulative_seconds": 6.125000000000001e-06
+          }
+        ]
+      },
+      "unprepared_pipeline": {
+        "calls": 47,
+        "elapsed_wall_ns": 39046583,
+        "accounted_seconds": 0.039019875000000016,
+        "self_categories": {
+          "other_glue": 0.00947751,
+          "detachment_access": 0.007914739,
+          "native_atomic": 9.695600000000001e-05,
+          "wire_preparation": 0.018386287,
+          "messagepack": 0.002449395,
+          "sha256": 0.000401484,
+          "harness": 8.662700000000001e-05,
+          "callback": 0.000206877
+        },
+        "functions": [
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 105,
+            "name": "freeze",
+            "category": "wire_preparation",
+            "primitive_calls": 658,
+            "total_calls": 34592,
+            "self_seconds": 0.011241728000000001,
+            "cumulative_seconds": 0.021875282000000003
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 304,
+            "name": "_canonical_map",
+            "category": "wire_preparation",
+            "primitive_calls": 6956,
+            "total_calls": 6956,
+            "self_seconds": 0.004003024,
+            "cumulative_seconds": 0.007064774
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 26,
+            "name": "plain",
+            "category": "detachment_access",
+            "primitive_calls": 47,
+            "total_calls": 7379,
+            "self_seconds": 0.002571868,
+            "cumulative_seconds": 0.006340917000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 427,
+            "name": "_check_key",
+            "category": "wire_preparation",
+            "primitive_calls": 30268,
+            "total_calls": 30268,
+            "self_seconds": 0.002184232,
+            "cumulative_seconds": 0.002184232
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 89,
+            "name": "_detached",
+            "category": "detachment_access",
+            "primitive_calls": 47,
+            "total_calls": 5734,
+            "self_seconds": 0.002007367,
+            "cumulative_seconds": 0.004938542000000001
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 881,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 14241,
+            "total_calls": 14241,
+            "self_seconds": 0.0017870210000000002,
+            "cumulative_seconds": 0.002912721
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.isinstance>",
+            "category": "other_glue",
+            "primitive_calls": 17907,
+            "total_calls": 17907,
+            "self_seconds": 0.0016917210000000002,
+            "cumulative_seconds": 0.0034282080000000003
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/msgpack/__init__.py",
+            "line": 30,
+            "name": "packb",
+            "category": "messagepack",
+            "primitive_calls": 564,
+            "total_calls": 564,
+            "self_seconds": 0.001600136,
+            "cumulative_seconds": 0.0023668440000000003
+          },
+          {
+            "file": "<frozen abc>",
+            "line": 117,
+            "name": "__instancecheck__",
+            "category": "other_glue",
+            "primitive_calls": 10481,
+            "total_calls": 10481,
+            "self_seconds": 0.0009986700000000001,
+            "cumulative_seconds": 0.001736487
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.sorted>",
+            "category": "other_glue",
+            "primitive_calls": 6956,
+            "total_calls": 6956,
+            "self_seconds": 0.0009338800000000001,
+            "cumulative_seconds": 0.0009338800000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _abc._abc_instancecheck>",
+            "category": "other_glue",
+            "primitive_calls": 10481,
+            "total_calls": 10481,
+            "self_seconds": 0.0007378170000000001,
+            "cumulative_seconds": 0.0007378170000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'isdisjoint' of 'frozenset' objects>",
+            "category": "other_glue",
+            "primitive_calls": 6956,
+            "total_calls": 6956,
+            "self_seconds": 0.000693122,
+            "cumulative_seconds": 0.000693122
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 81,
+            "name": "__getitem__",
+            "category": "detachment_access",
+            "primitive_calls": 11609,
+            "total_calls": 11609,
+            "self_seconds": 0.0006544080000000001,
+            "cumulative_seconds": 0.0006544080000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method __new__ of type object at 0x103028928>",
+            "category": "other_glue",
+            "primitive_calls": 6956,
+            "total_calls": 6956,
+            "self_seconds": 0.0005513930000000001,
+            "cumulative_seconds": 0.0005513930000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 126,
+            "name": "<genexpr>",
+            "category": "wire_preparation",
+            "primitive_calls": 4418,
+            "total_calls": 4418,
+            "self_seconds": 0.000547935,
+            "cumulative_seconds": 0.008471391
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 440,
+            "name": "_pack_default",
+            "category": "messagepack",
+            "primitive_calls": 4794,
+            "total_calls": 4794,
+            "self_seconds": 0.00054478,
+            "cumulative_seconds": 0.0007667080000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'items' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 7144,
+            "total_calls": 7144,
+            "self_seconds": 0.000506294,
+            "cumulative_seconds": 0.000506294
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _bisect.bisect_left>",
+            "category": "other_glue",
+            "primitive_calls": 6956,
+            "total_calls": 6956,
+            "self_seconds": 0.000505337,
+            "cumulative_seconds": 0.000505337
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 811,
+            "name": "items",
+            "category": "detachment_access",
+            "primitive_calls": 2632,
+            "total_calls": 2632,
+            "self_seconds": 0.000453369,
+            "cumulative_seconds": 0.0005812230000000001
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.len>",
+            "category": "other_glue",
+            "primitive_calls": 7332,
+            "total_calls": 7332,
+            "self_seconds": 0.000408783,
+            "cumulative_seconds": 0.000408783
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 422,
+            "name": "_check_int",
+            "category": "wire_preparation",
+            "primitive_calls": 4465,
+            "total_calls": 4465,
+            "self_seconds": 0.00034628,
+            "cumulative_seconds": 0.00034628
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 9,
+            "name": "project",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 0.000334679,
+            "cumulative_seconds": 0.00122567
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 84,
+            "name": "__iter__",
+            "category": "detachment_access",
+            "primitive_calls": 2632,
+            "total_calls": 2632,
+            "self_seconds": 0.000312852,
+            "cumulative_seconds": 0.00047129200000000005
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 410,
+            "name": "state_projection",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 0.000288855,
+            "cumulative_seconds": 0.012688287000000001
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 18,
+            "name": "pack",
+            "category": "other_glue",
+            "primitive_calls": 376,
+            "total_calls": 376,
+            "self_seconds": 0.00022106100000000002,
+            "cumulative_seconds": 0.014139154000000001
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/unprepared_projection.py",
+            "line": 17,
+            "name": "hook_capture",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 0.00021716000000000001,
+            "cumulative_seconds": 0.033226620000000005
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/fixed_case.py",
+            "line": 136,
+            "name": "state",
+            "category": "callback",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 0.000206877,
+            "cumulative_seconds": 0.00027821300000000003
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method _hashlib.openssl_sha256>",
+            "category": "sha256",
+            "primitive_calls": 470,
+            "total_calls": 470,
+            "self_seconds": 0.000175701,
+            "cumulative_seconds": 0.000175701
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hexdigest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 752,
+            "total_calls": 752,
+            "self_seconds": 0.00017415,
+            "cumulative_seconds": 0.00017415
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 345,
+            "name": "canonical_pack",
+            "category": "messagepack",
+            "primitive_calls": 564,
+            "total_calls": 564,
+            "self_seconds": 0.00016462100000000002,
+            "cumulative_seconds": 0.002734411
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.iter>",
+            "category": "other_glue",
+            "primitive_calls": 2632,
+            "total_calls": 2632,
+            "self_seconds": 0.00015844,
+            "cumulative_seconds": 0.00015844
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 22,
+            "name": "digest",
+            "category": "other_glue",
+            "primitive_calls": 329,
+            "total_calls": 329,
+            "self_seconds": 0.000153164,
+            "cumulative_seconds": 0.008938673000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 436,
+            "name": "_packb",
+            "category": "messagepack",
+            "primitive_calls": 564,
+            "total_calls": 564,
+            "self_seconds": 0.000139858,
+            "cumulative_seconds": 0.002506702
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 188,
+            "name": "validate",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 0.00013667600000000002,
+            "cumulative_seconds": 0.005652873
+          },
+          {
+            "file": "<frozen _collections_abc>",
+            "line": 834,
+            "name": "__init__",
+            "category": "detachment_access",
+            "primitive_calls": 2632,
+            "total_calls": 2632,
+            "self_seconds": 0.000127854,
+            "cumulative_seconds": 0.000127854
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 108,
+            "name": "_snapshot",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 0.00011082600000000001,
+            "cumulative_seconds": 0.00025584100000000003
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method simulatte_native._nd_scalar.retention_state_projection>",
+            "category": "native_atomic",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 9.695600000000001e-05,
+            "cumulative_seconds": 9.695600000000001e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 116,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 423,
+            "total_calls": 423,
+            "self_seconds": 8.3898e-05,
+            "cumulative_seconds": 0.00010422400000000001
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 216,
+            "name": "state_projection",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 8.16e-05,
+            "cumulative_seconds": 0.001412167
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 39,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 423,
+            "total_calls": 423,
+            "self_seconds": 7.9944e-05,
+            "cumulative_seconds": 9.8973e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 144,
+            "name": "now",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 7.6486e-05,
+            "cumulative_seconds": 0.000138543
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 23,
+            "name": "run_calls",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 6.3169e-05,
+            "cumulative_seconds": 0.038996417000000005
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/_wire.py",
+            "line": 447,
+            "name": "_prepare",
+            "category": "wire_preparation",
+            "primitive_calls": 564,
+            "total_calls": 564,
+            "self_seconds": 6.3088e-05,
+            "cumulative_seconds": 6.3088e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py",
+            "line": 158,
+            "name": "unprepared_pipeline",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 5.3755e-05,
+            "cumulative_seconds": 0.038933248000000004
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method math.isfinite>",
+            "category": "other_glue",
+            "primitive_calls": 940,
+            "total_calls": 940,
+            "self_seconds": 5.2649000000000004e-05,
+            "cumulative_seconds": 5.2649000000000004e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/__init__.py",
+            "line": 120,
+            "name": "project_state",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 5.1624000000000006e-05,
+            "cumulative_seconds": 0.00128146
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 385,
+            "name": "_synchronized",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 4.6043000000000006e-05,
+            "cumulative_seconds": 0.00020325400000000002
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'update' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 188,
+            "total_calls": 188,
+            "self_seconds": 3.9923000000000004e-05,
+            "cumulative_seconds": 3.9923000000000004e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method '__enter__' of '_thread.RLock' objects>",
+            "category": "other_glue",
+            "primitive_calls": 188,
+            "total_calls": 188,
+            "self_seconds": 3.6172000000000005e-05,
+            "cumulative_seconds": 3.6172000000000005e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'fullmatch' of 're.Pattern' objects>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 3.2293000000000004e-05,
+            "cumulative_seconds": 3.2293000000000004e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_projection.py",
+            "line": 37,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 141,
+            "total_calls": 141,
+            "self_seconds": 2.7667e-05,
+            "cumulative_seconds": 3.4088e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 114,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 141,
+            "total_calls": 141,
+            "self_seconds": 2.7623000000000003e-05,
+            "cumulative_seconds": 3.4496e-05
+          },
+          {
+            "file": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/reference_projection.py",
+            "line": 223,
+            "name": "<genexpr>",
+            "category": "other_glue",
+            "primitive_calls": 141,
+            "total_calls": 141,
+            "self_seconds": 2.5594000000000003e-05,
+            "cumulative_seconds": 5.7887e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method '__exit__' of '_thread.RLock' objects>",
+            "category": "other_glue",
+            "primitive_calls": 188,
+            "total_calls": 188,
+            "self_seconds": 2.3661000000000003e-05,
+            "cumulative_seconds": 2.3661000000000003e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'disable' of '_lsprof.Profiler' objects>",
+            "category": "harness",
+            "primitive_calls": 1,
+            "total_calls": 1,
+            "self_seconds": 2.3458e-05,
+            "cumulative_seconds": 2.3458e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 355,
+            "name": "_live",
+            "category": "other_glue",
+            "primitive_calls": 141,
+            "total_calls": 141,
+            "self_seconds": 1.3794e-05,
+            "cumulative_seconds": 1.3794e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 140,
+            "name": "retention",
+            "category": "other_glue",
+            "primitive_calls": 188,
+            "total_calls": 188,
+            "self_seconds": 1.3179e-05,
+            "cumulative_seconds": 1.3179e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method simulatte_native._nd_scalar.retention_now>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 1.1835000000000001e-05,
+            "cumulative_seconds": 1.1835000000000001e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'digest' of '_hashlib.HASH' objects>",
+            "category": "sha256",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 1.1710000000000001e-05,
+            "cumulative_seconds": 1.1710000000000001e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/experimental/native.py",
+            "line": 136,
+            "name": "_check",
+            "category": "other_glue",
+            "primitive_calls": 141,
+            "total_calls": 141,
+            "self_seconds": 1.114e-05,
+            "cumulative_seconds": 1.114e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.getattr>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 1.0838e-05,
+            "cumulative_seconds": 1.0838e-05
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'get' of 'dict' objects>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 1.0757e-05,
+            "cumulative_seconds": 1.0757e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simpy/core.py",
+            "line": 116,
+            "name": "now",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 1.0251e-05,
+            "cumulative_seconds": 1.0251e-05
+          },
+          {
+            "file": "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte/stopping.py",
+            "line": 37,
+            "name": "to_dict",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 8.167e-06,
+            "cumulative_seconds": 8.167e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'to_bytes' of 'int' objects>",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 7.952000000000001e-06,
+            "cumulative_seconds": 7.952000000000001e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'hex' of 'bytes' objects>",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 7.583e-06,
+            "cumulative_seconds": 7.583e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<built-in method builtins.callable>",
+            "category": "other_glue",
+            "primitive_calls": 94,
+            "total_calls": 94,
+            "self_seconds": 7.211e-06,
+            "cumulative_seconds": 7.211e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'startswith' of 'bytes' objects>",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 6.877e-06,
+            "cumulative_seconds": 6.877e-06
+          },
+          {
+            "file": "~",
+            "line": 0,
+            "name": "<method 'encode' of 'str' objects>",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 6.873e-06,
+            "cumulative_seconds": 6.873e-06
+          },
+          {
+            "file": "<frozen importlib._bootstrap>",
+            "line": 648,
+            "name": "parent",
+            "category": "other_glue",
+            "primitive_calls": 47,
+            "total_calls": 47,
+            "self_seconds": 4.1660000000000004e-06,
+            "cumulative_seconds": 4.1660000000000004e-06
+          }
+        ]
+      }
+    },
+    "traced_python_memory": {
+      "managed_hook": {
+        "calls": 8,
+        "current_with_last_result": 22774,
+        "peak_bytes": 290858,
+        "after_release_bytes": 64,
+        "retained_sites": [
+          {
+            "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+            "bytes": 184,
+            "blocks": 2
+          },
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:106",
+            "bytes": 96,
+            "blocks": 2
+          },
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:103",
+            "bytes": 64,
+            "blocks": 2
+          }
+        ]
+      },
+      "composition_only": {
+        "calls": 8,
+        "current_with_last_result": 24019,
+        "peak_bytes": 293517,
+        "after_release_bytes": 64,
+        "retained_sites": [
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:106",
+            "bytes": 96,
+            "blocks": 2
+          },
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:103",
+            "bytes": 64,
+            "blocks": 2
+          },
+          {
+            "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+            "bytes": 56,
+            "blocks": 1
+          }
+        ]
+      },
+      "pipeline": {
+        "calls": 8,
+        "current_with_last_result": 26017,
+        "peak_bytes": 299785,
+        "after_release_bytes": 64,
+        "retained_sites": [
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:106",
+            "bytes": 96,
+            "blocks": 2
+          },
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:103",
+            "bytes": 64,
+            "blocks": 2
+          },
+          {
+            "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+            "bytes": 56,
+            "blocks": 1
+          }
+        ]
+      },
+      "unprepared_composition": {
+        "calls": 8,
+        "current_with_last_result": 24171,
+        "peak_bytes": 295501,
+        "after_release_bytes": 64,
+        "retained_sites": [
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:106",
+            "bytes": 96,
+            "blocks": 2
+          },
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:103",
+            "bytes": 64,
+            "blocks": 2
+          },
+          {
+            "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+            "bytes": 56,
+            "blocks": 1
+          }
+        ]
+      },
+      "unprepared_pipeline": {
+        "calls": 8,
+        "current_with_last_result": 26169,
+        "peak_bytes": 301769,
+        "after_release_bytes": 64,
+        "retained_sites": [
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:106",
+            "bytes": 96,
+            "blocks": 2
+          },
+          {
+            "trace": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/measurement.py:103",
+            "bytes": 64,
+            "blocks": 2
+          },
+          {
+            "trace": "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/tracemalloc.py:551",
+            "bytes": 56,
+            "blocks": 1
+          }
+        ]
+      }
+    },
+    "gc_enabled": true
+  },
+  "pid": 87667,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "1174d92ebcdc48d7818836463136c0e17f53332105a63e3efabf21aa5435c100",
+      "csrc/retention_module.h": "56b7511e83d68c2ee070f92f6a684a6cf74b1d36cf272d87ab9dd608cd025bff",
+      "csrc/scalar_module.c": "9734d16cedeca6193449cb76c88e446e61f0f53aa50e875c05b4f2ed15ab1859",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "439a743cbe7704b164cfe47ed3e6511acb4e069f6b106e8e442ece7892d7d69f",
+        "size": 72704
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "origin": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-micro-installed-k94dsdh7/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit"
+  }
+}

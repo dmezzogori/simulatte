@@ -1,0 +1,186 @@
+{
+  "fixture": "fixed",
+  "ticks": 4096,
+  "seed": 102,
+  "result": {
+    "parameters": {
+      "fixture": "fixed",
+      "engine": "bounded",
+      "policy": "spt",
+      "hard_limit": 12,
+      "wip_cap": 4,
+      "burst": 3,
+      "interval": 0.5,
+      "feedback": true,
+      "record": false
+    },
+    "seed": 102,
+    "warmup": 10,
+    "request": "66900da370f5bdf9e027267fcfd8bb8664188400d90b9c0de9f8a8b34306fde1",
+    "attempt": "bc00daa6b858b1c8a2f80ff386d31fd0",
+    "fingerprint": {
+      "digest": "dd5dfd0b7b6429da3d557263db3f3d68d13cc3f76644744bc6b73375dd2657ff",
+      "kpis": {
+        "shopfloor/jobs_in_system": 3.012757605495584,
+        "shopfloor/lateness": -4.243700916230367,
+        "shopfloor/makespan": 6.331642670157068,
+        "shopfloor/tardiness": 0.3502126963350785,
+        "shopfloor/tardy_fraction": 0.14528795811518325,
+        "shopfloor/throughput": 0.7497546614327772,
+        "shopfloor/total_queue_time": 1.400032722513089,
+        "shopfloor/utilization": 0.65484952567877
+      }
+    },
+    "physical": {
+      "controller": {
+        "admissions_sha256": "10b70ae9238094851ce204fb325e328511bc6976015778b695da151bd6276450",
+        "blocked": 1489,
+        "burst": 3,
+        "completed": 1536,
+        "cursor": 1536,
+        "decisions_sha256": "92ed649d250e73178426a4a31d3688065d8762c8f7ae897ab051600672506113",
+        "delay_eighths": 16612,
+        "feedback": true,
+        "hard_limit": 12,
+        "idle": 1862,
+        "interval": 0.5,
+        "live": [],
+        "next_at": 2048.0,
+        "phase": "horizon",
+        "pool_polls": 2211,
+        "pressure_q": 0,
+        "relaxed_polls": 1837,
+        "schema": "fixed-admission-controller-v1",
+        "seed": 1858265390,
+        "specifications_sha256": "bd67bd2f5b924e587905b909cdcdad3f1dccdc018ba69b2a77a69ee500fd7ff8",
+        "switches": 256,
+        "tick": 4096,
+        "tight_mode": false,
+        "tight_polls": 2259
+      },
+      "final_observed": []
+    },
+    "reporting": {
+      "kpis": {
+        "jobs_in_system": 3.012757605495584,
+        "lateness": -4.243700916230367,
+        "makespan": 6.331642670157068,
+        "tardiness": 0.3502126963350785,
+        "tardy_fraction": 0.14528795811518325,
+        "throughput": 0.7497546614327772,
+        "total_queue_time": 1.400032722513089,
+        "utilization": 0.65484952567877
+      },
+      "reports_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native": {
+      "digest": "2c19fee399e66066762c3d2e398a799ca0491cebb199ca8e2e51d2a81c5da450",
+      "schema": "native-production-bounded-v1"
+    },
+    "identities": null,
+    "proof_sha256": {},
+    "artifact_sha256": {
+      "control.json": "188b70e3e36ef6d46314a4d1685da3fb9fad9107f80b6d4d7dbf15ad26c741a4",
+      "native.json": "de6fc77b16be994a90f21e8f8354f3e170bc66f18252dcd91ea270ef95eed120",
+      "reporting.json": "0ab41963c1aea8476709fe5626c79d9781cbe8861f48a6c9357c066aabe4831b"
+    },
+    "origin": "external:/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-prepared-live-installed-fy4y8vdp/venv/lib/python3.14/site-packages/simulatte_native/_bin/_nd_scalar.cpython-314-darwin.so",
+    "trace_bytes": 57377
+  },
+  "repetitions": [],
+  "parent_checkpoints": [
+    49250304
+  ],
+  "store_bytes": 16127461,
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "1174d92ebcdc48d7818836463136c0e17f53332105a63e3efabf21aa5435c100",
+      "csrc/retention_module.h": "56b7511e83d68c2ee070f92f6a684a6cf74b1d36cf272d87ab9dd608cd025bff",
+      "csrc/scalar_module.c": "9734d16cedeca6193449cb76c88e446e61f0f53aa50e875c05b4f2ed15ab1859",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "439a743cbe7704b164cfe47ed3e6511acb4e069f6b106e8e442ece7892d7d69f",
+        "size": 72704
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "coordinator_pid": 92697,
+  "runtime": {
+    "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+    "platform": "macOS-27.2-arm64-64bit",
+    "machine": "arm64"
+  },
+  "usage": {
+    "parent_pid": 92697,
+    "tree_peak_rss": 153092096,
+    "parent_peak_rss": 48431104,
+    "per_pid_peak_rss": {
+      "92697": 48431104,
+      "92704": 27492352,
+      "92708": 33243136,
+      "92710": 23314432,
+      "92711": 42090496,
+      "92717": 23412736,
+      "92719": 48103424
+    },
+    "max_descendants": 3,
+    "samples": 21,
+    "wall_seconds": 1.3423450840018631
+  },
+  "query_every": 0,
+  "disabled": true,
+  "projection_mode": "hook",
+  "diagnostics": [
+    {
+      "entities": 2,
+      "expired_reads": 1536,
+      "max_callback_bytes": 1240,
+      "max_owned": 10,
+      "peak_rss": 48087040,
+      "pid": 92719,
+      "storage": {
+        "admitted": 1536,
+        "calendar_capacity": 32,
+        "completed": 1536,
+        "completion_capacity": 512,
+        "events": 25176,
+        "forgotten": 1536,
+        "job_capacity": 16,
+        "native_bytes": 5479,
+        "op_capacity": 32,
+        "retained_jobs": 0,
+        "retained_operations": 0,
+        "state_capacity": 256
+      }
+    }
+  ],
+  "identity_diagnostics": []
+}

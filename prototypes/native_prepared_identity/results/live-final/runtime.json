@@ -1,0 +1,54 @@
+{
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "packages": {
+    "simpy": {
+      "version": "4.1.2",
+      "record_sha256": "e3d24f02f80d984d9e64c3c138532a27ac764458efd65e09533f9a58d1ab99ed",
+      "module_files_sha256": "bc3dc142b6f60849363c0de5be37e0f5fa57f0670c5e06e0cf7f4e209ccc74cd"
+    },
+    "simulatte": {
+      "version": "0.17.0",
+      "record_sha256": "b612ac985321edf8e2514f86571d8c6189311cf7befb9782cce8e4820761d6c3",
+      "module_files_sha256": "2b7b3475c78de0572368cc7b432988e1d9dcb34785438c93e90c80e96ddc06ce"
+    },
+    "simulatte-native": {
+      "version": "0.17.0",
+      "record_sha256": "53e86e8b626c2bdfa6235c90e18448164929f9f6e8941c516041bd99b76465d1",
+      "module_files_sha256": "9d91124346875d90e3b26654bcc4e053e6f8ac49cc13b49d3fc89c4e64c95f4d"
+    },
+    "tqdm": {
+      "version": "4.70.1",
+      "record_sha256": "beef71247c8b92a87fa6fea584a696c239cb5235b36ab88dd34e0c47fe32cf9e",
+      "module_files_sha256": "e085c41777248aa2add9a3a2e93f0c2411f76c3ab1b0d67a9bdc8ff3b59d9e79"
+    },
+    "tabulate": {
+      "version": "0.10.0",
+      "record_sha256": "8af3bc357479e09b3a154b309c36657df290ccb15acfdddbd2f05d09db7fe6be",
+      "module_files_sha256": "6e322c256d51c43fe536ae3ca7d72a5fef97aaf058c47bb8428c8aa46b9cbfda"
+    },
+    "msgpack": {
+      "version": "1.2.4",
+      "record_sha256": "08ca25d69ec92b60ba39d95643d50d2d1fb9991c57cff37671698619dca5a755",
+      "module_files_sha256": "06e447285c1357b30c016114747fc8f0035935f056f1efe9ae767472b2910e75"
+    }
+  },
+  "gc_threshold": [
+    2000,
+    10,
+    0
+  ],
+  "clocks": {
+    "perf_counter": {
+      "implementation": "mach_absolute_time()",
+      "monotonic": true,
+      "adjustable": false,
+      "resolution": 4.166666666666666e-08
+    },
+    "thread_time": {
+      "implementation": "clock_gettime(CLOCK_THREAD_CPUTIME_ID)",
+      "monotonic": true,
+      "adjustable": false,
+      "resolution": 4.2000000000000006e-08
+    }
+  }
+}
