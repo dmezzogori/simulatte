@@ -1,0 +1,23 @@
+==26420==WARN: No external symbolizers found. Symbols may be missing or unreliable.
+==26420==HINT: Is PATH set? Does sandbox allow file-read of /usr/bin/atos?
+[{"type": "queued", "key": {"request_id": "82f118b7bd9e54c0d41495710f14acf34e7c8ebd7af3c428c4ae6d4d31833203", "attempt_id": "86e95399d66725a487af2909d68b8c80", "generation": 1}, "body": {}}, {"type": "model_info", "key": {"request_id": "82f118b7bd9e54c0d41495710f14acf34e7c8ebd7af3c428c4ae6d4d31833203", "attempt_id": "86e95399d66725a487af2909d68b8c80", "generation": 1}, "body": {"document": {"path": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/debug/project/.simulatte/documents/64250726a7a4cf4f0361bd8a14f47e3cf6d3b8102b87953d4306d424a78016e5.msgpack", "length": 28345, "sha256": "64250726a7a4cf4f0361bd8a14f47e3cf6d3b8102b87953d4306d424a78016e5"}}}, {"type": "queued", "key": {"request_id": "643bde2db6461cf49b1e199063f91d88bd1b26cd10f70ae2b650dfeb23612392", "attempt_id": "1eeb7fd0aab0fc3e5c44e7d7a55d561b", "generation": 2}, "body": {}}, {"type": "trace_available", "key": {"request_id": "643bde2db6461cf49b1e199063f91d88bd1b26cd10f70ae2b650dfeb23612392", "attempt_id": "1eeb7fd0aab0fc3e5c44e7d7a55d561b", "generation": 2}, "body": {"generation": 1, "length": 6377, "sha256": "bb7564d08b11f920abbd2f6f3a5f4942c74d50867f2d00f53748a5c786469331", "last_cursor": null}}, {"type": "heartbeat", "key": {"request_id": "643bde2db6461cf49b1e199063f91d88bd1b26cd10f70ae2b650dfeb23612392", "attempt_id": "1eeb7fd0aab0fc3e5c44e7d7a55d561b", "generation": 2}, "body": {"backpressure": false, "elapsed": 0.47961483300605323, "event_count": 0, "phase": "preparing", "simulation_time": 0.0, "spool_bytes": 0, "spool_files": 0, "stalled": false}}, {"type": "diagnostics", "key": {"request_id": "643bde2db6461cf49b1e199063f91d88bd1b26cd10f70ae2b650dfeb23612392", "attempt_id": "1eeb7fd0aab0fc3e5c44e7d7a55d561b", "generation": 2}, "body": {"dropped_bytes": 0, "stderr": "==26445==ERROR: Interceptors are not working. This may be because AddressSanitizer is loaded too late (e.g. via dlopen). Please launch the executable with:\nDYLD_INSERT_LIBRARIES=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/21/lib/darwin/libclang_rt.asan_osx_dynamic.dylib\n\"interceptors not installed\" && 0\n", "stdout": "", "truncated": false}}, {"type": "failed", "key": {"request_id": "643bde2db6461cf49b1e199063f91d88bd1b26cd10f70ae2b650dfeb23612392", "attempt_id": "1eeb7fd0aab0fc3e5c44e7d7a55d561b", "generation": 2}, "body": {"code": "child_protocol_lost", "message": "Attempt stopped"}}]
+Traceback (most recent call last):
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 152, in execute
+    result = coordinator.wait(key, timeout=40)
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-lifecycle-macos-safety/venv/lib/python3.14/site-packages/simulatte/execution/coordinator.py", line 598, in wait
+    raise ExecutionFailure(key, attempt["status"], attempt["details"])
+simulatte.execution.coordinator.ExecutionFailure: Attempt stopped
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 297, in <module>
+    main(p.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 249, in main
+    selected[retention] = execute(retention, "healthy", len(rows))
+                          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 155, in execute
+    assert expected != "succeeded", coordinator.store.attempt(key)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'id': '1eeb7fd0aab0fc3e5c44e7d7a55d561b', 'request_id': '643bde2db6461cf49b1e199063f91d88bd1b26cd10f70ae2b650dfeb23612392', 'revision': 2, 'generation': 2, 'status': 'failed', 'created': 1793790053.256633, 'updated': 1793790053.8770401, 'details': {'code': 'child_protocol_lost', 'message': 'Attempt stopped'}, 'slot': 'interactive', 'worker': None}

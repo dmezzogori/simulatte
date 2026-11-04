@@ -1,0 +1,22 @@
+==25521==WARN: No external symbolizers found. Symbols may be missing or unreliable.
+==25521==HINT: Is PATH set? Does sandbox allow file-read of /usr/bin/atos?
+Traceback (most recent call last):
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 152, in execute
+    result = coordinator.wait(key, timeout=40)
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-lifecycle-macos-safety/venv/lib/python3.14/site-packages/simulatte/execution/coordinator.py", line 598, in wait
+    raise ExecutionFailure(key, attempt["status"], attempt["details"])
+simulatte.execution.coordinator.ExecutionFailure: Attempt stopped
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 296, in <module>
+    main(p.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 248, in main
+    selected[retention] = execute(retention, "healthy", len(rows))
+                          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-8eg1a119/gate.py", line 154, in execute
+    assert expected != "succeeded", coordinator.store.attempt(key)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'id': '1245ce0b31832014200469287c5f4192', 'request_id': '2dad49239f0a47ddd77fabf6a809117687b7e5bde1dcca701cd0712afe6b408c', 'revision': 2, 'generation': 2, 'status': 'failed', 'created': 1793789973.9242399, 'updated': 1793789974.356956, 'details': {'code': 'child_protocol_lost', 'message': 'Attempt stopped'}, 'slot': 'interactive', 'worker': None}

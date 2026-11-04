@@ -1,0 +1,15 @@
+Using Python 3.14.0 environment at: prototypes/native_provider_projection/.build/sanitized-lifecycle-linux-safety-final/venv
+Resolved 12 packages in 39ms
+Installed 12 packages in 20ms
+ + iniconfig==2.3.1
+ + msgpack==1.2.4
+ + packaging==26.3
+ + pluggy==1.7.0
+ + pygments==2.21.0
+ + pytest==9.2.0
+ + pytest-timeout==2.4.0
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

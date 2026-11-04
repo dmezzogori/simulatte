@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/run.py", line 125, in <module>
+    main(p.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^
+  File "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/run.py", line 102, in main
+    execute(command, output / "gate.log", env=env, cwd=work)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/run.py", line 50, in execute
+    assert result.returncode == 0, log.read_text()
+           ^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {"retention": "full", "kind": "healthy", "status": "succeeded", "seconds": 1.0454435599967837}
+Traceback (most recent call last):
+  File "/tmp/simulatte-native-lifecycle-6eavpx1q/gate.py", line 296, in <module>
+    main(p.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/simulatte-native-lifecycle-6eavpx1q/gate.py", line 250, in main
+    execute(retention, kind, len(rows))
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/simulatte-native-lifecycle-6eavpx1q/gate.py", line 173, in execute
+    assert EXPECTED[kind] in attempt["details"]["message"], attempt
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'id': '660f5c4642b73b18211001e7ed4d78c3', 'request_id': 'dcda6eedbd25d7fd7a0891873f5528cf2b4212c8004c9b655ebf3b3dc5c12d22', 'revision': 2, 'generation': 3, 'status': 'failed', 'created': 1793790055.665659, 'updated': 1793790056.4471197, 'details': {'code': 'child_error', 'message': 'stream is closed, busy, failed or sealed', 'phase': 'running', 'traceback': 'Traceback (most recent call last):\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/staging/660f5c4642b73b18211001e7ed4d78c3/snapshot/plant.py", line 51, in advance\n    super().advance(until)\n    ~~~~~~~~~~~~~~~^^^^^^^\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py", line 375, in advance\n    self._live().advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File "/tmp/simulatte-native-lifecycle-6eavpx1q/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py", line 169, in advance\n    self._module.advance(self._engine, until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: stream is closed, busy, failed or sealed\n'}, 'slot': 'interactive', 'worker': None}

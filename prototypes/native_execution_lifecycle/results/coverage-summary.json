@@ -1,0 +1,16 @@
+{
+  "full_suite_passed": 3659,
+  "skipped": 1,
+  "combined_coverage_percent": 99.03,
+  "xml_summary": {
+    "version": "7.16.2",
+    "timestamp": "1793791095437",
+    "lines-valid": "21706",
+    "lines-covered": "21574",
+    "line-rate": "0.9939",
+    "branches-valid": "7556",
+    "branches-covered": "7405",
+    "branch-rate": "0.98",
+    "complexity": "0"
+  }
+}

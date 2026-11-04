@@ -1,0 +1,145 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+___________ test_primary_error_survives_native_cleanup[advance-full] ___________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-45/test_primary_error_survives_na0')
+retention = 'full', kind = 'advance'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+            prepared = coordinator.prepare(timeout=15)
+            request = coordinator.make_request(prepared, parameters=dict(retention=retention, kind=kind), level="kpi")
+            key = coordinator.submit(request, prepared.revision, timeout=15)
+            with pytest.raises(ExecutionFailure):
+                coordinator.wait(key, timeout=20)
+            attempt = coordinator.store.attempt(key)
+            expected = "primary native advance failure" if kind == "advance" else "primary producer failure"
+>           assert expected in attempt["details"]["message"]
+E           AssertionError: assert 'primary native advance failure' in 'Native observation requires a synchronized Python boundary'
+
+tests/execution/test_native_lifecycle.py:53: AssertionError
+_________ test_primary_error_survives_native_cleanup[advance-bounded] __________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-45/test_primary_error_survives_na1')
+retention = 'bounded', kind = 'advance'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+            prepared = coordinator.prepare(timeout=15)
+            request = coordinator.make_request(prepared, parameters=dict(retention=retention, kind=kind), level="kpi")
+            key = coordinator.submit(request, prepared.revision, timeout=15)
+            with pytest.raises(ExecutionFailure):
+                coordinator.wait(key, timeout=20)
+            attempt = coordinator.store.attempt(key)
+            expected = "primary native advance failure" if kind == "advance" else "primary producer failure"
+>           assert expected in attempt["details"]["message"]
+E           AssertionError: assert 'primary native advance failure' in 'Native observation requires a synchronized Python boundary'
+
+tests/execution/test_native_lifecycle.py:53: AssertionError
+___________ test_primary_error_survives_native_cleanup[cleanup-full] ___________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-45/test_primary_error_survives_na2')
+retention = 'full', kind = 'cleanup'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+            prepared = coordinator.prepare(timeout=15)
+            request = coordinator.make_request(prepared, parameters=dict(retention=retention, kind=kind), level="kpi")
+            key = coordinator.submit(request, prepared.revision, timeout=15)
+            with pytest.raises(ExecutionFailure):
+                coordinator.wait(key, timeout=20)
+            attempt = coordinator.store.attempt(key)
+            expected = "primary native advance failure" if kind == "advance" else "primary producer failure"
+>           assert expected in attempt["details"]["message"]
+E           AssertionError: assert 'primary producer failure' in 'secondary cleanup failure'
+
+tests/execution/test_native_lifecycle.py:53: AssertionError
+_________ test_primary_error_survives_native_cleanup[cleanup-bounded] __________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-45/test_primary_error_survives_na3')
+retention = 'bounded', kind = 'cleanup'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+            prepared = coordinator.prepare(timeout=15)
+            request = coordinator.make_request(prepared, parameters=dict(retention=retention, kind=kind), level="kpi")
+            key = coordinator.submit(request, prepared.revision, timeout=15)
+            with pytest.raises(ExecutionFailure):
+                coordinator.wait(key, timeout=20)
+            attempt = coordinator.store.attempt(key)
+            expected = "primary native advance failure" if kind == "advance" else "primary producer failure"
+>           assert expected in attempt["details"]["message"]
+E           AssertionError: assert 'primary producer failure' in 'secondary cleanup failure'
+
+tests/execution/test_native_lifecycle.py:53: AssertionError
+______ test_failed_backend_closes_without_querying_poisoned_partial_state ______
+
+    def test_failed_backend_closes_without_querying_poisoned_partial_state():
+        class Poisoned(FixedBackend):
+            def kpi_values(self):
+                if self.advances:
+                    raise RuntimeError("partial native state is unavailable")
+                return super().kpi_values()
+
+        backend = Poisoned(fail="advance")
+        env, _ = environment(backend)
+        with pytest.raises(RuntimeError, match="advance failed"):
+            execute_until(env, Horizon(2))
+>       env.close()
+
+tests/execution/test_backend.py:207:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/simulatte/environment.py:656: in close
+    with contextlib.ExitStack() as stack:
+         ^^^^^^^^^^^^^^^^^^^^^^
+/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py:619: in __exit__
+    raise exc
+/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py:604: in __exit__
+    if cb(*exc_details):
+       ^^^^^^^^^^^^^^^^
+/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py:482: in _exit_wrapper
+    callback(*args, **kwds)
+src/simulatte/execution/backend.py:169: in close
+    self._values = dict(self.backend.kpi_values())
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <test_backend.test_failed_backend_closes_without_querying_poisoned_partial_state.<locals>.Poisoned object at 0x1094ec590>
+
+    def kpi_values(self):
+        if self.advances:
+>           raise RuntimeError("partial native state is unavailable")
+E           RuntimeError: partial native state is unavailable
+
+tests/execution/test_backend.py:200: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[advance-full]
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[advance-bounded]
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[cleanup-full]
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[cleanup-bounded]
+FAILED tests/execution/test_backend.py::test_failed_backend_closes_without_querying_poisoned_partial_state
+5 failed in 4.58s

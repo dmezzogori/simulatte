@@ -235,7 +235,14 @@ def execute_until(env: Any, policy: Horizon | FinitePopulation, control: Any = N
                     backend.finish()
                 return StopResult(policy, "horizon", float(env.now))
             if backend is not None:
+                # SimPy queues a failed process at its current time. Deliver its
+                # original exception before touching an owner it may have poisoned.
+                if env.peek() == env.now and getattr(env._queue[0][3], "_ok", True) is False:
+                    env.step()
+                    continue
                 backend.advance(float(env.peek()))
+                if control is not None:
+                    control()
             env.step()
     except BaseException:
         env._run_failed = True

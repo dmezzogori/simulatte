@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_execution_lifecycle/direct.py", line 120, in <module>
+    main(Path(sys.argv[1]))
+    ~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_execution_lifecycle/direct.py", line 17, in main
+    owner = ctypes.CDLL(str(library))
+  File "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/ctypes/__init__.py", line 433, in __init__
+    self._handle = self._load_library(name, mode, handle, winmode)
+                   ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/ctypes/__init__.py", line 473, in _load_library
+    return _dlopen(name, mode)
+OSError: dlopen(/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-lifecycle-macos-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib.dSYM, 0x0006): tried: '/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-lifecycle-macos-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib.dSYM' (not a file), '/System/Volumes/Preboot/Cryptexes/OS/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-lifecycle-macos-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib.dSYM' (no such file), '/Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_provider_projection/.build/sanitized-lifecycle-macos-safety-final/venv/lib/python3.14/site-packages/simulatte_native/_bin/simulatte_native_engine.dylib.dSYM' (not a file)

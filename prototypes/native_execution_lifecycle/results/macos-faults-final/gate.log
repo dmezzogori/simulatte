@@ -1,0 +1,7 @@
+{"retention": "full", "kind": "healthy", "status": "succeeded", "seconds": 0.833246207999764}
+{"retention": "full", "kind": "allocation_error", "status": "failed", "seconds": 0.42562566700507887}
+{"retention": "full", "kind": "healthy", "status": "succeeded", "seconds": 0.44799812498968095}
+{"retention": "bounded", "kind": "healthy", "status": "succeeded", "seconds": 0.5251537089934573}
+{"retention": "bounded", "kind": "allocation_error", "status": "failed", "seconds": 0.46518416599428747}
+{"retention": "bounded", "kind": "healthy", "status": "succeeded", "seconds": 0.46018904200172983}
+{"passed": true, "attempts": 8, "published": 6}

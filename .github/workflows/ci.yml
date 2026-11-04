@@ -279,6 +279,13 @@ jobs:
             --core-wheel "$RUNNER_TEMP"/native-core-wheel/simulatte-*.whl \
             --native-wheel "$RUNNER_TEMP"/native-build/simulatte_native-*.whl \
             --output "$RUNNER_TEMP/native-check"
+      - name: Native execution failure diagnostics from installed wheels
+        run: |
+          uv venv "$RUNNER_TEMP/native-regressions" --python ${{ matrix.python }}
+          uv pip install --python "$RUNNER_TEMP/native-regressions/bin/python" --link-mode=copy \
+            "$RUNNER_TEMP"/native-core-wheel/simulatte-*.whl \
+            "$RUNNER_TEMP"/native-build/simulatte_native-*.whl pytest pytest-timeout
+          "$RUNNER_TEMP/native-regressions/bin/python" -m pytest -o addopts=-q tests/execution/test_native_lifecycle.py
       - name: Upload native wheels and install evidence (no publication)
         uses: actions/upload-artifact@v7
         with:

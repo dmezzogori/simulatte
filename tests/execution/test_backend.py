@@ -193,6 +193,80 @@ def test_failure_always_closes_backend_once(failure):
     assert backend.closed == 1
 
 
+def test_failed_backend_closes_without_querying_poisoned_partial_state():
+    class Poisoned(FixedBackend):
+        def kpi_values(self):
+            if self.advances:
+                raise RuntimeError("partial native state is unavailable")
+            return super().kpi_values()
+
+    backend = Poisoned(fail="advance")
+    env, _ = environment(backend)
+    with pytest.raises(RuntimeError, match="advance failed"):
+        execute_until(env, Horizon(2))
+    env.close()
+    env.close()
+    assert backend.closed == 1
+    with pytest.raises(RuntimeError, match="closed after failure"):
+        env._execution_backend.kpi_values()
+
+
+@pytest.mark.parametrize("deadline", [False, True])
+def test_cancellation_during_advance_precedes_python_continuation(deadline):
+    from simulatte.execution.control import Control, Cancelled, AttemptTimeout
+
+    clock = [0.0]
+    control = Control(deadline=1.0 if deadline else None, clock=lambda: clock[0])
+
+    class Cancelling(FixedBackend):
+        def advance(self, until):
+            super().advance(until)
+            if until > 0:
+                if deadline:
+                    clock[0] = 2.0
+                else:
+                    control.cancel()
+
+    backend = Cancelling()
+    env, _ = environment(backend)
+    continued = []
+
+    def producer():
+        yield env.timeout(1)
+        continued.append(True)
+
+    env.process(producer())
+    with pytest.raises(AttemptTimeout if deadline else Cancelled):
+        execute_until(env, Horizon(2), control)
+    env.close()
+    assert not continued
+    assert backend.finished == 0 and backend.closed == 1
+
+
+def test_producer_failure_precedes_another_advance_of_failed_owner():
+    class Poisoned(FixedBackend):
+        poisoned = False
+
+        def advance(self, until):
+            if self.poisoned:
+                raise RuntimeError("secondary failed-owner advance")
+            super().advance(until)
+
+    backend = Poisoned()
+    env, _ = environment(backend)
+
+    def producer():
+        yield env.timeout(1)
+        backend.poisoned = True
+        raise MemoryError("primary admission allocation failure")
+
+    env.process(producer())
+    with pytest.raises(MemoryError, match="primary admission allocation"):
+        execute_until(env, Horizon(2))
+    env.close()
+    assert backend.closed == 1 and backend.finished == 0
+
+
 def test_validation_precedes_prepare_and_no_ordinary_run(tmp_path):
     backend = FixedBackend()
     env = Environment(seed=0)

@@ -1,0 +1,3 @@
+Using CPython 3.14.0 interpreter at: prototypes/native_execution_lifecycle/.build/verify-env/bin/python
+Creating virtual environment at: prototypes/native_provider_projection/.build/sanitized-lifecycle-linux-safety-final/venv
+Activate with: source prototypes/native_provider_projection/.build/sanitized-lifecycle-linux-safety-final/venv/bin/activate

@@ -1,0 +1,732 @@
+[
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "2974111bb64bb190e1b2f98e5545ddcfd7aceebf2f4b210074b40ea8a0906dde",
+      "attempt_id": "aab6cdcfb063454587a85d4eba1a1f95",
+      "generation": 1
+    },
+    "body": {}
+  },
+  {
+    "type": "model_info",
+    "key": {
+      "request_id": "2974111bb64bb190e1b2f98e5545ddcfd7aceebf2f4b210074b40ea8a0906dde",
+      "attempt_id": "aab6cdcfb063454587a85d4eba1a1f95",
+      "generation": 1
+    },
+    "body": {
+      "document": {
+        "path": "/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/documents/3421a04ddf0955919ae540ca037d8ef00151afcd3543a2b04c1cfbf155f21fef.msgpack",
+        "length": 24135,
+        "sha256": "3421a04ddf0955919ae540ca037d8ef00151afcd3543a2b04c1cfbf155f21fef"
+      }
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "generation": 1,
+      "length": 6325,
+      "sha256": "df8593162a662a748956936f5b6f1d24925fa1dc33a778641a16843fd59f84b4",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "generation": 2,
+      "length": 46379,
+      "sha256": "d4e0246b48c7ef81752c6992597235e8159b2098048e53584412335992206cf9",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "generation": 3,
+      "length": 48224,
+      "sha256": "6baf9ecce895cf5707c68b20d3c5fb1ddf9f9c7f2493401c2975541a94f7dc73",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-00009392-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-ba8a8554fa8ef9ee69e700eaf89f23e8ab3248a7a6273811ca81a46c0f4be952",
+        "length": 37778,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "08d31a3d6ad86dbf3d547b5f726017b3844ef13fc3c1f9a912a54a590cb1077d",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 48224
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "generation": 5,
+      "length": 48493,
+      "sha256": "5f546d792dd64de9df3852361da025930c20ff2381f3dd85e0598223c145e85b",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "generation": 6,
+      "length": 49177,
+      "sha256": "754c23292b14b8bf99b92f5cb655993f2910de487ed49eb3ee2ab8ba290972ff",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "ac937ef3d1354a5075a5edb506445e1979660a8d46dee793dcb5bab31c45673a",
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db",
+      "generation": 2
+    },
+    "body": {
+      "attempt_id": "e1bef227f4eee0138a91960cab3e72db"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "287bd2609d30a5bd659b43be9f41f79b654159786fc8b0e6f5afe3d4f5596d64",
+      "attempt_id": "609ee5b04b09185bba0e27306d6030f4",
+      "generation": 3
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "287bd2609d30a5bd659b43be9f41f79b654159786fc8b0e6f5afe3d4f5596d64",
+      "attempt_id": "609ee5b04b09185bba0e27306d6030f4",
+      "generation": 3
+    },
+    "body": {
+      "generation": 1,
+      "length": 6343,
+      "sha256": "d87d68c7d924158bfe0df0e3bd1aa93aedb8fae716d5db7c54a8e286f81c4285",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "287bd2609d30a5bd659b43be9f41f79b654159786fc8b0e6f5afe3d4f5596d64",
+      "attempt_id": "609ee5b04b09185bba0e27306d6030f4",
+      "generation": 3
+    },
+    "body": {
+      "generation": 2,
+      "length": 46415,
+      "sha256": "05aceb54286fc036f78efcc0d179c4c102d9c0ae50ae542ba5a2763da2e59b6f",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "287bd2609d30a5bd659b43be9f41f79b654159786fc8b0e6f5afe3d4f5596d64",
+      "attempt_id": "609ee5b04b09185bba0e27306d6030f4",
+      "generation": 3
+    },
+    "body": {
+      "generation": 3,
+      "length": 48260,
+      "sha256": "16c3d87d37920fe939ea988bfb958a92c9e13a3d8e98b399d67830462577d402",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "287bd2609d30a5bd659b43be9f41f79b654159786fc8b0e6f5afe3d4f5596d64",
+      "attempt_id": "609ee5b04b09185bba0e27306d6030f4",
+      "generation": 3
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-00009392-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-68b9a5200bde3d1805b7b0fd771d4c8c855b006d01770dc6e911efc5c9fa4f03",
+        "length": 37778,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "08d31a3d6ad86dbf3d547b5f726017b3844ef13fc3c1f9a912a54a590cb1077d",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 48260
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "287bd2609d30a5bd659b43be9f41f79b654159786fc8b0e6f5afe3d4f5596d64",
+      "attempt_id": "609ee5b04b09185bba0e27306d6030f4",
+      "generation": 3
+    },
+    "body": {
+      "code": "child_error",
+      "message": "growth allocation failed",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/staging/609ee5b04b09185bba0e27306d6030f4/snapshot/plant.py\", line 152, in source\n    backend.add(Job(2, (0,), (0.25,), 4))\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/experimental/native.py\", line 364, in add\n    return stream.add(job)\n           ~~~~~~~~~~^^^^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/experimental/native.py\", line 158, in add\n    identity = add(self._engine, job.arrival, job.due, job.route, job.durations)\nMemoryError: growth allocation failed\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nMemoryError: growth allocation failed\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "generation": 1,
+      "length": 6325,
+      "sha256": "fb17eaf565a804e3dc4a90f784ff77e25925d95edeaac3a3bafe679dc2fa9a8d",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.3320737369940616,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "generation": 2,
+      "length": 46379,
+      "sha256": "900689dd6da3bfb1341b8fc33b4cb85e0f07219fb73a0352501548d2bee7f2af",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "generation": 3,
+      "length": 48224,
+      "sha256": "47e512b685d1f76495db7f4663cc6f5797b2b1424b07973ee3429bdfc98b502e",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-00009392-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-13878db490dbafcdd9c73f0593ce0408817658af40ba23f1e8ba0aad4c6ba3ce",
+        "length": 37778,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "08d31a3d6ad86dbf3d547b5f726017b3844ef13fc3c1f9a912a54a590cb1077d",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 48224
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "generation": 5,
+      "length": 48493,
+      "sha256": "6941796389e0bf6754680355202cfa21b773acd66edbe342604cd752a92e29de",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "generation": 6,
+      "length": 49177,
+      "sha256": "a682d7f0b7e2b825725dce88642f860493621ddaa9fe344cf703d11bd1a471e1",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "5613aa3692ded11b01c1c70c79bbc614ee4db73973b7be09645c07265132e596",
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e",
+      "generation": 4
+    },
+    "body": {
+      "attempt_id": "e1a1786dba016ea47303ebed2a1b8f6e"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "generation": 1,
+      "length": 6331,
+      "sha256": "28c16f29be019310c0cffda44db8041c2e01ff5db7c80424d49f77eba206ab85",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "generation": 2,
+      "length": 46407,
+      "sha256": "22780cc659c7b3b6a46cd29a60f7e7b6f9627255f1159ffdc1815d2c5a5d4497",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "generation": 3,
+      "length": 48252,
+      "sha256": "425d51d682eaed5bd99a993bc43572d3605bf37ee6ecefa93a6385705b079b35",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000939a-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-c98c770a08f5da7c4c666d709de1d44b8ed2e47c94aa7fbb5529839683c427b9",
+        "length": 37786,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "fd41f1b1d6c2b4ca3f06b36a951544e45075149da5070c5521523283e67e531b",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 48252
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "generation": 5,
+      "length": 48521,
+      "sha256": "d28cead31a9612216abd33964f6e8515b72c2f88d2e34b434cc38021db573334",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "generation": 6,
+      "length": 49205,
+      "sha256": "3bc65b756aaf4d1bd53be119f0817aa7b0641c5b4169154d01d1ff0fe8dff7e6",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "7bf0f40f2c2cf3b1758fd37047ed0800edd6403a32b4123e06d8d4467681f404",
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0",
+      "generation": 5
+    },
+    "body": {
+      "attempt_id": "85b9d5c803ff584b5291a1c422adb5e0"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "4d3d9ce0ec19e3355599e4224524d354f691d30852b57024a6342f78d439c01d",
+      "attempt_id": "7a9bf1b66614961ec4e10d1256271064",
+      "generation": 6
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "4d3d9ce0ec19e3355599e4224524d354f691d30852b57024a6342f78d439c01d",
+      "attempt_id": "7a9bf1b66614961ec4e10d1256271064",
+      "generation": 6
+    },
+    "body": {
+      "generation": 1,
+      "length": 6349,
+      "sha256": "018a32e673d3c7527c10f51a5681d16efb77e7306eee3cd6a2d99d515c3ca417",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "4d3d9ce0ec19e3355599e4224524d354f691d30852b57024a6342f78d439c01d",
+      "attempt_id": "7a9bf1b66614961ec4e10d1256271064",
+      "generation": 6
+    },
+    "body": {
+      "generation": 2,
+      "length": 46443,
+      "sha256": "5409f932213325a32123fa0bffc7665e0cdf2120762724295aeece593d07450a",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "4d3d9ce0ec19e3355599e4224524d354f691d30852b57024a6342f78d439c01d",
+      "attempt_id": "7a9bf1b66614961ec4e10d1256271064",
+      "generation": 6
+    },
+    "body": {
+      "generation": 3,
+      "length": 48288,
+      "sha256": "0893669af2785acab3288ccbd3fac7b6eb8bc09204ed7d7dccf2305fe4eca781",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "4d3d9ce0ec19e3355599e4224524d354f691d30852b57024a6342f78d439c01d",
+      "attempt_id": "7a9bf1b66614961ec4e10d1256271064",
+      "generation": 6
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000939a-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-4551a490858d5cd186c3a513e8b6c77bf8140faae1e2a97748d0d809dfaf53cf",
+        "length": 37786,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "fd41f1b1d6c2b4ca3f06b36a951544e45075149da5070c5521523283e67e531b",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 48288
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "4d3d9ce0ec19e3355599e4224524d354f691d30852b57024a6342f78d439c01d",
+      "attempt_id": "7a9bf1b66614961ec4e10d1256271064",
+      "generation": 6
+    },
+    "body": {
+      "code": "child_error",
+      "message": "identity allocation failed",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/staging/7a9bf1b66614961ec4e10d1256271064/snapshot/plant.py\", line 152, in source\n    backend.add(Job(2, (0,), (0.25,), 4))\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/experimental/native.py\", line 364, in add\n    return stream.add(job)\n           ~~~~~~~~~~^^^^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/experimental/native.py\", line 158, in add\n    identity = add(self._engine, job.arrival, job.due, job.route, job.durations)\nMemoryError: identity allocation failed\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/tools/dfe22786ec227eb1c656fae59896c3126c8c5a0935f58e917dd3946256b6eab9/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/tmp/simulatte-native-lifecycle-0h2lvkvy/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nMemoryError: identity allocation failed\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "generation": 1,
+      "length": 6331,
+      "sha256": "c98ca750f66d9cb917ae48716fca084cce4cd641036918d8665ca1e7885578af",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "generation": 2,
+      "length": 46407,
+      "sha256": "8007167de95def81929d542e10a5c967cae4da986ae48be74c48c6ed8c6e1ffd",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "generation": 3,
+      "length": 48252,
+      "sha256": "68edf0342ff4b8be0020609d4308114485776aa38bd56db0a54c6c36336adc43",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000939a-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-f206b00cff8d130d47c3a2ff2b732bef80c185be208e114eb1f8111e3f95af51",
+        "length": 37786,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "fd41f1b1d6c2b4ca3f06b36a951544e45075149da5070c5521523283e67e531b",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 48252
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.4473616289906204,
+      "event_count": 1,
+      "phase": "running",
+      "simulation_time": 1000000.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "generation": 5,
+      "length": 48521,
+      "sha256": "825606c09c6d49cf1ec3a13bf97e5ac6a2cf46af0a75e734c9bf046862c1b4fa",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "generation": 6,
+      "length": 49205,
+      "sha256": "1fafd2f664810346ab1210e5ae62dfba8958f42e298c702bf706abe7a13ecf16",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "faa5faf4edbdfa9f0e451fa7f819bb02cfd072008111bc4169bef5e5c7152d20",
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a",
+      "generation": 7
+    },
+    "body": {
+      "attempt_id": "32107dc83bcd291352a37b5cd22eb76a"
+    }
+  }
+]

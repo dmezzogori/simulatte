@@ -1,0 +1,20 @@
+Using CPython 3.14.3
+Creating virtual environment at: prototypes/native_execution_lifecycle/.build/ci-env
+Activate with: source prototypes/native_execution_lifecycle/.build/ci-env/bin/activate
+Using Python 3.14.3 environment at: prototypes/native_execution_lifecycle/.build/ci-env
+Resolved 12 packages in 155ms
+Installed 12 packages in 457ms
+ + iniconfig==2.3.1
+ + msgpack==1.2.4
+ + packaging==26.3
+ + pluggy==1.7.0
+ + pygments==2.21.0
+ + pytest==9.2.0
+ + pytest-timeout==2.4.0
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_execution_lifecycle/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///Users/davide/Developer/simulatte/.claude/worktrees/native-engine-feasibility/prototypes/native_identity_helper/.build/macos/cp314/simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1
+....                                                                     [100%]
+4 passed in 5.26s

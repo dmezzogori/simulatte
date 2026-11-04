@@ -1,0 +1,10 @@
+Using Python 3.14.0 environment at: /tmp/simulatte-native-lifecycle-byg7lotb/venv
+Resolved 6 packages in 34ms
+Prepared 1 package in 15ms
+Installed 6 packages in 6ms
+ + msgpack==1.2.4
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1

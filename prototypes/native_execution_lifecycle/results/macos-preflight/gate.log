@@ -1,0 +1,14 @@
+{"retention": "full", "kind": "healthy", "status": "succeeded", "seconds": 0.7781412920012372}
+{"retention": "full", "kind": "cancel_boundary", "status": "cancelled", "seconds": 0.4380040420073783}
+{"retention": "full", "kind": "healthy", "status": "succeeded", "seconds": 0.4285326669923961}
+Traceback (most recent call last):
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-eyvzg_df/gate.py", line 281, in <module>
+    main(p.parse_args())
+    ~~~~^^^^^^^^^^^^^^^^
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-eyvzg_df/gate.py", line 246, in main
+    execute(retention, kind, len(rows))
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-eyvzg_df/gate.py", line 174, in execute
+    assert "native-returned" not in observed, "native call completed instead of being stopped"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: native call completed instead of being stopped

@@ -268,6 +268,31 @@ Full native trace playback, arbitrary actor APIs, other release policies,
 and intralogistics remain unsupported. SSH native worker execution has not been
 validated by this packaging gate.
 
+## Cancellation and execution failures
+
+Managed cancellation and deadlines are checked at Python execution boundaries,
+including immediately after native advancement and before the next Python model
+callback. A running C call is synchronous: it does not poll Python cancellation.
+If it does not return, the execution supervisor escalates to process termination,
+then killing the contained process group. Forced termination relies on OS cleanup;
+it does not guarantee that Python finalizers run. Cancelled and failed attempts
+cannot publish a successful managed result.
+
+Direct `NativeStream` calls have no cancellation token or wall deadline. A
+concurrent `close()` waits for the stream lock; it does not interrupt an advance.
+Use bounded advance intervals or managed execution when a stop deadline matters.
+This concerns aborting a run, not cancellation or preemption of individual jobs.
+
+After a mutating native failure, discard the failed stream and create a fresh one.
+Failed owners reject state queries; close remains safe and idempotent. Invalid
+inputs rejected before mutation and read-only projection allocation failures can
+be retried where the owner remains valid. Failed managed cleanup does not sample
+partial backend KPIs. The original execution error is retained; a secondary
+cleanup error is attached to its traceback as an exception note. Partial native
+state is not a supported recovery checkpoint. A queued producer failure at the
+current boundary is delivered before another native advance can mask it with a
+failed-owner error.
+
 ## Integrity and provenance
 
 The companion preserves the validated engine and C binding in two images, with a

@@ -1,0 +1,11 @@
+Building wheel...
+Successfully built prototypes/native_execution_lifecycle/.build/fault-native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl
+{"passed": true, "output": "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/results/linux-release-final"}
+{"passed": true, "output": "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/results/linux-faults-final"}
+Using Python 3.14.0 environment at: prototypes/native_execution_lifecycle/.build/verify-env
+Resolved 1 package in 3ms
+Prepared 1 package in 0.20ms
+Uninstalled 1 package in 18ms
+Installed 1 package in 9ms
+ ~ simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/core/simulatte-0.17.0-py3-none-any.whl)
+{"passed": true, "output": "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/results/linux-install-final", "rejected": ["abi", "api", "manifest", "binary", "dependency", "runtime-mutation", "wheel-tag"]}

@@ -1,0 +1,177 @@
+Installed 12 packages in 37ms
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+___________ test_primary_error_survives_native_cleanup[advance-full] ___________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-53/test_primary_error_survives_na0')
+retention = 'full', kind = 'advance'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+>           prepared = coordinator.prepare(timeout=15)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/execution/test_native_lifecycle.py:46:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:377: in prepare
+    metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <simulatte.execution.coordinator.Coordinator object at 0x109638050>
+key = AttemptKey(request_id='8d8880c4cc409c53e006098d8032b7dd1ac9604d478f734f0c031f39bdbb006c', attempt_id='d85d4d8822ecf438346ffcebaf9fc653', generation=1)
+timeout = 20
+
+    def wait(self, key, *, timeout=None):
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            attempt = self.store.attempt(key)
+            if attempt["status"] == "succeeded":
+                if attempt["details"].get("kind") == "inspection":
+                    return read_document(self._relocate(attempt["details"]["document"]), "model-info")
+                return self.store.result(key.attempt_id)
+            if self._fatal is not None:
+                raise ExecutionFailure(key, self._fatal.status, self._fatal.details)
+            if attempt["status"] not in ("queued", "preparing", "ready", "running", "finalizing"):
+>               raise ExecutionFailure(key, attempt["status"], attempt["details"])
+E               simulatte.execution.coordinator.ExecutionFailure: Worker handshake failed
+
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:598: ExecutionFailure
+_________ test_primary_error_survives_native_cleanup[advance-bounded] __________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-53/test_primary_error_survives_na1')
+retention = 'bounded', kind = 'advance'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+>           prepared = coordinator.prepare(timeout=15)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/execution/test_native_lifecycle.py:46:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:377: in prepare
+    metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <simulatte.execution.coordinator.Coordinator object at 0x1095c7110>
+key = AttemptKey(request_id='8d8880c4cc409c53e006098d8032b7dd1ac9604d478f734f0c031f39bdbb006c', attempt_id='bbb384114f32df2c471050a7cb1b22b0', generation=1)
+timeout = 20
+
+    def wait(self, key, *, timeout=None):
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            attempt = self.store.attempt(key)
+            if attempt["status"] == "succeeded":
+                if attempt["details"].get("kind") == "inspection":
+                    return read_document(self._relocate(attempt["details"]["document"]), "model-info")
+                return self.store.result(key.attempt_id)
+            if self._fatal is not None:
+                raise ExecutionFailure(key, self._fatal.status, self._fatal.details)
+            if attempt["status"] not in ("queued", "preparing", "ready", "running", "finalizing"):
+>               raise ExecutionFailure(key, attempt["status"], attempt["details"])
+E               simulatte.execution.coordinator.ExecutionFailure: Worker handshake failed
+
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:598: ExecutionFailure
+___________ test_primary_error_survives_native_cleanup[cleanup-full] ___________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-53/test_primary_error_survives_na2')
+retention = 'full', kind = 'cleanup'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+>           prepared = coordinator.prepare(timeout=15)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/execution/test_native_lifecycle.py:46:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:377: in prepare
+    metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <simulatte.execution.coordinator.Coordinator object at 0x1097f0050>
+key = AttemptKey(request_id='8d8880c4cc409c53e006098d8032b7dd1ac9604d478f734f0c031f39bdbb006c', attempt_id='35074e1e7fea894db650e0386be3df58', generation=1)
+timeout = 20
+
+    def wait(self, key, *, timeout=None):
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            attempt = self.store.attempt(key)
+            if attempt["status"] == "succeeded":
+                if attempt["details"].get("kind") == "inspection":
+                    return read_document(self._relocate(attempt["details"]["document"]), "model-info")
+                return self.store.result(key.attempt_id)
+            if self._fatal is not None:
+                raise ExecutionFailure(key, self._fatal.status, self._fatal.details)
+            if attempt["status"] not in ("queued", "preparing", "ready", "running", "finalizing"):
+>               raise ExecutionFailure(key, attempt["status"], attempt["details"])
+E               simulatte.execution.coordinator.ExecutionFailure: Worker handshake failed
+
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:598: ExecutionFailure
+_________ test_primary_error_survives_native_cleanup[cleanup-bounded] __________
+
+tmp_path = PosixPath('/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/pytest-of-davide/pytest-53/test_primary_error_survives_na3')
+retention = 'bounded', kind = 'cleanup'
+
+    @pytest.mark.parametrize("retention", ["full", "bounded"])
+    @pytest.mark.parametrize("kind", ["advance", "cleanup"])
+    def test_primary_error_survives_native_cleanup(tmp_path, retention, kind):
+        pytest.importorskip("simulatte_native")
+        (tmp_path / "plant.py").write_text(MODEL)
+        (tmp_path / "pyproject.toml").write_text('[tool.simulatte.bundle]\ninclude=["plant.py"]\n')
+        spec = discover_project(tmp_path / "plant.py", tmp_path)
+        with Coordinator(spec) as coordinator:
+>           prepared = coordinator.prepare(timeout=15)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/execution/test_native_lifecycle.py:46:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:377: in prepare
+    metadata = self.wait(key, timeout=None if timeout is None else timeout + 5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <simulatte.execution.coordinator.Coordinator object at 0x10964dba0>
+key = AttemptKey(request_id='8d8880c4cc409c53e006098d8032b7dd1ac9604d478f734f0c031f39bdbb006c', attempt_id='bb389d214af7f21f9397270c7c5daa37', generation=1)
+timeout = 20
+
+    def wait(self, key, *, timeout=None):
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            attempt = self.store.attempt(key)
+            if attempt["status"] == "succeeded":
+                if attempt["details"].get("kind") == "inspection":
+                    return read_document(self._relocate(attempt["details"]["document"]), "model-info")
+                return self.store.result(key.attempt_id)
+            if self._fatal is not None:
+                raise ExecutionFailure(key, self._fatal.status, self._fatal.details)
+            if attempt["status"] not in ("queued", "preparing", "ready", "running", "finalizing"):
+>               raise ExecutionFailure(key, attempt["status"], attempt["details"])
+E               simulatte.execution.coordinator.ExecutionFailure: Worker handshake failed
+
+/Users/davide/.cache/uv/archive-v0/KwGjPmhp0-xWWP5J/lib/python3.14/site-packages/simulatte/execution/coordinator.py:598: ExecutionFailure
+=========================== short test summary info ============================
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[advance-full]
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[advance-bounded]
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[cleanup-full]
+FAILED tests/execution/test_native_lifecycle.py::test_primary_error_survives_native_cleanup[cleanup-bounded]
+4 failed in 1.42s

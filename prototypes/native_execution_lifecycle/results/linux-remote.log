@@ -1,0 +1,43 @@
+Cloning into '/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972'...
+done.
+Note: switching to '3588e0936548bed6994be79d46188dc0a7dac116'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+From /home/davide/Developer/simulatte-native-lifecycle-20261104-inputs/source.bundle
+ * branch            feature/native-engine-feasibility -> FETCH_HEAD
+Previous HEAD position was 3588e09 perf: prepare canonical identity values once per query
+HEAD is now at ab5f972 perf: measure public native identity helper usage
+Using CPython 3.14.0
+Creating virtual environment at: prototypes/native_execution_lifecycle/.build/verify-env
+Activate with: source prototypes/native_execution_lifecycle/.build/verify-env/bin/activate
+Using Python 3.14.0 environment at: prototypes/native_execution_lifecycle/.build/verify-env
+Resolved 12 packages in 43ms
+Prepared 2 packages in 15ms
+Installed 12 packages in 21ms
+ + iniconfig==2.3.1
+ + msgpack==1.2.4
+ + packaging==26.3
+ + pluggy==1.7.0
+ + pygments==2.21.0
+ + pytest==9.2.0
+ + pytest-timeout==2.4.0
+ + simpy==4.1.2
+ + simulatte==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/core/simulatte-0.17.0-py3-none-any.whl)
+ + simulatte-native==0.17.0 (from file:///home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/.build/native/simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl)
+ + tabulate==0.10.0
+ + tqdm==4.70.1
+{"passed": true, "output": "/home/davide/Developer/simulatte-native-lifecycle-20261104-ab5f972/prototypes/native_execution_lifecycle/results/linux-release"}

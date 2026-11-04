@@ -1,0 +1,755 @@
+{
+  "passed": true,
+  "hosts": {
+    "macos-release": {
+      "counts": {
+        "succeeded": 41,
+        "cancelled": 16,
+        "failed": 21
+      },
+      "outcomes": [
+        {
+          "retention": "full",
+          "kind": "cancel_boundary",
+          "status": "cancelled",
+          "stop_seconds": 0.10938279201218393,
+          "elapsed_seconds": 0.3957972500065807,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance_short",
+          "status": "cancelled",
+          "stop_seconds": 0.12138495899853297,
+          "elapsed_seconds": 0.7324848339922028,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.061809417005861,
+          "elapsed_seconds": 2.6124652919970686,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance_ignore_term",
+          "status": "cancelled",
+          "stop_seconds": 3.109924125004909,
+          "elapsed_seconds": 3.6831972080108244,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "timeout_advance",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 5.12912349999533,
+          "deadline_seconds": 3
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_admission",
+          "status": "cancelled",
+          "stop_seconds": 1.7450636249996023,
+          "elapsed_seconds": 2.05128116600099,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "late_cancel",
+          "status": "cancelled",
+          "stop_seconds": 0.11960333400929812,
+          "elapsed_seconds": 0.42846550000831485,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.44572874999721535,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "callback_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4387989579990972,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "invalid_input",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.48906737500510644,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "advance_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.43268708400137257,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cleanup_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4858245409996016,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "close_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4531068329961272,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "process_exit",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.38249587499012705,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.1077755830046954,
+          "elapsed_seconds": 3.4676108330022544,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4186859580076998,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0666530419985065,
+          "elapsed_seconds": 2.635541750001721,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.45857570800581016,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_boundary",
+          "status": "cancelled",
+          "stop_seconds": 0.10117383299802896,
+          "elapsed_seconds": 0.48760737499105744,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance_short",
+          "status": "cancelled",
+          "stop_seconds": 0.12551791699661408,
+          "elapsed_seconds": 0.7038136670016684,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.1075465829926543,
+          "elapsed_seconds": 2.6701847499934956,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance_ignore_term",
+          "status": "cancelled",
+          "stop_seconds": 3.065324208000675,
+          "elapsed_seconds": 3.653461249996326,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "timeout_advance",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 5.140489666999201,
+          "deadline_seconds": 3
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_admission",
+          "status": "cancelled",
+          "stop_seconds": 1.709184916006052,
+          "elapsed_seconds": 2.03213316599431,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "late_cancel",
+          "status": "cancelled",
+          "stop_seconds": 0.08763091599394102,
+          "elapsed_seconds": 0.4104970409971429,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.46018433300196193,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "callback_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.45708349999040365,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "invalid_input",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4270350829901872,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "advance_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4481366660038475,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cleanup_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4775310839904705,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "close_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4009280000027502,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "process_exit",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.39007883399608545,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "history_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.4441446660057409,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0675887090037577,
+          "elapsed_seconds": 2.635149417008506,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.43169466700055636,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.083048542001052,
+          "elapsed_seconds": 2.673197625001194,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.48425487500207964,
+          "deadline_seconds": 30
+        }
+      ],
+      "parent_rss_mib_range": [
+        43.90625,
+        51.328125
+      ],
+      "parent_handle_range": [
+        11,
+        11
+      ],
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "4c8b3443e44415dd0b70d44b39e5b40f395efa898b0659b69bdd8dbc000e5272"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+        "sha256": "c9045808af932adda56455a4b04790f463da0cebb072f823d96eeddeda33b3af"
+      },
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]"
+    },
+    "macos-faults": {
+      "counts": {
+        "succeeded": 6,
+        "failed": 2
+      },
+      "outcomes": [
+        {
+          "retention": "full",
+          "kind": "allocation_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.42562566700507887,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "allocation_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.46518416599428747,
+          "deadline_seconds": 30
+        }
+      ],
+      "parent_rss_mib_range": [
+        50.359375,
+        51.5
+      ],
+      "parent_handle_range": [
+        11,
+        11
+      ],
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "4c8b3443e44415dd0b70d44b39e5b40f395efa898b0659b69bdd8dbc000e5272"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-macosx_27_0_arm64.whl",
+        "sha256": "42d55bb46c754ab2f2ff461449934fb53c29aba704bf1867247eea3155613c18"
+      },
+      "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]"
+    },
+    "linux-release": {
+      "counts": {
+        "succeeded": 41,
+        "cancelled": 16,
+        "failed": 21
+      },
+      "outcomes": [
+        {
+          "retention": "full",
+          "kind": "cancel_boundary",
+          "status": "cancelled",
+          "stop_seconds": 0.10199941499740817,
+          "elapsed_seconds": 0.5639912729966454,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance_short",
+          "status": "cancelled",
+          "stop_seconds": 0.1215998400002718,
+          "elapsed_seconds": 1.0426888990041334,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.082032528007403,
+          "elapsed_seconds": 3.055753699009074,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance_ignore_term",
+          "status": "cancelled",
+          "stop_seconds": 3.083008041998255,
+          "elapsed_seconds": 4.008143131999532,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "timeout_advance",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 5.101772023990634,
+          "deadline_seconds": 3
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_admission",
+          "status": "cancelled",
+          "stop_seconds": 2.086633756000083,
+          "elapsed_seconds": 2.5498854279867373,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "late_cancel",
+          "status": "cancelled",
+          "stop_seconds": 0.08242711999628227,
+          "elapsed_seconds": 0.5347522539959755,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5800388950010529,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "callback_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5721819030004553,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "invalid_input",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5681656309898244,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "advance_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5595447960076854,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cleanup_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.6012203969876282,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "close_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5827693690080196,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "process_exit",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5144499339949107,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0720600110071246,
+          "elapsed_seconds": 2.994406532001449,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5865894590097014,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0716276470047887,
+          "elapsed_seconds": 2.9651527520036325,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "full",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5601719459955348,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_boundary",
+          "status": "cancelled",
+          "stop_seconds": 0.09203772099863272,
+          "elapsed_seconds": 0.5474592999962624,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance_short",
+          "status": "cancelled",
+          "stop_seconds": 0.13251868600491434,
+          "elapsed_seconds": 1.0573020360025112,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0824468610080658,
+          "elapsed_seconds": 2.992637603005278,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance_ignore_term",
+          "status": "cancelled",
+          "stop_seconds": 3.0889957530016545,
+          "elapsed_seconds": 4.01209785300307,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "timeout_advance",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 5.102368537991424,
+          "deadline_seconds": 3
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_admission",
+          "status": "cancelled",
+          "stop_seconds": 2.1172859289945336,
+          "elapsed_seconds": 2.5713950889912667,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "late_cancel",
+          "status": "cancelled",
+          "stop_seconds": 0.1137822159944335,
+          "elapsed_seconds": 0.5828765350015601,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5563652129931143,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "callback_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5668350989872124,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "invalid_input",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.558036593007273,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "advance_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5990469900134485,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cleanup_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5596631509979488,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "close_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5111569319997216,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "process_exit",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5196065769996494,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "history_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5975940319913207,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0816526929993415,
+          "elapsed_seconds": 3.00158188099158,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5547730630059959,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "cancel_advance",
+          "status": "cancelled",
+          "stop_seconds": 2.0826054450008087,
+          "elapsed_seconds": 2.9971521940024104,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "producer_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5370193179987837,
+          "deadline_seconds": 30
+        }
+      ],
+      "parent_rss_mib_range": [
+        39.3828125,
+        43.3515625
+      ],
+      "parent_handle_range": [
+        13,
+        13
+      ],
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "4c8b3443e44415dd0b70d44b39e5b40f395efa898b0659b69bdd8dbc000e5272"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "sha256": "b7b4534b3cd186d3d42acd52a04185ebc191227134854ac942ddd69ddabfd627"
+      },
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]"
+    },
+    "linux-faults": {
+      "counts": {
+        "succeeded": 6,
+        "failed": 2
+      },
+      "outcomes": [
+        {
+          "retention": "full",
+          "kind": "allocation_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5365400760056218,
+          "deadline_seconds": 30
+        },
+        {
+          "retention": "bounded",
+          "kind": "allocation_error",
+          "status": "failed",
+          "stop_seconds": null,
+          "elapsed_seconds": 0.5509714709914988,
+          "deadline_seconds": 30
+        }
+      ],
+      "parent_rss_mib_range": [
+        39.421875,
+        40.25390625
+      ],
+      "parent_handle_range": [
+        13,
+        13
+      ],
+      "core": {
+        "name": "simulatte-0.17.0-py3-none-any.whl",
+        "sha256": "4c8b3443e44415dd0b70d44b39e5b40f395efa898b0659b69bdd8dbc000e5272"
+      },
+      "native": {
+        "name": "simulatte_native-0.17.0-cp314-cp314-linux_x86_64.whl",
+        "sha256": "c8752286b0aab49559ea9d959b4b51e2c7b76c0010ff513546d71852479f802b"
+      },
+      "python": "3.14.0 (main, Oct 14 2025, 21:27:55) [Clang 20.1.4 ]"
+    }
+  },
+  "total": {
+    "succeeded": 94,
+    "cancelled": 32,
+    "failed": 46
+  },
+  "total_unique_attempts": 172,
+  "source_sha256": "8a4b4dc4e192561498c1e8f4da0e8543caf6d8cbe81efc3baaec4c79e5acc754",
+  "base_files": 4791,
+  "unchanged_base_files": 4785,
+  "changed_base_files": [
+    ".github/workflows/ci.yml",
+    "docs/guides/native-engine.md",
+    "src/simulatte/execution/backend.py",
+    "src/simulatte/execution/driver.py",
+    "src/simulatte/stopping.py",
+    "tests/execution/test_backend.py"
+  ],
+  "native_C_and_provider_unchanged": true,
+  "direct_read_only_recoveries": 400,
+  "direct_poisoned_owners": 400,
+  "direct_invalid_input_recoveries": 400,
+  "busy_close_races": 4,
+  "python_leak_detection": false,
+  "analysis_sha256": "93676c4ba74d146da8c587c4469fc9baaa980a8a52ba908fe7c4c38d758c3be2"
+}

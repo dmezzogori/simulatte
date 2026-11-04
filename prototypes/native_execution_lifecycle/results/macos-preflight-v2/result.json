@@ -1,0 +1,2057 @@
+{
+  "rows": [
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "request": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21439,
+          "at": 1000000.0,
+          "wall": 70831.766260666,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21439,
+          "at": 2.0,
+          "wall": 70831.76180525,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.6123084999999264,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21439
+      ],
+      "parent_rss": 52183040,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "full",
+      "kind": "cancel_boundary",
+      "attempt": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "request": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "status": "cancelled",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21445,
+          "at": 2.0,
+          "wall": 70832.239001833,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21445,
+          "at": 2.0,
+          "wall": 70832.222003458,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        },
+        "boundary": {
+          "pid": 21445,
+          "at": 2.0,
+          "wall": 70832.222183125,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.43492708400299307,
+      "cancel_to_cleanup_seconds": 0.11765504200593568,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21445
+      ],
+      "parent_rss": 52477952,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "287ce64714f400f9b20352200444d623",
+      "request": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21454,
+          "at": 1000000.0,
+          "wall": 70832.67603725,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21454,
+          "at": 2.0,
+          "wall": 70832.6719005,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.45179416600149125,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21454
+      ],
+      "parent_rss": 52887552,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "full",
+      "kind": "cancel_advance",
+      "attempt": "24ee52799f9d10e5d7f1e0b4020883de",
+      "request": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "status": "cancelled",
+      "details": {},
+      "markers": {
+        "armed": {
+          "pid": 21484,
+          "at": 2.0,
+          "wall": 70833.397421,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 6,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        },
+        "busy": {
+          "pid": 21484,
+          "at": 2.0,
+          "wall": 70833.397772583,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 6,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          },
+          "binding_close_rejected": true
+        },
+        "progress": {
+          "pid": 21484,
+          "at": 2.0,
+          "wall": 70833.14036875,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 6,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 2.665739082993241,
+      "cancel_to_cleanup_seconds": 2.0882034999958705,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21484
+      ],
+      "parent_rss": 52936704,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "4a084ed628ccba80b1e40603ea227cda",
+      "request": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21500,
+          "at": 1000000.0,
+          "wall": 70835.825219083,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21500,
+          "at": 2.0,
+          "wall": 70835.821567916,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4127333749929676,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21500
+      ],
+      "parent_rss": 53116928,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "full",
+      "kind": "producer_error",
+      "attempt": "894b019edb5aa33c9142845316b32793",
+      "request": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary producer failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/894b019edb5aa33c9142845316b32793/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21505,
+          "at": 2.0,
+          "wall": 70836.252810166,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21505,
+          "at": 2.0,
+          "wall": 70836.250704666,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4708619580051163,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21505
+      ],
+      "parent_rss": 53182464,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "request": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21537,
+          "at": 1000000.0,
+          "wall": 70836.725660458,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21537,
+          "at": 2.0,
+          "wall": 70836.72151325,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4502136669907486,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21537
+      ],
+      "parent_rss": 53346304,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "full",
+      "kind": "advance_error",
+      "attempt": "a0ce23abb121983db4a4855aeeafcffc",
+      "request": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary post-advance failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/a0ce23abb121983db4a4855aeeafcffc/snapshot/plant.py\", line 57, in advance\n    raise MemoryError(\"primary post-advance failure\")\nMemoryError: primary post-advance failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21541,
+          "at": 2.0,
+          "wall": 70837.206470375,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21541,
+          "at": 2.0,
+          "wall": 70837.204412791,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.47722433401213493,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21541
+      ],
+      "parent_rss": 53362688,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "25a60726d54809ca7f2cae4ce01d03ef",
+      "request": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21545,
+          "at": 1000000.0,
+          "wall": 70837.672064916,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21545,
+          "at": 2.0,
+          "wall": 70837.667805625,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.40446358399640303,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21545
+      ],
+      "parent_rss": 53542912,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "full",
+      "kind": "cleanup_error",
+      "attempt": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "request": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary producer failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/2d1cd20b77c31a1f44cdbd3e27e500df/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\nEnvironment cleanup also failed: RuntimeError: secondary cleanup failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21567,
+          "at": 2.0,
+          "wall": 70838.114393666,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21567,
+          "at": 2.0,
+          "wall": 70838.112087125,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4705230420076987,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21567
+      ],
+      "parent_rss": 53575680,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "781a602fd23d90ff22c0cfbca54ea24a",
+      "request": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21578,
+          "at": 1000000.0,
+          "wall": 70838.607075375,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21578,
+          "at": 2.0,
+          "wall": 70838.602537041,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.47194850000960287,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21578
+      ],
+      "parent_rss": 53739520,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "full",
+      "kind": "close_error",
+      "attempt": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "request": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary close failure",
+        "phase": "finalizing",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 256, in execute\n    env.close()\n    ~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 656, in close\n    with contextlib.ExitStack() as stack:\n         ~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 619, in __exit__\n    raise exc\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 604, in __exit__\n    if cb(*exc_details):\n       ~~^^^^^^^^^^^^^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 482, in _exit_wrapper\n    callback(*args, **kwds)\n    ~~~~~~~~^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 172, in close\n    self.backend.close()\n    ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/7b03bceb9449563a9fbb3b649e1e1c36/snapshot/plant.py\", line 67, in close\n    raise RuntimeError(\n        \"secondary cleanup failure\" if params.kind == \"cleanup_error\" else \"primary close failure\"\n    )\nRuntimeError: primary close failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21583,
+          "at": 1000000.0,
+          "wall": 70839.071555125,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21583,
+          "at": 2.0,
+          "wall": 70839.067525041,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4662633330008248,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21583
+      ],
+      "parent_rss": 53755904,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "full",
+      "kind": "healthy",
+      "attempt": "26311318059b89d584c2d7ef2ca8bb68",
+      "request": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21590,
+          "at": 1000000.0,
+          "wall": 70839.587789041,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21590,
+          "at": 2.0,
+          "wall": 70839.582852,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 0,
+              "events": 7,
+              "retained_jobs": 1,
+              "retained_operations": 1,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 3677,
+              "completion_capacity": 0,
+              "state_capacity": 0
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.5144809999910649,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21590
+      ],
+      "parent_rss": 54296576,
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "07f76b4d7074ae395c4f04727ef2d99706b4c56b6892c7d44bcf373f86ab1ae7"
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "e0ae040a27f27bcfd58d1b30989dc796",
+      "request": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21606,
+          "at": 1000000.0,
+          "wall": 70840.108912916,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21606,
+          "at": 2.0,
+          "wall": 70840.104268416,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.44374850000895094,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21606
+      ],
+      "parent_rss": 54460416,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "cancel_boundary",
+      "attempt": "633ba66a766c942db42cf242e8923b36",
+      "request": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "status": "cancelled",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21629,
+          "at": 2.0,
+          "wall": 70840.63001125,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21629,
+          "at": 2.0,
+          "wall": 70840.535976083,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        },
+        "boundary": {
+          "pid": 21629,
+          "at": 2.0,
+          "wall": 70840.536139416,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4928260419983417,
+      "cancel_to_cleanup_seconds": 0.17105120899213944,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21629
+      ],
+      "parent_rss": 54476800,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "7b6025c5f6eada66839fa46b2a814b19",
+      "request": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21634,
+          "at": 1000000.0,
+          "wall": 70841.043282291,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21634,
+          "at": 2.0,
+          "wall": 70841.038838833,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.41342329200415406,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21634
+      ],
+      "parent_rss": 54689792,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "cancel_advance",
+      "attempt": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "request": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "status": "cancelled",
+      "details": {},
+      "markers": {
+        "armed": {
+          "pid": 21639,
+          "at": 2.0,
+          "wall": 70841.736005375,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 6,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        },
+        "busy": {
+          "pid": 21639,
+          "at": 2.0,
+          "wall": 70841.736462916,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 6,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          },
+          "binding_close_rejected": true
+        },
+        "progress": {
+          "pid": 21639,
+          "at": 2.0,
+          "wall": 70841.47714925,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 6,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 2.6992004580097273,
+      "cancel_to_cleanup_seconds": 2.1087505830073496,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21639
+      ],
+      "parent_rss": 54706176,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "cc707f7da58367d91ab06a295fcd1c23",
+      "request": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21678,
+          "at": 1000000.0,
+          "wall": 70844.188015458,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21678,
+          "at": 2.0,
+          "wall": 70844.18403825,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.42927137498918455,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21678
+      ],
+      "parent_rss": 54853632,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "producer_error",
+      "attempt": "33033fc544ca1792315f305e355350e6",
+      "request": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary producer failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/33033fc544ca1792315f305e355350e6/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21682,
+          "at": 2.0,
+          "wall": 70844.627829958,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21682,
+          "at": 2.0,
+          "wall": 70844.625624041,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4438770409906283,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21682
+      ],
+      "parent_rss": 54902784,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "request": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21689,
+          "at": 1000000.0,
+          "wall": 70845.083499166,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21689,
+          "at": 2.0,
+          "wall": 70845.079266708,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.44207591599843,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21689
+      ],
+      "parent_rss": 55083008,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "advance_error",
+      "attempt": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "request": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary post-advance failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/b42541524c7fb09ffebfbb0fcb65f6f3/snapshot/plant.py\", line 57, in advance\n    raise MemoryError(\"primary post-advance failure\")\nMemoryError: primary post-advance failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21718,
+          "at": 2.0,
+          "wall": 70845.549164625,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21718,
+          "at": 2.0,
+          "wall": 70845.547520833,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4367080829979386,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21718
+      ],
+      "parent_rss": 55083008,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "10e7ccc0daf44174410166c7a26f4b54",
+      "request": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21748,
+          "at": 1000000.0,
+          "wall": 70846.000364375,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21748,
+          "at": 2.0,
+          "wall": 70845.996628166,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.46375695799360983,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21748
+      ],
+      "parent_rss": 55279616,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "cleanup_error",
+      "attempt": "929e0059a79e87604ffa12d3359083b5",
+      "request": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary producer failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/929e0059a79e87604ffa12d3359083b5/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\nEnvironment cleanup also failed: RuntimeError: secondary cleanup failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21752,
+          "at": 2.0,
+          "wall": 70846.395585291,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21752,
+          "at": 2.0,
+          "wall": 70846.393234041,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.3941367499937769,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21752
+      ],
+      "parent_rss": 55525376,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "a5e5c36c7967fff4b6539e0cccea7944",
+      "request": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21756,
+          "at": 1000000.0,
+          "wall": 70846.866842166,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21756,
+          "at": 2.0,
+          "wall": 70846.86278075,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4181005419959547,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21756
+      ],
+      "parent_rss": 55689216,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "close_error",
+      "attempt": "c58464bda63846d5053736d3f1dc2f88",
+      "request": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary close failure",
+        "phase": "finalizing",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 256, in execute\n    env.close()\n    ~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 656, in close\n    with contextlib.ExitStack() as stack:\n         ~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 619, in __exit__\n    raise exc\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 604, in __exit__\n    if cb(*exc_details):\n       ~~^^^^^^^^^^^^^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 482, in _exit_wrapper\n    callback(*args, **kwds)\n    ~~~~~~~~^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 172, in close\n    self.backend.close()\n    ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/c58464bda63846d5053736d3f1dc2f88/snapshot/plant.py\", line 67, in close\n    raise RuntimeError(\n        \"secondary cleanup failure\" if params.kind == \"cleanup_error\" else \"primary close failure\"\n    )\nRuntimeError: primary close failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21760,
+          "at": 1000000.0,
+          "wall": 70847.29963525,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21760,
+          "at": 2.0,
+          "wall": 70847.295603833,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.45493516701390035,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21760
+      ],
+      "parent_rss": 55721984,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "cb20aca759e2bb64cac64fe8515e5db7",
+      "request": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21764,
+          "at": 1000000.0,
+          "wall": 70847.763857041,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21764,
+          "at": 2.0,
+          "wall": 70847.759776416,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.41764137499558274,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21764
+      ],
+      "parent_rss": 55902208,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "retention": "bounded",
+      "kind": "history_error",
+      "attempt": "4415e9d9dec938dab84dec03285d631d",
+      "request": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "status": "failed",
+      "details": {
+        "code": "child_error",
+        "message": "primary history commit failure",
+        "phase": "running",
+        "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/4415e9d9dec938dab84dec03285d631d/snapshot/plant.py\", line 51, in advance\n    super().advance(until)\n    ~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py\", line 375, in advance\n    self._live().advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py\", line 167, in advance\n    self._commit(self._module.retention_advance(self._engine, until))\n    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py\", line 254, in _commit\n    self._history.update(records)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/4415e9d9dec938dab84dec03285d631d/snapshot/plant.py\", line 143, in update\n    raise RuntimeError(\"primary history commit failure\")\nRuntimeError: primary history commit failure\n"
+      },
+      "markers": {
+        "closed": {
+          "pid": 21770,
+          "at": 2.0,
+          "wall": 70848.211363625,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21770,
+          "at": 2.0,
+          "wall": 70848.209383416,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.4976258329988923,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21770
+      ],
+      "parent_rss": 55918592,
+      "fingerprint": null,
+      "artifact_sha256": null
+    },
+    {
+      "retention": "bounded",
+      "kind": "healthy",
+      "attempt": "58e2f67690bd0e841239a7ddf43b125e",
+      "request": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "status": "succeeded",
+      "details": {},
+      "markers": {
+        "closed": {
+          "pid": 21776,
+          "at": 1000000.0,
+          "wall": 70848.691259333,
+          "engine_released": true
+        },
+        "progress": {
+          "pid": 21776,
+          "at": 2.0,
+          "wall": 70848.687389125,
+          "progressed": {
+            "storage": {
+              "admitted": 1,
+              "completed": 1,
+              "forgotten": 1,
+              "events": 7,
+              "retained_jobs": 0,
+              "retained_operations": 0,
+              "job_capacity": 16,
+              "op_capacity": 16,
+              "calendar_capacity": 32,
+              "native_bytes": 4421,
+              "completion_capacity": 256,
+              "state_capacity": 256
+            },
+            "kpis": {
+              "makespan": 0.25,
+              "lateness": -0.75,
+              "tardiness": 0.0,
+              "tardy_fraction": 0.0,
+              "total_queue_time": 0.0,
+              "throughput": 0.5,
+              "utilization": 0.125,
+              "jobs_in_system": 0.125
+            }
+          }
+        }
+      },
+      "elapsed_seconds": 0.40155750000849366,
+      "cancel_to_cleanup_seconds": null,
+      "deadline_seconds": 30,
+      "child_pids": [
+        21776
+      ],
+      "parent_rss": 56082432,
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "artifact_sha256": "68b94e1e729f4ee4db381852d00a652ed85ee3ea1fe2bf01fb518b1e00cf0526"
+    },
+    {
+      "kind": "source_deleted_reproduction",
+      "retention": "full",
+      "attempt": "f97cc05747c751f58fca442611b626ba",
+      "request": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "fingerprint": {
+        "digest": "3ae43f979e060c70e420bb81544ae4cd8b5acd90009b34b901523e74f2435ab0",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "status": "succeeded"
+    },
+    {
+      "kind": "source_deleted_reproduction",
+      "retention": "bounded",
+      "attempt": "eea2ed990a20348d7c212e9a5ab5016d",
+      "request": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "fingerprint": {
+        "digest": "247c2d41168efd64709197992f4e5e25e227b8612b30a517faf65feb70d6b0d8",
+        "kpis": {
+          "shopfloor/jobs_in_system": 2.25e-06,
+          "shopfloor/lateness": -3.9722222222222223,
+          "shopfloor/makespan": 1.0277777777777777,
+          "shopfloor/tardiness": 0.0,
+          "shopfloor/tardy_fraction": 0.0,
+          "shopfloor/throughput": 9e-06,
+          "shopfloor/total_queue_time": 0.0,
+          "shopfloor/utilization": 2.25e-06
+        }
+      },
+      "status": "succeeded"
+    }
+  ],
+  "python": "3.14.3 (main, Mar 25 2026, 03:28:18) [Clang 22.1.1 ]",
+  "platform": "macOS-27.2-arm64-64bit",
+  "provider": {
+    "schema": 1,
+    "provider_api": 2,
+    "version": "0.17.0",
+    "abi": {
+      "bits": 64,
+      "free_threaded": false,
+      "implementation": "cpython",
+      "machine": "arm64",
+      "platform": "darwin",
+      "python": [
+        3,
+        14
+      ],
+      "soabi": "cpython-314-darwin",
+      "suffix": ".cpython-314-darwin.so"
+    },
+    "sources": {
+      "csrc/dynamic_engine.c": "e193054ef634048303f7fc96db4561557caf16c3309b378acbeb39ebed722184",
+      "csrc/dynamic_engine.h": "d36a2ebfb144e27e17ce15a31e97ef1452a3dcec5a6b395885ad21c900304ac0",
+      "csrc/dynamic_engine_internal.h": "35231600c39a1d6060f63357e783baa520f75c507a9b7d17d30e83faedad4ba9",
+      "csrc/retention.c": "cfc90a3c691f08d50159db6ca11ca88f8e7f22b711ede5002b3375918ca3d68f",
+      "csrc/retention.h": "8814aafbdc2aabb8a107a8a5c692c4f9f1a250281962fca5c90cf571e6ca37bf",
+      "csrc/retention_module.c": "1174d92ebcdc48d7818836463136c0e17f53332105a63e3efabf21aa5435c100",
+      "csrc/retention_module.h": "56b7511e83d68c2ee070f92f6a684a6cf74b1d36cf272d87ab9dd608cd025bff",
+      "csrc/scalar_module.c": "9734d16cedeca6193449cb76c88e446e61f0f53aa50e875c05b4f2ed15ab1859",
+      "csrc/stock_kpi.c": "4fa65011ba49e179ac31ac4a4abaca4f744c4555208d766477012d5bd4be2c34",
+      "csrc/stock_kpi.h": "c0290bfc2ab8ec415ca368930f03bb59985e942965119ec141598b27b19f8adc"
+    },
+    "files": {
+      "_nd_scalar.cpython-314-darwin.so": {
+        "sha256": "439a743cbe7704b164cfe47ed3e6511acb4e069f6b106e8e442ece7892d7d69f",
+        "size": 72704
+      },
+      "simulatte_native_engine.dylib": {
+        "sha256": "b7edfa9d37f4a8d12cb096f8c59ce44f7a623240d617e3934cc79470044ff8ff",
+        "size": 53024
+      }
+    }
+  },
+  "parent_pid": 21412,
+  "instrumented": false
+}

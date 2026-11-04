@@ -222,6 +222,7 @@ def execute(config, raw_request, key, control, spool, send):
         control.wait_ready()
         control.phase = "running"
 
+    failure: BaseException | None = None
     try:
         reporter.start()
         recorder = TraceRecorder(
@@ -272,6 +273,8 @@ def execute(config, raw_request, key, control, spool, send):
         }
         return metadata_segment(spool, "result-proposal", proposal)
     except BaseException as error:
+        failure = error
+        env._run_failed = True
         control.fail(error)
         # Aborting waits releases the writer even if the receiver stopped ACKing.
         if recorder is not None:
@@ -284,4 +287,9 @@ def execute(config, raw_request, key, control, spool, send):
         stopped.set()
         if reporter.ident is not None:
             reporter.join(1)
-        env.close()
+        try:
+            env.close()
+        except BaseException as error:
+            if failure is None:
+                raise
+            failure.add_note(f"Environment cleanup also failed: {type(error).__name__}: {error}")

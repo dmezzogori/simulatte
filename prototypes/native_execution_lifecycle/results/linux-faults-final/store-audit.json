@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "published": 6,
+  "bad_results": 0,
+  "good_attempts": [
+    "3099bbc0ce0b85abf644854097e7f5f4",
+    "32107dc83bcd291352a37b5cd22eb76a",
+    "5743219273557a707896a9fd151f5cde",
+    "85b9d5c803ff584b5291a1c422adb5e0",
+    "e1a1786dba016ea47303ebed2a1b8f6e",
+    "e1bef227f4eee0138a91960cab3e72db"
+  ],
+  "bad_attempts": [
+    "609ee5b04b09185bba0e27306d6030f4",
+    "7a9bf1b66614961ec4e10d1256271064"
+  ],
+  "database": "/tmp/simulatte-native-lifecycle-0h2lvkvy/project/.simulatte/index.sqlite",
+  "database_sha256": "7aca7de87c588093c3046768a7cce252fd4490b3050b34ce7bdbdd29d1e3656b",
+  "exporter_sha256": "f2d03398a89edb8d7ee8e8edf9c4aa66ab15ad17b690a1943a5df3f85b2c6dc4"
+}

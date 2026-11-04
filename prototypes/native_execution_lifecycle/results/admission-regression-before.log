@@ -1,0 +1,45 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_producer_failure_precedes_another_advance_of_failed_owner ________
+
+    def test_producer_failure_precedes_another_advance_of_failed_owner():
+        class Poisoned(FixedBackend):
+            poisoned = False
+
+            def advance(self, until):
+                if self.poisoned:
+                    raise RuntimeError("secondary failed-owner advance")
+                super().advance(until)
+
+        backend = Poisoned()
+        env, _ = environment(backend)
+
+        def producer():
+            yield env.timeout(1)
+            backend.poisoned = True
+            raise MemoryError("primary admission allocation failure")
+
+        env.process(producer())
+        with pytest.raises(MemoryError, match="primary admission allocation"):
+>           execute_until(env, Horizon(2))
+
+tests/execution/test_backend.py:265:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/simulatte/stopping.py:238: in execute_until
+    backend.advance(float(env.peek()))
+src/simulatte/execution/backend.py:135: in advance
+    self.backend.advance(until)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <test_backend.test_producer_failure_precedes_another_advance_of_failed_owner.<locals>.Poisoned object at 0x109e0ecf0>
+until = 1.0
+
+    def advance(self, until):
+        if self.poisoned:
+>           raise RuntimeError("secondary failed-owner advance")
+E           RuntimeError: secondary failed-owner advance
+
+tests/execution/test_backend.py:252: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/execution/test_backend.py::test_producer_failure_precedes_another_advance_of_failed_owner
+1 failed in 0.08s

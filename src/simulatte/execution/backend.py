@@ -165,7 +165,7 @@ class BackendBinding:
         if self.closed:
             return
         try:
-            if self._values is None:
+            if self._values is None and not self.env._run_failed:
                 self._values = dict(self.backend.kpi_values())
         finally:
             self.closed = True

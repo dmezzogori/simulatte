@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "retention": "full",
+      "read_only_recoveries": 100,
+      "invalid_input_recoveries": 100,
+      "poisoned_owners": 100
+    },
+    {
+      "retention": "bounded",
+      "read_only_recoveries": 100,
+      "invalid_input_recoveries": 100,
+      "poisoned_owners": 100
+    }
+  ],
+  "busy_close_races": 2,
+  "peak_rss": 36068,
+  "python_leak_detection": false
+}

@@ -1,0 +1,3217 @@
+[
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "368b0884f44caae568f76ec6865a6db15f1e8a32d21155775b8d02b809a858c1",
+      "attempt_id": "22f43cd394c3271eb87ff000ce427edc",
+      "generation": 1
+    },
+    "body": {}
+  },
+  {
+    "type": "model_info",
+    "key": {
+      "request_id": "368b0884f44caae568f76ec6865a6db15f1e8a32d21155775b8d02b809a858c1",
+      "attempt_id": "22f43cd394c3271eb87ff000ce427edc",
+      "generation": 1
+    },
+    "body": {
+      "document": {
+        "path": "/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/documents/bcf7fe7341ff48ddad83bb336d25bf5c21f909c404bc2165d87c6cb7b33c5e9a.msgpack",
+        "length": 27241,
+        "sha256": "bcf7fe7341ff48ddad83bb336d25bf5c21f909c404bc2165d87c6cb7b33c5e9a"
+      }
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "b4d76679276be7bce80c068739ed813e18f366e877f5b0d6748d2cfa4c9bafba",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "edde2cdebe0ae13b52aa8d0e336661cee3631c544cc402b6fa96529b5ddf15ad",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "91da5cebf91d385094961582a7f19bdf83b40e9123a7bc410a948dfce7dd6d3c",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-3ebbbf2c26f681a408c936b51920ffd949ee4e02bbc88f3d8994175a1d94f2b6",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "017826241fefd0447315389724cd53a8811024b637b9524acb866eea90bc791b",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "1bb1042151f9842ba8c62094dd7b260dd56ac13a03eaf8caf2b043f865db6f7e",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "226951547ed94514bc423140ac0fc09426a05025803a969ed3d8a3f16607b632",
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae",
+      "generation": 2
+    },
+    "body": {
+      "attempt_id": "0b4614e8785fe11a85d3816b4e8ac5ae"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {}
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.0782094159949338,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {
+      "generation": 1,
+      "length": 6387,
+      "sha256": "f6eaec9a33a70ff07eb32e3e4a3d3be8ba1ae59dd818c0a49c2557867b59f331",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {
+      "generation": 2,
+      "length": 52210,
+      "sha256": "3e1d795a4e58ca4693402bf0b8eae34d73f214085a259f6e2ea7f4144f014bbe",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {
+      "generation": 3,
+      "length": 54055,
+      "sha256": "40efb8157f28b2d2ef645de8a83e0d94c768297aeb4b7f643aa12dd5d047a6c0",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-d9ea13a62feffbb91fb0ebf4c9889be609563e73916f0520d53b9c71d6fabaec",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54055
+    }
+  },
+  {
+    "type": "cancelled",
+    "key": {
+      "request_id": "c427930e33788c0ab05581e3b4691c1ad273a992e4392214b78377a3c765a780",
+      "attempt_id": "cc74cb18cccd564fa5c1b6e33a3ec4a5",
+      "generation": 3
+    },
+    "body": {}
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "c5dc92d284658c1257c66bcc8d725823a735fa08f53798407d1cb585eab030dc",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "aac55260c53f769aa49bd31ddf813201fb2c42461355ebbc17e1f451787dd8a9",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "2a709d3f71de6a7f8229b6a8e55b9d08fe80182bf45d4c9794dfecb7779d461e",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-037336728604d26d859bac61997565a9a40098ca3a6391011e944f8a2c94534d",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "45a25e27d4ed625473ab74166e977cf3c657d143abc6de3ca1d09b611295afeb",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "bb093efe1ec180036f2733d344edb7bd504e52e6b20c8e0a8e50277df7a3f80d",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "7194d22d6aa9a101f4f29bc02085ebddc3a1c1d5b32e98252e783b868b5f9ec1",
+      "attempt_id": "287ce64714f400f9b20352200444d623",
+      "generation": 4
+    },
+    "body": {
+      "attempt_id": "287ce64714f400f9b20352200444d623"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {
+      "generation": 1,
+      "length": 6385,
+      "sha256": "e50cc8885ebc8241a32d6e5868ffd447b84bbc51ef469de185b422e59af7d762",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.17016204100218602,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "80a0c39c128b7432f27cadb51d46b42454f89dd9d5004ace3b92e30b49d07d83",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "371b4e25c60ab4d4749302fc8b7e7be9243a3e0d402ae1bd2b77e25c48aa2f27",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-fc59930384010c52b8a1ee422d261d1990b371ffa282a1a87289a0e3379197c6",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "cancelled",
+    "key": {
+      "request_id": "b1a7d247d8ae74a1fc957bb1d82a9c4b3e8c04f640a316db3d63aa7df9e1f69a",
+      "attempt_id": "24ee52799f9d10e5d7f1e0b4020883de",
+      "generation": 5
+    },
+    "body": {}
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "36a8bd4ffe56a689fce194ca064a757373140e6e1b10de1919e595024858365f",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "4a911e39f135292095b9395d6698192493783e81575babc8d5b86adbd08d6177",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "86c2c606cf378a4aeb4ed6d36998677078532c1aa48025dc38e0a07f86886639",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-c20ec97e65cb8e9e7c96a2b9fae0a9e1ede241ab7472bb456cf75b5329dc72e7",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "c956a17879b4484c94a170cc39c4f68ec4b2d6aac7f2a14ca8d7bd433bf2f7cc",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "5d1dc28118f2d4223bf90d4d81a5671d7c23b6b88a1132f4c0161c0bd079b6b1",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "45a69ca45e71a35b26e257bcc6e7ca55350f10b5abb4abff10ab31b2082eb41e",
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda",
+      "generation": 6
+    },
+    "body": {
+      "attempt_id": "4a084ed628ccba80b1e40603ea227cda"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {}
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.08728341601090506,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {
+      "generation": 1,
+      "length": 6385,
+      "sha256": "65a05a63d533b99b2b08f2d5718f88ffe02b78ce8608e28bff7a782781f0b2e3",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "ad4a49b8608f7f3b7a653c93264f74a07f69b098e3f11ba92104db317e4d0608",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "f69698667b6ef2da3c6f125dc3e79b28e6e87bf6fd0ccd915e08411ec7faaac6",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-39c91c31471945d27d4029ef8142fb77fe73544969d241a36d57c7e8a6db1a0e",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "88a9d8757448fa00dd826582b0e7ef363f53c927ae59e0b1026624d282b55a34",
+      "attempt_id": "894b019edb5aa33c9142845316b32793",
+      "generation": 7
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary producer failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/894b019edb5aa33c9142845316b32793/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "0af06fa9b995d483380417b035a1309f72cbc95d09a224504e0b215fbb6e30a6",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "51d1906d93231253f5eae3c6d9a61ab2d1e92eb20a0d4c1e7b8befaa1b0afc70",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "361e74c4b7acbec2e7b682272331068cd48348d21cb2f7e70f5f785a3d7b15ba",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-e64813f2cdb933da809f95eeed2950a8e84b67aa402764555dc763a018b08a4d",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "7af0476bece9122ac14caaef801b781a1fde2d0133a7313952b3596a1fd50366",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "53fe55a4148cffb8d231b6532f833019c1c0d42192cc8a9b15e6048b80cf8772",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "338e8a18b39b0360f830ab78b1a673f74f72e49692b2df01a65a21093f3240fc",
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7",
+      "generation": 8
+    },
+    "body": {
+      "attempt_id": "0b53fa3b05318a1c47e2931edb8b04c7"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {}
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.1513574169948697,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {
+      "generation": 1,
+      "length": 6383,
+      "sha256": "56d643d0d087603ace2f5de7b742e34fd4c8056ac859b02e4fcdac9d4722aa43",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {
+      "generation": 2,
+      "length": 52202,
+      "sha256": "183db35cd19f7c3ccdb1df6f1b8126b2732959072d2dc4d907d8348fcc6b5daf",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {
+      "generation": 3,
+      "length": 54047,
+      "sha256": "063a223cf9e6bea946f08d26eafd13b219323ce044a81b5e8da0491feeaf8e9f",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-eecb35470f310fe66caa28794056187d64744b49c31247deb3392d96d2ac5531",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54047
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "819ab2c2fe39c41bc767173d810d8159a0d5a81bc8323a7694b20d32da07d7da",
+      "attempt_id": "a0ce23abb121983db4a4855aeeafcffc",
+      "generation": 9
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary post-advance failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/a0ce23abb121983db4a4855aeeafcffc/snapshot/plant.py\", line 57, in advance\n    raise MemoryError(\"primary post-advance failure\")\nMemoryError: primary post-advance failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "3f69a42a45fc023a3fe8aa7f39d1b3782ac60c0a1acaf3444bf6e22b6b08880e",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "60cd03b7ffe80260ab2ec35bf9919b249c8f1265945d1883d5ab3cd7879406a5",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "736475b32e59f864f713de99497c08077633e181d76ffea9aa909faaae07ab2f",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-9cb35b8a01c29da6c583dbd749be6c342ba5ce792910075d94997582e6d20c5d",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "4b257268c56f7a271c46dd48c64c8c1ab266c0479e9a02a88f3f711d35f66758",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "45c9fff12606f2a96d1c2b10a3fc7e0f2cb2ea8af23455622b64eee54acaa91d",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "ffcacf77ef865b7752597f71cf6ecd48daedd36b2affdeebc54d3c4a96f36cff",
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef",
+      "generation": 10
+    },
+    "body": {
+      "attempt_id": "25a60726d54809ca7f2cae4ce01d03ef"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {
+      "generation": 1,
+      "length": 6383,
+      "sha256": "b061e62069c3cabd009da3c4da7cfe2dd87bbcf2c6f9e396bbf6fc16f221a56c",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {
+      "generation": 2,
+      "length": 52202,
+      "sha256": "459176bc9e55969ef46114c7986aef670cb9667cdf9efd3394a58d6ef917799a",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.23780604200146627,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {
+      "generation": 3,
+      "length": 54047,
+      "sha256": "2267724c23835dd8d71c4e23bb87730b085419c2b51832e5dcb0e12a2e3ccec1",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-7e9d018170e69a0cfa0c46c48a24c86eb807f6928b71c1eb3fb9287cbead88b6",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54047
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "fd69790c7f02c16af8aaa39224821d3b44233706d45bbd56a41c96ef22022813",
+      "attempt_id": "2d1cd20b77c31a1f44cdbd3e27e500df",
+      "generation": 11
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary producer failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/2d1cd20b77c31a1f44cdbd3e27e500df/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\nEnvironment cleanup also failed: RuntimeError: secondary cleanup failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "af9e737c17e6ab910262e41ed88458b3f74264352949ad9060906ecc889a769c",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "be6027d4d85a61671763d79635916b24305e7c959750a1d55a4ff70c0f4e6f80",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "5240cd1be2912630f50d1451fb943a301b03fc4580105eabe931fbae210806fd",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-7800117b6d53dd246a2ad355707e3749cb020b6ad95b2d38070da3133110ab4d",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "5a89af05ef06d496271e686c835b965046154d3e8bbbcc1415acc8edceacf5e8",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "8c75c18777506dc852143a3477cc3b3115314b3193c00712fa4e17df5294fd6d",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "ce62c8f5331f540b2a08b7d45f4dbc98b37d4a9125624275c851fd8832f4e2d7",
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a",
+      "generation": 12
+    },
+    "body": {
+      "attempt_id": "781a602fd23d90ff22c0cfbca54ea24a"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {
+      "generation": 1,
+      "length": 6379,
+      "sha256": "caf85c9664ec1183e0af32133b4fcf6a201ddf79681f6a55cb1a58baebd9505a",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {
+      "generation": 2,
+      "length": 52194,
+      "sha256": "aa8cfc3dc1a0b64637a7c5e50d4e1b8842071fe03bb04b482637608c2b5b7dca",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {
+      "generation": 3,
+      "length": 54039,
+      "sha256": "0883174fa6454616129df921bf44a1d9b904d7ec9d92bc529325137750cf5332",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-5446bd73ad7cdff9329405724885851e4c2acadc2ef1f4c938b4317086fc18ba",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54039
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.2834523750061635,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "9fc41ae309ae30058fb9958b6ebc41a8c6e29dfa6de11ed157d77525c32a9239",
+      "attempt_id": "7b03bceb9449563a9fbb3b649e1e1c36",
+      "generation": 13
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary close failure",
+      "phase": "finalizing",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 256, in execute\n    env.close()\n    ~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 656, in close\n    with contextlib.ExitStack() as stack:\n         ~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 619, in __exit__\n    raise exc\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 604, in __exit__\n    if cb(*exc_details):\n       ~~^^^^^^^^^^^^^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 482, in _exit_wrapper\n    callback(*args, **kwds)\n    ~~~~~~~~^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 172, in close\n    self.backend.close()\n    ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/7b03bceb9449563a9fbb3b649e1e1c36/snapshot/plant.py\", line 67, in close\n    raise RuntimeError(\n        \"secondary cleanup failure\" if params.kind == \"cleanup_error\" else \"primary close failure\"\n    )\nRuntimeError: primary close failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "generation": 1,
+      "length": 6371,
+      "sha256": "605b5bb54738b9c14a7d53ca80f765d4a7ac1b1c2e2d32aba88c560bda864bdd",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "generation": 2,
+      "length": 52178,
+      "sha256": "77cbf3d2aba3d152d4acaf2d8319612528f7949a2a8404c3c25c64de69d512ab",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "generation": 3,
+      "length": 54023,
+      "sha256": "d778fe91218002254ee47c531f86ab446ccdae52b72117a5305d103801e201c2",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9df-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-a746cf93fea18bdf7000376a4ba6999500d30deebaae1e376a5e95b05cc89650",
+        "length": 43487,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "e8819e34b810dede2e93cf1b99edd91431993ce39c34cbd569aa2de0a6f75d12",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54023
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "generation": 5,
+      "length": 54292,
+      "sha256": "0f71ea0b48ae5c73e56466782e3b2338d35d0128cec34bdef7dfd4ebbe8e7927",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "generation": 6,
+      "length": 54978,
+      "sha256": "aa6b4dbe45857afe6d75845c51be40c9750c5f73308fb7905b587ab68378619f",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "a729461bfe388a5fac7934b848ebe4c08e95bad36d871cf97874ebfca5aa80fc",
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68",
+      "generation": 14
+    },
+    "body": {
+      "attempt_id": "26311318059b89d584c2d7ef2ca8bb68"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "57f89eb8a7f90ddddf00acc3886e2eca37af5119d653d756aad889c786ab6b0a",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "9a3e7d9fe539ed515b67eab49a72041634949de38c8dec6c530f7ed4b5187028",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "2d6c1a47c26f1476441a515060d632ace40c67f9b61a77705e6088652f085dbc",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-163a17f5c8a1aad28943b102395e0f708b16df47b93349d6ce9aef9a08c7e54a",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.27994095800386276,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "6b1f2ccb1a1b7ae84f8854ccc4f5f60f089b588b8a67db7d8eb60d90310e09a3",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "38d1c6a2c41b9d6b0422a40e6750e6e09ffe56c8cadbcbe2ec1d35913c41b821",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "2c0b724c20b445c698af6433a92bcc6d2587e1dd7d16635c2b15d4888b94088c",
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796",
+      "generation": 15
+    },
+    "body": {
+      "attempt_id": "e0ae040a27f27bcfd58d1b30989dc796"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "attempt_id": "633ba66a766c942db42cf242e8923b36",
+      "generation": 16
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "attempt_id": "633ba66a766c942db42cf242e8923b36",
+      "generation": 16
+    },
+    "body": {
+      "generation": 1,
+      "length": 6393,
+      "sha256": "5039514885e0913f304b9c92b7b76777068708b0977cd89f9bc7f1d934aefef7",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "attempt_id": "633ba66a766c942db42cf242e8923b36",
+      "generation": 16
+    },
+    "body": {
+      "generation": 2,
+      "length": 52238,
+      "sha256": "5bad2cb357391dc28919f615db91d2ddc9004bb5e5f1fc79c2b941e9da9e19f8",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "attempt_id": "633ba66a766c942db42cf242e8923b36",
+      "generation": 16
+    },
+    "body": {
+      "generation": 3,
+      "length": 54083,
+      "sha256": "4e4fa84e9440e68a4285a20f2e39ee3a68ecd2c49f2c3f048e1b0501a990f240",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "attempt_id": "633ba66a766c942db42cf242e8923b36",
+      "generation": 16
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-d1761e3d53fda6933b7546cde1b47e78af459b111b3a9355fbf10909472d0e99",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54083
+    }
+  },
+  {
+    "type": "cancelled",
+    "key": {
+      "request_id": "7cc73fb11323a1ffd98ba2b2953c72ddcde0514ee5553b16a4741b391d740961",
+      "attempt_id": "633ba66a766c942db42cf242e8923b36",
+      "generation": 16
+    },
+    "body": {}
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "a337ae39de1d7f45fff913f0f3aab9541ae61df630ffde438f3542c9c050c5fb",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "229caeb93dd4f853da72882bc0ed46f4a90c887926cfbbb9467901fa25852a32",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "7d9832263abb00c5331dbee7e2d2a657cd4cb8ec322132c2d0379f8a61ed971d",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-cd67bd2beaf7cfdbd5e8b05698eb1fefe815fe628f285a6ab95d3820e070ef63",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "5d82cf06804a2ca53ce7cf4ef92ad561724d5fd44945d312ff24dea584bf4675",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "f102055ab50de6451b30912f3b11f1f7946227572b5fbcffe721a7f69c54dacb",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "aabe7d70ec2a732476d4bf916242dcc41990eb52f09bc38e85f87b6381da5e19",
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19",
+      "generation": 17
+    },
+    "body": {
+      "attempt_id": "7b6025c5f6eada66839fa46b2a814b19"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "attempt_id": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "generation": 18
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "attempt_id": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "generation": 18
+    },
+    "body": {
+      "generation": 1,
+      "length": 6391,
+      "sha256": "97c1e536c62d2a8aa2609ab9a15661766d816b9bb1e62caebcea930a4ccc13c8",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "attempt_id": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "generation": 18
+    },
+    "body": {
+      "generation": 2,
+      "length": 52234,
+      "sha256": "615fea6b39e31283455bad2bef35c21f8268195cf41c7cc509d88ef2c14ec439",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "attempt_id": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "generation": 18
+    },
+    "body": {
+      "generation": 3,
+      "length": 54079,
+      "sha256": "b7b97b2ad80162aa2880b69daf0f53035a145ab456019dff08f05fc848af3d36",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "attempt_id": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "generation": 18
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-42512a7df57c7a02e2eca5485fab4b30ce8dbb2d79abb5fcc9702d3243be864e",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54079
+    }
+  },
+  {
+    "type": "cancelled",
+    "key": {
+      "request_id": "fbc582714181677edf20d951732d7b69b46c4c88fca794c5245634e0b4274cdb",
+      "attempt_id": "091dfb08f01d5285c70a05ebb4ad99f4",
+      "generation": 18
+    },
+    "body": {}
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "0df18e642c5ce5ca6298049a040eb58ab3d0d7f2d7b42277175a99fce8a5589d",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.19402412499766797,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "b282d08cac2edef746ebc8e425c316c81fe3d659af92c63b9a384c789ffd25b2",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "3c5e0e268f4d0a1c2b8142fefb10346904a84ae78f66ecca95d15327236c242e",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-a76ea3660758357db74131cd917f6c5ac4e15325e34ff26a1fde5e10c892ef2d",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "0792b3757ca4bd8044f3935ce0cc30958e565f1707e24b89dda2148f48bdce68",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "a4a939ddef05538428ec57ff6149b66a31ace92327b7ce4d10d1b463f77488bb",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "707be1cdfa6063be456f1395ff61a38b6c057fc74c3eb4b51e83eded419bb728",
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23",
+      "generation": 19
+    },
+    "body": {
+      "attempt_id": "cc707f7da58367d91ab06a295fcd1c23"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "attempt_id": "33033fc544ca1792315f305e355350e6",
+      "generation": 20
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "attempt_id": "33033fc544ca1792315f305e355350e6",
+      "generation": 20
+    },
+    "body": {
+      "generation": 1,
+      "length": 6391,
+      "sha256": "1e1cf954ad7db068786db5426010a2d43cd7ff35434f055e853b009f67ae0d12",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "attempt_id": "33033fc544ca1792315f305e355350e6",
+      "generation": 20
+    },
+    "body": {
+      "generation": 2,
+      "length": 52234,
+      "sha256": "35a3ed8a2e1654a89900345413b3190ae18d69d585986230e59737d47b376e12",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "attempt_id": "33033fc544ca1792315f305e355350e6",
+      "generation": 20
+    },
+    "body": {
+      "generation": 3,
+      "length": 54079,
+      "sha256": "acda9b2a5959c37d4d077be0455e769ee5824f82adf211a84bb12375cccad552",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "attempt_id": "33033fc544ca1792315f305e355350e6",
+      "generation": 20
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-1ddc6bf617b6253dba9d7a925dd9ca9781b0f78f3a48cc9cd753de275e06f9bc",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54079
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "f5ded7db7c419caabab71d55b69e17085e5b0cd8187d30e1b54560e97e7285c6",
+      "attempt_id": "33033fc544ca1792315f305e355350e6",
+      "generation": 20
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary producer failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/33033fc544ca1792315f305e355350e6/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "7deecf6569b80f4a17103e68e07cda9316304053f9faffabd0e52fd6cd367e26",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "12aa5221b48d10895141c13a153d8e72966724def543a9b82946864b5bddb54a",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "2fe3a1d553e19c1153b8c1485d9db52d77b1df4cdf80fe10fffb8489002b60e0",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-7486e348d8a89a4f9630a3d46addf6c32c026cee4a079b190623b1c8c00c6cb9",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "20ed2d4ec55d0b913040554cbd8fd7f7b5e14223b2932487a63ff973d38e16bb",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "39cc7f74ae6366f2eb65166a02a106dfababac6465346b63887eb3f59b53ee57",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.30356037500314415,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "83a993db0d39e5be89684becb95528b91ff9af84ded68963c49348e861bc9939",
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb",
+      "generation": 21
+    },
+    "body": {
+      "attempt_id": "aa9480be1efe6bcb82d3a6ee888650bb"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "attempt_id": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "generation": 22
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "attempt_id": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "generation": 22
+    },
+    "body": {
+      "generation": 1,
+      "length": 6389,
+      "sha256": "efeee9d7219c201243b37c792d4e6f3c4f297c0d6e147df0531cca880aa13a31",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "attempt_id": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "generation": 22
+    },
+    "body": {
+      "generation": 2,
+      "length": 52230,
+      "sha256": "5664748345b10bd0fa406d449e38ca2c6004fd28f72d68dc879a488f58a8eb9e",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "attempt_id": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "generation": 22
+    },
+    "body": {
+      "generation": 3,
+      "length": 54075,
+      "sha256": "8378a5a0b070690bdae600934e784bb50b2f0c906ed6ce766bddac38256a53c5",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "attempt_id": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "generation": 22
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-820300846da4cf3313896b0139f57b83cf5289530b8d8cb79592d7c876a4b5d5",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54075
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "c06d4081c3874588cc5379fad2034644e580f9aa1ca874159f9a7ad6a9ccd9fc",
+      "attempt_id": "b42541524c7fb09ffebfbb0fcb65f6f3",
+      "generation": 22
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary post-advance failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/b42541524c7fb09ffebfbb0fcb65f6f3/snapshot/plant.py\", line 57, in advance\n    raise MemoryError(\"primary post-advance failure\")\nMemoryError: primary post-advance failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "3965e8f92db05718e735a6c86b61ab022a5286130ede19e6722d3c3e378ca20f",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "e365575125734cde26d80761ebd5ed786b192addf25885fa1e7ec0595efb6d2d",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "3a3d8905e2f6607c7935ca2408a69d822eb450ed64164e4ee0088f446d5f451f",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-74c9ec7edce81c5aa3d22b8b933b90a71b9587d36f1d8139aa9fc355a8c71abf",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "c2cdcaaa269b1eab799c5d3d4838030082ee2b67da85e2da99401acdc957c977",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "183cd8b8c7d58870a53923873ef75920f94993b110cdd88bf1a7f73cc77efe6d",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "3a9b95fafd6b7d4ae55acc3b49568dfb9afce0e6870a146cb116c0fc36872abc",
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54",
+      "generation": 23
+    },
+    "body": {
+      "attempt_id": "10e7ccc0daf44174410166c7a26f4b54"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "attempt_id": "929e0059a79e87604ffa12d3359083b5",
+      "generation": 24
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "attempt_id": "929e0059a79e87604ffa12d3359083b5",
+      "generation": 24
+    },
+    "body": {
+      "generation": 1,
+      "length": 6389,
+      "sha256": "ee3fc61d630a929a643d9c0efe5e612dcdccf9b14f4f71e3addaf1ba637a9841",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "attempt_id": "929e0059a79e87604ffa12d3359083b5",
+      "generation": 24
+    },
+    "body": {
+      "generation": 2,
+      "length": 52230,
+      "sha256": "4ed82f7c093bad46f7cb1025f78d92037bdbeac0e05d98d4aefc0911407451e6",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "attempt_id": "929e0059a79e87604ffa12d3359083b5",
+      "generation": 24
+    },
+    "body": {
+      "generation": 3,
+      "length": 54075,
+      "sha256": "5f6d22ee368e692c93a8b9e14630e1fdbc8882b5c3f638162c79741e334b09cd",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "attempt_id": "929e0059a79e87604ffa12d3359083b5",
+      "generation": 24
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-4d636718f1183c59a3c1771d9aa50d2c631cea5bb3cfc9ab308474fe1e153226",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54075
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "0b9e7304a0bed6ee6a1351494e611b3de64f7ae1fc89b7d254d8d30a965a370f",
+      "attempt_id": "929e0059a79e87604ffa12d3359083b5",
+      "generation": 24
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary producer failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/929e0059a79e87604ffa12d3359083b5/snapshot/plant.py\", line 131, in source\n    raise ValueError(\"primary producer failure\")\nValueError: primary producer failure\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 282, in execute\n    recorder.close(outcome=\"failed\")\n    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 699, in close\n    self._enqueue(\"footer\", len(pack(footer)) if self._strict_pending else 0, footer)\n    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 591, in _enqueue\n    raise error\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 734, in _run\n    done = self._write_item(kind, data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/writer.py\", line 799, in _write_item\n    self._offset += write_record(f, rtype, payload)\n                    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/format.py\", line 80, in write_record\n    return f.write(header) + f.write(payload)\n           ~~~~~~~^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 32, in write\n    count = super().write(data)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/trace/sink.py\", line 60, in write\n    self._reservation = self.spool.reserve()\n                        ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 152, in reserve\n    self._credit(size, 1)\n    ~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/spool.py\", line 128, in _credit\n    raise self.control.failure\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 241, in execute_until\n    env.step()\n    ~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 642, in step\n    super().step()\n    ~~~~~~~~~~~~^^\n  File \"/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/venv/lib/python3.14/site-packages/simpy/core.py\", line 212, in step\n    raise exc\nValueError: primary producer failure\nEnvironment cleanup also failed: RuntimeError: secondary cleanup failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "e01a5b2f7493324ffea4c67d88db867c54e025df72c1c16f4d393b83590f4d2d",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "e16d574de1de8a264a40ca4299d129d898693791d7c174e26a5fab96e3ffff0a",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "ba97661d4f917a600d52feb0744918417b104114734702062a4a2ed284816b10",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-fc89efbd29ac582f005dc2e65c89811edfdd0c6fbafa39617138358c41bf4eb8",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "a4dfb75700f6901f506c1356b2b1e1d1840752373cf787b85417ac3390ed7390",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "ef252c0852fadda42a257e2e3a82b7eb014bbe2f9aad12b7899043abfaaf7bc0",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "5c6204dc867b3d6a199b5ea0cedacf782c761b39f3510d2760d9bb6d06c03ea4",
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944",
+      "generation": 25
+    },
+    "body": {
+      "attempt_id": "a5e5c36c7967fff4b6539e0cccea7944"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {}
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.09495929100376088,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {
+      "generation": 1,
+      "length": 6385,
+      "sha256": "4dab92a1b1097cc394340b866527350f1cfe9c1603e057f5e7fa5978e40fc64d",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {
+      "generation": 2,
+      "length": 52222,
+      "sha256": "ab56a15a0f389d57da8e6aaa2540606d624ff087a9a26a479bdcaff291e87f32",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {
+      "generation": 3,
+      "length": 54067,
+      "sha256": "53fa0986b8aa6bd5ecb7768118381b6fe68ea51536a9c9931662fc0be85b8391",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-22399412d9dd7d8d248ee8329b97ff6887f4f45790e57d70fbd316aeea9003de",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54067
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "848c6affd3ca28a1aee75bc4f32861afe93d38ff7bee28852f37a5258faf5f25",
+      "attempt_id": "c58464bda63846d5053736d3f1dc2f88",
+      "generation": 26
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary close failure",
+      "phase": "finalizing",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 256, in execute\n    env.close()\n    ~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/environment.py\", line 656, in close\n    with contextlib.ExitStack() as stack:\n         ~~~~~~~~~~~~~~~~~~~~^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 619, in __exit__\n    raise exc\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 604, in __exit__\n    if cb(*exc_details):\n       ~~^^^^^^^^^^^^^^\n  File \"/Users/davide/.local/share/uv/python/cpython-3.14.3-macos-aarch64-none/lib/python3.14/contextlib.py\", line 482, in _exit_wrapper\n    callback(*args, **kwds)\n    ~~~~~~~~^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 172, in close\n    self.backend.close()\n    ~~~~~~~~~~~~~~~~~~^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/c58464bda63846d5053736d3f1dc2f88/snapshot/plant.py\", line 67, in close\n    raise RuntimeError(\n        \"secondary cleanup failure\" if params.kind == \"cleanup_error\" else \"primary close failure\"\n    )\nRuntimeError: primary close failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "cbd3762345b56e16fa62501355d06d74795682d177b94fa51fe804a6e58d6afe",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "174c90ee172a59bc68eec830b4458d837165837c24df6f3d1d71fa44d7d9744d",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "2032a89a6e7feb881ac4bed0ad748f28f53847c46494787b2eeb0f8bf3dd7dc6",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-582467afc041abd8a471212866cb61af98db21f0fc729b4cdf23f1e80f1f87ae",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "43fb9b1420b8a85636a7182f2ffa4326b472d851baaaf676fb73fdc4de14b324",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "a4fb6ffe45f92449f32a92fa856fc9d62c8d83cf8eade6e7dcae6242dd419a26",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "2623e41046a34d218cd16999bb1a84d81fd83101f796c6532afbcc9f322e6cee",
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7",
+      "generation": 27
+    },
+    "body": {
+      "attempt_id": "cb20aca759e2bb64cac64fe8515e5db7"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {
+      "generation": 1,
+      "length": 6389,
+      "sha256": "da1b9f39b8bd5318d5bc0c6eda51636135165b3e3d977b293cf42ae8d7b3740e",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "heartbeat",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {
+      "backpressure": false,
+      "elapsed": 0.2140721250034403,
+      "event_count": 0,
+      "phase": "preparing",
+      "simulation_time": 0.0,
+      "spool_bytes": 0,
+      "spool_files": 0,
+      "stalled": false
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {
+      "generation": 2,
+      "length": 52230,
+      "sha256": "9e50cbdc256f278c189d134d8ae64cd2d213069547b33d9596b2e42e37c5b387",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {
+      "generation": 3,
+      "length": 54075,
+      "sha256": "3c46f4ef78d8c89ff76d5da9780a699ec538810551cf2e8f649754a6d0e69fab",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-a5ce4d740cf21de6e9c848249058cf28da819da4e7164455cf0d184078cfb10f",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54075
+    }
+  },
+  {
+    "type": "failed",
+    "key": {
+      "request_id": "b0737de83e0d88f651e49965257a666fc38342c0a8167d458a388b81e47ead4d",
+      "attempt_id": "4415e9d9dec938dab84dec03285d631d",
+      "generation": 28
+    },
+    "body": {
+      "code": "child_error",
+      "message": "primary history commit failure",
+      "phase": "running",
+      "traceback": "Traceback (most recent call last):\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/child.py\", line 127, in serve\n    proposal = execute(config, request, key, control, spool, send)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/driver.py\", line 253, in execute\n    stop = execute_until(env, stopping, control)\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/stopping.py\", line 238, in execute_until\n    backend.advance(float(env.peek()))\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/execution/backend.py\", line 135, in advance\n    self.backend.advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/4415e9d9dec938dab84dec03285d631d/snapshot/plant.py\", line 51, in advance\n    super().advance(until)\n    ~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py\", line 375, in advance\n    self._live().advance(until)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py\", line 167, in advance\n    self._commit(self._module.retention_advance(self._engine, until))\n    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/tools/8e68170129f2218b96580f20985e2592eddd5f3cefa7aa8a9029cf5f77cfc6cb/simulatte/experimental/native.py\", line 254, in _commit\n    self._history.update(records)\n    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^\n  File \"/private/var/folders/gj/qj34mbks38gd0l386543xmtc0000gn/T/simulatte-native-lifecycle-2z62jvnt/project/.simulatte/staging/4415e9d9dec938dab84dec03285d631d/snapshot/plant.py\", line 143, in update\n    raise RuntimeError(\"primary history commit failure\")\nRuntimeError: primary history commit failure\n"
+    }
+  },
+  {
+    "type": "queued",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {}
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "generation": 1,
+      "length": 6377,
+      "sha256": "e0655d35558270c6a32473ab8a9adb60fc33cb6583f594066f18c4b24dcdbea2",
+      "last_cursor": null
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "generation": 2,
+      "length": 52206,
+      "sha256": "c1b9afb321d859bcd48db6d90d68de827ff3ed6a53688707aecc0cb3e5b63170",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "generation": 3,
+      "length": 54051,
+      "sha256": "ad29cfffba487aee516dd3bad0e9f7b24fc63e4cddee92e2d2244fbedcc787b3",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "ready",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "resolved": {
+        "id": "0000000000000004-0000000000000000-0000a9e7-66bf81076426298ea11e1d12bc1f6b0410c157f3fd83d913f0baeaa8e2bca667-ae0557b8385db7d3631b28003e3e9147011243f739bf40bfc1ab1fecf517f0f4",
+        "length": 43495,
+        "offset": 0,
+        "sequence": 4,
+        "sha256": "aa75e8892013f3e1657ec549d05fdf7797225dcc25e7d35ffa4801e0e010106e",
+        "stream": "metadata/resolved-manifest"
+      },
+      "simulation_time": 0.0,
+      "trace_length": 54051
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "generation": 5,
+      "length": 54320,
+      "sha256": "7b857e0b56a12cd72970b4055412c09765ae6e053ea0062aa7e7a260f481a4e5",
+      "last_cursor": [
+        0.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "trace_available",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "generation": 6,
+      "length": 55006,
+      "sha256": "a5b894451c78e6421d3b10b7b2a9437045b8954568e14459bf021484f1f7ed94",
+      "last_cursor": [
+        1000000.0,
+        -1
+      ]
+    }
+  },
+  {
+    "type": "result",
+    "key": {
+      "request_id": "cf014065a2adb4431e84d256c1ae47abd1bb3f98d28ece2d9cdeda49833b44fa",
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e",
+      "generation": 29
+    },
+    "body": {
+      "attempt_id": "58e2f67690bd0e841239a7ddf43b125e"
+    }
+  }
+]

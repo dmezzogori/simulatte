@@ -1,0 +1,34 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_cancellation_during_advance_precedes_python_continuation _________
+
+    def test_cancellation_during_advance_precedes_python_continuation():
+        from simulatte.execution.control import Control, Cancelled
+
+        control = Control()
+
+        class Cancelling(FixedBackend):
+            def advance(self, until):
+                super().advance(until)
+                if until > 0:
+                    control.cancel()
+
+        backend = Cancelling()
+        env, _ = environment(backend)
+        continued = []
+
+        def producer():
+            yield env.timeout(1)
+            continued.append(True)
+
+        env.process(producer())
+        with pytest.raises(Cancelled):
+            execute_until(env, Horizon(2), control)
+        env.close()
+>       assert not continued
+E       assert not [True]
+
+tests/execution/test_backend.py:237: AssertionError
+=========================== short test summary info ============================
+FAILED tests/execution/test_backend.py::test_cancellation_during_advance_precedes_python_continuation
+1 failed in 0.07s
