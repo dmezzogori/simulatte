@@ -37,3 +37,42 @@ trace structure and KPI endpoints, and verifies that failed/cancelled attempts
 have no result. `analyze.py` reconciles the collected evidence. The raw logs
 remain in ignored `.build/` directories; only the compact audit and evidence
 summary belong in version control.
+
+## Two-hour gate after chart batching
+
+Prepare both host environments as above with the same chart-batching core
+wheel and each host's verified native companion. Set `TMPDIR` to a private
+directory on disk before running `prepare.py`; the new project and its
+results live there. Keep the preparation and environment metadata
+(`environment.py`) together as `{macos,linux}-{prepared,environment}.json`
+in a private evidence directory on the browser host.
+
+On Linux, put the Studio study's `serve.py` and `audit.py` in
+`<remote-root>/studio/`. From the browser host, run:
+
+```sh
+python prototypes/studio_stabilization/run_endurance.py \
+  --output <evidence-dir> --remote-host <ssh-host> --remote-root <remote-root> \
+  --local-port <port> --remote-port <different-port> \
+  --assets-sha256 <installed-manifest-sha256> --seconds 7200
+```
+
+The supervisor starts two loopback servers and forwards the Linux port.
+Chromium stays on one document per host for the full run. Firefox and
+WebKit reload in rotation. All three engines reconnect and seek/follow.
+There is no injected HTTP delay. The supervisor stops if the browser host
+has less than 8 GiB of free space. After the timed runs it checks revoked
+prefixes, stops the servers, audits the result stores, and writes
+`report.json`. `status.json` and `browser.log` show progress; an interrupted
+or failed audit is recorded explicitly.
+
+The gate requires exact reads or an explained revocation/abort, no
+unexplained browser errors or trace alerts, no partial chart panels and
+eight charts in more than 75% of live samples in each browser. Each model
+and retention mode must publish a valid result; repeated and shared
+configurations must agree on control state and KPIs. The report separates
+retained store growth from process resources. It compares the second
+ten-minute window with the last two and flags sustained median increases
+of at least 8 MiB in post-GC Chromium heap, 32 MiB in server RSS, or eight
+server descriptors. These thresholds flag changes to investigate; the
+trial cannot establish leak freedom.

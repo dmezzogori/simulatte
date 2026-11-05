@@ -1,6 +1,7 @@
 """Real loopback Studio server; private access data never enters evidence."""
 
 import argparse
+from contextlib import suppress
 import hashlib
 import json
 import os
@@ -86,7 +87,12 @@ def main(args):
                 with coordinator.store._transaction() as db:
                     counts = dict(db.execute("SELECT status,COUNT(*) FROM attempts GROUP BY status").fetchall())
                     results = db.execute("SELECT COUNT(*) FROM results").fetchone()[0]
-                disk = sum(p.stat().st_size for p in (work / "project/.simulatte").rglob("*") if p.is_file())
+                disk = 0
+                for path in (work / "project/.simulatte").rglob("*"):
+                    # A worker can remove a spool file between traversal and stat.
+                    with suppress(FileNotFoundError):
+                        if path.is_file():
+                            disk += path.stat().st_size
                 file.write(
                     json.dumps(
                         dict(

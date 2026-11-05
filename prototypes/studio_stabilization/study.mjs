@@ -9,6 +9,9 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => i
 const targets = JSON.parse(readFileSync(args.targets, 'utf8'));
 const engines = (args.engines ?? 'chromium,firefox,webkit').split(',');
 const seconds = Number(args.seconds ?? 900);
+const keptOpen = (args['keep-open'] ?? '').split(',').filter(Boolean);
+if (!Number.isFinite(seconds) || seconds <= 0 || keptOpen.some(engine => !engines.includes(engine)))
+  throw new Error('Expected positive seconds and keep-open engines from the client set');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const prefixPath = path => /^\/api\/prefix\/[0-9a-f]{32}\/\d+$/.test(path);
 const logError = error => String(error).replace(/bootstrap\?token=[^\s"']+/g, 'bootstrap?[redacted]');
@@ -129,6 +132,7 @@ async function session(target) {
       await page.getByRole('tab', {name: 'Recorded KPIs', exact: true}).click();
     }
     const primary = clients[0].page;
+    const reloadable = clients.filter(({engine}) => !keptOpen.includes(engine));
     const state = () => primary.evaluate(async () => {
       const response = await fetch('/api/state', {headers: {'X-Simulatte-Session': sessionStorage.getItem('simulatte-session')}});
       if (!response.ok) throw new Error('Studio state HTTP '+response.status);
@@ -174,7 +178,8 @@ async function session(target) {
       return;
     }
 
-    const started = Date.now(), until = started + seconds*1000;
+    const started = Date.now(), startClock = performance.now();
+    const elapsed = () => performance.now() - startClock;
     const observed = new Map(), cancelled = new Set();
     let next = 0, last = '', lastAction = started, lastReload = started, lastHeap = 0, lastPrint = 0;
     let reloads = 0, reconnects = 0, seeks = 0, action = 0;
@@ -189,9 +194,9 @@ async function session(target) {
         observed.set(latest.key.attempt_id, latest.status);
         log({type: 'terminal', key: latest.key, status: latest.status, results: current.results.length});
       }
-      if (Date.now() >= until && !active) break;
-      if (Date.now() >= until + 45000) throw new Error('Final Studio attempt did not drain');
-      if (!active && current.startup.phase === 'ready' && Date.now() < until-15000) {
+      if (elapsed() >= seconds*1000 && !active) break;
+      if (elapsed() >= (seconds+45)*1000) throw new Error('Final Studio attempt did not drain');
+      if (!active && current.startup.phase === 'ready' && elapsed() < (seconds-15)*1000) {
         if (!await primary.locator('.studio-parameters').evaluate(node => node.open))
           await primary.locator('.studio-parameters summary').click();
         const index = next++, fields = {case: ['flow', 'mixed', 'burst'][index % 3], retention: index % 2 ? 'full' : 'bounded',
@@ -232,8 +237,8 @@ async function session(target) {
         }
         lastAction = Date.now();
       }
-      if (Date.now()-lastReload > 90000) {
-        const {page, engine} = clients[reloads % clients.length];
+      if (reloadable.length && Date.now()-lastReload > 90000) {
+        const {page, engine} = reloadable[reloads % reloadable.length];
         log({type: 'reload-start', engine, key: active?.key ?? null});
         await page.reload();
         await expect(page.locator('.studio-controls > div [role=status]')).toHaveText('connected', {timeout: 15000});
@@ -257,13 +262,14 @@ async function session(target) {
       }
       if (measure) lastHeap = Date.now();
       if (Date.now()-lastPrint > 30000) {
-        console.log(JSON.stringify({host: target.name, elapsed: Math.round((Date.now()-started)/1000),
+        console.log(JSON.stringify({host: target.name, elapsed: Math.round(elapsed()/1000),
           terminal: observed.size, errors: errors.length, reloads, reconnects, seeks}));
         lastPrint = Date.now();
       }
       await sleep(Number(args['sample-ms'] ?? 1000));
     }
-    const result = {seconds: (Date.now()-started)/1000, engines, observed: Object.fromEntries(observed), cancelled: [...cancelled],
+    const result = {seconds: elapsed()/1000, started_at: started, ended_at: Date.now(), engines,
+      kept_open: keptOpen, observed: Object.fromEntries(observed), cancelled: [...cancelled],
       reloads, reconnects, seeks, results: (await state()).results.length, errors};
     writeFileSync(resolve(target.output, 'summary.json'), JSON.stringify(result, null, 2)+'\n');
   } catch (error) {

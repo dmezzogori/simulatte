@@ -74,13 +74,14 @@ def short_trial(root):
     return dict(seconds=summary["seconds"], charts=chart_counts(samples), errors=summary["errors"])
 
 
-def soak(host, root, server):
+def soak(host, root, server, *, evidence=None, minimum_seconds=900):
     summary = document(root / "summary.json")
-    audit = document(BUILD / f"final-{host}-audit.json")
-    revocations = document(BUILD / f"final-{host}-revocations.json")
+    evidence = BUILD if evidence is None else evidence
+    audit = document(evidence / f"final-{host}-audit.json")
+    revocations = document(evidence / f"final-{host}-revocations.json")
     observed = summary["observed"]
     assert audit["passed"] and audit["statuses"] == dict(Counter(observed.values()))
-    assert summary["seconds"] >= 900 and summary["engines"] == list(ENGINES)
+    assert summary["seconds"] >= minimum_seconds and summary["engines"] == list(ENGINES)
     assert set(observed.values()) == {"succeeded", "cancelled", "failed"}
     assert revocations["passed"]
     assert {row["attempt"] for row in revocations["rows"] if row["http"] == 410} == {
@@ -95,6 +96,7 @@ def soak(host, root, server):
     scopes = defaultdict(set)
     actions = defaultdict(set)
     documents = {}
+    document_ids = defaultdict(set)
     revocation_checks = {}
     for row in records(root / "browser.jsonl"):
         match row["type"]:
@@ -108,6 +110,7 @@ def soak(host, root, server):
                 if row["tag"]:
                     starts[row["tag"]] = row["path"]
                     documents[row["engine"]] = row["tag"].rsplit("-", 1)[0]
+                    document_ids[row["engine"]].add(documents[row["engine"]])
                     scopes[row["engine"], row["path"]].add(row["scope"])
             case "read-headers":
                 if row["tag"]:
@@ -150,6 +153,7 @@ def soak(host, root, server):
     unexpected = []
     read_counts = Counter()
     navigation = []
+    exact_bytes = 0
     for tag, outcome in outcomes.items():
         path = starts.get(tag, "")
         status, size, method = headers.get(tag, (None, None, None))
@@ -157,6 +161,7 @@ def soak(host, root, server):
         if outcome["outcome"] == "complete" and status == 206 and outcome["bytes"] == size:
             ok.add(tag)
             read_counts["exact_body"] += 1
+            exact_bytes += outcome["bytes"]
         elif outcome["outcome"] == "headers" and status == 200 and method == "HEAD":
             ok.add(tag)
             read_counts["head"] += 1
@@ -248,6 +253,8 @@ def soak(host, root, server):
         seeks=summary["seeks"],
         charts=chart,
         read_counts=read_counts,
+        exact_range_bytes=exact_bytes,
+        documents={engine: len(values) for engine, values in document_ids.items()},
         runner_diagnostics=runner,
         unexplained_runner_failures=runner_unexplained[:20],
         server_counts=server_counts,
@@ -269,7 +276,7 @@ def soak(host, root, server):
         server_descriptors=dict(peak=max(row["fds"] for row in resource), last=resource[-1]["fds"]),
         browser_sha256=digest(root / "browser.jsonl"),
         server_reads_sha256=digest(server / "reads.jsonl"),
-        publication_sha256=digest(BUILD / f"final-{host}-audit.json"),
+        publication_sha256=digest(evidence / f"final-{host}-audit.json"),
     )
 
 
