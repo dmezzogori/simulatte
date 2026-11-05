@@ -1,5 +1,5 @@
 /** Live transport adapter. Network generations and playback frames have separate fences. */
-import {LiveRecording, type PrefixDescriptor, type PrefixProvider, type RecordingView, type LayoutBundle} from '@simulatte/trace';
+import {LiveRecording, TraceUnavailable, type PrefixDescriptor, type PrefixProvider, type RecordingView, type LayoutBundle} from '@simulatte/trace';
 import {Playback, Session, freezePresentation, pinPresentation, type Clock, type Position, type PreparedFrame} from '@simulatte/playback';
 
 export interface LiveSessionState {
@@ -104,6 +104,7 @@ export class LiveSession {
         this.publish({recording, generation: opened.generation, error: null});
         this.#unsubscribe = playback.subscribe((frame, status, error) => {
           if (epoch !== this.#epoch || this.#playback !== playback) return;
+          if (this.revokeOnRead(error)) return;
           const display = status === 'ended' ? 'paused' : status;
           this.publish({frame, status: error ? 'error' : this.state.following && display === 'paused'
             ? this.state.terminal === 'completed' ? 'complete' : 'buffering' : display,
@@ -116,7 +117,7 @@ export class LiveSession {
           if (playing && epoch === this.#epoch && this.#playback === playback) playback.play();
         }
       } catch (error) {
-        if (epoch === this.#epoch) this.publish({status: 'error', error});
+        if (epoch === this.#epoch && !this.revokeOnRead(error)) this.publish({status: 'error', error});
       } finally {if (epoch === this.#epoch) this.#abort = null;}
     }
   }
@@ -150,6 +151,12 @@ export class LiveSession {
     if (this.state.status === 'disposed' || this.state.status === 'invalidated') return;
     if (status !== 'completed') {this.invalidate(); this.publish({terminal: status}); return;}
     this.publish({terminal: status, ...(this.state.following ? {status: 'complete' as const} : {})});
+  }
+  /** HTTP can report revocation before the authoritative run-state event. */
+  revokeOnRead(error: unknown): boolean {
+    if (!(error instanceof TraceUnavailable)) return false;
+    this.invalidate();
+    return true;
   }
   invalidate(): void {
     if (this.state.status === 'disposed') return;

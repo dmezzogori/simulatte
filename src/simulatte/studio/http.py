@@ -16,6 +16,8 @@ from simulatte.execution.references import MAX_DOCUMENT, _identity
 from simulatte.execution.schema import _hash
 from simulatte.studio.websocket import json_values
 
+MAX_RANGE_BUFFER = 1 << 20
+
 
 class References:
     def __init__(self, *, max_bytes=256 << 20, max_items=256):
@@ -180,6 +182,14 @@ class RangeSource:
             with file.open():
                 pass
 
+    def read(self, start, end):
+        """Prepare a bounded, verified response before committing HTTP headers."""
+        if end - start + 1 > MAX_RANGE_BUFFER:
+            raise ValueError("Trace range exceeds response buffer")
+        data = b"".join(self.chunks(start, end))
+        self.authorize()
+        return data
+
     def chunks(self, start, end):
         for descriptor, first, last in self._ranges(start, end):
             self.authorize()
@@ -188,7 +198,7 @@ class RangeSource:
                 remaining = last - first + 1
                 while remaining:
                     self.authorize()
-                    data = file.read(min(1 << 20, remaining))
+                    data = file.read(min(MAX_RANGE_BUFFER, remaining))
                     descriptor._unchanged(file, before)
                     if not data:
                         raise ValueError("Short immutable range read")

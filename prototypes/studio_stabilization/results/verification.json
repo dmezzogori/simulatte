@@ -1,0 +1,14 @@
+{
+  "prototypes/studio_stabilization/README.md": "c36ae4c8e3205440df7c062d2d6316a0a3c29b0791d1056185cfc62ae55cd737",
+  "prototypes/studio_stabilization/analyze.py": "6da8d279ad95ebe73c9b1db1490cf963caaeea2140e6abadfd7314ef5a781d51",
+  "prototypes/studio_stabilization/audit.py": "a03bd2d99431a962819430084e64c390e0c8e3efa28802538bcc9431b0ccbca8",
+  "prototypes/studio_stabilization/results/final-linux-audit.json": "3625a3a1913b15d7a5126c6cf0ab1e766ec8f9c1ce6e09332f278841674d8458",
+  "prototypes/studio_stabilization/results/final-linux-revocations.json": "01395a58c8d885e60fa9feaa3fc3c7c1ad4243c69569dd6f3c7124d648df6a98",
+  "prototypes/studio_stabilization/results/final-macos-audit.json": "a3dc074095a9eae22321bd30a3214caf4e941185534e4b6c00d9cc70580a7ec6",
+  "prototypes/studio_stabilization/results/final-macos-revocations.json": "78f2fbb8aac7c8d8ac3de2fc5c3777119e47e3882ce1b6108f28863076288491",
+  "prototypes/studio_stabilization/results/summary.json": "eb06b3a5edeffa14a80378805bd5c79cc80600210194964f84d5e8fc36001d9b",
+  "prototypes/studio_stabilization/revocations.py": "a450084d3b0d06047ec7d8187728b00c7277e75ac3320bde1cc6308ca27d64e0",
+  "prototypes/studio_stabilization/serve.py": "a08afa08f7136680610d2aab39d153b4f808d6ba2c509ce03535c2507b6a6222",
+  "prototypes/studio_stabilization/study.mjs": "88a4da258c14c0c12a7fb658be8411d252285209c1c71cc7b7972cba1f705341",
+  "specs/research/2026-11-05-studio-live-stabilization.md": "a1c1c95509e5b302fa25b80f5c7f999ed6e6bec4d0e6e15b35f3d62bc0bdc0e3"
+}

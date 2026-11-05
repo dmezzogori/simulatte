@@ -130,16 +130,23 @@ function App() {
     };
     window.addEventListener('focus', rescan);
     document.addEventListener("keydown", keyboard);
-    return () => {
+    const cleanup = () => {
+      if (controller.current !== c) return;
       studioPlayback.current?.dispose(); studioPlayback.current = null;
       experimentFeed.dispose();
       studio.current?.dispose(); studio.current = null;
       window.removeEventListener("focus", rescan);
+      window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("keydown", keyboard);
       htmlAbort.current?.abort();
       c.dispose();
       controller.current = null;
     };
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) cleanup();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return cleanup;
   }, []);
   const saveHtml = async () => {
     const c = controller.current;

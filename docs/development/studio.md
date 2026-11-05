@@ -301,6 +301,12 @@ Studio opens a verified live prefix when the worker reaches INITIAL. Playback
 starts at activation. **Follow live** moves to the newest committed simulation
 time; seeking or stepping returns to manual playback. New live prefixes preserve
 playback intent, including while a frame is loading; a manual seek stays paused.
+Live KPI charts select default series when the first samples arrive and keep
+the last complete chart set visible while preparing a refresh. New prefixes
+replace the pending refresh, so slow reads do not build up a queue. Changing
+the series selection or leaving the attempt cancels obsolete chart work.
+A cancelled or failed attempt revokes its live prefix. Studio retires the live
+view if a read reports revocation before the run status arrives.
 The execution progress line separately reports simulation time, event count,
 worker liveness, stalled
 execution and trace-storage backpressure. Run diagnostics retain a bounded tail

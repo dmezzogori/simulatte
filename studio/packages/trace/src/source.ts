@@ -1,5 +1,11 @@
 import type { ByteSource } from "./container";
 
+/** The server revoked or removed the immutable source. */
+export class TraceUnavailable extends Error {
+  override readonly name = "TraceUnavailable";
+  constructor() { super("Trace is no longer available"); }
+}
+
 /** Immutable HTTP snapshot. Never silently accept a server ignoring Range or changing the file. */
 export class HttpSource implements ByteSource {
   private constructor(
@@ -19,6 +25,7 @@ export class HttpSource implements ByteSource {
       signal: signal ?? null,
       cache: "no-store",
     });
+    if (response.status === 410) throw new TraceUnavailable();
     if (!response.ok)
       throw new Error(`Trace request failed (${response.status})`);
     const length = response.headers.get("content-length");
@@ -57,6 +64,7 @@ export class HttpSource implements ByteSource {
       signal: signal ?? null,
       cache: "no-store",
     });
+    if (response.status === 410) throw new TraceUnavailable();
     if (
       response.status !== 206 ||
       response.headers.get("etag") !== this.etag ||

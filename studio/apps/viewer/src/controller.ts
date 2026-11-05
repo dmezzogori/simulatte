@@ -9,6 +9,7 @@ import {
   type LayoutBundle,
   compare,
   type Cursor,
+  type Sample,
   type TraceEvent,
 } from "@simulatte/trace";
 import { Session, Playback, type PreparedFrame, type Position } from "@simulatte/playback";
@@ -43,6 +44,12 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   return node;
 };
 import {LiveSession} from "./live-session";
+
+interface ChartWork {
+  abort: AbortController;
+  pending: RecordingView | null;
+}
+
 export class Controller {
   playback: Playback | LiveSession | null = null;
   recording: RecordingView | null = null;
@@ -71,8 +78,9 @@ export class Controller {
   #eventStart: number | null = null;
   #eventEnd: number | null = null;
   #series: string[] = [];
+  #chooseLiveSeries = false;
   #seriesPicker: HTMLDivElement;
-  #chartGeneration = 0;
+  #chartWork: ChartWork | null = null;
   #historyGeneration = 0;
   #tiles: HTMLDivElement;
   #charts: HTMLDivElement;
@@ -290,7 +298,8 @@ export class Controller {
     this.#abort?.abort();
     this.#historyGeneration++;
     this.#retiredGeneration++;
-    this.#chartGeneration++;
+    this.cancelCharts();
+    this.clearCharts();
     this.#retiredKey = null;
     this.recording = null;
     clearInspection(this.#fields);
@@ -378,12 +387,14 @@ export class Controller {
     const add = el("button", "Add series"),
       clear = el("button", "Clear series");
     const refresh = async () => {
+      this.#chooseLiveSeries = false;
+      this.cancelCharts();
       this.setSeries();
-      await this.charts();
+      void this.charts();
       if (this.#frame) await this.playback?.seek(this.#frame);
     };
     add.onclick = () => {
-      if (!this.#series.includes(select.value) && this.#series.length < 8) {
+      if (select.value && !this.#series.includes(select.value) && this.#series.length < 8) {
         this.#series.push(select.value);
         void refresh().catch((e) => this.onError?.(String(e)));
       }
@@ -403,9 +414,11 @@ export class Controller {
   async attachLive(live: LiveSession, name: string): Promise<void> {
     const generation = ++this.#generation;
     this.#abort?.abort(); this.#abort = null;
-    this.#historyGeneration++; this.#retiredGeneration++; this.#chartGeneration++;
+    this.#historyGeneration++; this.#retiredGeneration++;
+    this.cancelCharts(); this.clearCharts();
     this.playback?.dispose(); this.scene?.dispose();
     this.playback = live; this.recording = null; this.source = null;
+    this.#series = []; this.#chooseLiveSeries = true;
     this.#frame = null; this.#selected = null; this.#retiredKey = null;
     this.name = name; this.#schemaKey = "";
     clearInspection(this.#fields); clearInspection(this.#details);
@@ -423,14 +436,16 @@ export class Controller {
           this.recording = null; this.#frame = null; this.playButton.disabled = true;
           this.timeline.disabled = true; scene.dispose(); this.scene = null;
           clearInspection(this.#fields); clearInspection(this.#details);
-          this.#tiles.replaceChildren(); this.#charts.replaceChildren(); this.#history.replaceChildren();
+          this.cancelCharts(); this.clearCharts(); this.#history.replaceChildren();
         }
         return;
       }
       if (state.recording !== this.recording) {
-        const first = this.recording === null;
         this.recording = state.recording;
-        if (first) this.#series = state.recording.seriesKeys.slice(0, 8);
+        if (this.#chooseLiveSeries && state.recording.seriesKeys.length) {
+          this.#series = state.recording.seriesKeys.slice(0, 8);
+          this.#chooseLiveSeries = false;
+        }
         this.seriesControls();
         const range = state.recording.finiteRange;
         this.timeline.disabled = !range; this.timeline.min = String(range?.[0] ?? 0);
@@ -438,7 +453,7 @@ export class Controller {
         const backend = backendObservation(state.recording.trace.execution);
         this.onInfo?.(name, `${state.recording.trace.level} trace · live committed prefix ${state.generation}${state.recording.trace.level === 'kpi' ? ' · KPI-only: no entity animation or event stepping' : ''}${backend ? ' · ' + backend : ''}`);
         this.#after = undefined;
-        void this.charts().then(() => {if (this.#frame) this.updateKpis(this.#frame);}).catch(error => this.onError?.(String(error)));
+        void this.charts();
         void this.history();
       }
       this.displayFrame(state.frame, state.status, state.error);
@@ -648,11 +663,14 @@ export class Controller {
       if (last) this.#after = [last.t, last.seq];
     } catch (error) {
       if (generation === this.#historyGeneration && r === this.recording)
-        this.onError?.(String(error));
+        this.reportReadError(error);
     }
   }
-  private async charts(): Promise<void> {
-    const generation = ++this.#chartGeneration;
+  private cancelCharts(): void {
+    this.#chartWork?.abort.abort();
+    this.#chartWork = null;
+  }
+  private clearCharts(): void {
     this.#plots.forEach((p) => p.destroy());
     this.#plots = [];
     this.#chartResize.forEach((r) => r.disconnect());
@@ -660,9 +678,45 @@ export class Controller {
     this.#charts.replaceChildren();
     this.#tiles.replaceChildren();
     this.#tileValues.clear();
+  }
+  private async charts(): Promise<void> {
     const recording = this.recording;
     if (!recording) return;
-    for (const key of this.#series) {
+    if (this.#chartWork) {
+      // Keep one pending snapshot; a new prefix must not interrupt a refresh.
+      this.#chartWork.pending = recording;
+      return;
+    }
+    const work: ChartWork = {abort: new AbortController(), pending: recording};
+    this.#chartWork = work;
+    const {signal} = work.abort;
+    const series = [...this.#series];
+    try {
+      while (work.pending && !signal.aborted) {
+        const snapshot: RecordingView = work.pending;
+        work.pending = null;
+        const range = snapshot.finiteRange;
+        const data: (readonly Sample[] | null)[] = [];
+        try {
+          for (const key of series) data.push(range ? await snapshot.chart(key, range, undefined, signal) : null);
+          signal.throwIfAborted();
+          this.renderCharts(snapshot, series, data);
+          if (this.#frame) this.updateKpis(this.#frame);
+        } catch (error) {
+          if (!signal.aborted) this.reportReadError(error);
+        }
+      }
+    } finally {
+      if (this.#chartWork === work) this.#chartWork = null;
+    }
+  }
+  private reportReadError(error: unknown): void {
+    if (this.playback instanceof LiveSession && this.playback.revokeOnRead(error)) return;
+    this.onError?.(String(error));
+  }
+  private renderCharts(recording: RecordingView, series: readonly string[], datasets: readonly (readonly Sample[] | null)[]): void {
+    this.clearCharts();
+    for (const [index, key] of series.entries()) {
       const tile = el("div", undefined, "tile");
       const title = el("div", key, "muted");
       const value = el("strong", "—");
@@ -678,11 +732,8 @@ export class Controller {
         declaration,
         display: recording.seriesDisplay[key] ?? "Assumed: previous, gap",
       });
-      const range = recording.finiteRange;
-      if (!range) continue;
-      const data = await recording.chart(key, range);
-      if (this.recording !== recording || generation !== this.#chartGeneration)
-        return;
+      const data = datasets[index];
+      if (!data) continue;
       const host = el("div", undefined, "chart");
       this.#charts.append(host);
       const interpolation =
@@ -778,13 +829,12 @@ export class Controller {
   dispose(): void {
     this.#generation++;
     this.#historyGeneration++;
-    this.#chartGeneration++;
+    this.cancelCharts();
     this.#retiredGeneration++;
     this.#abort?.abort();
     this.playback?.dispose();
     this.scene?.dispose();
-    this.#plots.forEach((p) => p.destroy());
-    this.#chartResize.forEach((r) => r.disconnect());
+    this.clearCharts();
     this.dock.dispose();
     this.#clean.forEach((fn) => fn());
   }

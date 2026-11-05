@@ -1,5 +1,6 @@
 """Studio transport drives the real coordinator without importing user code."""
 
+import asyncio
 import json
 import time
 
@@ -151,6 +152,37 @@ def test_live_prefix_revokes_on_cancel_and_old_cancel_cannot_target_replacement(
                 socket.send_json({**cancel, "id": "old"})
                 assert response(socket, "old")["error"]["code"] == "stale_attempt"
                 assert coordinator.store.attempt(AttemptKey(**new))["status"] != "cancelled"
+    finally:
+        coordinator.close()
+
+
+def test_prepared_prefix_range_finishes_if_revoked_after_response_headers(tmp_path):
+    slow = MODEL.replace(
+        "        yield env.timeout(1)", "        yield env.timeout(1)\n        import time; time.sleep(3)"
+    )
+    coordinator, server = setup(tmp_path, slow)
+    cancel_key = None
+
+    async def revoke_after_headers(scope, receive, send):
+        async def forward(message):
+            await send(message)
+            if cancel_key is not None and message["type"] == "http.response.start" and message["status"] == 206:
+                assert await asyncio.to_thread(coordinator.cancel, cancel_key)
+
+        await server.app(scope, receive, forward)
+
+    try:
+        with TestClient(revoke_after_headers, base_url=server.origin) as client:
+            headers = auth(server, client)
+            state = wait_state(client, headers, lambda value: value["active"] and value["active"]["prefix"])
+            prefix = state["active"]["prefix"]
+            expected = client.get(prefix["url"], headers=headers)
+            assert expected.status_code == 200
+            cancel_key = AttemptKey(**state["active"]["key"])
+            result = client.get(prefix["url"], headers={**headers, "Range": f"bytes=0-{len(expected.content) - 1}"})
+            assert result.status_code == 206 and result.content == expected.content
+            assert result.headers["etag"] == expected.headers["etag"]
+            assert client.get(prefix["url"], headers=headers).status_code == 410
     finally:
         coordinator.close()
 

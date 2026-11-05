@@ -1,0 +1,1282 @@
+{
+  "passed": true,
+  "hosts": {
+    "macos": {
+      "installed": {
+        "baseline": {
+          "core_sha256": "98056bab8f3ff2017fc6bc3615fb61e517712c95a5998c7a71ad33a7e2c7dada",
+          "native_sha256": "eb9ee3abc5325c856433453edf91f395cfda2d66d6e622d53a7e95725bef3c23",
+          "model_source": {
+            "plant.py": "7130e90a05ff6a193f7e49d0a940617205ce05acffb514e19847057b06313bcd",
+            "workloads.py": "90075bf1b0c7c9f04f323c38e74009ce715202d621778b03bbccc9718380a862"
+          }
+        },
+        "final": {
+          "core_sha256": "f3c05c2097cc84f64644f25df016ee7254c2553d362b208de2fe2a684b0b2149",
+          "native_sha256": "eb9ee3abc5325c856433453edf91f395cfda2d66d6e622d53a7e95725bef3c23",
+          "model_source": {
+            "plant.py": "7130e90a05ff6a193f7e49d0a940617205ce05acffb514e19847057b06313bcd",
+            "workloads.py": "90075bf1b0c7c9f04f323c38e74009ce715202d621778b03bbccc9718380a862"
+          }
+        }
+      },
+      "baseline_cancel": {
+        "chromium": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 237,
+            "status": 206,
+            "expected": 56683,
+            "prefix": "/api/prefix/b31123207d2f56d6e5799135c1d4df72/3",
+            "body": {
+              "error": "TypeError: Failed to fetch"
+            },
+            "errors": [
+              {
+                "type": "error",
+                "kind": "console",
+                "engine": "chromium",
+                "message": "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
+                "path": "/api/prefix/b31123207d2f56d6e5799135c1d4df72/3"
+              }
+            ],
+            "intact": false
+          },
+          "server": {
+            "id": 237,
+            "at": 1793901245527.489,
+            "method": "GET",
+            "path": "/api/prefix/b31123207d2f56d6e5799135c1d4df72/3",
+            "client": "cancel-probe",
+            "range": "bytes=0-56682",
+            "status": 206,
+            "expected": 56683,
+            "sent": 0,
+            "ended": false,
+            "error": "StaleAttempt",
+            "disconnected": false,
+            "headers_at": 1793901245554.262,
+            "end": 1793901246555.808
+          },
+          "revoked_http": 410
+        },
+        "webkit": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 245,
+            "status": 206,
+            "expected": 56683,
+            "prefix": "/api/prefix/d40956a6a86aab9a761e0785d234500c/3",
+            "body": {
+              "error": "TypeError: Load failed"
+            },
+            "errors": [
+              {
+                "type": "error",
+                "kind": "console",
+                "engine": "webkit",
+                "message": "Failed to load resource: The network connection was lost.",
+                "path": "/api/prefix/d40956a6a86aab9a761e0785d234500c/3"
+              }
+            ],
+            "intact": false
+          },
+          "server": {
+            "id": 245,
+            "at": 1793901284651.826,
+            "method": "GET",
+            "path": "/api/prefix/d40956a6a86aab9a761e0785d234500c/3",
+            "client": "cancel-probe",
+            "range": "bytes=0-56682",
+            "status": 206,
+            "expected": 56683,
+            "sent": 0,
+            "ended": false,
+            "error": "StaleAttempt",
+            "disconnected": false,
+            "headers_at": 1793901284678.1838,
+            "end": 1793901285680.6138
+          },
+          "revoked_http": 410
+        }
+      },
+      "candidate_cancel": {
+        "chromium": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 3,
+            "status": 206,
+            "expected": 188949,
+            "prefix": "/api/prefix/a2f33303c7b9d9f52bc0a48dfd74d638/16",
+            "body": {
+              "status": 206,
+              "length": 188949,
+              "hash": "6b6b3dc0b45a5e33ab06fb5febc484564609e0a016329f64784b7cd0f67454ed"
+            },
+            "errors": [],
+            "intact": true
+          },
+          "server": {
+            "id": 3,
+            "at": 1793901775884.8582,
+            "method": "GET",
+            "path": "/api/prefix/a2f33303c7b9d9f52bc0a48dfd74d638/16",
+            "client": "cancel-probe",
+            "range": "bytes=0-188948",
+            "status": 206,
+            "expected": 188949,
+            "sent": 188949,
+            "ended": true,
+            "error": null,
+            "disconnected": false,
+            "headers_at": 1793901775912.4531,
+            "end": 1793901776915.691
+          },
+          "revoked_http": 410
+        },
+        "webkit": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 5,
+            "status": 206,
+            "expected": 56683,
+            "prefix": "/api/prefix/03f5606e7322edf4368590e925c6bf2f/3",
+            "body": {
+              "status": 206,
+              "length": 56683,
+              "hash": "2eab36769a7c93a5d402b0818b60de4307eee3a0fae5da193322c3adb8414db4"
+            },
+            "errors": [],
+            "intact": true
+          },
+          "server": {
+            "id": 5,
+            "at": 1793901778468.9138,
+            "method": "GET",
+            "path": "/api/prefix/03f5606e7322edf4368590e925c6bf2f/3",
+            "client": "cancel-probe",
+            "range": "bytes=0-56682",
+            "status": 206,
+            "expected": 56683,
+            "sent": 56683,
+            "ended": true,
+            "error": null,
+            "disconnected": false,
+            "headers_at": 1793901778495.216,
+            "end": 1793901779503.832
+          },
+          "revoked_http": 410
+        }
+      },
+      "baseline_charts": {
+        "seconds": 100.304,
+        "charts": {
+          "chromium": {
+            "live": 260,
+            "eight": 0,
+            "empty": 260,
+            "partial": 0
+          },
+          "firefox": {
+            "live": 266,
+            "eight": 0,
+            "empty": 266,
+            "partial": 0
+          },
+          "webkit": {
+            "live": 266,
+            "eight": 0,
+            "empty": 266,
+            "partial": 0
+          }
+        },
+        "errors": []
+      },
+      "candidate_charts": {
+        "seconds": 100.36,
+        "charts": {
+          "chromium": {
+            "live": 259,
+            "eight": 224,
+            "empty": 35,
+            "partial": 0
+          },
+          "firefox": {
+            "live": 267,
+            "eight": 238,
+            "empty": 29,
+            "partial": 0
+          },
+          "webkit": {
+            "live": 267,
+            "eight": 238,
+            "empty": 29,
+            "partial": 0
+          }
+        },
+        "errors": []
+      },
+      "first_soak": {
+        "passed": false,
+        "seconds": 908.37,
+        "alerts": [
+          "Error: Trace changed or range response was invalid; reopen the fileDismiss",
+          "Error: Trace request failed (410)Dismiss"
+        ],
+        "browser_errors": [
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/1696007f5efae3041c35f8ba94197672/14"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/1696007f5efae3041c35f8ba94197672/18"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/5dab50e9c09112aba587fa8b1165a363/8"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/5dab50e9c09112aba587fa8b1165a363/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/5dab50e9c09112aba587fa8b1165a363/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/5dab50e9c09112aba587fa8b1165a363/6"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/098a2e1e698113efc312a48b526e3c1e/14"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/098a2e1e698113efc312a48b526e3c1e/12"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/098a2e1e698113efc312a48b526e3c1e/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/098a2e1e698113efc312a48b526e3c1e/16"
+          },
+          {
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18773/api/prefix/4d868ebfd8bae15f7d54f716746de973/5 due to access control checks.",
+            "path": null
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/66d259eed3119b475440b26d92744208/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/66d259eed3119b475440b26d92744208/8"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/66d259eed3119b475440b26d92744208/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/66d259eed3119b475440b26d92744208/11"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/66d259eed3119b475440b26d92744208/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/66d259eed3119b475440b26d92744208/5"
+          }
+        ]
+      },
+      "soak": {
+        "passed": true,
+        "seconds": 900.704,
+        "statuses": {
+          "succeeded": 25,
+          "cancelled": 3,
+          "failed": 3
+        },
+        "revoked_prefixes": 6,
+        "results": 20,
+        "reloads": 9,
+        "reconnects": 14,
+        "seeks": 14,
+        "charts": {
+          "chromium": {
+            "live": 762,
+            "eight": 692,
+            "empty": 70,
+            "partial": 0
+          },
+          "firefox": {
+            "live": 778,
+            "eight": 687,
+            "empty": 91,
+            "partial": 0
+          },
+          "webkit": {
+            "live": 777,
+            "eight": 690,
+            "empty": 87,
+            "partial": 0
+          }
+        },
+        "read_counts": {
+          "exact_body": 382308,
+          "head": 822,
+          "signal_aborted": 271,
+          "navigation_aborted": 6,
+          "revoked": 14
+        },
+        "runner_diagnostics": {
+          "no_observed_body_outcome": 831,
+          "body_or_head_completed": 5108,
+          "expected_abort_or_revocation": 258
+        },
+        "unexplained_runner_failures": [],
+        "server_counts": {
+          "200": 2492,
+          "206": 382579,
+          "exact_body": 382579,
+          "410": 30
+        },
+        "largest_body": 1048576,
+        "browser_errors": [
+          {
+            "at": 1793902855949,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/0606fd8bcbb3b6b2616a3c52502f2f70/8",
+            "stack": null
+          },
+          {
+            "at": 1793902855954,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/0606fd8bcbb3b6b2616a3c52502f2f70/6",
+            "stack": null
+          },
+          {
+            "at": 1793902947925,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/562dacebf0d2e7707c691b2429b309db/16",
+            "stack": null
+          },
+          {
+            "at": 1793902947926,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/562dacebf0d2e7707c691b2429b309db/15",
+            "stack": null
+          },
+          {
+            "at": 1793903198945,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/cfb800a27f556eceebc9074ecfa51fc7/17",
+            "stack": null
+          },
+          {
+            "at": 1793903198946,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/cfb800a27f556eceebc9074ecfa51fc7/11",
+            "stack": null
+          },
+          {
+            "at": 1793903238527,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/48ebfb4930ad01d40bfa520338eb36d0/8",
+            "stack": null
+          },
+          {
+            "at": 1793903238543,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/48ebfb4930ad01d40bfa520338eb36d0/7",
+            "stack": null
+          },
+          {
+            "at": 1793903451206,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/9e519622852e693399039afae6559ae4/17",
+            "stack": null
+          },
+          {
+            "at": 1793903451206,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/9e519622852e693399039afae6559ae4/14",
+            "stack": null
+          },
+          {
+            "at": 1793903476321,
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18775/api/prefix/0b939f1c1ff35fcae2cf49c0efa48550/5 due to access control checks.",
+            "path": null,
+            "stack": "Fetch API cannot load http://127.0.0.1:18775/api/prefix/0b939f1c1ff35fcae2cf49c0efa48550/5 due to access control checks.\n    at unknown (web-inspector://bootstrap.js:444:38)\n    at read (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:110557)\n    at read (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:124662)\n    at read (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:125615)\n    at dh (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:52782)\n    at body (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:112707)\n    at samples (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:117945)\n    at chart (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:119265)\n    at charts (http://127.0.0.1:18775/assets/index-C209c9vl.js:3495:4311)"
+          }
+        ],
+        "expected_revocation_console": [
+          {
+            "at": 1793902855949,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/0606fd8bcbb3b6b2616a3c52502f2f70/8",
+            "stack": null
+          },
+          {
+            "at": 1793902855954,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/0606fd8bcbb3b6b2616a3c52502f2f70/6",
+            "stack": null
+          },
+          {
+            "at": 1793902947925,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/562dacebf0d2e7707c691b2429b309db/16",
+            "stack": null
+          },
+          {
+            "at": 1793902947926,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/562dacebf0d2e7707c691b2429b309db/15",
+            "stack": null
+          },
+          {
+            "at": 1793903198945,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/cfb800a27f556eceebc9074ecfa51fc7/17",
+            "stack": null
+          },
+          {
+            "at": 1793903198946,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/cfb800a27f556eceebc9074ecfa51fc7/11",
+            "stack": null
+          },
+          {
+            "at": 1793903238527,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/48ebfb4930ad01d40bfa520338eb36d0/8",
+            "stack": null
+          },
+          {
+            "at": 1793903238543,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/48ebfb4930ad01d40bfa520338eb36d0/7",
+            "stack": null
+          },
+          {
+            "at": 1793903451206,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/9e519622852e693399039afae6559ae4/17",
+            "stack": null
+          },
+          {
+            "at": 1793903451206,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/9e519622852e693399039afae6559ae4/14",
+            "stack": null
+          }
+        ],
+        "expected_reload_diagnostics": [
+          {
+            "at": 1793903476321,
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18775/api/prefix/0b939f1c1ff35fcae2cf49c0efa48550/5 due to access control checks.",
+            "path": null,
+            "stack": "Fetch API cannot load http://127.0.0.1:18775/api/prefix/0b939f1c1ff35fcae2cf49c0efa48550/5 due to access control checks.\n    at unknown (web-inspector://bootstrap.js:444:38)\n    at read (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:110557)\n    at read (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:124662)\n    at read (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:125615)\n    at dh (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:52782)\n    at body (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:112707)\n    at samples (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:117945)\n    at chart (http://127.0.0.1:18775/assets/index-C209c9vl.js:10:119265)\n    at charts (http://127.0.0.1:18775/assets/index-C209c9vl.js:3495:4311)"
+          }
+        ],
+        "unexpected_browser_errors": [],
+        "alerts": [],
+        "unexpected_read_outcomes": [],
+        "unexpected_read_count": 0,
+        "incomplete_server_responses": [],
+        "incomplete_server_response_count": 0,
+        "chromium_heap_bytes": {
+          "first10": 12799464.0,
+          "last10": 14496984.0,
+          "peak": 16638920
+        },
+        "server_rss_bytes": {
+          "first": 68878336,
+          "last": 94158848,
+          "peak": 96567296
+        },
+        "store_bytes": {
+          "first": 16383390,
+          "last": 78801889
+        },
+        "server_descriptors": {
+          "peak": 34,
+          "last": 23
+        },
+        "browser_sha256": "95f5025ec44c120ff00f626f8e70d186bbf690197fae0635407a617e08ab9e31",
+        "server_reads_sha256": "d223f87ae30893550d1185c8f53407fd857dbb88d2747b19f24c43b9dc44ab1f",
+        "publication_sha256": "a3dc074095a9eae22321bd30a3214caf4e941185534e4b6c00d9cc70580a7ec6"
+      }
+    },
+    "linux": {
+      "installed": {
+        "baseline": {
+          "core_sha256": "98056bab8f3ff2017fc6bc3615fb61e517712c95a5998c7a71ad33a7e2c7dada",
+          "native_sha256": "3d713881ee9f065d7fff30a8141ee723e48370c024cddf337a860671f6102320",
+          "model_source": {
+            "plant.py": "7130e90a05ff6a193f7e49d0a940617205ce05acffb514e19847057b06313bcd",
+            "workloads.py": "90075bf1b0c7c9f04f323c38e74009ce715202d621778b03bbccc9718380a862"
+          }
+        },
+        "final": {
+          "core_sha256": "f3c05c2097cc84f64644f25df016ee7254c2553d362b208de2fe2a684b0b2149",
+          "native_sha256": "3d713881ee9f065d7fff30a8141ee723e48370c024cddf337a860671f6102320",
+          "model_source": {
+            "plant.py": "7130e90a05ff6a193f7e49d0a940617205ce05acffb514e19847057b06313bcd",
+            "workloads.py": "90075bf1b0c7c9f04f323c38e74009ce715202d621778b03bbccc9718380a862"
+          }
+        }
+      },
+      "baseline_cancel": {
+        "chromium": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 1493,
+            "status": 206,
+            "expected": 50920,
+            "prefix": "/api/prefix/cb62ba8662159f65e312714f6d6d01e4/3",
+            "body": {
+              "error": "TypeError: Failed to fetch"
+            },
+            "errors": [
+              {
+                "type": "error",
+                "kind": "console",
+                "engine": "chromium",
+                "message": "Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH",
+                "path": "/api/prefix/cb62ba8662159f65e312714f6d6d01e4/3"
+              }
+            ],
+            "intact": false
+          },
+          "server": {
+            "id": 1493,
+            "at": 1793901245564.6172,
+            "method": "GET",
+            "path": "/api/prefix/cb62ba8662159f65e312714f6d6d01e4/3",
+            "client": "cancel-probe",
+            "range": "bytes=0-50919",
+            "status": 206,
+            "expected": 50920,
+            "sent": 0,
+            "ended": false,
+            "error": "StaleAttempt",
+            "disconnected": false,
+            "headers_at": 1793901245591.4468,
+            "end": 1793901246592.7366
+          },
+          "revoked_http": 410
+        },
+        "webkit": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 1501,
+            "status": 206,
+            "expected": 50920,
+            "prefix": "/api/prefix/99ed0462b749dce7d75c4fc86762d0a4/3",
+            "body": {
+              "error": "TypeError: Load failed"
+            },
+            "errors": [
+              {
+                "type": "error",
+                "kind": "console",
+                "engine": "webkit",
+                "message": "Failed to load resource: The network connection was lost.",
+                "path": "/api/prefix/99ed0462b749dce7d75c4fc86762d0a4/3"
+              }
+            ],
+            "intact": false
+          },
+          "server": {
+            "id": 1501,
+            "at": 1793901285189.413,
+            "method": "GET",
+            "path": "/api/prefix/99ed0462b749dce7d75c4fc86762d0a4/3",
+            "client": "cancel-probe",
+            "range": "bytes=0-50919",
+            "status": 206,
+            "expected": 50920,
+            "sent": 0,
+            "ended": false,
+            "error": "StaleAttempt",
+            "disconnected": false,
+            "headers_at": 1793901285216.307,
+            "end": 1793901286218.6975
+          },
+          "revoked_http": 410
+        }
+      },
+      "candidate_cancel": {
+        "chromium": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 3,
+            "status": 206,
+            "expected": 220710,
+            "prefix": "/api/prefix/5e5a04f4afc38c9844da5d0d7e5a5ef7/16",
+            "body": {
+              "status": 206,
+              "length": 220710,
+              "hash": "d6faf3d8ed431d6070d4bf900e0d9f771f0277ff8282b6a2596dca9f9940a613"
+            },
+            "errors": [],
+            "intact": true
+          },
+          "server": {
+            "id": 3,
+            "at": 1793901775901.687,
+            "method": "GET",
+            "path": "/api/prefix/5e5a04f4afc38c9844da5d0d7e5a5ef7/16",
+            "client": "cancel-probe",
+            "range": "bytes=0-220709",
+            "status": 206,
+            "expected": 220710,
+            "sent": 220710,
+            "ended": true,
+            "error": null,
+            "disconnected": false,
+            "headers_at": 1793901775934.1233,
+            "end": 1793901776935.804
+          },
+          "revoked_http": 410
+        },
+        "webkit": {
+          "browser": {
+            "mode": "cancel-probe",
+            "server_id": 7,
+            "status": 206,
+            "expected": 50920,
+            "prefix": "/api/prefix/acdcb74b1f34fb07c46f88fb97233d0b/3",
+            "body": {
+              "status": 206,
+              "length": 50920,
+              "hash": "8dc9bffbacbcb34f586457bfd3ac11235a96769419a3ee578ae68b988d7e3fdf"
+            },
+            "errors": [],
+            "intact": true
+          },
+          "server": {
+            "id": 7,
+            "at": 1793901779003.3723,
+            "method": "GET",
+            "path": "/api/prefix/acdcb74b1f34fb07c46f88fb97233d0b/3",
+            "client": "cancel-probe",
+            "range": "bytes=0-50919",
+            "status": 206,
+            "expected": 50920,
+            "sent": 50920,
+            "ended": true,
+            "error": null,
+            "disconnected": false,
+            "headers_at": 1793901779030.5134,
+            "end": 1793901780032.7207
+          },
+          "revoked_http": 410
+        }
+      },
+      "baseline_charts": {
+        "seconds": 100.255,
+        "charts": {
+          "chromium": {
+            "live": 257,
+            "eight": 0,
+            "empty": 256,
+            "partial": 1
+          },
+          "firefox": {
+            "live": 262,
+            "eight": 0,
+            "empty": 262,
+            "partial": 0
+          },
+          "webkit": {
+            "live": 262,
+            "eight": 0,
+            "empty": 262,
+            "partial": 0
+          }
+        },
+        "errors": []
+      },
+      "candidate_charts": {
+        "seconds": 100.041,
+        "charts": {
+          "chromium": {
+            "live": 261,
+            "eight": 221,
+            "empty": 40,
+            "partial": 0
+          },
+          "firefox": {
+            "live": 266,
+            "eight": 237,
+            "empty": 29,
+            "partial": 0
+          },
+          "webkit": {
+            "live": 266,
+            "eight": 237,
+            "empty": 29,
+            "partial": 0
+          }
+        },
+        "errors": []
+      },
+      "first_soak": {
+        "passed": false,
+        "seconds": 900.845,
+        "alerts": [
+          "Error: Trace changed or range response was invalid; reopen the fileDismiss"
+        ],
+        "browser_errors": [
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/a4aef9f6d4582ca4b4f7eeb8c375af46/7"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/a4aef9f6d4582ca4b4f7eeb8c375af46/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/a4aef9f6d4582ca4b4f7eeb8c375af46/11"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/a4aef9f6d4582ca4b4f7eeb8c375af46/5"
+          },
+          {
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18774/api/prefix/54d79e6ec34037eb529d3179b228bd1a/20 due to access control checks.",
+            "path": null
+          },
+          {
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18774/api/prefix/54d79e6ec34037eb529d3179b228bd1a/5 due to access control checks.",
+            "path": null
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/1fbcb108dbfaa1882c215258aefb9817/6"
+          },
+          {
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18774/api/prefix/443cdb9d3e5932d02011c4fa2709b48b/12 due to access control checks.",
+            "path": null
+          },
+          {
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18774/api/prefix/443cdb9d3e5932d02011c4fa2709b48b/5 due to access control checks.",
+            "path": null
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/bddb3a42d7b9e4da29454b8e15cf3828/7"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/bddb3a42d7b9e4da29454b8e15cf3828/12"
+          },
+          {
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18774/api/prefix/661a3c334e21b34f4f3da619f81cfbf4/5 due to access control checks.",
+            "path": null
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/634c7db1a455662f71904814bd829212/10"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/634c7db1a455662f71904814bd829212/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/634c7db1a455662f71904814bd829212/14"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/634c7db1a455662f71904814bd829212/5"
+          },
+          {
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/634c7db1a455662f71904814bd829212/5"
+          }
+        ]
+      },
+      "soak": {
+        "passed": true,
+        "seconds": 900.901,
+        "statuses": {
+          "succeeded": 30,
+          "cancelled": 4,
+          "failed": 4
+        },
+        "revoked_prefixes": 8,
+        "results": 20,
+        "reloads": 9,
+        "reconnects": 14,
+        "seeks": 11,
+        "charts": {
+          "chromium": {
+            "live": 761,
+            "eight": 667,
+            "empty": 94,
+            "partial": 0
+          },
+          "firefox": {
+            "live": 767,
+            "eight": 657,
+            "empty": 110,
+            "partial": 0
+          },
+          "webkit": {
+            "live": 765,
+            "eight": 657,
+            "empty": 108,
+            "partial": 0
+          }
+        },
+        "read_counts": {
+          "exact_body": 286175,
+          "head": 844,
+          "signal_aborted": 334,
+          "revoked": 13,
+          "navigation_aborted": 11
+        },
+        "runner_diagnostics": {
+          "no_observed_body_outcome": 851,
+          "body_or_head_completed": 32990,
+          "expected_abort_or_revocation": 320
+        },
+        "unexplained_runner_failures": [],
+        "server_counts": {
+          "200": 2535,
+          "206": 286504,
+          "exact_body": 286504,
+          "410": 41
+        },
+        "largest_body": 1048576,
+        "browser_errors": [
+          {
+            "at": 1793902815151,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/762d30af4415d18723c215a473c45761/6",
+            "stack": null
+          },
+          {
+            "at": 1793902887023,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/c18ab8362cc1832dcbf466cc45149331/7",
+            "stack": null
+          },
+          {
+            "at": 1793902887032,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/c18ab8362cc1832dcbf466cc45149331/10",
+            "stack": null
+          },
+          {
+            "at": 1793902931236,
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18776/api/prefix/bbc85e848b562cdb2409d52885eeee03/5 due to access control checks.",
+            "path": null,
+            "stack": "Fetch API cannot load http://127.0.0.1:18776/api/prefix/bbc85e848b562cdb2409d52885eeee03/5 due to access control checks.\n    at unknown (web-inspector://bootstrap.js:444:38)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:110557)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:124662)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:125615)\n    at dh (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:52782)\n    at body (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:112707)\n    at samples (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:117945)\n    at chart (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:119265)\n    at charts (http://127.0.0.1:18776/assets/index-C209c9vl.js:3495:4311)"
+          },
+          {
+            "at": 1793903095096,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d88cf64741a4c76468948a8b1ffb648c/6",
+            "stack": null
+          },
+          {
+            "at": 1793903095098,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d88cf64741a4c76468948a8b1ffb648c/5",
+            "stack": null
+          },
+          {
+            "at": 1793903128445,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/3aaca4b1102368211da0b9ab44b9bbd1/8",
+            "stack": null
+          },
+          {
+            "at": 1793903128464,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/3aaca4b1102368211da0b9ab44b9bbd1/8",
+            "stack": null
+          },
+          {
+            "at": 1793903203340,
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18776/api/prefix/952ef40455b3f42c3df811fd744df906/5 due to access control checks.",
+            "path": null,
+            "stack": "Fetch API cannot load http://127.0.0.1:18776/api/prefix/952ef40455b3f42c3df811fd744df906/5 due to access control checks.\n    at unknown (web-inspector://bootstrap.js:444:38)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:110557)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:124662)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:125615)\n    at dh (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:52782)\n    at body (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:112707)\n    at samples (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:117945)\n    at chart (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:119265)\n    at charts (http://127.0.0.1:18776/assets/index-C209c9vl.js:3495:4311)"
+          },
+          {
+            "at": 1793903513387,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d8d2a430cbd919d387e89ea731e2c601/5",
+            "stack": null
+          },
+          {
+            "at": 1793903513389,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d8d2a430cbd919d387e89ea731e2c601/5",
+            "stack": null
+          },
+          {
+            "at": 1793903513389,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d8d2a430cbd919d387e89ea731e2c601/7",
+            "stack": null
+          }
+        ],
+        "expected_revocation_console": [
+          {
+            "at": 1793902815151,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/762d30af4415d18723c215a473c45761/6",
+            "stack": null
+          },
+          {
+            "at": 1793902887023,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/c18ab8362cc1832dcbf466cc45149331/7",
+            "stack": null
+          },
+          {
+            "at": 1793902887032,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/c18ab8362cc1832dcbf466cc45149331/10",
+            "stack": null
+          },
+          {
+            "at": 1793903095096,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d88cf64741a4c76468948a8b1ffb648c/6",
+            "stack": null
+          },
+          {
+            "at": 1793903095098,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d88cf64741a4c76468948a8b1ffb648c/5",
+            "stack": null
+          },
+          {
+            "at": 1793903128445,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/3aaca4b1102368211da0b9ab44b9bbd1/8",
+            "stack": null
+          },
+          {
+            "at": 1793903128464,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/3aaca4b1102368211da0b9ab44b9bbd1/8",
+            "stack": null
+          },
+          {
+            "at": 1793903513387,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d8d2a430cbd919d387e89ea731e2c601/5",
+            "stack": null
+          },
+          {
+            "at": 1793903513389,
+            "type": "error",
+            "kind": "console",
+            "engine": "webkit",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d8d2a430cbd919d387e89ea731e2c601/5",
+            "stack": null
+          },
+          {
+            "at": 1793903513389,
+            "type": "error",
+            "kind": "console",
+            "engine": "chromium",
+            "message": "Failed to load resource: the server responded with a status of 410 (Gone)",
+            "path": "/api/prefix/d8d2a430cbd919d387e89ea731e2c601/7",
+            "stack": null
+          }
+        ],
+        "expected_reload_diagnostics": [
+          {
+            "at": 1793902931236,
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18776/api/prefix/bbc85e848b562cdb2409d52885eeee03/5 due to access control checks.",
+            "path": null,
+            "stack": "Fetch API cannot load http://127.0.0.1:18776/api/prefix/bbc85e848b562cdb2409d52885eeee03/5 due to access control checks.\n    at unknown (web-inspector://bootstrap.js:444:38)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:110557)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:124662)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:125615)\n    at dh (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:52782)\n    at body (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:112707)\n    at samples (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:117945)\n    at chart (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:119265)\n    at charts (http://127.0.0.1:18776/assets/index-C209c9vl.js:3495:4311)"
+          },
+          {
+            "at": 1793903203340,
+            "type": "error",
+            "kind": "page",
+            "engine": "webkit",
+            "message": "/127.0.0.1:18776/api/prefix/952ef40455b3f42c3df811fd744df906/5 due to access control checks.",
+            "path": null,
+            "stack": "Fetch API cannot load http://127.0.0.1:18776/api/prefix/952ef40455b3f42c3df811fd744df906/5 due to access control checks.\n    at unknown (web-inspector://bootstrap.js:444:38)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:110557)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:124662)\n    at read (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:125615)\n    at dh (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:52782)\n    at body (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:112707)\n    at samples (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:117945)\n    at chart (http://127.0.0.1:18776/assets/index-C209c9vl.js:10:119265)\n    at charts (http://127.0.0.1:18776/assets/index-C209c9vl.js:3495:4311)"
+          }
+        ],
+        "unexpected_browser_errors": [],
+        "alerts": [],
+        "unexpected_read_outcomes": [],
+        "unexpected_read_count": 0,
+        "incomplete_server_responses": [],
+        "incomplete_server_response_count": 0,
+        "chromium_heap_bytes": {
+          "first10": 12345868.0,
+          "last10": 14209606.0,
+          "peak": 16628508
+        },
+        "server_rss_bytes": {
+          "first": 66469888,
+          "last": 108093440,
+          "peak": 108101632
+        },
+        "store_bytes": {
+          "first": 16665447,
+          "last": 88038531
+        },
+        "server_descriptors": {
+          "peak": 40,
+          "last": 24
+        },
+        "browser_sha256": "66da347255678f76a3891f06a0e7abfbb11b5549152c750b4285d540605e8be0",
+        "server_reads_sha256": "657c2a0c2ab09d4faa3ac672bde8e1a4655dcc16ef3d6f93d44d36aa37dc2070",
+        "publication_sha256": "3625a3a1913b15d7a5126c6cf0ab1e766ec8f9c1ce6e09332f278841674d8458"
+      }
+    }
+  }
+}

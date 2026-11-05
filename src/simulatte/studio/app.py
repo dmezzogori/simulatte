@@ -27,7 +27,7 @@ from simulatte.layout.layers import FileLayer
 from simulatte.layout.types import LayoutLimits
 from simulatte.studio.auth import SessionAuth, response_headers
 from simulatte.studio.experiments import ExperimentCommands, parse_results_query, prefix, replays, report, run_summary
-from simulatte.studio.http import ImmutableFile, RangeSource, References, parse_range
+from simulatte.studio.http import MAX_RANGE_BUFFER, ImmutableFile, RangeSource, References, parse_range
 from simulatte.studio.lifecycle import ProjectSession
 from simulatte.studio.websocket import (
     EXPERIMENT_COMMANDS,
@@ -570,19 +570,27 @@ class StudioServer(SessionAuth):
                     except ValueError:
                         headers["Content-Range"] = f"bytes */{source.length}"
                         return response({"error": "Invalid range"}, 416)
-                    await asyncio.to_thread(source.validate, start, end)
+                    head = request.method == "HEAD"
+                    size = end - start + 1
+                    if not head and size <= MAX_RANGE_BUFFER:
+                        # A revocation during preparation can still return 410. Once
+                        # headers are sent, the response owns the verified bytes.
+                        data = await asyncio.to_thread(source.read, start, end)
+                    else:
+                        await asyncio.to_thread(source.validate, start, end)
+                        data = b"" if head else None
                     headers.update(
                         {
                             "ETag": etag,
-                            "Content-Length": str(end - start + 1),
+                            "Content-Length": str(size),
                             "Accept-Ranges": "bytes",
                             "Content-Type": "application/octet-stream",
                         }
                     )
                     if status == 206:
                         headers["Content-Range"] = f"bytes {start}-{end}/{source.length}"
-                    if request.method == "HEAD":
-                        return Response(status_code=status, headers=headers)
+                    if data is not None:
+                        return Response(data, status_code=status, headers=headers)
                     return StreamingResponse(source.chunks(start, end), status_code=status, headers=headers)
                 if path in ("api/layout", "api/layout/validate") and request.method == "PUT":
                     for name in ("x-simulatte-command", "x-simulatte-revision"):
