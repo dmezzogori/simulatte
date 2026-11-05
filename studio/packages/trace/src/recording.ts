@@ -91,6 +91,55 @@ const sample = (value: unknown): Sample => {
   });
 };
 
+/** One series' display envelope, independent of the other series in a record. */
+function chartAccumulator(range: readonly [number, number], buckets: number, missing: SeriesDisplay["missing"]) {
+  const [start, end] = range;
+  const span = end - start;
+  const result: Sample[] = [];
+  let bucket = -1, group: Sample[] = [], gap = false, held: number | null = null;
+  const flush = () => {
+    const unique = [...new Set(group)].sort((a, b) => compare(a.cursor, b.cursor));
+    // Retain the bucket's finite envelope without joining across omitted gaps.
+    for (const sample of unique) {
+      if (gap) result.push({...sample, value: NaN});
+      result.push(sample);
+    }
+    if (gap && unique.length) result.push({...unique[unique.length - 1]!, value: NaN});
+  };
+  const accept = (raw: Sample) => {
+    if (Number.isFinite(raw.value)) held = raw.value;
+    const s = !Number.isFinite(raw.value) && missing === "hold" && held !== null ? {...raw, value: held} : raw;
+    if (!Number.isFinite(s.cursor[0]) || s.cursor[0] < start || s.cursor[0] > end) return;
+    const next = span > 0 ? Math.min(buckets - 1, Math.floor(((s.cursor[0] - start) / span) * buckets)) : 0;
+    if (next !== bucket) {flush(); group = [s, s, s, s]; gap = !Number.isFinite(s.value); bucket = next;}
+    else {
+      group[1] = s;
+      if (Number.isFinite(s.value)) {
+        if (!Number.isFinite(group[2]!.value) || s.value < group[2]!.value) group[2] = s;
+        if (!Number.isFinite(group[3]!.value) || s.value > group[3]!.value) group[3] = s;
+      } else gap = true;
+    }
+  };
+  let pending: Sample | null = null;
+  return {
+    add(sample: Sample) {
+      if (pending) {
+        if (compare(pending.cursor, sample.cursor) >= 0)
+          throw new TraceCorrupted("Nonmonotone KPI samples");
+        if (pending.cursor[0] !== sample.cursor[0]) accept(pending);
+        // Missing=hold can use an earlier finite sample at this same time.
+        else if (Number.isFinite(pending.value)) held = pending.value;
+      }
+      pending = sample;
+    },
+    finish(): readonly Sample[] {
+      if (pending) accept(pending);
+      flush();
+      return Object.freeze(result);
+    },
+  };
+}
+
 export async function openRecording(
   source: Blob | ArrayBuffer | ByteSource,
   options: OpenOptions = {},
@@ -512,46 +561,37 @@ export class Recording {
     maxPoints = 4000,
     signal?: AbortSignal,
   ): Promise<readonly Sample[]> {
+    return (await this.charts([key], range, maxPoints, signal))[0]!;
+  }
+  /** Chart points in requested key order, reading each selected KPI record once. */
+  async charts(
+    keys: readonly string[],
+    range: readonly [number, number],
+    maxPoints = 4000,
+    signal?: AbortSignal,
+  ): Promise<readonly (readonly Sample[])[]> {
+    if (keys.length > 8) throw new RangeError("At most eight chart series");
     if (!Number.isInteger(maxPoints) || maxPoints < 10 || maxPoints > 4000)
       throw new RangeError("Chart limit must be 10–4000");
-    const buckets = Math.floor(maxPoints / 9), span = range[1] - range[0];
-    const result: Sample[] = [];
-    const display = this.seriesDisplay[key] ?? {interpolation: "previous", missing: "gap"};
-    let bucket = -1, group: Sample[] = [], gap = false, held: number | null = null;
-    const flush = () => {
-      const unique = [...new Set(group)].sort((a, b) => compare(a.cursor, b.cursor));
-      // A bucket with omitted gaps must never invent a continuous line between extrema.
-      // Conservatively separate representatives, retaining the bucket's full finite envelope.
-      for (const sample of unique) {
-        if (gap) result.push({...sample, value: NaN});
-        result.push(sample);
+    signal?.throwIfAborted();
+    if (!keys.length) return Object.freeze([]);
+    const order = [...keys];
+    const selected = [...new Set(order)];
+    const buckets = Math.floor(maxPoints / 9);
+    const collectors = new Map(selected.map(key =>
+      [key, chartAccumulator(range, buckets, this.seriesDisplay[key]?.missing ?? "gap")] as const,
+    ));
+    for (const index of this.#kpis) {
+      if (!selected.some(key => index.keys.has(key))) continue;
+      const body = await this.body(index.offset, signal);
+      for (const raw of array(body?.["samples"])) {
+        const point = sample(raw);
+        collectors.get(point.key)?.add(point);
       }
-      if (gap && unique.length) result.push({...unique[unique.length - 1]!, value: NaN});
-    };
-    const accept = (raw: Sample) => {
-      if (Number.isFinite(raw.value)) held = raw.value;
-      const s = !Number.isFinite(raw.value) && display.missing === "hold" && held !== null ? {...raw, value: held} : raw;
-      if (!Number.isFinite(s.cursor[0]) || s.cursor[0] < range[0] || s.cursor[0] > range[1]) return;
-      const next = span > 0 ? Math.min(buckets - 1, Math.floor(((s.cursor[0] - range[0]) / span) * buckets)) : 0;
-      if (next !== bucket) {flush(); group = [s, s, s, s]; gap = !Number.isFinite(s.value); bucket = next;}
-      else {
-        group[1] = s;
-        if (Number.isFinite(s.value)) {
-          if (!Number.isFinite(group[2]!.value) || s.value < group[2]!.value) group[2] = s;
-          if (!Number.isFinite(group[3]!.value) || s.value > group[3]!.value) group[3] = s;
-        } else gap = true;
-      }
-    };
-    let pending: Sample | null = null;
-    for await (const sample of this.samples(key, signal)) {
-      if (pending && pending.cursor[0] !== sample.cursor[0]) accept(pending);
-      // Missing=hold can use an earlier finite sample at this same time.
-      if (pending && pending.cursor[0] === sample.cursor[0] && Number.isFinite(pending.value)) held = pending.value;
-      pending = sample;
     }
-    if (pending) accept(pending);
-    flush();
-    return Object.freeze(result);
+    signal?.throwIfAborted();
+    const results = new Map([...collectors].map(([key, collector]) => [key, collector.finish()] as const));
+    return Object.freeze(order.map(key => results.get(key)!));
   }
 }
 

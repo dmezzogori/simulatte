@@ -1,0 +1,94 @@
+{
+  "baseline_revision": "3ae758903e1337bcf490ced237754e7a2e69274e",
+  "traces": {
+    "flow": {
+      "attempt": "0d79ca0e6375d47a096eec8f6ed7e067",
+      "samples": 1000,
+      "trace_sha256": "1def4ed502091119b7316719ab99cd03fca136c970d92f26815089ea7f5e934c",
+      "size_bytes": 411928
+    },
+    "mixed": {
+      "attempt": "e7480d1393dbf01cd6f88fb93fa24cac",
+      "samples": 1000,
+      "trace_sha256": "d0672f5045e45b14e1414822d6aa747b15b45a266d5e7f33fe39135dc1a7d3ee",
+      "size_bytes": 411887
+    },
+    "burst": {
+      "attempt": "e4b9b21cf2d21d859df373455f2f3471",
+      "samples": 4096,
+      "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+      "size_bytes": 1507916
+    }
+  },
+  "playwright": "1.64.0",
+  "browser_client": "macOS arm64, Linux servers reached via SSH forwarding",
+  "wheel_sha256": {
+    "baseline": "f3c05c2097cc84f64644f25df016ee7254c2553d362b208de2fe2a684b0b2149",
+    "candidate": "9661fba4ee75e41c12180e7098383e21c93f6e55f90c34f64ebf74c97bf3b4f8"
+  },
+  "identical_python_files": 153,
+  "servers": {
+    "macos": {
+      "baseline": {
+        "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+        "assets_sha256": "b879178f9d45de0850ae11434dc695e6e374c9bf23d6ba05fa82309637cf35eb",
+        "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+        "python": "3.14.3",
+        "versions": {
+          "simulatte": "0.17.0",
+          "starlette": "1.10.0",
+          "uvicorn": "0.54.0"
+        },
+        "delay_ms": 5
+      },
+      "candidate": {
+        "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+        "assets_sha256": "45ca760b738d1c5001b10a75f3a960d87f2c00c651201e779c98e192438c15dc",
+        "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+        "python": "3.14.3",
+        "versions": {
+          "simulatte": "0.17.0",
+          "starlette": "1.10.0",
+          "uvicorn": "0.54.0"
+        },
+        "delay_ms": 5
+      }
+    },
+    "linux": {
+      "baseline": {
+        "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+        "assets_sha256": "b879178f9d45de0850ae11434dc695e6e374c9bf23d6ba05fa82309637cf35eb",
+        "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+        "python": "3.14.0",
+        "versions": {
+          "simulatte": "0.17.0",
+          "starlette": "1.10.0",
+          "uvicorn": "0.54.0"
+        },
+        "delay_ms": 5
+      },
+      "candidate": {
+        "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+        "assets_sha256": "45ca760b738d1c5001b10a75f3a960d87f2c00c651201e779c98e192438c15dc",
+        "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.43",
+        "python": "3.14.0",
+        "versions": {
+          "simulatte": "0.17.0",
+          "starlette": "1.10.0",
+          "uvicorn": "0.54.0"
+        },
+        "delay_ms": 5
+      }
+    }
+  },
+  "final_rebuild_after_browser_fixture_change": {
+    "sha256": "5e096cd931d199bfe1ed905b8d12958eb61c30fe1e37c4c56fa53d0d606d09d0",
+    "manifest_sha256": "3638888c56fd5dd705f07e8d89982c6fa92f00d151b3ce911a0fb0af59acb7bc",
+    "source_fingerprint": "a1d46b488aca521e4e8d65f6c764111ee56c475a88ec86e0e170cd506c8b6bd3",
+    "byte_identical_to_measured_wheel_except": [
+      "simulatte-0.17.0.dist-info/RECORD",
+      "simulatte/studio/static/build-stamp.json",
+      "simulatte/studio/static/manifest.json"
+    ]
+  }
+}

@@ -696,9 +696,8 @@ export class Controller {
         const snapshot: RecordingView = work.pending;
         work.pending = null;
         const range = snapshot.finiteRange;
-        const data: (readonly Sample[] | null)[] = [];
         try {
-          for (const key of series) data.push(range ? await snapshot.chart(key, range, undefined, signal) : null);
+          const data = range ? await snapshot.charts(series, range, undefined, signal) : [];
           signal.throwIfAborted();
           this.renderCharts(snapshot, series, data);
           if (this.#frame) this.updateKpis(this.#frame);
@@ -714,7 +713,7 @@ export class Controller {
     if (this.playback instanceof LiveSession && this.playback.revokeOnRead(error)) return;
     this.onError?.(String(error));
   }
-  private renderCharts(recording: RecordingView, series: readonly string[], datasets: readonly (readonly Sample[] | null)[]): void {
+  private renderCharts(recording: RecordingView, series: readonly string[], datasets: readonly (readonly Sample[])[]): void {
     this.clearCharts();
     for (const [index, key] of series.entries()) {
       const tile = el("div", undefined, "tile");

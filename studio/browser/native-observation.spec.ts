@@ -98,6 +98,8 @@ test('a slow live chart refresh keeps the last complete set visible', async ({pa
   await page.getByRole('tab', {name: 'Recorded KPIs', exact: true}).click();
   const charts = page.locator('.chart .uplot');
   await expect(charts).toHaveCount(8);
+  // Initial playback can still be reading the first prefix after the charts render.
+  await expect(page.locator('.status')).toHaveText('paused');
   await charts.first().evaluate(node => node.setAttribute('data-previous-chart', 'yes'));
   const held = holdSamples();
   try {
@@ -120,6 +122,7 @@ test('a revoked live range retires the view before the terminal notification', a
   await page.getByRole('tab', {name: 'Recorded KPIs', exact: true}).click();
   const charts = page.locator('.chart .uplot');
   await expect(charts).toHaveCount(8);
+  await expect(page.locator('.status')).toHaveText('paused');
   const held = holdSamples();
   try {
     advance(true);

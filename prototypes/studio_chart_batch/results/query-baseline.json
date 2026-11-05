@@ -1,0 +1,241 @@
+{
+  "mode": "serial",
+  "runtime": "v24.13.0",
+  "platform": "darwin",
+  "rows": [
+    {
+      "file": "burst.simtrace",
+      "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+      "keys": [
+        "shopfloor/makespan"
+      ],
+      "reads": 64,
+      "bytes": 1450274,
+      "point_counts": [
+        1427
+      ],
+      "points_sha256": "47cecae9f787bb255071ecb48a51f34cd296a870214c900423cf3d7241294b82",
+      "median_ms": 12.289209
+    },
+    {
+      "file": "burst.simtrace",
+      "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness"
+      ],
+      "reads": 128,
+      "bytes": 2900548,
+      "point_counts": [
+        1427,
+        1051
+      ],
+      "points_sha256": "badefc691a4618b81d6c530e07e124cffffe7a6b6d0d414ecdeafcf22c41506e",
+      "median_ms": 23.60662499999998
+    },
+    {
+      "file": "burst.simtrace",
+      "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness",
+        "shopfloor/tardiness",
+        "shopfloor/tardy_fraction"
+      ],
+      "reads": 256,
+      "bytes": 5801096,
+      "point_counts": [
+        1427,
+        1051,
+        1051,
+        871
+      ],
+      "points_sha256": "84daab7f3f561718ca48d7623b5d7bc2814aed7c41ddf9967b1dd879b42b5a38",
+      "median_ms": 47.420042000000024
+    },
+    {
+      "file": "burst.simtrace",
+      "trace_sha256": "ce9e0ed7a9c7d8b1404d5bb12e5c91c4f9a71b695aceb54ae88c5fae00991229",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness",
+        "shopfloor/tardiness",
+        "shopfloor/tardy_fraction",
+        "shopfloor/total_queue_time",
+        "shopfloor/throughput",
+        "shopfloor/utilization",
+        "shopfloor/jobs_in_system"
+      ],
+      "reads": 512,
+      "bytes": 11602192,
+      "point_counts": [
+        1427,
+        1051,
+        1051,
+        871,
+        1374,
+        1571,
+        1382,
+        871
+      ],
+      "points_sha256": "cff553ee6bc9b64355c44ce26a8cd658266e5dc6dc6f0a4dba1ea731b165a9db",
+      "median_ms": 95.45899999999983
+    },
+    {
+      "file": "flow.simtrace",
+      "trace_sha256": "1def4ed502091119b7316719ab99cd03fca136c970d92f26815089ea7f5e934c",
+      "keys": [
+        "shopfloor/makespan"
+      ],
+      "reads": 64,
+      "bytes": 354290,
+      "point_counts": [
+        869
+      ],
+      "points_sha256": "795f39bc3192e592d8786d00215182027410a1e01e9774214bdca9bd7cdbbb37",
+      "median_ms": 3.5795409999998355
+    },
+    {
+      "file": "flow.simtrace",
+      "trace_sha256": "1def4ed502091119b7316719ab99cd03fca136c970d92f26815089ea7f5e934c",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness"
+      ],
+      "reads": 128,
+      "bytes": 708580,
+      "point_counts": [
+        869,
+        944
+      ],
+      "points_sha256": "37cb0afb02b03d325fd989202ba9729ccc80ff2aaebbfdb59fc065086f7f9c81",
+      "median_ms": 6.97524999999996
+    },
+    {
+      "file": "flow.simtrace",
+      "trace_sha256": "1def4ed502091119b7316719ab99cd03fca136c970d92f26815089ea7f5e934c",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness",
+        "shopfloor/tardiness",
+        "shopfloor/tardy_fraction"
+      ],
+      "reads": 256,
+      "bytes": 1417160,
+      "point_counts": [
+        869,
+        944,
+        869,
+        869
+      ],
+      "points_sha256": "67306d1665955ec317110501f29578a1d71f990254f89bedf24cdf6282f8b9c9",
+      "median_ms": 19.349292000000105
+    },
+    {
+      "file": "flow.simtrace",
+      "trace_sha256": "1def4ed502091119b7316719ab99cd03fca136c970d92f26815089ea7f5e934c",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness",
+        "shopfloor/tardiness",
+        "shopfloor/tardy_fraction",
+        "shopfloor/total_queue_time",
+        "shopfloor/throughput",
+        "shopfloor/utilization",
+        "shopfloor/jobs_in_system"
+      ],
+      "reads": 512,
+      "bytes": 2834320,
+      "point_counts": [
+        869,
+        944,
+        869,
+        869,
+        869,
+        869,
+        869,
+        869
+      ],
+      "points_sha256": "aa86f11a0908e35192fdfcdec55f4382b8f4dfce9d65690ae335f66577fb0bae",
+      "median_ms": 33.68158399999993
+    },
+    {
+      "file": "mixed.simtrace",
+      "trace_sha256": "d0672f5045e45b14e1414822d6aa747b15b45a266d5e7f33fe39135dc1a7d3ee",
+      "keys": [
+        "shopfloor/makespan"
+      ],
+      "reads": 62,
+      "bytes": 354269,
+      "point_counts": [
+        903
+      ],
+      "points_sha256": "1dc3406345a9b3ea20c9571f073eb38e9d082f676537a88605e7a2b90e282547",
+      "median_ms": 3.553625000000011
+    },
+    {
+      "file": "mixed.simtrace",
+      "trace_sha256": "d0672f5045e45b14e1414822d6aa747b15b45a266d5e7f33fe39135dc1a7d3ee",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness"
+      ],
+      "reads": 124,
+      "bytes": 708538,
+      "point_counts": [
+        903,
+        869
+      ],
+      "points_sha256": "7c9f0ffd1bc0f8daa01e1e0293dbab81de2baa723b7b03ea87d927d13de9405e",
+      "median_ms": 6.7468330000001515
+    },
+    {
+      "file": "mixed.simtrace",
+      "trace_sha256": "d0672f5045e45b14e1414822d6aa747b15b45a266d5e7f33fe39135dc1a7d3ee",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness",
+        "shopfloor/tardiness",
+        "shopfloor/tardy_fraction"
+      ],
+      "reads": 248,
+      "bytes": 1417076,
+      "point_counts": [
+        903,
+        869,
+        869,
+        869
+      ],
+      "points_sha256": "d3db2c2106ac35f6a06c7112157803b8fcdde036f8329600ac46156cb703f756",
+      "median_ms": 20.5999589999999
+    },
+    {
+      "file": "mixed.simtrace",
+      "trace_sha256": "d0672f5045e45b14e1414822d6aa747b15b45a266d5e7f33fe39135dc1a7d3ee",
+      "keys": [
+        "shopfloor/makespan",
+        "shopfloor/lateness",
+        "shopfloor/tardiness",
+        "shopfloor/tardy_fraction",
+        "shopfloor/total_queue_time",
+        "shopfloor/throughput",
+        "shopfloor/utilization",
+        "shopfloor/jobs_in_system"
+      ],
+      "reads": 496,
+      "bytes": 2834152,
+      "point_counts": [
+        903,
+        869,
+        869,
+        869,
+        922,
+        942,
+        930,
+        869
+      ],
+      "points_sha256": "803e104a15852345ecd611c8deb79bf7f96e42ce2b6721ae9c85ae46452b060b",
+      "median_ms": 35.02362500000004
+    }
+  ]
+}

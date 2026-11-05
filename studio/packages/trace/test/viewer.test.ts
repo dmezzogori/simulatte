@@ -92,6 +92,77 @@ it("merges domain and observer pages without altering legacy replay bounds", asy
   expect((await r.sampleBracket("cell/value", [2, 5])).finite?.value).toBe(5);
   expect(await r.chart("cell/value", [0, 2])).toHaveLength(3);
 });
+
+const chartData = (repeatCursor = false) => buildTrace(initial, [], { records: [
+  [7, {
+    declarations: {
+      "cell/held": { ...declaration, name: "held" },
+      "cell/gap": { ...declaration, name: "gap" },
+    },
+    series_display: { "cell/held": { interpolation: "linear", missing: "hold" } },
+    samples: [
+      [0, 0, "cell/held", 4], [2, 1, "cell/held", NaN], [3, 1, "cell/gap", 5],
+      [4, 2, "cell/held", 8], [5, 2, "cell/gap", NaN],
+    ],
+  }],
+  [7, { samples: [
+    [repeatCursor ? 4 : 6, 2, "cell/held", NaN], [8, 3, "cell/held", 1], [9, 3, "cell/gap", 10],
+    [10, 4, "cell/held", 3], [11, 4, "cell/gap", 2],
+  ] }],
+  [7, { samples: [[12, 4, "cell/other", 99]] }],
+] });
+
+it("reads shared KPI records once and preserves separate chart envelopes", async () => {
+  const bytes = new Uint8Array(chartData());
+  let reads = 0;
+  const recording = await openRecording({
+    size: bytes.length,
+    async read(offset, length) { reads++; return bytes.subarray(offset, offset + length); },
+  });
+  reads = 0;
+  const result = await recording.charts(["cell/gap", "cell/absent", "cell/held", "cell/gap"], [1, 4], 10);
+  const gap = [[1, 3, NaN], [1, 3, 5], [3, 9, NaN], [3, 9, 10], [4, 11, NaN], [4, 11, 2], [4, 11, NaN]];
+  const held = [[1, 2, 4], [2, 6, 8], [3, 8, 1], [4, 10, 3]];
+  expect(result.map(points => points.map(p => [...p.cursor, p.value]))).toEqual([gap, [], held, gap]);
+  expect(reads).toBe(4); // Two matching records, one header and payload each.
+  expect(await recording.charts([], [1, 4])).toEqual([]);
+  expect(reads).toBe(4);
+});
+
+it("rejects a nonmonotone selected series across KPI records", async () => {
+  const recording = await openRecording(chartData(true));
+  await expect(recording.charts(["cell/gap", "cell/held"], [1, 4])).rejects.toThrow("Nonmonotone KPI samples");
+});
+
+it("cancels a chart batch during a read without affecting its replacement", async () => {
+  const bytes = new Uint8Array(chartData());
+  let reads = 0, block = false;
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>(resolve => { entered = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const recording = await openRecording({
+    size: bytes.length,
+    async read(offset, length) {
+      reads++;
+      if (block && reads === 2) { entered(); await gate; }
+      return bytes.subarray(offset, offset + length);
+    },
+  });
+  const controller = new AbortController();
+  reads = 0;
+  block = true;
+  const cancelled = expect(recording.charts(["cell/gap", "cell/held"], [1, 4], 10, controller.signal))
+    .rejects.toMatchObject({ name: "AbortError" });
+  await ready;
+  controller.abort();
+  release();
+  await cancelled;
+  expect(reads).toBe(2);
+  block = false;
+  const replacement = await recording.charts(["cell/gap", "cell/held"], [1, 4], 10);
+  expect(replacement.map(points => points.length)).toEqual([7, 4]);
+});
+
 it("sequential replay preserves earlier returned snapshots", async () => {
   const t = await openTrace(data());
   const replay = t.replay();

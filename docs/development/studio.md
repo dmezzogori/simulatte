@@ -305,6 +305,8 @@ Live KPI charts select default series when the first samples arrive and keep
 the last complete chart set visible while preparing a refresh. New prefixes
 replace the pending refresh, so slow reads do not build up a queue. Changing
 the series selection or leaving the attempt cancels obsolete chart work.
+Selected charts share one scan of the recorded KPI data; each series keeps its
+own sample limit, gap handling and display rules.
 A cancelled or failed attempt revokes its live prefix. Studio retires the live
 view if a read reports revocation before the run status arrives.
 The execution progress line separately reports simulation time, event count,
