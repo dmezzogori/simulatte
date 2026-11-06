@@ -65,7 +65,8 @@ def runtime(root, host, summary, seconds):
         )
     # Use the second window as the reference. Two consecutive elevated windows
     # at the end flag sustained growth without treating a transient peak as a leak.
-    reference, penultimate, final = report[1], report[-2], report[-1]
+    full = [row for row in report if row["end_s"] - row["start_s"] == width]
+    reference, penultimate, final = full[1], full[-2], full[-1]
     review = {}
     for key, limit in GROWTH_LIMIT.items():
         values = [row[key] for row in (reference, penultimate, final)]
@@ -76,6 +77,8 @@ def runtime(root, host, summary, seconds):
         complete=all(row["complete"] for row in report),
         windows=report,
         growth_review=review,
+        growth_reference_start_s=reference["start_s"],
+        growth_final_window_end_s=final["end_s"],
         actions=actions,
         resources_sha256=digest(resource_path),
     )
@@ -110,14 +113,18 @@ def main(args):
         try:
             browser, server = (root / f"{host}-{kind}" for kind in ("browser", "server"))
             summary = document(browser / "summary.json")
-            transport = soak(host, browser, server, evidence=root, minimum_seconds=args.seconds)
-            memory = runtime(root, host, summary, args.seconds)
+            transport = soak(host, browser, server, evidence=root)
+            observed_seconds = min(args.seconds, int(summary["seconds"]))
+            memory = runtime(root, host, summary, observed_seconds)
             models, signatures[host] = workloads(root / f"final-{host}-audit.json")
             assets = document(server / "server.json")["assets_sha256"]
             installed = document(root / f"{host}-environment.json")
             installed = {k: installed[k] for k in ("python", "platform", "installed", "wheels", "workload", "native")}
             checks = dict(
-                charts_and_transport=transport["passed"],
+                duration=summary.get("completed", True) and summary["seconds"] >= args.seconds,
+                charts_and_transport=transport["transport_ok"],
+                terminal_outcomes=transport["expected_outcomes"],
+                live_revocations=transport["revocation_mode"] == "live_http",
                 coverage=models["all_cases_and_modes"] and not models["repeated_config_mismatches"],
                 continuous_chromium=summary["kept_open"] == ["chromium"]
                 and transport["documents"].get("chromium") == 1

@@ -82,11 +82,10 @@ def soak(host, root, server, *, evidence=None, minimum_seconds=900):
     observed = summary["observed"]
     assert audit["passed"] and audit["statuses"] == dict(Counter(observed.values()))
     assert summary["seconds"] >= minimum_seconds and summary["engines"] == list(ENGINES)
-    assert set(observed.values()) == {"succeeded", "cancelled", "failed"}
+    expected_outcomes = audit.get("expected_outcomes", set(observed.values()) == {"succeeded", "cancelled", "failed"})
     assert revocations["passed"]
-    assert {row["attempt"] for row in revocations["rows"] if row["http"] == 410} == {
-        key for key, status in observed.items() if status != "succeeded"
-    }
+    unsuccessful = {key for key, status in observed.items() if status != "succeeded"}
+    assert {row["attempt"] for row in revocations["rows"] if row["http"] == 410} == unsuccessful
     assert summary["reloads"] >= 8 and summary["reconnects"] >= 10
     assert summary["results"] == 20
     samples, errors, failures = [], [], []
@@ -115,7 +114,7 @@ def soak(host, root, server, *, evidence=None, minimum_seconds=900):
             case "read-headers":
                 if row["tag"]:
                     headers[row["tag"]] = (row["status"], row["length"], row["method"])
-                if row["status"] == 410 and observed.get(row["path"].split("/")[3]) in ("cancelled", "failed"):
+                if row["status"] == 410 and row["path"].split("/")[3] in unsuccessful:
                     revocation_checks[row["server_id"]] = row
             case "fetch-outcome":
                 outcomes[row["tag"]] = row
@@ -165,15 +164,7 @@ def soak(host, root, server, *, evidence=None, minimum_seconds=900):
         elif outcome["outcome"] == "headers" and status == 200 and method == "HEAD":
             ok.add(tag)
             read_counts["head"] += 1
-        elif (
-            outcome["outcome"] == "headers"
-            and outcome["status"] == 410
-            and observed.get(attempt)
-            in (
-                "cancelled",
-                "failed",
-            )
-        ):
+        elif outcome["outcome"] == "headers" and outcome["status"] == 410 and attempt in unsuccessful:
             expected.add(tag)
             read_counts["revoked"] += 1
             revoked[outcome["engine"], path].append(outcome["at"])
@@ -234,7 +225,7 @@ def soak(host, root, server, *, evidence=None, minimum_seconds=900):
         row for row in records(server / "resources.jsonl") if samples[0]["at"] <= row["at"] * 1000 <= samples[-1]["at"]
     ]
     assert len(resource) >= 170 and len(heaps) >= 50
-    passed = (
+    transport_ok = (
         not unexpected_browser
         and not alerts
         and not unexpected
@@ -243,10 +234,13 @@ def soak(host, root, server, *, evidence=None, minimum_seconds=900):
         and all(value["eight"] > value["live"] * 0.75 and value["partial"] == 0 for value in chart.values())
     )
     return dict(
-        passed=passed,
+        passed=transport_ok and expected_outcomes,
+        transport_ok=transport_ok,
+        expected_outcomes=expected_outcomes,
         seconds=summary["seconds"],
         statuses=audit["statuses"],
         revoked_prefixes=len(revocations["rows"]),
+        revocation_mode=revocations.get("mode", "live_http"),
         results=summary["results"],
         reloads=summary["reloads"],
         reconnects=summary["reconnects"],

@@ -155,25 +155,30 @@ def run(args):
             if shutil.disk_usage(root).free < 8 * 1024 * MIB:
                 raise RuntimeError("Less than 8 GiB free on the browser and evidence host")
             time.sleep(5)
-        if browser.returncode != 0:
-            raise RuntimeError("A Studio browser session failed; see browser.log")
-        status("auditing", started_at=started)
+        browser_exit = browser.returncode
+        status("auditing", started_at=started, browser_exit=browser_exit)
         for host, access in zip(HOSTS, (local_access, remote_access), strict=True):
-            subprocess.run(
-                [
-                    mac["python"],
-                    "-I",
-                    str(HERE / "revocations.py"),
-                    "--access",
-                    str(access),
-                    "--browser",
-                    str(root / f"{host}-browser/summary.json"),
-                    "--output",
-                    str(root / f"final-{host}-revocations.json"),
-                ],
-                check=True,
-                timeout=180,
-            )
+            summary = root / f"{host}-browser/summary.json"
+            if not summary.is_file():
+                continue
+            try:
+                subprocess.run(
+                    [
+                        mac["python"],
+                        "-I",
+                        str(HERE / "revocations.py"),
+                        "--access",
+                        str(access),
+                        "--browser",
+                        str(summary),
+                        "--output",
+                        str(root / f"final-{host}-revocations.json"),
+                    ],
+                    check=True,
+                    timeout=180,
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                print(f"{host} live revocation check failed: {error}", flush=True)
     except BaseException as error:
         status("interrupted", started_at=started, error=type(error).__name__)
         raise
@@ -193,52 +198,53 @@ def run(args):
         remote_access.unlink(missing_ok=True)
 
     try:
-        subprocess.run(
-            [
-                mac["python"],
+        for host, machine in zip(HOSTS, (mac, linux), strict=True):
+            summary = root / f"{host}-browser/summary.json"
+            if not summary.is_file():
+                continue
+            local = host == "macos"
+            staging = str(root) if local else remote
+            audit = f"{staging}/final-{host}-audit.json"
+            revocations = f"{staging}/final-{host}-revocations.json"
+            summary_path = str(summary) if local else f"{remote}/linux-browser-summary.json"
+            audit_script = str(HERE / "audit.py") if local else f"{remote}/studio/audit.py"
+            retrospective = not (root / f"final-{host}-revocations.json").is_file()
+            command = [
+                machine["python"],
                 "-I",
-                str(HERE / "audit.py"),
+                audit_script,
                 "--project",
-                f"{mac['work']}/project",
+                f"{machine['work']}/project",
                 "--browser",
-                str(root / "macos-browser/summary.json"),
+                summary_path,
                 "--output",
-                str(root / "final-macos-audit.json"),
-            ],
-            check=True,
-            timeout=300,
-        )
-        remote_summary = f"{remote}/linux-browser-summary.json"
-        subprocess.run(
-            ["scp", "-qB", str(root / "linux-browser/summary.json"), f"{args.remote_host}:{remote_summary}"],
-            check=True,
-            timeout=30,
-        )
-        remote_audit = f"{remote}/final-linux-audit.json"
-        subprocess.run(
-            ssh(
-                args.remote_host,
-                linux["python"],
-                "-I",
-                f"{remote}/studio/audit.py",
-                "--project",
-                f"{linux['work']}/project",
-                "--browser",
-                remote_summary,
-                "--output",
-                remote_audit,
-            ),
-            check=True,
-            timeout=300,
-        )
-        scp(args.remote_host, [remote_audit], root, timeout=30)
+                audit,
+            ]
+            if retrospective:
+                command += ["--stopped-revocations", revocations]
+            try:
+                if not local:
+                    subprocess.run(
+                        ["scp", "-qB", str(summary), f"{args.remote_host}:{summary_path}"],
+                        check=True,
+                        timeout=30,
+                    )
+                    command = ssh(args.remote_host, *command)
+                subprocess.run(command, check=True, timeout=300)
+                if not local:
+                    scp(args.remote_host, [audit, revocations] if retrospective else [audit], root, timeout=30)
+            except (OSError, subprocess.SubprocessError) as error:
+                print(f"{host} store audit failed: {error}", flush=True)
         linux_logs = root / "linux-server"
         linux_logs.mkdir()
-        scp(
-            args.remote_host,
-            [f"{remote_server}/{file}" for file in ("reads.jsonl", "resources.jsonl", "server.json")],
-            linux_logs,
-        )
+        try:
+            scp(
+                args.remote_host,
+                [f"{remote_server}/{file}" for file in ("reads.jsonl", "resources.jsonl", "server.json")],
+                linux_logs,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f"Linux log collection failed: {error}", flush=True)
         result = subprocess.run(
             [
                 mac["python"],
@@ -252,8 +258,9 @@ def run(args):
         )
         if result.returncode not in (0, 1) or not (root / "report.json").is_file():
             raise RuntimeError("Endurance analysis did not finish")
-        status("complete", started_at=started, passed=result.returncode == 0, report="report.json")
-        return result.returncode
+        passed = browser_exit == 0 and result.returncode == 0
+        status("complete", started_at=started, browser_exit=browser_exit, passed=passed, report="report.json")
+        return 0 if passed else 1
     except BaseException as error:
         status("audit_failed", started_at=started, error=type(error).__name__)
         raise

@@ -3,6 +3,7 @@ import {createRequire} from 'node:module';
 import {appendFileSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {seekMidpoint} from './seek.mjs';
 const root = dirname(fileURLToPath(import.meta.url));
 const {chromium, firefox, webkit, expect} = createRequire(resolve(root, '../../studio/package.json'))('@playwright/test');
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, v, i, all) => i % 2 ? a : [...a, [v.slice(2), all[i + 1]]], []));
@@ -21,7 +22,9 @@ async function session(target) {
   const scrub = value => logError(value).replaceAll(access.secret, '[session]').replaceAll(access.cookie, '[cookie]');
   mkdirSync(target.output, {recursive: true});
   const log = row => appendFileSync(resolve(target.output, 'browser.jsonl'), JSON.stringify({at: Date.now(), ...row})+'\n');
+  const save = result => writeFileSync(resolve(target.output, 'summary.json'), JSON.stringify(result, null, 2)+'\n');
   const clients = [], errors = [];
+  let saveInterrupted;
   try {
     for (const engine of engines) {
       const browser = await ({chromium, firefox, webkit}[engine]).launch();
@@ -173,7 +176,7 @@ async function session(target) {
       const result = {mode: 'cancel-probe', server_id: Number(response.headers()['x-studio-study-read']),
         status: response.status(), expected: length, prefix: url, body, errors,
         intact: body.length === length && body.hash === active.prefix.sha256};
-      writeFileSync(resolve(target.output, 'summary.json'), JSON.stringify(result, null, 2)+'\n');
+      save(result);
       console.log(JSON.stringify({host: target.name, ...result}));
       return;
     }
@@ -183,8 +186,16 @@ async function session(target) {
     const observed = new Map(), cancelled = new Set();
     let next = 0, last = '', lastAction = started, lastReload = started, lastHeap = 0, lastPrint = 0;
     let reloads = 0, reconnects = 0, seeks = 0, action = 0;
+    let results = 0;
+    const summary = (completed, error = null) => ({
+      completed, error, seconds: elapsed()/1000, started_at: started, ended_at: Date.now(),
+      engines, kept_open: keptOpen, observed: Object.fromEntries(observed), cancelled: [...cancelled],
+      reloads, reconnects, seeks, results, errors,
+    });
+    saveInterrupted = error => save(summary(false, scrub(error)));
     for (;;) {
       const current = await state(), active = current.active, latest = current.latest_attempt;
+      results = current.results.length;
       if (current.startup.phase === 'error' || current.fatal) throw new Error('Studio startup/execution became unusable');
       if (active && active.key.attempt_id !== last) {
         last = active.key.attempt_id;
@@ -227,9 +238,7 @@ async function session(target) {
           }
         } else {
           const range = page.getByLabel('Simulation time', {exact: true});
-          const max = Number(await range.getAttribute('max'));
-          if (max > 2 && !await range.isDisabled()) {
-            await range.fill(String(Math.floor(max/2)));
+          if (await seekMidpoint(range)) {
             await page.getByRole('button', {name: 'Follow live', exact: true}).click();
             log({type: 'seek-follow', engine, key: active.key});
             seeks++;
@@ -268,11 +277,9 @@ async function session(target) {
       }
       await sleep(Number(args['sample-ms'] ?? 1000));
     }
-    const result = {seconds: elapsed()/1000, started_at: started, ended_at: Date.now(), engines,
-      kept_open: keptOpen, observed: Object.fromEntries(observed), cancelled: [...cancelled],
-      reloads, reconnects, seeks, results: (await state()).results.length, errors};
-    writeFileSync(resolve(target.output, 'summary.json'), JSON.stringify(result, null, 2)+'\n');
+    save(summary(true));
   } catch (error) {
+    saveInterrupted?.(error);
     throw new Error(scrub(error));
   } finally {
     for (const client of clients) {

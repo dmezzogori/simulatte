@@ -63,8 +63,11 @@ WebKit reload in rotation. All three engines reconnect and seek/follow.
 There is no injected HTTP delay. The supervisor stops if the browser host
 has less than 8 GiB of free space. After the timed runs it checks revoked
 prefixes, stops the servers, audits the result stores, and writes
-`report.json`. `status.json` and `browser.log` show progress; an interrupted
-or failed audit is recorded explicitly.
+`report.json`. `status.json` and `browser.log` show progress. A driver
+failure saves that host's observations so far and does not suppress the
+other host's audit. If the live revocation check is unavailable,
+`audit.py --stopped-revocations <output>` checks the installed HTTP route
+against the stopped store and labels those checks as retrospective.
 
 The gate requires exact reads or an explained revocation/abort, no
 unexplained browser errors or trace alerts, no partial chart panels and
