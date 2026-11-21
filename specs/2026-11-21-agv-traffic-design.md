@@ -496,9 +496,10 @@ first; failing that, the node must not be a service node. For such an AGV a node
 not taken either, unless it would still have a free slot for each of those claims after the move: an idle AGV
 moved out of one wait's way must not land in another's, or two waits could send it back and forth without end.
 The search asks the router with the purpose and the load weight of the move it is for, so that the search and
-the move agree. Three more rules apply to an AGV that will be idle on arrival. A node that is the root or a
-member of a dead-end branch (§6.5) is not taken unless it is the node of a parking area: an idle AGV in the
-mouth of a dead end stops every vehicle that must hold back for the branch, and has no way out past them. A
+the move agree. Three more rules apply to an AGV that will be idle on arrival. The root of a dead-end
+branch (§6.5) is not taken unless it is the node of a parking area: an idle AGV on the root stops every vehicle
+that must hold back for the branch, and the node where they hold back is often its only way out. Members of a
+branch stay valid targets, since on a layout made of dead ends a leaf is the natural place to rest. A
 candidate is not taken when a segment, zone or corridor of the last leg of its route is named by a pending
 claim. And a node the AGV has already made way from since its last mission is not taken (§7.10).
 
@@ -736,7 +737,8 @@ class Router(Protocol):
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...
 ```
 
-`TrafficView` is read-only: `graph`, `length(u, v)`, `speed_limit(u, v)`, `capacity(node)`, `dead_end(node)` (whether the node is the root or a member of a dead-end branch, §6.5),
+`TrafficView` is read-only: `graph`, `length(u, v)`, `speed_limit(u, v)`, `capacity(node)`, `branch_root(node)` (whether the node is the root of a dead-end branch, §6.5; false when
+`hold_back_dead_ends` is off),
 `resources(u, v)` (what a leg needs), `holders(resource)`, `pending(resource)` (count of pending claims that name
 it), `disposition(agv)`, `route_of(agv)`, `waiting_on(agv)` (the AGVs whose waits a resource held by `agv`
 blocks), `admissible(agv, claim)` and `mean_hold(resource)`. With
