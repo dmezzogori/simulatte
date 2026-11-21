@@ -128,3 +128,91 @@ class TestPathDistance:
 
     def test_empty_path_returns_zero(self) -> None:
         assert LayoutGraph.path_distance([]) == 0.0
+
+
+class TestArcLength:
+    def test_arc_length_defaults_to_chord(self) -> None:
+        arc = Arc(Node("A", 0.0, 0.0), Node("B", 3.0, 4.0))
+        assert arc.length == 5.0
+        assert arc.passing is False
+
+    @pytest.mark.parametrize("length", [4.9, float("inf"), float("nan")])
+    def test_arc_length_shorter_than_chord_raises(self, length: float) -> None:
+        with pytest.raises(ValueError):
+            Arc(Node("A", 0.0, 0.0), Node("B", 3.0, 4.0), length=length)
+
+    def test_length_without_arc_raises(self) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0)
+        with pytest.raises(ValueError):
+            LayoutGraph([a, b], []).length(a, b)
+
+    @pytest.mark.parametrize(("other_length", "other_passing"), [(7.0, False), (6.0, True)])
+    def test_conflicting_arcs_between_same_nodes_raise(self, other_length: float, other_passing: bool) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0)
+        forward = Arc(a, b, bidirectional=False, length=6.0)
+        backward = Arc(b, a, bidirectional=False, length=other_length, passing=other_passing)
+        with pytest.raises(ValueError):
+            LayoutGraph([a, b], [forward, backward])
+        with pytest.raises(ValueError):
+            LayoutGraph._from_layout([a, b], [forward, backward])
+
+    def test_agreeing_pair_is_accepted(self) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0)
+        arcs = [Arc(a, b, bidirectional=False, length=6.0), Arc(b, a, bidirectional=False, length=6.0)]
+        assert LayoutGraph._from_layout([a, b], arcs).length(b, a) == 6.0
+        assert LayoutGraph([a, b], arcs).length(a, b) == 6.0
+
+    def test_path_length_sums_arc_lengths(self) -> None:
+        a, b, c = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0), Node("C", 1.0, 1.0)
+        graph = LayoutGraph([a, b, c], [Arc(a, b, length=2.0), Arc(b, c)])
+        assert graph.path_length([a, b, c]) == 3.0
+        assert graph.path_length([a]) == 0.0
+        assert graph.distance(a, b) == 1.0
+
+
+class TestSubdivide:
+    def _graph(self) -> tuple[Node, Node, LayoutGraph]:
+        a, b = Node("A", 0.0, 0.0), Node("B", 9.0, 0.0)
+        return a, b, LayoutGraph([a, b], [Arc(a, b, speed_limit=1.0, length=10.0, passing=True)])
+
+    def test_splits_long_arc(self) -> None:
+        a, b, graph = self._graph()
+        result = graph.subdivide(4.0)
+        assert result.nodes[0] is a and result.nodes[1] is b
+        assert [n.id for n in result.nodes] == ["A", "B", "A~B#1", "A~B#2"]
+        assert [(n.x, n.y) for n in result.nodes[2:]] == [(3.0, 0.0), (6.0, 0.0)]
+        n1, n2 = result.nodes[2:]
+        for src, dst in [(a, n1), (n1, n2), (n2, b), (b, n2), (n2, n1), (n1, a)]:
+            arc = result.arc_between(src, dst)
+            assert arc is not None
+            assert arc.length == pytest.approx(10 / 3)
+            assert arc.speed_limit == 1.0 and arc.passing is True
+        assert result.arc_between(a, b) is None
+
+    def test_short_arc_untouched(self) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 4.0, 0.0)
+        arc = Arc(a, b)
+        result = LayoutGraph([a, b], [arc]).subdivide(4.0)
+        assert result.nodes == (a, b)
+        assert result.arc_between(a, b) is arc
+
+    def test_one_way_pair_from_larger_id_shares_nodes(self) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 6.0, 0.0)
+        graph = LayoutGraph([a, b], [Arc(b, a, bidirectional=False), Arc(a, b, bidirectional=False)])
+        result = graph.subdivide(4.0)
+        assert [n.id for n in result.nodes] == ["A", "B", "A~B#1"]
+        mid = result.nodes[2]
+        assert (mid.x, mid.y) == (3.0, 0.0)
+        for src, dst in [(a, mid), (mid, b), (b, mid), (mid, a)]:
+            assert result.arc_between(src, dst) is not None
+
+    @pytest.mark.parametrize("bad", [0, -1.0, float("nan"), float("inf")])
+    def test_invalid_max_length_raises(self, bad: float) -> None:
+        with pytest.raises(ValueError):
+            self._graph()[2].subdivide(bad)
+
+    def test_layout_frozen_graph_raises(self) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0)
+        frozen = LayoutGraph._from_layout([a, b], [Arc(a, b, bidirectional=False)])
+        with pytest.raises(ValueError):
+            frozen.subdivide(1.0)

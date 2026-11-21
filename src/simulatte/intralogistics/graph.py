@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Sequence
 from types import MappingProxyType
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from simulatte.environment import Environment
+
+_LENGTH_TOLERANCE = 1e-9
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,26 @@ class Arc:
     target: Node
     bidirectional: bool = True
     speed_limit: float | None = None
+    length: float | None = None
+    passing: bool = False
+
+    def __post_init__(self) -> None:
+        chord = math.hypot(self.target.x - self.source.x, self.target.y - self.source.y)
+        if self.length is None:
+            object.__setattr__(self, "length", chord)
+        elif not math.isfinite(self.length) or self.length < chord * (1.0 - _LENGTH_TOLERANCE):
+            raise ValueError(
+                f"arc {self.source.id}->{self.target.id} length {self.length} must be finite and not smaller "
+                f"than the chord {chord}"
+            )
+
+
+def _check_pair(arc: Arc, reverse: Arc | None) -> None:
+    if reverse is not None and reverse is not arc and (reverse.length != arc.length or reverse.passing != arc.passing):
+        raise ValueError(
+            f"arcs {arc.source.id}->{arc.target.id} and {reverse.source.id}->{reverse.target.id} "
+            "disagree on length or passing"
+        )
 
 
 class NodeBinding(Entity, kind="node"):
@@ -81,6 +104,7 @@ class LayoutGraph:
         self._nodes: dict[Node, None] = dict.fromkeys(nodes)  # insertion-ordered (spec §5.3)
         self._adjacency: dict[Node, dict[Node, Arc]] = defaultdict(dict)
         for arc in arcs:
+            _check_pair(arc, self._adjacency[arc.target].get(arc.source))
             self._adjacency[arc.source][arc.target] = arc
             if arc.bidirectional:
                 self._adjacency[arc.target][arc.source] = arc
@@ -106,6 +130,7 @@ class LayoutGraph:
             if arc.target in adjacency[arc.source]:
                 raise ValueError("layout graph contains duplicate directed arcs")
             adjacency[arc.source][arc.target] = arc
+            _check_pair(arc, adjacency[arc.target].get(arc.source))
         graph = cls((), ())
         object.__setattr__(graph, "_nodes", MappingProxyType(dict.fromkeys(ordered)))
         object.__setattr__(
@@ -131,6 +156,66 @@ class LayoutGraph:
         if self.arc_between(source, target) is None:
             raise ValueError(f"Nodes {source.id} and {target.id} are not connected by an arc")
         return math.hypot(target.x - source.x, target.y - source.y)
+
+    def length(self, source: Node, target: Node) -> float:
+        """The travelled length of the arc from ``source`` to ``target``."""
+        arc = self.arc_between(source, target)
+        if arc is None:
+            raise ValueError(f"Nodes {source.id} and {target.id} are not connected by an arc")
+        assert arc.length is not None
+        return arc.length
+
+    def path_length(self, path: Sequence[Node]) -> float:
+        """The summed arc lengths along ``path``."""
+        return math.fsum(self.length(path[i], path[i + 1]) for i in range(len(path) - 1))
+
+    def subdivide(self, max_length: float) -> LayoutGraph:
+        """A new graph in which every arc longer than ``max_length`` is split into equal pieces.
+
+        Each arc of length ``L`` becomes ``ceil(L / max_length)`` pieces of equal length that inherit
+        ``bidirectional``, ``speed_limit`` and ``passing``. The generated nodes are named ``"<a>~<b>#<k>"`` with
+        ``a`` and ``b`` the node ids in sorted order and ``k`` counted from ``a``, placed on the chord; both
+        directions of a node pair share them. Original nodes are kept as the same instances, followed by the
+        generated ones in arc order. Graphs built by the layout package cannot be subdivided.
+        """
+        if self._layout_frozen:
+            raise ValueError("a layout-built graph cannot be subdivided")
+        if not (max_length > 0.0 and math.isfinite(max_length)):
+            raise ValueError("max_length must be positive and finite")
+        arcs: list[Arc] = []
+        seen: set[int] = set()
+        for node in self._nodes:
+            for arc in self._adjacency[node].values():
+                if id(arc) not in seen:
+                    seen.add(id(arc))
+                    arcs.append(arc)
+        nodes = list(self._nodes)
+        generated: dict[tuple[str, str], list[Node]] = {}
+        pieces: list[Arc] = []
+        for arc in arcs:
+            assert arc.length is not None
+            count = math.ceil(arc.length / max_length)
+            if count <= 1:
+                pieces.append(arc)
+                continue
+            low, high = (arc.source, arc.target) if arc.source.id <= arc.target.id else (arc.target, arc.source)
+            key = (low.id, high.id)
+            if key not in generated:
+                generated[key] = [
+                    Node(
+                        id=f"{low.id}~{high.id}#{k}",
+                        x=low.x + (high.x - low.x) * k / count,
+                        y=low.y + (high.y - low.y) * k / count,
+                    )
+                    for k in range(1, count)
+                ]
+                nodes.extend(generated[key])
+            chain = [low, *generated[key], high]
+            if arc.source is not low:
+                chain.reverse()
+            for a, b in zip(chain, chain[1:]):
+                pieces.append(Arc(a, b, arc.bidirectional, arc.speed_limit, arc.length / count, arc.passing))
+        return LayoutGraph(nodes, pieces)
 
     @staticmethod
     def path_distance(path: list[Node]) -> float:
