@@ -12,6 +12,7 @@ each item of §17.
 from __future__ import annotations
 
 import contextlib
+import re
 import runpy
 from collections.abc import Iterator
 from pathlib import Path
@@ -793,15 +794,42 @@ def under_reservation() -> Iterator[list[tuple[FullReplay, TrafficInvariants]]]:
         yield pairs
 
 
+def run_example(name: str, capsys: pytest.CaptureFixture[str]) -> str:
+    """Run the example `name` headless and return what it printed."""
+    namespace = runpy.run_path(str(ROOT / "examples" / f"{name}.py"), run_name="__headless__")
+    namespace["main"](**({} if name == "intralogistics_simple" else {"plot": False}))
+    return capsys.readouterr().out
+
+
+COMPLETED = {
+    "intralogistics_intermediate": r"Orders: \d+ submitted, (\d+) completed",
+    "intralogistics_advanced": r"Outbound: +(\d+) completed",
+}
+"""How each example prints its completed orders (the outbound ones for the advanced example)."""
+
+
 @pytest.mark.parametrize("name", ["intralogistics_simple", "intralogistics_intermediate", "intralogistics_advanced"])
 def test_the_examples_hold_the_traffic_invariants_under_a_reservation_controller(
     name: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """spec §17: the invariants and the replay hold; no deadlock is left unresolved and no stuck wait is still open at
+    the end; the intermediate and advanced examples complete as many orders as under free flow."""
     with under_reservation() as pairs:
-        namespace = runpy.run_path(str(ROOT / "examples" / f"{name}.py"), run_name="__headless__")
-        namespace["main"](**({} if name == "intralogistics_simple" else {"plot": False}))
-    capsys.readouterr()
+        reserved = run_example(name, capsys)
     assert len(pairs) == 1
     replay, invariants = pairs[0]
     assert replay.events and invariants.checked > 0
     assert replay.of(TrafficReserved)
+    assert not [e for e in replay.of(TrafficDeadlock) if e.action == "unresolved"]
+    events = replay.events
+    for index, stuck in enumerate(events):
+        if isinstance(stuck, TrafficWaitStuck):
+            assert any(isinstance(e, TrafficWaitEnded) and e.agv == stuck.agv for e in events[index:]), stuck
+    if name in COMPLETED:
+        free = run_example(name, capsys)  # the same example under free flow
+        counts = []
+        for text in (reserved, free):
+            match = re.search(COMPLETED[name], text)
+            assert match is not None, text
+            counts.append(int(match.group(1)))
+        assert counts[0] == counts[1] > 0

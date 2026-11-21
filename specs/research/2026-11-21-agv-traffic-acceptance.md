@@ -26,7 +26,7 @@ already cover an item end to end, the table names them instead of repeating them
 | Invariants over every scenario and the three examples | `TrafficInvariants` in `traffic_support.py`, attached in every world of `test_traffic_scenarios.py`, `test_idle_traffic.py` and `test_travel.py`; `test_the_examples_hold_the_traffic_invariants_under_a_reservation_controller[intralogistics_simple, intralogistics_intermediate, intralogistics_advanced]` |
 | Baseline scenarios (Appendix A) | `test_appendix_a_scenario_1_completes_every_order`; `test_appendix_a_scenario_2_completes_every_order_and_the_idle_agv_makes_way_to_park` (the later AGV first waits while standing on `PARK`; each idle AGV left at `C2` makes way to `PARK`) |
 | Following | `test_following_on_a_subdivided_one_way_line`; at unit level `test_travel.py::test_a_follower_waits_and_proceeds_when_the_leader_tail_clears` |
-| Head-on in a corridor | `test_head_on_in_a_corridor_the_second_agv_waits_before_its_port`; at a passing place `test_travel.py::test_a_head_on_meeting_at_a_passing_place_completes_with_a_length` |
+| Head-on in a corridor | `test_head_on_in_a_corridor_the_second_agv_waits_before_its_port`; at a passing place `test_travel.py::test_a_head_on_meeting_at_a_passing_place_completes_with_a_length` and `test_two_agvs_head_on_pass_each_other_on_a_node_of_capacity_two[corridors, dead_ends]` |
 | Swap on a two-node line | `test_traffic_termination.py::test_two_agvs_swapping_on_a_line_leave_one_unresolved_deadlock_and_the_run_returns` |
 | Stuck wait | `test_traffic_termination.py::test_a_loaded_agv_stuck_behind_an_idle_one_that_cannot_move_leaves_one_stuck_wait_and_the_run_returns` |
 | Default builder | `test_the_default_builder_completes_twenty_transfer_orders_with_no_deadlock_and_no_stuck_wait`; `test_the_default_builder_with_orders_in_both_directions`; `tests/layout/test_builders.py::test_layout_builder_with_a_reservation_controller` |
@@ -34,10 +34,10 @@ already cover an item end to end, the table names them instead of repeating them
 | Lone AGV | `test_a_lone_agv_arrives_at_the_same_times_under_both_controllers_on_the_appendix_layout[0.0, 1.0]`, `..._on_the_builder_line`, `..._on_a_line_split_into_arcs[1, 2, 10]` |
 | Giving up | `test_traffic_termination.py::test_an_agv_with_cargo_does_not_give_up_a_charging_diversion`, `::test_an_order_is_requeued_for_traffic_at_most_max_traffic_requeues_times` |
 | Resolution by reroute and by step aside | `test_a_swap_with_a_second_route_is_resolved_by_reroute`; `test_a_swap_without_another_route_is_resolved_by_step_aside`; at unit level `test_deadlock.py::TestResolution` |
-| Fairness | `test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside`; at unit level `test_reservation.py::TestGate` |
+| Fairness | `test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside[port-1, port-2]`; at unit level `test_reservation.py::TestGate` |
 | Gate waiver | `test_a_gate_that_would_complete_a_cycle_is_waived`; at unit level `test_deadlock.py::TestDetection::test_a_cycle_only_through_a_gate_is_waived` |
-| Idle and parking | `test_idle_traffic.py`: `test_an_idle_blocker_makes_way_and_goes_idle_again`, `test_an_agv_idle_on_the_exit_port_of_a_corridor_makes_way_for_the_opposite_traffic`, `test_an_agv_leaves_the_delivery_bay_under_reservation`, `test_an_area_of_two_never_lists_three_agvs`, `test_a_full_area_is_not_a_target` |
-| Capacity above one, extent longer than a block, `passing` segments, authored zones | `test_travel.py::test_two_vehicles_at_a_multi_slot_leaf_one_sent_away`, `::test_extent_longer_than_arc_holds_two_segments`; `test_reservation.py::TestAdmission::test_passing_admits_both_directions`, `::TestAdmission::test_zone_capacity`, `::TestRelease::test_hold_back_zone_is_claimed_a_leg_early`; `test_network.py::TestCorridors::test_passing_segment_removes_the_corridor`, `::TestClaims::test_plain_zone_only_with_the_leg_that_takes_a_member` |
+| Idle and parking | `test_idle_traffic.py`: `test_an_idle_blocker_makes_way_and_goes_idle_again`, `test_an_agv_idle_on_a_roomy_exit_port_of_a_corridor_does_not_block_the_opposite_traffic`, `test_an_idle_agv_is_not_shuttled_between_two_zones`, `test_an_agv_leaves_the_delivery_bay_under_reservation`, `test_an_area_of_two_never_lists_three_agvs`, `test_a_full_area_is_not_a_target` |
+| Capacity above one, extent longer than a block, `passing` segments, authored zones | `test_travel.py::test_two_vehicles_at_a_multi_slot_leaf_one_sent_away`, `::test_extent_longer_than_arc_holds_two_segments`; `test_reservation.py::TestAdmission::test_passing_admits_both_directions`, `::TestAdmission::test_zone_capacity`, `::TestRelease::test_hold_back_zone_is_claimed_a_leg_early`; `test_network.py::TestCorridors::test_passing_segment_removes_the_corridor`, `::TestClaims::test_plain_zone_only_with_the_leg_that_takes_a_member`, `::TestClaims::test_a_root_of_capacity_two_is_a_place_to_wait`, `::TestClaims::test_a_port_of_capacity_two_is_a_place_to_wait`; `test_an_agv_parked_on_a_roomy_port_is_dispatched_through_the_empty_corridor_at_once` |
 | Vehicle length | `test_travel.py::test_coordinator_registers_with_a_reservation_controller`; `test_reservation.py::TestLifecycle::test_a_vehicle_type_without_length_cannot_register` |
 | Replay and purity | `FullReplay` in every world; `test_invariance.py`, which runs the advanced example under free flow and under `ReservationController` with no subscriber at all, with the digest only, with a key-performance-indicator trace, with a full trace and with everything on, and compares the final state, the digest, the report and the trace, and reproduces the digest in fresh processes with different `PYTHONHASHSEED` values; CPython and PyPy agree through the PyPy lane of CI |
 | Layout | `tests/layout/test_traffic_fields.py` (schema 1.0 loads unchanged, 1.1 round-trips, `block_length` and zones change the physical hash, twins) |
@@ -53,10 +53,10 @@ Choices the scenarios make where the spec leaves them open:
 - A lone AGV is compared with `clear_service_nodes=False`: under reservation an idle AGV leaves a bay by default, and
   that move is the one deliberate difference between the controllers. With it off, the arrivals and order times are
   equal to the last bit.
-- The three examples run with each coordinator on its own `ReservationController` and vehicle length 0. Their orders
-  are not asserted to complete: only the invariants and the replay are. (The advanced example completes 62 outbound and
-  2 replenishment orders with none failed; the simple example has one order in transit at its horizon, 3 of 4 completed,
-  because the AGVs now take turns on a line they shared freely before.)
+- The three examples run with each coordinator on its own `ReservationController` and vehicle length 0. Since the
+  whole-part review the test also asserts that no deadlock is left unresolved, that no stuck wait is still open at the
+  end, and that the intermediate and advanced examples complete as many orders (outbound orders for the advanced one)
+  as the same example under free flow. The numbers are under "The examples under both controllers".
 - The gate waiver was found by searching for runs in which the claims waiting form a cycle only through gates: a
   corridor with three AGVs (`long_corridor` in the test file). The test observes the waiver with a controller subclass
   that reads the controller's queue, as `TrafficInvariants` reads its holdings. In about 2,500 random order sets on a similar
@@ -122,12 +122,69 @@ reorder point, which moves with the trajectory; the trajectory differs for the r
 | `tests/fixtures/fleet_recovery_regression.json` (`simple-1` to `simple-3`) | re-recorded | interrupts take effect at the end of the arc (spec §8.3); with the old interrupt semantics the old fixture is reproduced exactly |
 | `tests/fixtures/fleet_collector_parity.json`, entry `systems.advanced` | re-recorded (EMA, utilization, pending, throughput, inventory series) | the coordinator takes parking slots; the advanced example, which left its parking area empty, now fills it and no longer repositions to a full area |
 
-Nothing was re-pinned in this task. The generated trace fixtures are not stale (`tests/core/test_trace_fixtures.py`
-passes) and the frozen fixtures load without change.
+Nothing was re-pinned in this task, nor in the whole-part review wave: no free-flow pin moved, the generated trace
+fixtures are not stale (`tests/core/test_trace_fixtures.py` passes) and the frozen fixtures load without change.
+
+## The examples under both controllers
+
+Measured after the whole-part review wave, at its last commit, by running each example as the test does (each
+coordinator on its own `ReservationController`, vehicle length 0) and as written (free flow). Completed orders are
+those the example prints: all orders for the simple and intermediate examples, outbound and replenishment for the
+advanced one. Fulfillment is the example's own average (the simple example prints none). Waits are
+`traffic.wait_started` events; no wait and no stuck report was open at the end of any run.
+
+| Example | Controller | Completed orders | Waits | Deadlocks by action | Stuck waits | Avg fulfillment, s |
+|---|---|---|---:|---|---:|---:|
+| simple (horizon 120) | free flow | 4 of 4 | 0 | none | 0 | - |
+| simple (horizon 120) | reservation | 4 of 4 | 4 | none | 0 | - |
+| intermediate | free flow | 8 of 8 | 0 | none | 0 | 151.2 |
+| intermediate | reservation | 8 of 8 | 20 | reroute 1, step aside 5 | 0 | 229.5 |
+| advanced | free flow | 63 outbound, 2 replenishment | 0 | none | 0 | 217.8 (outbound) |
+| advanced | reservation | 63 outbound, 2 replenishment | 126 | step aside 38 | 1 | 239.6 (outbound) |
+
+Before the wave the advanced example under reservation had 249 waits, 75 deadlocks (all step aside), 19 stuck reports
+(one still open at the end of the shift), 62 outbound orders completed and an average outbound fulfillment of about
+700 s; the simple example completed 3 of 4 orders by its horizon. In the advanced run after the wave, 36 of the 38
+deadlocks have their victim on `B2` stepping aside to `B3` and 2 to `B4`: the head-on meeting between the adjacent dead
+ends rooted at `R2` and at `B2`, in which each vehicle holds back on the node before the other's root. The one stuck
+report (461.3 s, AGV-3 behind AGV-5 idle on its starting node) ends at the next review, 30 s later, with a grant.
+Idle AGVs made 51 make-way moves and 57 service-node clearances.
 
 ## Changes in results
 
 - Free-flow results move for the three reasons above (the `agv.routed` event in digests, interrupts at the end of the
-  arc, parking slots), which is why the benchmark trajectories of `main` and the branch differ.
+  arc, parking slots). The benchmark's trajectory difference from `main` is caused by the parking slots being taken:
+  the whole-part review reproduced `main`'s input and trajectory hashes exactly on the branch with slot-taking
+  disabled, and `NearestParkingPolicy` now sees the area full and leaves AGVs at the delivery bay.
+- A critical battery found on arrival at the goal returns `ARRIVED` (spec §8.3), so the mission goes on at the goal
+  before it charges. It does not occur in the benchmark workload; in a constructed free-flow case the pickup moves from
+  251.5 on `main` to 73.0, with the same delivery time.
+- A stalled AGV (an arc with an infinite travel time) leaves no timer at infinity, so `env.run()` without `until` ends
+  at the last finite event.
+- One `FreeFlowController` serves one graph: registering a fleet on another graph raises `ValueError`; fleets on
+  different graphs each take their own controller, as they do by default.
 - The retry loop of the pending queue stops when nothing needs it, so `env.run()` without `until` returns. In free flow
   this can move the time of a `retries_exhausted` failure, because the loop restarts when it is needed again.
+
+## Whole-part review
+
+Two reviewers examined part A as a whole. Safety held in every run they made; the findings were about liveness. This
+wave changed:
+
+- `StandardTrafficPolicy.on_blocked` offers a reroute only while the wait's resolutions are below `max_resolutions`, so
+  a travel between standing blockers is not rerouted back and forth without end (spec §7.9).
+- A dead-end root or a corridor port of capacity above 1 is a place to wait: the leg into it is claimed on its own and
+  the next leg carries the branch or the corridor; a corridor left onto such a port keeps no exit record (§7.2, §7.5).
+  Two AGVs meeting head-on now pass there instead of deadlocking.
+- An idle AGV does not rest on the root of a dead-end branch unless it is a parking node (`TrafficView.branch_root`);
+  members stay valid targets (§7.9, §10.1).
+- A review judges a stuck wait by the blockers after its make-way step, so a blocker that has just started to move is
+  not reported.
+- The idle search does not take a node whose last leg needs a segment, zone or corridor a pending claim names, and an
+  AGV does not make way to a node it has made way from since its last order mission (§7.9, §7.10).
+- Small defects: the parking slot of the goal is kept during a step-aside excursion through it; a stranded AGV is not
+  cleared off a service node; the step-aside search and its move ask the router alike; `_validate_fleet` no longer
+  compares classes; the protocol value types are exported; the route cost is `graph.path_length`; a one-way ring is not
+  reported; the unresolved-deadlock test checks `env.peek()`.
+- The examples test asserts no unresolved deadlock, no stuck wait open at the end and, for the intermediate and
+  advanced examples, as many completed orders as under free flow.
