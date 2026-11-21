@@ -171,6 +171,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._requeues: dict[str, int] = {}  # by order id: how many times the order was requeued for traffic
         self._withheld: tuple[TransferOrder, AGV] | None = None  # the order the pending-queue check does not offer
         self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node
+        self._made_way_from: dict[AGV, set[Node]] = {}  # nodes each AGV made way from since its last order mission
         self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
@@ -586,6 +587,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                 )
             )
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        self._made_way_from.pop(agv, None)  # a mission starts: make-way moves may go anywhere again (spec §7.10)
 
         process = self.env.process(self._run_mission(order, agv))
         self._active_missions[order.id] = process
@@ -916,7 +918,9 @@ class FleetCoordinator(Entity, kind="fleet"):
         is no target, when the target is the AGV's own node, a node the router cannot reach from the AGV's node
         (asked with purpose ``make_way``, for a target that was given) or a parking area without a free slot, and when
         the AGV's previous make-way move ended at the current time on the node it started from (so that a move that
-        fails at once is not repeated without time passing). Otherwise the
+        fails at once is not repeated without time passing). A node the AGV has made way from since it last started
+        an order mission is not a target: a given one is refused and the search skips it, which bounds a chain of
+        make-way moves by the number of nodes. Otherwise the
         AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
         when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
         ``on_agv_idle`` hooks and the pending-queue check run as after any mission.
@@ -926,12 +930,16 @@ class FleetCoordinator(Entity, kind="fleet"):
             return False
         if self._returned.get(agv) == (float(self.env.now), origin):
             return False
+        left = self._made_way_from.get(agv, set())
         if target is None:
-            target = standard_target(self, agv, concerned=concerned, idle=True, purpose="make_way")
-        elif target != origin and not self._reachable(agv, origin, target):
+            target = standard_target(
+                self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=sorted(left, key=lambda n: n.id)
+            )
+        elif target in left or (target != origin and not self._reachable(agv, origin, target)):
             return False
         if target is None or target == origin or not self._take_slot(agv, target):
             return False
+        self._made_way_from.setdefault(agv, set()).add(origin)
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
         self.env.process(self._make_way_move(agv, target))
         return True

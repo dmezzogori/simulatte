@@ -871,6 +871,56 @@ def test_an_idle_agv_is_not_shuttled_between_two_waits() -> None:
     assert sorted(e.agv for e in w.of(TrafficWaitStuck)) == ["W1", "W2"]
 
 
+def test_an_idle_agv_is_not_shuttled_between_two_zones() -> None:
+    """The reviewer's shuttle: the line ``P1, A1, A, B, B1, P2`` with the zones ``{A1, A}`` and ``{B, B1}`` of capacity
+    2, stranded AGVs on A1 and B1, X idle on A, and W1, W2 travelling to A1 and B1. Each arrival of X fills the zone a
+    waiter needs; the claims name the zone, not the node X would land on (before the fix: 101 make-way moves until the
+    battery was empty)."""
+    graph, nodes = build(
+        [("P1", 0, 0), ("A1", 10, 0), ("A", 20, 0), ("B", 30, 0), ("B1", 40, 0), ("P2", 50, 0)],
+        [("P1", "A1"), ("A1", "A"), ("A", "B"), ("B", "B1"), ("B1", "P2")],
+    )
+    zones = [Zone("Z1", (nodes["A1"], nodes["A"]), capacity=2), Zone("Z2", (nodes["B"], nodes["B1"]), capacity=2)]
+    w = world(
+        (graph, nodes),
+        {"X": "A", "S1": "A1", "S2": "B1", "W1": "P1", "W2": "P2"},
+        make_way=True,
+        zones=zones,
+        derive_corridors=False,
+        hold_back_dead_ends=False,
+    )
+    for name in ("S1", "S2"):
+        w.agvs[name].transition_to(AGVState.STRANDED)
+    w.go("W1", "A1")
+    w.go("W2", "B1")
+    w.env.run()  # returns
+    x = w.agvs["X"]
+    assert len(w.of(AgvRouted, agv="X")) <= 1
+    assert x.state is AGVState.IDLE
+    assert w.env.peek() == float("inf")
+    assert sorted(e.agv for e in w.of(TrafficWaitStuck)) == ["W1", "W2"]
+    assert not w.outcomes  # both waits stand, reported
+
+
+def test_an_agv_does_not_make_way_back_to_a_node_it_made_way_from_until_its_next_mission() -> None:
+    m = mission_world(lane(), {"A": "M"}, bays={"WH-S": "S", "WH-E": "END"})
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
+    m.env.run()
+    assert m.fleet.make_way(a, m.nodes["M"]) is False  # A made way from M
+    assert m.fleet.make_way(a) is True  # the standard search does not take M either
+    m.env.run()
+    assert m.routed("A")[-1] == ("make_way", "SIDE", "D")
+    assert m.fleet.make_way(a, m.nodes["SIDE"]) is False
+    assert m.fleet.make_way(a, m.nodes["M"]) is False
+    order = m.order("WH-S", "WH-E", at=m.env.now)  # a mission starts: the memory is cleared
+    m.env.run()
+    assert order.status is OrderStatus.COMPLETED
+    assert m.fleet.make_way(a, m.nodes["M"]) is True
+    m.env.run()
+    assert a.current_node is m.nodes["M"]
+
+
 @pytest.mark.parametrize(("capacity", "expected"), [(2, "X"), (1, None)])
 def test_a_node_named_by_a_pending_claim_is_taken_when_a_slot_remains_for_each(
     capacity: int, expected: str | None
@@ -1105,7 +1155,7 @@ def test_a_stalled_first_arc_keeps_the_parking_slot() -> None:
     m.env.run()
     assert parked(m, "P") == ["A"]
     a.agv_type = vehicle(profile=stalled())  # every arc has an infinite travel time from now on
-    assert m.fleet.make_way(a, m.nodes["M"]) is True
+    assert m.fleet.make_way(a, m.nodes["D"]) is True  # not M, which it made way from; the first arc is SIDE -> M
     m.env.run(until=500.0)
     assert (a.state, a.current_node) == (AGVState.TRAVELING_EMPTY, m.nodes["SIDE"])  # it never left
     assert parked(m, "P") == ["A"] and m.events(ParkingLeft) == []

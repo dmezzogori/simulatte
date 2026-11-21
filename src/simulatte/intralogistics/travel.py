@@ -20,6 +20,7 @@ from simulatte._wire import FrozenMap, freeze, wire_float
 from simulatte.events import Deltas
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, AgvMoveStarted, AgvRouted
+from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.kinematics import rest_to_rest
 from simulatte.intralogistics.network import Segment
 from simulatte.intralogistics.routing import Route, RouteRequest
@@ -27,13 +28,12 @@ from simulatte.intralogistics.speed import KinematicProfile, describe_motion
 from simulatte.intralogistics.traffic import GaveUp, Granted, Rerouted, WaitHooks
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Collection, Sequence
 
     from simpy.events import ProcessGenerator, Timeout
 
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.fleet import FleetCoordinator
-    from simulatte.intralogistics.graph import Node
     from simulatte.intralogistics.network import Resource
     from simulatte.intralogistics.speed import MotionDescription
     from simulatte.intralogistics.traffic import ClaimRequest, TrafficController
@@ -99,6 +99,7 @@ def standard_target(
     concerned: Sequence[AGV] = (),
     idle: bool = False,
     purpose: str = "step_aside",
+    exclude: Collection[Node] = (),
 ) -> Node | None:
     """The node of the standard search (spec §7.9) for `agv`, or None when no node qualifies.
 
@@ -110,8 +111,10 @@ def standard_target(
     first; failing that, the node is not a service node, not the root of a dead-end branch (an idle AGV there stops
     every vehicle that holds back for the branch; members stay valid) and not the node of a parking area that is full.
     A node that a pending claim names is not taken either unless it keeps a free slot for each of those claims after
-    the move.
-    `purpose` is the purpose of the move the search is for; the router is asked with it.
+    the move, and neither is a node whose route ends with a leg that needs a segment, zone or corridor named by a
+    pending claim: an idle AGV moved out of one wait's way must not fill what another wait needs.
+    `purpose` is the purpose of the move the search is for; the router is asked with it. Nodes in `exclude` are never
+    taken (a make-way move does not go back to a node the AGV made way from).
     """
     controller = fleet.traffic_controller
     view = controller.view
@@ -128,7 +131,7 @@ def standard_target(
     best: Node | None = None
     best_key: tuple[int, float, str] | None = None
     for node in view.graph.nodes:
-        if node == origin or node in full:
+        if node == origin or node in full or node in exclude:
             continue
         rank = 0 if node in parking else 1
         if rank and (node in service or (idle and view.branch_root(node))):
@@ -147,6 +150,12 @@ def standard_target(
         if route is None:
             continue
         _check_route(fleet, route, origin, node)
+        if idle and any(
+            view.pending(resource) > 0
+            for resource in view.resources(route.nodes[-2], node)
+            if not isinstance(resource, Node)
+        ):
+            continue
         if not view.admissible(agv, controller.next_claim(agv, route.nodes, 0)):
             continue
         key = (rank, route.cost, node.id)
