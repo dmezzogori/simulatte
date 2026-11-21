@@ -7,7 +7,7 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.kinematics import Kinematics
-from simulatte.intralogistics.metrics import FleetKPIs, FleetTimeSeries, OrderEMACollector
+from simulatte.intralogistics.metrics import FleetKPIs, FleetTimeSeries, OrderEMACollector, TrafficKPIs
 from simulatte.intralogistics.network import Zone
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.parking import ParkingArea
@@ -104,6 +104,7 @@ __all__ = [
     "OrderEMACollector",
     "FleetTimeSeries",
     "FleetKPIs",
+    "TrafficKPIs",
     # builders
     "build_simple_system",
 ]

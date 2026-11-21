@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 
+from simulatte._wire import FrozenMap
 from simulatte.environment import Environment
 from simulatte.intralogistics import (
     AGV,
@@ -14,10 +15,19 @@ from simulatte.intralogistics import (
     FleetKPIs,
     FleetTimeSeries,
     OrderEMACollector,
+    TrafficKPIs,
     TransferOrder,
     build_simple_system,
 )
-from simulatte.intralogistics.events import AgvStateChanged, OrderStatusChanged
+from simulatte.intralogistics.events import (
+    AgvRouted,
+    AgvStateChanged,
+    OrderStatusChanged,
+    TrafficDeadlock,
+    TrafficWaitEnded,
+    TrafficWaitStarted,
+    TrafficWaitStuck,
+)
 from simulatte.typing import ProcessGenerator
 
 EMA_FIELDS = (
@@ -359,3 +369,118 @@ def test_collectors_are_pure_observers() -> None:
         return [(o.id, o.status.name, o.delivered_at) for o in orders]
 
     assert run(True) == run(False)
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Traffic KPIs
+# ---------------------------------------------------------------------------------------------------------
+
+
+def _wait_started(agv: str) -> TrafficWaitStarted:
+    return TrafficWaitStarted(agv=agv, node="n", resources=(), blockers=(), reason="occupied")
+
+
+def _wait_ended(agv: str, reason: str = "granted") -> TrafficWaitEnded:
+    return TrafficWaitEnded(agv=agv, node="n", reason=reason)
+
+
+def _routed(agv: str, reason: str) -> AgvRouted:
+    return AgvRouted(agv=agv, origin="a", destination="b", nodes=("a", "b"), cost=1.0, reason=reason)
+
+
+def _requeued(order: str) -> OrderStatusChanged:
+    return OrderStatusChanged(order=order, status="PENDING", previous="DISPATCHED", reason="traffic_requeued")
+
+
+def _script(env: Environment, steps: list[tuple[float, Any]]) -> None:
+    """Emit each event at its time (the times are non-decreasing)."""
+
+    def run() -> ProcessGenerator:
+        for at, event in steps:
+            yield env.timeout(at - env.now)
+            env.emit(event)
+
+    env.process(run())
+
+
+def test_traffic_kpis_on_a_scripted_scenario() -> None:
+    env = Environment()
+    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2)
+    first, second = agvs[0].id, agvs[1].id
+    order = coordinator.create_order(sku=next(iter(wh_a.inventory)), quantity=1, origin=wh_a, destination=wh_b)
+    kpis = TrafficKPIs(coordinator).attach(env)
+    _script(
+        env,
+        [
+            (2.0, _wait_started(first)),
+            (14.5, _wait_ended(first, "rerouted")),
+            (14.5, _routed(first, "blocked")),
+            (15.0, _routed(second, "make_way")),
+            (16.0, _routed(second, "travel")),
+            (17.0, TrafficWaitStuck(agv=first, blockers=FrozenMap({second: "IDLE"}))),
+            (18.0, TrafficDeadlock(agvs=(first, second), victim=None, action="unresolved")),
+            (19.0, TrafficDeadlock(agvs=(first, second), victim=first, action="reroute")),
+            (19.0, _routed(first, "deadlock")),
+            (20.0, TrafficDeadlock(agvs=("outside-1", "outside-2"), victim=None, action="unresolved")),
+            (21.0, _wait_started("outside-1")),
+            (21.5, _wait_ended("outside-1")),
+            (22.0, _requeued(order.id)),
+        ],
+    )
+    env.run(until=30)
+    key = f"{coordinator.id}/"
+    assert kpis.scalars() == {
+        key + "blocked_time": 12.5,
+        key + "waits": 1.0,
+        key + "stuck_waits": 1.0,
+        key + "deadlocks_resolved": 1.0,
+        key + "deadlocks_unresolved": 1.0,
+        key + "reroutes": 2.0,
+        key + "make_way_moves": 1.0,
+        key + "requeued_orders": 1.0,
+    }
+
+
+def _blocked_time(warmup: float, until: float, steps: list[tuple[float, Any]]) -> float:
+    env = Environment()
+    env.configure_kpis(warmup=warmup)
+    coordinator, agvs, *_ = build_simple_system(env, n_agvs=1)
+    kpis = TrafficKPIs(coordinator).attach(env)
+    _script(env, [(at, event(agvs[0].id)) for at, event in steps])
+    env.run(until=until)
+    return kpis.scalars()[f"{coordinator.id}/blocked_time"]
+
+
+def test_traffic_kpis_clip_waits_to_the_window() -> None:
+    # A wait that straddles the warm-up counts only from the warm-up on.
+    assert _blocked_time(10.0, 30, [(4.0, _wait_started), (13.0, _wait_ended)]) == 3.0
+    # A wait that ends before the warm-up counts nothing.
+    assert _blocked_time(10.0, 30, [(1.0, _wait_started), (3.0, _wait_ended)]) == 0.0
+    # A wait still open at the end is clipped at the window end.
+    assert _blocked_time(0.0, 30, [(25.0, _wait_started)]) == 5.0
+    assert _blocked_time(10.0, 30, [(4.0, _wait_started)]) == 20.0
+
+
+def test_traffic_kpis_absent_with_free_flow() -> None:
+    env = Environment(seed=3)
+    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2)
+    kpis = TrafficKPIs(coordinator).attach(env)
+    order = coordinator.create_order(sku=next(iter(wh_a.inventory)), quantity=1, origin=wh_a, destination=wh_b)
+    coordinator.submit(order)
+    env.run(until=100)
+    assert order.delivered_at is not None
+    assert kpis.scalars() == {}
+
+
+def test_traffic_kpis_leave_the_digest_alone() -> None:
+    def digest(observed: bool) -> str | None:
+        env = Environment(seed=5)
+        env.enable_digest()
+        coordinator, agvs, *_ = build_simple_system(env, n_agvs=1)
+        if observed:
+            TrafficKPIs(coordinator).attach(env)
+        _script(env, [(1.0, _wait_started(agvs[0].id)), (2.0, _wait_ended(agvs[0].id))])
+        env.run(until=10)
+        return env.fingerprint().digest
+
+    assert digest(True) == digest(False)
