@@ -826,14 +826,18 @@ stay readable. Semantic digests of intralogistics runs change with this work.
     `max_directed_arcs` apply after splitting;
   - `network.zones`: a map of zone id to `{capacity, hold_back, members}`, where `members` is a list of the
     element addresses and selectors that overrides already accept. A member that matches nothing is a stale
-    diagnostic, like a stale override.
+    diagnostic, like a stale override. Members are matched against the network the overrides see, before
+    splitting; a matched edge then stands for all its pieces and the generated nodes between them, so a zone
+    covers the same stretch with and without `block_length`.
 - **Resolution.** `resolve_network` sets `Arc.passing`, leaves `Arc.length` unset (lanes are straight), and adds
   `ResolvedNetwork.zones` as concrete nodes and node pairs.
 - **Binding.** The built-in controller registers as the layout's resource owner as today and reads the graph,
   capacities and zones at bind. `_validate_fleet` accepts a controller with `controls_occupancy == False`
   without registration, requires the registered owner for `ReservationController`, and requires
   `register_resource_owner` for any other controller. It no longer compares classes.
-- **Bundle.** The trace's layout bundle carries the resolved zones and generated nodes. The TypeScript schema
+- **Bundle.** The trace's layout bundle carries the resolved zones and generated nodes. A bundle is 1.1 exactly when
+  its layers use a 1.1 field; a presentation re-resolution whose layers would change the bundle's version
+  requires a rerun. The TypeScript schema
   copy and its tests follow.
 - `build_simple_system` gains `traffic_controller=None`, `router=None` and `agv_length=None`, passed through.
 
