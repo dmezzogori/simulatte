@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+import math
 import os
 import subprocess
 import sys
@@ -23,7 +25,7 @@ from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import ReorderPointPolicy
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.warehouse import Warehouse
 
 SKU_A = SKU(id="SKU-A", weight=1.0, volume=0.1)
@@ -70,10 +72,11 @@ def _system(
     """A line OUT - C1 - C2 - IN with WH-A at OUT and WH-B at IN; AGVs start at C1, C2, ..."""
     nodes, graph = _line_graph()
     wh_a, wh_b = _warehouses(env, nodes)
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1 + i]) for i in range(n_agvs)]
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1) if resource_traffic else None
+    agv_type = dataclasses.replace(_agv_type(), length=1.0) if resource_traffic else _agv_type()
+    agvs = [AGV(env=env, agv_type=agv_type, initial_node=nodes[1 + i]) for i in range(n_agvs)]
+    traffic = ReservationController(graph=graph, env=env) if resource_traffic else None
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_manager=traffic
+        env=env, graph=graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_controller=traffic
     )
     return coordinator, agvs, wh_a, wh_b, nodes
 
@@ -249,8 +252,8 @@ def test_node_state_tracks_positions_and_reservations_during_a_run() -> None:
     orders = [coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b) for _ in range(3)]
     for order in orders:
         coordinator.submit(order)
-    traffic = coordinator._traffic_manager
-    assert isinstance(traffic, ResourceBasedTrafficManager)
+    traffic = coordinator.traffic_controller
+    assert isinstance(traffic, ReservationController)
 
     env.activate()
     assert env.initial_state["C1"]["reserved_by"] == ("agv-0",)
@@ -259,11 +262,10 @@ def test_node_state_tracks_positions_and_reservations_during_a_run() -> None:
         for node in nodes:
             fields = env.entities.bind_node(node).snapshot()
             assert fields["agvs"] == [agv.id for agv in agvs if agv.current_node == node]
-            requests = traffic._node_requests.items()
-            held = {agv.id for (agv, held_node), req in requests if held_node == node and req.triggered}
-            assert set(fields["reserved_by"]) <= held
+            held = {agv.id for agv in agvs if node in traffic._held.get(agv, {})}
+            assert set(fields["reserved_by"]) == held
             if quiescent:
-                assert set(fields["reserved_by"]) == held == set(fields["agvs"])
+                assert held == set(fields["agvs"])
 
     moved = 0
     while env.peek() < float("inf"):
@@ -279,7 +281,8 @@ def test_placement_bookkeeping_changes_no_entity_state() -> None:
     env = Environment()
     _system(env, n_agvs=2, resource_traffic=True)
     env.activate()
-    assert env.peek() == 0  # the grant events of place_now
+    assert env.peek() == math.inf  # placement schedules nothing
+    assert env.initial_state["C1"]["reserved_by"] == ("agv-0",)
     before = env.entities.snapshot()
     env.run(until=1)
     assert env.entities.snapshot() == before == dict(env.initial_state)
@@ -293,22 +296,22 @@ from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 
 names = ["n%02d" % i for i in (7, 3, 11, 0, 5, 9, 1, 12, 4, 8, 2, 10, 6)]
 nodes = [Node(id=name, x=float(i), y=0.0) for i, name in enumerate(names)]
 graph = LayoutGraph(nodes, [Arc(source=a, target=b) for a, b in zip(nodes, nodes[1:])])
 env = Environment(seed=1)
 agv_type = AGVType(name="t", speed_profile=TrapezoidalProfile(max_speed=1.0, acceleration=1.0, deceleration=1.0),
-                   battery_capacity=1.0, weight_capacity=1.0, volume_capacity=1.0)
+                   battery_capacity=1.0, weight_capacity=1.0, volume_capacity=1.0, length=0.5)
 first, second = AGV(env=env, agv_type=agv_type), AGV(env=env, agv_type=agv_type)
-traffic = ResourceBasedTrafficManager(graph=graph, env=env)
+traffic = ReservationController(graph=graph, env=env)
 FleetCoordinator(env=env, graph=graph, fleet=[first, second], warehouses=[], charging_stations=[],
-                 traffic_manager=traffic)
-traffic.register_intent(first, nodes)
-result = traffic.check_path(second, list(reversed(nodes)))
+                 traffic_controller=traffic)
+env.activate()
+claim = traffic.next_claim(second, list(reversed(nodes)), 0)
 print([n.id for n in graph.nodes])
-print([n.id for n in result.conflict_nodes])
+print([item.resource.id for item in claim.items])
 print([entity.id for entity in env.entities.live()])
 """
 
@@ -327,11 +330,13 @@ def test_graph_nodes_order_stable_across_hash_seeds() -> None:
         assert completed.returncode == 0, completed.stderr
         outputs.add(completed.stdout)
     assert len(outputs) == 1
-    graph_nodes, conflicts, live = outputs.pop().splitlines()
+    graph_nodes, claim, live = outputs.pop().splitlines()
     names = ["n07", "n03", "n11", "n00", "n05", "n09", "n01", "n12", "n04", "n08", "n02", "n10", "n06"]
     assert graph_nodes == repr(names)  # insertion order
-    assert conflicts == repr(list(reversed(names))[1:-1])  # path order of the checked path
-    assert live == repr(["agv-0", "agv-1", "fleet-0", *sorted(names)])  # nodes bound sorted by id
+    assert claim == repr(["n06~n10", "n10"])  # the first leg of the reversed line: its segment, then its end node
+    segments = sorted("~".join(sorted(pair)) for pair in zip(names, names[1:]))
+    # Nodes bound sorted by id, then the segment entities attached at activation in id order.
+    assert live == repr(["agv-0", "agv-1", "fleet-0", *sorted(names), *segments])
 
 
 # --- order retirement --------------------------------------------------------------------------------------

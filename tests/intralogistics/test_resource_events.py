@@ -14,14 +14,13 @@ field        site                                                               
 x, y         ``NodeBinding.__init__``; never changed                                      entity.created
 agvs         ``AGV.__init__`` at a bound node, ``current_node`` setter, ``_end_segment``  agv.placed, agv.move_ended
              (Task 15, ``test_fleet_events.py``)
-reserved_by  ``place_now`` -> ``_reserve``: initial placement (activation initializer)    traffic.reserved
-reserved_by  ``enter_node`` -> ``_reserve``: resumed after the grant                      traffic.reserved
-reserved_by  ``leave_node`` -> ``_unreserve``: a granted request is released               traffic.released
-reserved_by  ``cancel``: never; it withdraws waiting requests and releases at the          (none; it ends a pending
-             resource a grant that ``enter_node`` has not recorded                         wait: traffic.wait_ended)
+reserved_by  ``ReservationController.place``: initial placement (activation initializer)  traffic.reserved
+reserved_by  ``ReservationController`` grant of a claim (``_take``)                        traffic.reserved
+reserved_by  ``ReservationController.release`` / ``retain`` (``_drop``)                    traffic.released
 ===========  ===========================================================================  =========================
 
-``FreeTrafficManager`` reserves nothing: ``reserved_by`` stays empty and several AGVs share a node's ``agvs``.
+``FreeFlowController`` reserves nothing: ``reserved_by`` stays empty and several AGVs share a node's ``agvs``. The
+controller's own tests (``test_reservation.py``, ``test_deadlock.py``) cover segments and zones.
 
 ``warehouse`` state
 
@@ -64,13 +63,13 @@ parked  ``enter``: ``_agv_requests[agv] = req`` after the grant                 
 parked  ``leave``: ``_agv_requests.pop(agv)``                                            parking.left
 ======  ===============================================================================  ===========================
 
-Waits (no state): ``traffic.wait_started`` / ``traffic.wait_ended`` around the wait of ``enter_node`` (ended by the
-grant, ``cancel`` or an interrupt), the ``delay_until`` waits of ``FleetCoordinator._travel`` and the deadlock backoff
-of ``_enter_with_timeout``.
+Waits (no state): ``traffic.wait_started`` when a travel stops on a pending claim, ``traffic.wait_ended`` when the
+claim is granted, a reaction is staged or the request is withdrawn (``test_travel.py``, ``test_deadlock.py``).
 """
 
 from __future__ import annotations
 
+import dataclasses
 import random
 import runpy
 from importlib.util import find_spec
@@ -95,6 +94,7 @@ from simulatte.intralogistics.events import (
     TrafficReserved,
     TrafficWaitEnded,
     TrafficWaitStarted,
+    TrafficWaitStuck,
     WarehouseInventoryChanged,
     WarehouseSlotChanged,
 )
@@ -103,8 +103,9 @@ from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import ReorderPointPolicy
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeTrafficManager, PathCheckResult, ResourceBasedTrafficManager
+from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph
@@ -125,50 +126,56 @@ def _bound_line(env: Environment) -> tuple[list[Node], LayoutGraph]:
 # --- traffic -----------------------------------------------------------------------------------------------
 
 
+def _sized(length: float) -> AGVType:
+    return dataclasses.replace(_agv_type(), length=length)
+
+
 def test_node_capacity_two_reservations() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
     nodes, graph = _bound_line(env)
-    _, c1, c2, _ = nodes
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
-    a, b, c = (AGV(env=env, agv_type=_agv_type(), agv_id=name, initial_node=c2) for name in ("A", "B", "C"))
-    traffic.place_now(a, c1)
-    traffic.place_now(b, c1)  # capacity two: both hold C1
+    out, c1, _, _ = nodes
+    controller = ReservationController(env=env, graph=graph, node_capacity=2)
+    a, b = (AGV(env=env, agv_type=_sized(0.0), agv_id=name, initial_node=c1) for name in ("A", "B"))
+    c = AGV(env=env, agv_type=_sized(0.0), agv_id="C", initial_node=out)
+    fleet = FleetCoordinator(
+        env=env, graph=graph, fleet=[a, b, c], warehouses=[], charging_stations=[], traffic_controller=controller
+    )
+    env.activate()
     with pytest.raises(RuntimeError, match="fully reserved"):
-        traffic.place_now(c, c1)
-    assert env.entities.bind_node(c1).reserved_by == ["A", "B"]
+        controller.place(c, c1)  # capacity two: A and B hold C1
 
-    def enter_late() -> Any:
-        yield from traffic.enter_node(c, c1)
+    def travel(agv: AGV, goal: Node, delay: float) -> Any:
+        yield env.timeout(delay)
+        yield from fleet._executor.travel(agv, goal, loaded=False)
 
-    def leave_first() -> Any:
-        yield env.timeout(2.0)
-        traffic.leave_node(a, c1)
-        traffic.leave_node(a, c1)  # nothing left to release: no event
-
-    env.process(enter_late())
-    env.process(leave_first())
+    env.process(travel(c, c1, 0.0))
+    env.process(travel(a, nodes[2], 2.0))
     env.run()
 
     seen = [
-        (e.t, e.type_name, e.agv, getattr(e, "resources", None) or e.node, getattr(e, "reason", None))
+        (e.t, e.type_name, e.agv, getattr(e, "resources", None), getattr(e, "reason", None))
         for e in replay.of(*TRAFFIC)
     ]
     assert seen == [
         (0, "traffic.reserved", "A", ("C1",), None),
         (0, "traffic.reserved", "B", ("C1",), None),
-        (0, "traffic.wait_started", "C", "C1", "node_occupied"),
-        (2, "traffic.released", "A", ("C1",), None),
-        (2, "traffic.wait_ended", "C", "C1", "granted"),
-        (2, "traffic.reserved", "C", ("C1",), None),
+        (0, "traffic.reserved", "C", ("OUT",), None),
+        (0, "traffic.wait_started", "C", ("C1~OUT", "C1"), "occupied"),
+        (2, "traffic.reserved", "A", ("C1~C2", "C2"), None),
+        (2, "traffic.released", "A", ("C1",), None),  # extent 0: C1 goes as A leaves it
+        (2, "traffic.wait_ended", "C", None, "granted"),
+        (2, "traffic.reserved", "C", ("C1~OUT", "C1"), None),
+        (2, "traffic.released", "C", ("OUT",), None),
+        (6.5, "traffic.released", "A", ("C1~C2",), None),
+        (6.5, "traffic.released", "C", ("C1~OUT",), None),
     ]
-    reserved = replay.of(TrafficReserved)
-    assert [e.deltas.ops for e in reserved] == [
-        (("insert", "C1", "reserved_by", 0, "A"),),
-        (("insert", "C1", "reserved_by", 1, "B"),),
-        (("insert", "C1", "reserved_by", 1, "C"),),
+    reserved = [e for e in replay.of(TrafficReserved) if "C1" in e.resources]
+    assert [e.deltas.ops[-1] for e in reserved] == [
+        ("insert", "C1", "reserved_by", 0, "A"),
+        ("insert", "C1", "reserved_by", 1, "B"),
+        ("insert", "C1", "reserved_by", 1, "C"),
     ]
-    assert replay.of(TrafficReleased)[0].deltas.ops == (("remove", "C1", "reserved_by", "A"),)
     assert replay.state["C1"]["reserved_by"] == ("B", "C")
 
 
@@ -192,9 +199,9 @@ def test_free_traffic_multiple_agvs_on_node() -> None:
     )
     agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1]) for _ in range(3)]
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_manager=None
+        env=env, graph=graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_controller=None
     )
-    assert isinstance(coordinator._traffic_manager, FreeTrafficManager)
+    assert isinstance(coordinator.traffic_controller, FreeFlowController)
     shared: list[int] = []  # after each event: the most AGVs on one node (replay is subscribed first)
     env.bus.subscribe(
         lambda e: shared.append(
@@ -214,122 +221,16 @@ def test_free_traffic_multiple_agvs_on_node() -> None:
     assert replay.state["WH-B"]["inventory"]["SKU-A"] == 3.0
 
 
-def test_enter_wait_ended_by_cancel_and_by_interrupt() -> None:
-    env = Environment(debug=True)
-    replay = FullReplay(env)
-    nodes, graph = _bound_line(env)
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-    holder, cancelled, interrupted = (
-        AGV(env=env, agv_type=_agv_type(), agv_id=name, initial_node=nodes[0]) for name in ("H", "X", "Y")
-    )
-    traffic.place_now(holder, nodes[1])
-    env.process(traffic.enter_node(cancelled, nodes[1]))
-    waiting = env.process(traffic.enter_node(interrupted, nodes[1]))
-    env.run(until=1.0)
-    traffic.cancel(cancelled)
-    traffic.cancel(cancelled)  # no wait left open: nothing more
-    waiting.interrupt("deadlock_timeout")
-    env.run(until=2.0)
-
-    seen = [(e.t, e.type_name, e.agv, e.reason) for e in replay.of(TrafficWaitStarted, TrafficWaitEnded)]
-    assert seen == [
-        (0, "traffic.wait_started", "X", "node_occupied"),
-        (0, "traffic.wait_started", "Y", "node_occupied"),
-        (1, "traffic.wait_ended", "X", "cancelled"),
-        (1, "traffic.wait_ended", "Y", "interrupted"),
-    ]
-    assert traffic._waiting == {}
-    assert replay.state["C1"]["reserved_by"] == ("H",)
-
-
-def _fleet_on(env: Environment, graph: LayoutGraph, start: Node, origin: Node, destination: Node, **options: Any):
-    def warehouse(name: str, bay: Node, level: int) -> Warehouse:
-        return Warehouse(
-            env=env,
-            name=name,
-            input_bays=[bay],
-            output_bays=[bay],
-            n_slots=2,
-            products=[SKU_A],
-            initial_inventory={SKU_A: level},
-            pick_time=1.0,
-            put_time=1.0,
-        )
-
-    wh_a, wh_b = warehouse("WH-A", origin, 10), warehouse("WH-B", destination, 0)
-    agv = AGV(env=env, agv_type=_agv_type(), agv_id="T", initial_node=start)
-    coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=[agv], warehouses=[wh_a, wh_b], charging_stations=[], **options
-    )
-    order = coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b)
-    coordinator.submit(order)
-    return coordinator, order
-
-
-class _DelayingTraffic(FreeTrafficManager):
-    """Path checks: a conflict on the first path, a delay of 3 for the alternative, then a delay of 2."""
-
-    def __init__(self, env: Environment) -> None:
-        self.env = env
-        self.calls = 0
-
-    def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
-        self.calls += 1
-        now = self.env.now
-        return {
-            1: PathCheckResult(feasible=False, conflict_nodes=[path[1]]),
-            2: PathCheckResult(feasible=False, delay_until=now + 3.0),
-            3: PathCheckResult(feasible=False, delay_until=now + 2.0),
-        }.get(self.calls, PathCheckResult(feasible=True))
-
-
-def _diamond() -> tuple[dict[str, Node], LayoutGraph]:
-    nodes = {n.id: n for n in (Node("A", 0.0, 0.0), Node("M", 5.0, 1.0), Node("N", 5.0, -2.0), Node("B", 10.0, 0.0))}
-    a, m, n, b = nodes.values()
-    return nodes, LayoutGraph(nodes.values(), [Arc(a, m), Arc(m, b), Arc(a, n), Arc(n, b)])
-
-
-@pytest.mark.parametrize("interrupt", [False, True])
-def test_path_delay_waits(interrupt: bool) -> None:
-    env = Environment(debug=True)
-    replay = FullReplay(env)
-    nodes, graph = _diamond()
-    coordinator, order = _fleet_on(
-        env, graph, nodes["A"], nodes["A"], nodes["B"], traffic_manager=_DelayingTraffic(env)
-    )
-    if interrupt:
-        env.run(until=3.0)  # loaded at 2, waiting for the alternative path
-        coordinator._active_missions[order.id].interrupt("breakdown")
-    env.run()
-
-    seen = [(e.t, e.type_name, e.node, e.reason) for e in replay.of(TrafficWaitStarted, TrafficWaitEnded)]
-    if interrupt:
-        assert seen == [
-            (2, "traffic.wait_started", "N", "path_delay"),
-            (3, "traffic.wait_ended", "N", "interrupted"),
-            (6, "traffic.wait_started", "M", "path_delay"),
-            (8, "traffic.wait_ended", "M", "elapsed"),
-        ]
-        assert order.status is OrderStatus.COMPLETED
-    else:
-        # First the alternative's delay, then the delay of the same path checked again (spec §6.4 "reroute delays").
-        assert seen == [
-            (2, "traffic.wait_started", "N", "path_delay"),
-            (5, "traffic.wait_ended", "N", "elapsed"),
-            (5, "traffic.wait_started", "N", "path_delay"),
-            (7, "traffic.wait_ended", "N", "elapsed"),
-        ]
-        assert order.status is OrderStatus.COMPLETED
-
-
-def test_deadlock_wait_and_backoff() -> None:
+def test_a_blocked_travel_waits_and_reports_the_idle_blocker() -> None:
+    """A traveler blocked by an idle AGV waits (no failed order, spec §8.4), is reviewed once after 30 and reported
+    stuck; nothing else is scheduled, so the run ends."""
     env = Environment(debug=True)
     replay = FullReplay(env)
     start, choke, end = Node("START", 0.0, 0.0), Node("CHOKE", 5.0, 0.0), Node("END", 10.0, 0.0)
     graph = LayoutGraph([start, choke, end], [Arc(start, choke), Arc(choke, end)])
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1, deadlock_timeout=2.0)
-    blocker = AGV(env=env, agv_type=_agv_type(), agv_id="blocker", initial_node=choke)
-    traveler = AGV(env=env, agv_type=_agv_type(), agv_id="traveler", initial_node=start)
+    controller = ReservationController(env=env, graph=graph)
+    blocker = AGV(env=env, agv_type=_sized(1.0), agv_id="blocker", initial_node=choke)
+    traveler = AGV(env=env, agv_type=_sized(1.0), agv_id="traveler", initial_node=start)
     wh_a, wh_b = (
         Warehouse(
             env=env,
@@ -350,27 +251,18 @@ def test_deadlock_wait_and_backoff() -> None:
         fleet=[traveler, blocker],
         warehouses=[wh_a, wh_b],
         charging_stations=[],
-        traffic_manager=traffic,
+        traffic_controller=controller,
     )
     order = coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b)
     coordinator.submit(order)
-    env.run(until=100.0)
+    env.run()
 
-    assert order.status is OrderStatus.FAILED
+    assert env.now == 32.0
+    assert order.status is OrderStatus.IN_TRANSIT
     seen = [(e.t, e.type_name, e.agv, e.node, e.reason) for e in replay.of(TrafficWaitStarted, TrafficWaitEnded)]
-    wait, backoff = "node_occupied", "deadlock_backoff"
-    # Three attempts, each a 2.0 wait for CHOKE cancelled at the timeout, then a backoff of 2, 4 and 8.
-    expected: list[tuple[float, str, str, str, str]] = []
-    t = 2.0  # loaded at the origin bay: pick 1.0, load 1.0
-    for multiplier in (1, 2, 4):
-        expected += [
-            (t, "traffic.wait_started", "traveler", "CHOKE", wait),
-            (t + 2.0, "traffic.wait_ended", "traveler", "CHOKE", "cancelled"),
-            (t + 2.0, "traffic.wait_started", "traveler", "CHOKE", backoff),
-            (t + 2.0 + 2.0 * multiplier, "traffic.wait_ended", "traveler", "CHOKE", "elapsed"),
-        ]
-        t += 2.0 + 2.0 * multiplier
-    assert seen == expected
+    assert seen == [(2.0, "traffic.wait_started", "traveler", "CHOKE", "occupied")]  # loaded at 2: pick 1, load 1
+    (stuck,) = replay.of(TrafficWaitStuck)
+    assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (32.0, "traveler", {"blocker": "IDLE"})
     assert replay.state["CHOKE"]["reserved_by"] == ("blocker",)
     assert replay.state["START"]["reserved_by"] == ("traveler",)
 
@@ -690,6 +582,7 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
         critical_battery_threshold=0.1,
         load_time=2.0,
         unload_time=2.0,
+        length=1.0,
     )
     starts = [grid[1, 1], grid[0, 2], grid[1, 0], grid[2, 1]]
     agvs = [AGV(env=env, agv_type=agv_type, agv_id=f"V{k}", initial_node=node) for k, node in enumerate(starts)]
@@ -705,7 +598,7 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
     )
     plug = ChargingStation(env=env, name="PLUG", node=grid[1, 2], n_slots=1)
     area = ParkingArea(env=env, name="LOT", node=grid[1, 2], capacity=1)
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2, deadlock_timeout=6.0)
+    controller = ReservationController(env=env, graph=graph, node_capacity=2)
 
     def low_battery(agv: AGV) -> Any:
         return swap.swap(agv) if agv.agv_id in ("V0", "V2") else None  # the others recharge at PLUG
@@ -717,7 +610,7 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
         warehouses=[source, sink, buffer],
         charging_stations=[plug],
         parking_areas=[area],
-        traffic_manager=traffic,
+        traffic_controller=controller,
         on_low_battery=low_battery,
     )
     coordinator.add_replenishment_policy(ReorderPointPolicy({SKU_A: 3}, {SKU_A: 4}), source, check_interval=30.0)
@@ -825,27 +718,3 @@ def test_charging_interruption_replays_resource_cleanup(mode: str, phase: str) -
     assert replay.state["CS"]["slots_in_use"] == 0
     assert replay.state["CS"]["swap_pool"] == 1.0
     assert replay.state["W"]["battery"] == 500.0
-
-
-@pytest.mark.parametrize("granted", [False, True])
-def test_traffic_interruption_replays_without_false_reservation(granted: bool) -> None:
-    env = Environment(debug=True)
-    replay = FullReplay(env)
-    nodes, graph = _bound_line(env)
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, deadlock_timeout=None)
-    holder, waiter = (AGV(env=env, agv_type=_agv_type(), agv_id=name) for name in ("H", "W"))
-    if not granted:
-        traffic.place_now(holder, nodes[1])
-    env.run()
-
-    def attempt() -> Any:
-        with pytest.raises(simpy.Interrupt):
-            yield from traffic.enter_node(waiter, nodes[1])
-
-    process = env.process(attempt())
-    env.step()
-    process.interrupt("cancelled")
-    env.run()
-    assert replay.state["C1"]["reserved_by"] == (() if granted else ("H",))
-    assert all(event.agv != "W" for event in replay.of(TrafficReserved, TrafficReleased))
-    assert [event.reason for event in replay.of(TrafficWaitEnded)] == ([] if granted else ["interrupted"])

@@ -22,25 +22,37 @@ class TestImportSurface:
         assert Arc is not None
         assert LayoutGraph is not None
 
-    def test_pathfinding_exports(self) -> None:
-        from simulatte.intralogistics import AStarPlanner, DijkstraPlanner, PathPlanner
+    def test_routing_exports(self) -> None:
+        from simulatte.intralogistics import Route, Router, RouteRequest, ShortestDistanceRouter
 
-        assert PathPlanner is not None
-        assert DijkstraPlanner is not None
-        assert AStarPlanner is not None
+        assert Router is not None
+        assert Route is not None
+        assert RouteRequest is not None
+        assert ShortestDistanceRouter is not None
 
     def test_traffic_exports(self) -> None:
         from simulatte.intralogistics import (
-            FreeTrafficManager,
-            PathCheckResult,
-            ResourceBasedTrafficManager,
-            TrafficManager,
+            FreeFlowController,
+            GiveUp,
+            KeepWaiting,
+            Reroute,
+            ReservationController,
+            StandardTrafficPolicy,
+            StepAside,
+            TrafficController,
+            TrafficPolicy,
+            TrafficView,
+            Zone,
         )
 
-        assert PathCheckResult is not None
-        assert TrafficManager is not None
-        assert FreeTrafficManager is not None
-        assert ResourceBasedTrafficManager is not None
+        assert TrafficController is not None
+        assert TrafficView is not None
+        assert TrafficPolicy is not None
+        assert FreeFlowController is not None
+        assert ReservationController is not None
+        assert StandardTrafficPolicy is not None
+        assert (KeepWaiting, Reroute, StepAside, GiveUp) is not None
+        assert Zone is not None
 
     def test_sku_export(self) -> None:
         from simulatte.intralogistics import SKU
@@ -55,10 +67,11 @@ class TestImportSurface:
         assert AGVState is not None
 
     def test_speed_exports(self) -> None:
-        from simulatte.intralogistics import SpeedProfile, TrapezoidalProfile
+        from simulatte.intralogistics import Kinematics, SpeedProfile, TrapezoidalProfile
 
         assert SpeedProfile is not None
         assert TrapezoidalProfile is not None
+        assert Kinematics is not None
 
     def test_battery_export(self) -> None:
         from simulatte.intralogistics import Battery
@@ -309,6 +322,20 @@ class TestBuildSimpleSystemNames:
         assert order.status is OrderStatus.COMPLETED and order.assigned_agv is b[1][0]
 
 
+def test_builder_passes_traffic_controller_router_and_length_through(env: Environment) -> None:
+    from simulatte.intralogistics import FreeFlowController, ShortestDistanceRouter, build_simple_system
+
+    controller, router = FreeFlowController(), ShortestDistanceRouter("astar")
+    fleet, agvs, _, _, graph = build_simple_system(env, traffic_controller=controller, router=router, agv_length=1.5)
+    assert fleet.traffic_controller is controller and fleet.router is router
+    assert controller.view.graph is graph
+    assert all(agv.agv_type.length == 1.5 for agv in agvs)
+    default, defaults, _, _, _ = build_simple_system(Environment())
+    assert isinstance(default.traffic_controller, FreeFlowController)
+    assert isinstance(default.router, ShortestDistanceRouter) and default.router.algorithm == "dijkstra"
+    assert defaults[0].agv_type.length is None
+
+
 def test_no_layout_builder_digest_remains_compatible():
     from simulatte.intralogistics import build_simple_system
 
@@ -323,4 +350,4 @@ def test_no_layout_builder_digest_remains_compatible():
                 )
             )
         env.run(until=120)
-        assert env.fingerprint().digest == "59489157154dbab39c43f13cf618eb3f01f6504d08c04eac10162741342bf4ad"
+        assert env.fingerprint().digest == "7f761d74b0cbe8441e56de7b181fd7cc58c39900510eab9e6671e531256870ca"

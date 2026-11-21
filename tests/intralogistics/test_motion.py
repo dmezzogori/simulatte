@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import Any
 
@@ -14,7 +15,7 @@ from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, Ag
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.speed import LINEAR_MOTION, TrapezoidalProfile, describe_motion
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system, _warehouses
 from tests.intralogistics.test_fleet_events import FleetReplay
@@ -134,41 +135,45 @@ def test_move_events_carry_the_segment() -> None:
     assert agv.motion is None and replay.events > 10
 
 
-def test_move_started_after_enter_permission() -> None:
-    """With capacity-1 nodes, an AGV starts its segment only once the traffic manager admitted it to the next node."""
+def test_move_started_after_the_claim_is_granted() -> None:
+    """An AGV starts its segment only once it holds the claim of the next node; the blocker's tail frees C1 1 m into
+    its first segment."""
     env = Environment(debug=True)
     FleetReplay(env)
     nodes, graph = _line_graph()
     out, c1, c2, end = nodes
-    blocker, waiter = (AGV(env=env, agv_type=_agv_type(), initial_node=node) for node in (c1, out))
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
+    sized = dataclasses.replace(_agv_type(), length=1.0)
+    blocker, waiter = (AGV(env=env, agv_type=sized, initial_node=node) for node in (c1, out))
+    traffic = ReservationController(graph=graph, env=env)
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_manager=traffic
+        env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
     )
     started: list[tuple[float, str, str, str]] = []
 
     def on_started(event: AgvMoveStarted) -> None:
         agv = blocker if event.agv == blocker.id else waiter
         to_node = next(node for node in nodes if node.id == event.to_node)
-        assert traffic._node_requests[(agv, to_node)].triggered  # admitted before the segment starts
+        assert to_node in traffic._held[agv]  # granted before the segment starts
         started.append((event.t, event.agv, event.from_node, event.to_node))
 
     env.bus.subscribe(on_started, (AgvMoveStarted,))
     env.activate()
-    # The waiter plans first (no conflicting intents) and then waits for C1, which the blocker holds until it
-    # reaches C2.
-    env.process(coordinator._travel(waiter, out, c1, loaded=False))
-    env.process(coordinator._travel(blocker, c1, end, loaded=False))
+    # The waiter asks first and waits for C1, which the blocker holds until its tail has cleared it.
+    env.process(coordinator._executor.travel(waiter, c1, loaded=False))
+    env.process(coordinator._executor.travel(blocker, end, loaded=False))
     env.run()
 
-    assert started[0] == (0, blocker.id, "C1", "C2")
-    assert sorted(started[1:]) == [(4.5, blocker.id, "C2", "IN"), (4.5, waiter.id, "OUT", "C1")]  # C1 freed at 4.5
+    assert started == [
+        (0, blocker.id, "C1", "C2"),
+        (pytest.approx(math.sqrt(2.0)), waiter.id, "OUT", "C1"),  # 1 m at acceleration 1 from rest
+        (4.5, blocker.id, "C2", "IN"),
+    ]
     assert (waiter.current_node, blocker.current_node) == (c1, end)
 
 
 def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> None:
-    """The description is taken when the travel time is computed, before waiting for the traffic manager, so another
-    AGV using the same profile in between does not make the factor functions run again."""
+    """The description is taken when the travel time is computed, before waiting for a claim, so another AGV using
+    the same profile in between does not make the factor functions run again."""
     env = Environment(debug=True)
     calls = {"travel_time": 0, "factor": 0}
 
@@ -187,19 +192,20 @@ def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> Non
         battery_capacity=1000.0,
         weight_capacity=100.0,
         volume_capacity=10.0,
+        length=0.0,
     )
     nodes, graph = _line_graph()
     out, c1, _, end = nodes
     blocker, waiter = (AGV(env=env, agv_type=shared, initial_node=node) for node in (c1, out))
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
+    traffic = ReservationController(graph=graph, env=env)
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_manager=traffic
+        env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
     )
     started: list[AgvMoveStarted] = []
     env.bus.subscribe(started.append, (AgvMoveStarted,))
     env.activate()
-    env.process(coordinator._travel(waiter, out, c1, loaded=False))
-    env.process(coordinator._travel(blocker, c1, end, loaded=False))
+    env.process(coordinator._executor.travel(waiter, c1, loaded=False))
+    env.process(coordinator._executor.travel(blocker, end, loaded=False))
     env.run()
 
     assert len(started) == 3 and calls["factor"] == calls["travel_time"] == 3
@@ -207,7 +213,8 @@ def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> Non
 
 
 @pytest.mark.parametrize("cause", ["cancelled", "breakdown", None])
-def test_interrupted_move_keeps_previous_node(cause: str | None) -> None:
+def test_interrupted_move_ends_at_the_next_node(cause: str | None) -> None:
+    """An interrupt during a segment takes effect at its end node (spec §8.3)."""
     env = Environment(debug=True)
     replay = FleetReplay(env)
     coordinator, (agv,), wh_a, wh_b, nodes = _system(env)
@@ -222,12 +229,12 @@ def test_interrupted_move_keeps_previous_node(cause: str | None) -> None:
         coordinator.cancel(order)
     else:
         coordinator._active_missions[order.id].interrupt(cause)
-    env.run(until=2.0 + 1e-9)
+    env.run(until=4.5 + 1e-9)
 
     first = interrupted[0]
-    assert (first.t, first.agv, first.node, first.reason) == (2.0, agv.id, "C1", cause or "interrupted")
-    assert first.deltas.ops == (("set", agv.id, "motion", None),)
-    assert agv.current_node == nodes[1] and env.entities.bind_node(nodes[1]).agvs[0] == agv.id
+    assert (first.t, first.agv, first.node, first.reason) == (4.5, agv.id, "OUT", cause or "interrupted")
+    assert first.deltas.ops == ()  # agv.move_ended cleared the motion
+    assert agv.current_node == nodes[0] and env.entities.bind_node(nodes[0]).agvs[0] == agv.id
     env.run()
     if cause == "cancelled":
         assert order.status is OrderStatus.CANCELLED and agv.state is AGVState.IDLE

@@ -294,6 +294,8 @@ class Layout:
                 self._attaching_target = None
 
     def _register_manager(self, manager: Any) -> None:
+        """Register a built-in traffic controller (``ReservationController``) as the owner of the graph's resources;
+        it gets the resolved graph and capacities at binding (``_install_layout_graph``)."""
         self._coordinator._mutable()
         if self._resource_owner is not None and self._resource_owner is not manager:
             raise LayoutError("one shared resource owner is allowed per layout graph")
@@ -315,19 +317,22 @@ class Layout:
         self._resource_owner = owner
         self._custom_managers.append((manager, owner, binder))
 
-    def _validate_fleet(self, members: Sequence[Any], manager: Any) -> None:
-        from simulatte.intralogistics.traffic import FreeTrafficManager, ResourceBasedTrafficManager
+    def _validate_fleet(self, members: Sequence[Any], controller: Any) -> None:
+        """Check a fleet's members and traffic controller: a controller that does not control occupancy needs no
+        registration; ``ReservationController`` must be the registered resource owner of this environment; any
+        other controller must be registered with :meth:`register_resource_owner`."""
+        from simulatte.intralogistics.reservation import ReservationController
 
         for member in members:
             if getattr(member, "env", None) is not self.env or not self.env.entities.is_live(member):
                 raise LayoutError("fleet member must be live in the same environment")
-        if type(manager) is FreeTrafficManager:
+        if not controller.controls_occupancy:
             return
-        if type(manager) is ResourceBasedTrafficManager:
-            if manager._env is not self.env or manager is not self._resource_owner:
-                raise LayoutError("fleet must reuse the registered resource manager in its environment")
-        elif not any(item[0] is manager for item in self._custom_managers):
-            raise LayoutError("custom manager requires explicit resource owner and binder registration")
+        if isinstance(controller, ReservationController):
+            if controller._env is not self.env or controller is not self._resource_owner:
+                raise LayoutError("fleet must reuse the registered traffic controller in its environment")
+        elif not any(item[0] is controller for item in self._custom_managers):
+            raise LayoutError("custom traffic controller requires explicit resource owner and binder registration")
 
     def _validate(self, coordinator: PreparationCoordinator) -> ResolvedValues:
         check_existing_endpoints(self.env)

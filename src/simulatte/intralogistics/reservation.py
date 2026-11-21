@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from bisect import insort
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from simulatte._wire import FrozenMap, freeze
 from simulatte.events import Deltas
@@ -66,12 +66,6 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.traffic import Reaction, TrafficPolicy, WaitHooks
 
 __all__ = ["ReservationController", "SegmentBinding", "ZoneBinding"]
-
-
-class _MakesWay(Protocol):
-    """The coordinator's make-way move (spec §7.10)."""
-
-    def make_way(self, agv: AGV, target: Node | None, *, concerned: Sequence[AGV] = ()) -> bool: ...
 
 
 @dataclass(eq=False)
@@ -580,7 +574,7 @@ class ReservationController:
                 continue
             target = self._policy.make_way_target(agv, wait, view)
             concerned = (wait.agv, *(other for other in view.waiting_on(agv) if other is not wait.agv))
-            cast("_MakesWay", agv.fleet).make_way(agv, target, concerned=concerned)
+            agv.fleet.make_way(agv, target, concerned=concerned)
 
     def _react(self, waiting: _Pending, wait: Wait) -> KeepWaiting | None:
         """Try the reactions of ``on_blocked`` in order (spec §7.9): None when one was staged, otherwise the

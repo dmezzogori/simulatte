@@ -8,7 +8,8 @@ subclass. Inventory snapshots were recorded keyed by warehouse id and SKU id, as
 
 The historical example series and EMAs are compared exactly. The seeded simple systems include
 breakdowns and cancellations: their corrected outputs live in ``fleet_recovery_regression.json`` because
-#47/#49/#50/#51 intentionally change mission recovery. The original parity fixture remains unchanged.
+#47/#49/#50/#51 intentionally change mission recovery, and because an interrupt during an arc takes effect at the
+arc's end node since the travel executor (AGV traffic spec §8.3). The original parity fixture remains unchanged.
 
 The event mapping that reproduces the old callbacks:
 

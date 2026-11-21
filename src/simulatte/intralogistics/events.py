@@ -19,6 +19,7 @@ __all__ = [
     "AgvMoveInterrupted",
     "AgvMoveStarted",
     "AgvPlaced",
+    "AgvRouted",
     "AgvStateChanged",
     "AgvStranded",
     "ChargingEnded",
@@ -79,8 +80,8 @@ class OrderStatusChanged(DomainEvent):
     strategy changed it together with the status (``ReturnToOrigin`` clears it). `reason` names the transition:
     ``awaiting_activation``, ``no_idle_agv``, ``dispatched``, ``arrived_at_origin``, ``picked``,
     ``arrived_at_destination``, ``delivered``, ``interrupted`` (re-queued before pickup), ``cancelled``,
-    ``load_recovery`` (set by the load-recovery strategy), ``battery_stranded``, ``travel_failed``, ``cargo_dropped``
-    or ``retries_exhausted``.
+    ``load_recovery`` (set by the load-recovery strategy), ``battery_stranded``, ``travel_failed`` (the router found
+    no route), ``cargo_dropped`` or ``retries_exhausted``.
     """
 
     order: str
@@ -135,9 +136,26 @@ class AgvPlaced(DomainEvent):
     previous: str | None
 
 
+@event_type("agv.routed")
+class AgvRouted(DomainEvent):
+    """The AGV took the route `nodes` (node ids) from `origin` to `destination`, of router cost `cost` (spec §11.2).
+
+    `reason` is ``"travel"`` for a new travel, or for the route back to the goal after a step aside,
+    ``"blocked"`` or ``"deadlock"`` for a reroute the traffic controller staged, ``"step_aside"`` for a step aside,
+    and ``"make_way"`` or ``"clear_node"`` for the coordinator's moves of those purposes. It changes no state.
+    """
+
+    agv: str
+    origin: str
+    destination: str
+    nodes: tuple[str, ...]
+    cost: float
+    reason: str
+
+
 @event_type("agv.move_started", touches={"agv": ("motion",)})
 class AgvMoveStarted(DomainEvent):
-    """The AGV started a segment from `from_node` to `to_node` (spec §6.5), after the traffic manager let it in.
+    """The AGV started a segment from `from_node` to `to_node` (spec §6.5), holding the claim that covers it.
 
     `motion` is the speed profile's motion description; the AGV's ``motion`` state holds the active segment.
     `t_end` is ``+inf`` for a stalled segment (a non-finite travel time).
@@ -160,11 +178,14 @@ class AgvMoveEnded(DomainEvent):
     battery: float
 
 
-@event_type("agv.move_interrupted", touches={"agv": ("motion",)})
+@event_type("agv.move_interrupted")
 class AgvMoveInterrupted(DomainEvent):
-    """The mission was interrupted during a segment; the AGV stays at `node`, the node it left.
+    """The travel was interrupted and the AGV came to rest at `node` (spec §8.3).
 
-    `reason` is the interrupt cause when it is a string, otherwise ``"interrupted"``.
+    An interrupt received while the AGV waits for a claim takes effect at once, at the node where it waits; one
+    received during a segment takes effect at the segment's end node, after ``agv.move_ended``. `reason` is the
+    interrupt cause when it is a string, otherwise ``"interrupted"``. It changes no state: ``agv.move_ended`` already
+    cleared the motion.
     """
 
     agv: str
@@ -236,10 +257,8 @@ class TrafficReleased(DomainEvent):
 class TrafficWaitStarted(DomainEvent):
     """The AGV stopped to wait before entering `node`, the next node it means to enter (spec §11.2).
 
-    With ``ReservationController``, `resources` are the ids of the resources the waiting claim still needs,
-    `blockers` the ids of the AGVs that hold them (then of those whose earlier claims gate it) and `reason` is
-    ``"occupied"``. The old traffic manager and the coordinator's delays emit empty `resources` and `blockers` with
-    ``"node_occupied"``, ``"path_delay"`` or ``"deadlock_backoff"``. It changes no state.
+    `resources` are the ids of the resources the waiting claim still needs, `blockers` the ids of the AGVs that hold
+    them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. It changes no state.
     """
 
     agv: str
@@ -254,9 +273,8 @@ class TrafficWaitEnded(DomainEvent):
     """A wait announced by ``traffic.wait_started`` ended; `node` is the same node.
 
     `reason` is the outcome: ``"granted"`` (``traffic.reserved`` follows), ``"rerouted"``, ``"stepped_aside"`` or
-    ``"gave_up"`` (the controller staged that reaction), ``"interrupted"`` (the request was withdrawn or the waiting
-    process was interrupted); the old traffic manager also ends waits with ``"cancelled"`` and the coordinator's
-    delays with ``"elapsed"``. It changes no state.
+    ``"gave_up"`` (the controller staged that reaction) or ``"interrupted"`` (the request was withdrawn, for example
+    because the waiting travel was interrupted). It changes no state.
     """
 
     agv: str

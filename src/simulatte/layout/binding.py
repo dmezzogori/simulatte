@@ -76,7 +76,7 @@ def check_existing_endpoints(env: Environment) -> None:
 
 
 def bind_components(layout: Layout) -> None:
-    """Nodes, endpoints in attachment order, resources, then fleet graphs."""
+    """Nodes, endpoints in attachment order, the traffic controller's resources, then fleet graphs."""
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.charging import ChargingStation
     from simulatte.intralogistics.fleet import FleetCoordinator
@@ -109,10 +109,10 @@ def bind_components(layout: Layout) -> None:
         elif isinstance(entity, (ChargingStation, ParkingArea)) and entity._pending_node is not None:
             entity._node = layout._bind_node(entity._pending_node, entity.id, "node")
             entity._pending_node = None
-    for manager in layout._resource_managers:
-        manager._install_layout_graph(network)
+    for controller in layout._resource_managers:
+        controller._install_layout_graph(network)
         layout._coordinator.closure.bind(
-            "traffic:resources", {"graph": "network", "fallback_capacity": manager._node_capacity}
+            "traffic:resources", {"graph": "network", "fallback_capacity": controller._node_capacity}
         )
     for entity in env.entities.live():
         if isinstance(entity, FleetCoordinator):

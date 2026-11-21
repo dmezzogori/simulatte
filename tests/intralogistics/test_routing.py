@@ -148,6 +148,8 @@ class TestSearch:
         nodes, graph = grid()
         assert graph.shortest_path(nodes["A"], nodes["D"]) == [nodes["A"], nodes["B"], nodes["D"]]
         assert graph.shortest_path(nodes["A"], nodes["A"]) == [nodes["A"]]
+        island = Node("ISLAND", 99.0, 99.0)
+        assert LayoutGraph([nodes["A"], island], []).shortest_path(nodes["A"], island) is None
 
 
 def test_unknown_algorithm_is_rejected() -> None:

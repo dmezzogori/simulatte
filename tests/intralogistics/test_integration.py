@@ -6,11 +6,12 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
-from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.policies import ReorderPointPolicy
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.routing import ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeTrafficManager, ResourceBasedTrafficManager
+from simulatte.intralogistics.traffic import FreeFlowController, TrafficController
 from simulatte.intralogistics.warehouse import Warehouse
 
 
@@ -26,7 +27,7 @@ def _build_test_system(
     battery_capacity: float = 100.0,
     initial_inventory_a: int = 100,
     initial_inventory_b: int = 0,
-    traffic_manager: FreeTrafficManager | ResourceBasedTrafficManager | None = None,
+    traffic_controller: TrafficController | None = None,
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph, SKU, list[Node]]:
     """Build a reusable 5-node linear test system.
 
@@ -110,8 +111,8 @@ def _build_test_system(
 
     agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=node_b) for i in range(n_agvs)]
 
-    if traffic_manager is None:
-        traffic_manager = FreeTrafficManager()
+    if traffic_controller is None:
+        traffic_controller = FreeFlowController()
 
     coordinator = FleetCoordinator(
         env=env,
@@ -119,8 +120,8 @@ def _build_test_system(
         fleet=agvs,
         warehouses=[wh_a, wh_b],
         charging_stations=[charging_station],
-        traffic_manager=traffic_manager,
-        path_planner=DijkstraPlanner(),
+        traffic_controller=traffic_controller,
+        router=ShortestDistanceRouter(),
     )
 
     return coordinator, agvs, wh_a, wh_b, graph, sku, nodes
@@ -350,19 +351,16 @@ class TestOrderCancellation:
 
 
 # ===========================================================================
-# 6. Traffic with ResourceBasedTrafficManager
+# 6. Traffic with ReservationController
 # ===========================================================================
 
 
 class TestTrafficManagement:
-    """Two AGVs on a corridor with ResourceBasedTrafficManager.
+    """Two AGVs on a line with ``ReservationController`` and node capacity 2.
 
-    On a linear graph with no alternative routes, when both AGVs are
-    dispatched concurrently, the second AGV's path conflicts with the
-    first at the intent level.  Because ``check_path`` flags the overlap
-    and no alternative path exists, the second order fails.  The key
-    property under test is that no deadlock occurs — the simulation
-    terminates and at least one order completes.
+    Both are dispatched at once along the same line, travel together to the origin bay and on to the destination:
+    the simulation terminates and both orders complete. The vehicles have length 0, so at rest they hold only their
+    node; with a positive length both would still hold the segment they arrived on and could not turn back over it.
     """
 
     def test_no_deadlock(self, env: Environment) -> None:
@@ -413,7 +411,7 @@ class TestTrafficManagement:
             n_slots=2,
         )
 
-        traffic_mgr = ResourceBasedTrafficManager(
+        traffic = ReservationController(
             graph=graph,
             env=env,
             node_capacity=2,
@@ -432,6 +430,7 @@ class TestTrafficManagement:
             volume_capacity=10.0,
             load_time=1.0,
             unload_time=1.0,
+            length=0.0,
         )
 
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)
@@ -443,8 +442,8 @@ class TestTrafficManagement:
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_b],
             charging_stations=[charging_station],
-            traffic_manager=traffic_mgr,
-            path_planner=DijkstraPlanner(),
+            traffic_controller=traffic,
+            router=ShortestDistanceRouter(),
         )
 
         order1 = coordinator.create_order(
@@ -465,11 +464,8 @@ class TestTrafficManagement:
         # The simulation must terminate (no deadlock / infinite hang)
         env.run()
 
-        # First order completes; second order fails because it cannot
-        # find an alternative path around the intent conflict on the
-        # linear topology.
         assert order1.status == OrderStatus.COMPLETED
-        assert order2.status in {OrderStatus.COMPLETED, OrderStatus.FAILED}
+        assert order2.status == OrderStatus.COMPLETED
 
 
 # ===========================================================================
