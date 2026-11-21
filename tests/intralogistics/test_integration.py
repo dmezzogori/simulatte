@@ -356,11 +356,11 @@ class TestOrderCancellation:
 
 
 class TestTrafficManagement:
-    """Two AGVs on a line with ``ReservationController`` and node capacity 2.
+    """Two AGVs of length 1 on a line with ``ReservationController`` and node capacity 2.
 
     Both are dispatched at once along the same line, travel together to the origin bay and on to the destination:
-    the simulation terminates and both orders complete. The vehicles have length 0, so at rest they hold only their
-    node; with a positive length both would still hold the segment they arrived on and could not turn back over it.
+    the simulation terminates and both orders complete. Resting on a node of capacity 2 holds a vehicle wholly
+    (spec §6.6), so neither keeps the segment it arrived on and both can turn back over it.
     """
 
     def test_no_deadlock(self, env: Environment) -> None:
@@ -430,7 +430,7 @@ class TestTrafficManagement:
             volume_capacity=10.0,
             load_time=1.0,
             unload_time=1.0,
-            length=0.0,
+            length=1.0,
         )
 
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)

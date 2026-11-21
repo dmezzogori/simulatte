@@ -210,15 +210,22 @@ class TravelExecutor:
                 )
             )
 
-    def _end_segment(self, agv: AGV, node: Node) -> None:
-        """Move the AGV to `node` at the end of a segment, clear its motion and emit ``agv.move_ended``."""
+    def _end_segment(self, agv: AGV, node: Node, *, moved: bool = True) -> None:
+        """Move the AGV to `node` at the end of a segment, clear its motion and emit ``agv.move_ended``.
+
+        With `moved` false (a stalled segment stopped at its departure node `node`, spec §8.3) only the motion is
+        cleared: no relocation, and the battery is unchanged.
+        """
         agv._validate_node(node)
         agv.motion = None
-        left, entered = agv._relocate(node)
+        relocated = agv._relocate(node) if moved else None
         env = self.fleet.env
         if env.wants(AgvMoveEnded):
             battery = wire_float(agv.battery.level)
-            build = agv._node_deltas(node, left, entered).set(agv.id, "battery", battery).set(agv.id, "motion", None)
+            if relocated is None:
+                build = Deltas.build().set(agv.id, "motion", None)
+            else:
+                build = agv._node_deltas(node, *relocated).set(agv.id, "battery", battery).set(agv.id, "motion", None)
             env.emit(AgvMoveEnded(agv=agv.id, node=node.id, battery=battery, deltas=build.done()))
 
     def _interrupted(self, agv: AGV, cause: object) -> None:
@@ -420,7 +427,7 @@ class _Trip:
     def _settle(self) -> None:
         """Withdraw a pending request and keep only what the body overlaps."""
         request = self.request
-        if request is not None and self.occupancy:
+        if request is not None:
             self.controller.withdraw(request)
         self.request = None
         self._retain()
@@ -444,8 +451,35 @@ class _Trip:
         load_weight: float,
     ) -> ProcessGenerator:
         """Traverse the arc rest to rest, releasing each trail entry where the tail clears it."""
+        self.executor._start_segment(self.agv, current, next_node, travel_time, description, self.loaded)
+        if math.isfinite(travel_time):
+            yield from self._move(current, next_node, distance, travel_time, load_weight)
+        else:
+            yield from self._stall(current)
+
+    def _stall(self, current: Node) -> ProcessGenerator:
+        """A segment with an infinite travel time is never left (spec §8.3): nothing is released and no timer runs.
+
+        An interrupt takes effect at once at the departure node: ``agv.move_ended`` there clears the motion, the
+        claim ahead goes with ``retain``, then ``agv.move_interrupted`` and the interrupt is raised again.
+        """
+        executor, agv = self.executor, self.agv
+        try:
+            yield self.env.event()  # never triggered
+        except simpy.Interrupt as interrupt:
+            executor._end_segment(agv, current, moved=False)
+            self._retain()
+            executor._interrupted(agv, interrupt.cause)
+            raise
+
+    def _move(
+        self, current: Node, next_node: Node, distance: float, travel_time: float, load_weight: float
+    ) -> ProcessGenerator:
+        """The finite part of :meth:`_traverse`: timers, releases at their clear points, the arrival.
+
+        On arrival at a node of capacity above 1 the whole trail clears with the arrival releases (spec §6.6).
+        """
         executor, agv, env = self.executor, self.agv, self.env
-        executor._start_segment(agv, current, next_node, travel_time, description, self.loaded)
         arrival = env.timeout(travel_time)
         at_departure: list[Resource] = []
         inside: dict[float, list[Resource]] = {}
@@ -488,6 +522,8 @@ class _Trip:
         self.index += 1
         if trail is not None:
             trail.odometer += distance
+            if self.controller.view.capacity(next_node) > 1:  # room for whole vehicles: the body is all on it
+                at_arrival = list(trail.entries)
             self._release(trail, at_arrival)
 
     def _extent(self) -> float:
@@ -501,7 +537,7 @@ class _Trip:
         """The elapsed time at which the front has covered a distance into the arc: exact for kinematic profiles
         (spec §9.1), the arc's arrival for any other."""
         profile = self.agv.agv_type.speed_profile
-        if not isinstance(profile, KinematicProfile) or not math.isfinite(travel_time):
+        if not isinstance(profile, KinematicProfile):
             return lambda covered: travel_time
         limits = profile.limits(load_weight, self.agv.battery.level_pct)
         speed_limit = self.controller.view.speed_limit(current, next_node)

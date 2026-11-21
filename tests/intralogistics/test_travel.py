@@ -27,8 +27,10 @@ from simulatte.intralogistics.events import (
     OrderStatusChanged,
     TrafficDeadlock,
     TrafficReleased,
+    TrafficReserved,
     TrafficWaitEnded,
     TrafficWaitStarted,
+    TrafficWaitStuck,
 )
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
@@ -649,3 +651,186 @@ def test_initial_placement_goes_through_the_controller() -> None:
     w = world(line(3), {"A": "N0", "B": "N2"})
     assert w.held("A") == ["N0"] and w.held("B") == ["N2"]
     assert math.isclose(w.agvs["A"].battery.level, 1000.0)
+
+
+# --- fix round 1 ---------------------------------------------------------------------------------------------------
+
+
+def stalled() -> TrapezoidalProfile:
+    """A profile whose load factor is 0: every arc has an infinite travel time."""
+    return TrapezoidalProfile(2.0, 1.0, 1.0, load_speed_factor_fn=lambda weight: 0.0)
+
+
+def test_a_stalled_arc_is_never_left_and_an_interrupt_takes_effect_at_once() -> None:
+    graph_nodes = build(
+        [("K", -10, 0), ("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0)], [("K", "N0"), ("N0", "N1"), ("N1", "N2")]
+    )
+    w = world(graph_nodes, {"A": "N0", "B": "K"}, derive_corridors=False, hold_back_dead_ends=False)
+    a = w.agvs["A"]
+    a.agv_type = vehicle(profile=stalled())  # B keeps the moving type
+    process = w.go("A", "N2")
+    w.go("B", "N0", at=10.0)
+    w.interrupt(process, 5.0)
+    w.env.run(until=200.0)
+
+    assert w.caught == {"A": "cancelled"}
+    assert a.current_node == w.nodes["N0"] and a.motion is None and a.battery.level == 1000.0
+    assert w.held("A") == ["N0"]  # the claim ahead was dropped
+    released = w.of(TrafficReleased, agv="A")
+    assert [(e.t, e.resources) for e in released] == [(5.0, ("N0~N1", "N1"))]
+    tail = [
+        (e.type_name, e.t) for e in w.events if getattr(e, "agv", None) == "A" and e.type_name != "agv.state_changed"
+    ]
+    assert tail[-3:] == [("agv.move_ended", 5.0), ("traffic.released", 5.0), ("agv.move_interrupted", 5.0)]
+    (ended,) = w.of(AgvMoveEnded, agv="A")
+    assert ended.node == "N0" and ended.deltas.ops == (("set", "A", "motion", None),)
+    # B is not granted N0 while A stands there, and still is not: A never left.
+    assert w.agvs["B"].current_node == w.nodes["K"]
+    assert w.env.entities.node_binding(w.nodes["N0"]).agvs == ["A"]
+
+
+def test_a_stalled_arc_interrupted_under_free_flow() -> None:
+    w = world(line(3), {"A": "N0"}, reserve=False, agv_type=vehicle(profile=stalled()))
+    process = w.go("A", "N2")
+    w.interrupt(process, 5.0, "breakdown")
+    w.env.run()
+    assert w.env.now == 5.0  # no timer at infinity is left behind
+    assert w.caught == {"A": "breakdown"}
+    assert w.agvs["A"].current_node == w.nodes["N0"] and w.agvs["A"].motion is None
+    names = [(e.type_name, e.t) for e in w.events if e.type_name != "agv.state_changed"]
+    assert names == [
+        ("agv.routed", 0.0),
+        ("agv.move_started", 0.0),
+        ("agv.move_ended", 5.0),
+        ("agv.move_interrupted", 5.0),
+    ]
+
+
+def leaf_line() -> tuple[LayoutGraph, dict[str, Node]]:
+    """A leaf ``L`` of capacity 2 at the end of the line ``L, M, N``."""
+    return build([("L", 0, 0), ("M", 10, 0), ("N", 20, 0)], [("L", "M"), ("M", "N")])
+
+
+def assert_flowing(w: World) -> None:
+    assert not w.of(TrafficDeadlock) and not w.of(TrafficWaitStuck)
+    assert all(outcome is TravelOutcome.ARRIVED for outcome in w.outcomes.values())
+
+
+@pytest.mark.parametrize("length", [0.0, 1.0])
+def test_a_head_on_meeting_at_a_passing_place_completes_with_a_length(length: float) -> None:
+    """A from R to Z, B from Z to R, passing at P (capacity 2). Q and Y lead into dead ends, so each waits at the
+    entry for the whole rest of its route: the deadlock is resolved by stepping A aside to P, with a length as
+    without one. Before the trail cleared on P, A kept ``P~Q`` there and the second deadlock stood unresolved."""
+    graph_nodes = build(
+        [("R", 0, 0), ("Q", 10, 0), ("P", 20, 0), ("Y", 30, 0), ("Z", 40, 0)],
+        [("R", "Q"), ("Q", "P"), ("P", "Y"), ("Y", "Z")],
+    )
+    nodes = graph_nodes[1]
+    w = world(graph_nodes, {"A": "R", "B": "Z"}, agv_type=vehicle(length=length), capacities={nodes["P"]: 2})
+    w.go("A", "Z")
+    w.go("B", "R")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    assert [(e.victim, e.action) for e in w.of(TrafficDeadlock)] == [("A", "step_aside")]
+    assert not w.of(TrafficWaitStuck)
+
+
+def test_two_vehicles_at_a_multi_slot_leaf_one_sent_away() -> None:
+    graph_nodes = leaf_line()
+    w = world(graph_nodes, {"A": "M", "B": "N"}, agv_type=vehicle(length=1.0), capacities={graph_nodes[1]["L"]: 2})
+    w.go("A", "L")
+    w.go("B", "L", at=30.0)
+    w.env.run()
+    assert w.agvs["A"].current_node == w.agvs["B"].current_node == w.nodes["L"]
+    assert w.held("A") == ["L"] and w.held("B") == ["L"]  # resting on L holds the vehicles wholly
+    w.go("A", "N", at=100.0)
+    w.env.run()
+    assert w.agvs["A"].current_node == w.nodes["N"]
+    assert_flowing(w)
+
+
+def test_one_vehicle_enters_a_multi_slot_leaf_while_the_other_leaves() -> None:
+    graph_nodes = leaf_line()
+    w = world(graph_nodes, {"A": "M", "B": "N"}, agv_type=vehicle(length=1.0), capacities={graph_nodes[1]["L"]: 2})
+    w.go("A", "L")
+    w.env.run()
+    w.go("B", "L", at=50.0)
+    w.go("A", "N", at=50.0)
+    w.env.run()
+    assert (w.agvs["A"].current_node, w.agvs["B"].current_node) == (w.nodes["N"], w.nodes["L"])
+    assert_flowing(w)
+
+
+def test_arriving_at_a_single_slot_node_keeps_the_trail() -> None:
+    w = world(line(3), {"A": "N0"}, agv_type=vehicle(length=2.0), capacities={line(3)[1]["N0"]: 2})
+    w.go("A", "N1")
+    w.env.run()
+    assert w.held("A") == ["N0~N1", "N1"]  # N1 has capacity 1: the body still overlaps the segment
+
+
+def test_withdraw_is_called_without_occupancy_control() -> None:
+    calls: list[str] = []
+
+    class Deferring(FreeFlowController):
+        """Controls no occupancy but grants nothing at once."""
+
+        def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest:
+            return ClaimRequest(agv, claim, hooks, simpy.Event(agv.env))
+
+        def stopped(self, request: ClaimRequest) -> None:
+            calls.append("stopped")
+
+        def withdraw(self, request: ClaimRequest) -> None:
+            calls.append("withdraw")
+
+    w = world(line(2), {"A": "N0"}, reserve=False)
+    controller = Deferring()
+    controller.register_fleet(w.fleet)
+    w.fleet.traffic_controller = controller
+    process = w.go("A", "N1")
+    w.interrupt(process, 3.0)
+    w.env.run()
+    assert calls == ["stopped", "withdraw"]
+    assert w.caught == {"A": "cancelled"}
+
+
+def test_an_interrupt_at_the_instant_of_a_grant_drops_the_grant() -> None:
+    w = world(line(3), {"W": "N0", "H": "N1"})
+    process = w.go("W", "N2")
+    w.go("H", "N2", at=1.0)  # H leaves N1 at 1: W is granted N1 ...
+    w.interrupt(process, 1.0)  # ... and interrupted before its travel resumes
+    w.env.run()
+    assert w.caught == {"W": "cancelled"}
+    assert [(e.type_name, e.t, e.resources) for e in w.of(TrafficReserved, TrafficReleased, agv="W")][-2:] == [
+        ("traffic.reserved", 1.0, ("N0~N1", "N1")),
+        ("traffic.released", 1.0, ("N0~N1", "N1")),
+    ]
+    assert w.held("W") == ["N0"] and not w.controller._pending
+    (interrupted,) = w.of(AgvMoveInterrupted)
+    assert (interrupted.t, interrupted.node) == (1.0, "N0")
+
+
+def test_an_interrupt_during_a_multi_leg_claim_drops_the_legs_ahead() -> None:
+    w = world(t_layout(), {"A": "STORE_OUT"})
+    process = w.go("A", "LINE_IN")
+    w.interrupt(process, 3.0)
+    w.env.run()
+    (reserved,) = w.of(TrafficReserved, agv="A")  # the dead-end claim covers the whole route
+    assert reserved.resources == ("C1~STORE_OUT", "C1", "C1~C2", "C2", "C2~LINE_IN", "LINE_IN")
+    assert [e.resources for e in w.of(TrafficReleased, agv="A")][-1] == ("C1~C2", "C2", "C2~LINE_IN", "LINE_IN")
+    assert w.held("A") == ["C1"]
+
+
+def test_a_staged_reroute_of_a_deadlock_is_executed() -> None:
+    graph_nodes = build([("A0", 0, 0), ("A1", 10, 0), ("X", 5, 5)], [("A0", "A1"), ("A0", "X"), ("X", "A1")])
+    policy = Scripted()
+    w = world(graph_nodes, {"A": "A0", "B": "A1"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    policy.deadlock = ("A", Reroute(frozenset({w.controller.network.segment(w.nodes["A0"], w.nodes["A1"])})))
+    w.go("A", "A1")
+    w.go("B", "A0")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    assert [(e.reason, e.nodes) for e in w.of(AgvRouted, agv="A")] == [
+        ("travel", ("A0", "A1")),
+        ("deadlock", ("A0", "X", "A1")),
+    ]

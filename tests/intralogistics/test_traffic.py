@@ -106,11 +106,73 @@ class TestFreeFlowController:
         assert view.admissible(agv, Claim((), 1)) is True
         assert view.mean_hold(n0) == 0.0
 
-    def test_view_graph_is_the_registered_fleets_and_the_first_wins(self) -> None:
+    def test_view_graph_is_the_registered_fleets_and_fleets_on_it_share(self) -> None:
         controller, _, _, _ = self._controller()
         graph = controller.view.graph
-        controller.register_fleet(SimpleNamespace(graph=line(2)[0]))  # type: ignore[arg-type]
+        controller.register_fleet(SimpleNamespace(graph=graph))  # type: ignore[arg-type]
         assert controller.view.graph is graph
+
+    def test_a_fleet_on_another_graph_is_refused(self) -> None:
+        controller, _, _, _ = self._controller()
+        graph = controller.view.graph
+        with pytest.raises(ValueError, match="each graph needs its own FreeFlowController"):
+            controller.register_fleet(SimpleNamespace(graph=line(2)[0]))  # type: ignore[arg-type]
+        assert controller.view.graph is graph
+
+    def test_two_built_systems_cannot_share_one_controller(self) -> None:
+        from simulatte.intralogistics import build_simple_system
+
+        env = Environment()
+        controller = FreeFlowController()
+        build_simple_system(env, prefix="a.", traffic_controller=controller)
+        with pytest.raises(ValueError, match="each graph needs its own FreeFlowController"):
+            build_simple_system(env, prefix="b.", traffic_controller=controller)
+
+    def test_two_fleets_on_one_graph_share_one_controller(self) -> None:
+        from simulatte.intralogistics.fleet import FleetCoordinator
+
+        graph, nodes = line(3)
+        env = Environment()
+        controller = FreeFlowController()
+        fleets = [
+            FleetCoordinator(
+                env=env,
+                graph=graph,
+                fleet=[_make_agv(env, nodes[start])],
+                warehouses=[],
+                charging_stations=[],
+                traffic_controller=controller,
+            )
+            for start in ("N0", "N2")
+        ]
+        processes = [
+            env.process(fleet._executor.travel(fleet.fleet[0], nodes[goal], loaded=False))
+            for fleet, goal in zip(fleets, ("N1", "N1"))
+        ]
+        env.run()
+        assert all(process.value.name == "ARRIVED" for process in processes)
+
+    def test_a_layout_fleet_registers_with_its_pending_graph(self) -> None:
+        from simulatte import Layout
+        from simulatte.intralogistics.fleet import FleetCoordinator
+        from simulatte.layout import Explicit
+
+        env = Environment()
+        layout = Layout(env)
+        layout.set_network(Explicit(line(2)[0]))
+        controller = FreeFlowController()
+        for name in ("a", "b"):  # both graphs are still references to the layout's graph: one graph
+            FleetCoordinator(
+                env=env,
+                graph=layout.graph(),
+                fleet=[],
+                warehouses=[],
+                charging_stations=[],
+                traffic_controller=controller,
+                name=name,
+            )
+        layout.prepare()
+        assert controller.view.graph is layout.prepare().network.graph
 
     def test_view_graph_requires_a_fleet(self) -> None:
         with pytest.raises(RuntimeError):

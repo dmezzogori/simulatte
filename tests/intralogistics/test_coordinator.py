@@ -10,7 +10,7 @@ from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.events import AgvRouted, TrafficWaitStuck
+from simulatte.intralogistics.events import AgvRouted, ChargingStarted, OrderStatusChanged, TrafficWaitStuck
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import RouteRequest
 from simulatte.intralogistics.traffic import TrafficView
@@ -1977,6 +1977,90 @@ class TestCriticalBatteryInterruption:
         assert order.status == OrderStatus.COMPLETED
         assert charger.total_recharges == 1
         assert agv.current_node == node_d
+
+
+class TestCriticalBatteryAtTheGoal:
+    """A critical battery found on arrival at the goal does not end the travel early (spec §8.2, §8.3): the travel
+    arrives and the energy check before the next arc decides. Battery 100, critical at 5, 1 per metre."""
+
+    @staticmethod
+    def _run(
+        env: Environment, sku: SKU, xs: dict[str, float], arcs: str, *, origin: str, destination: str, charger: str
+    ) -> tuple[AGV, TransferOrder, ChargingStation, list[str]]:
+        """Nodes at the given x, joined by the pairs of `arcs`; the AGV starts at ``S`` with 7 units left."""
+        nodes = {name: Node(id=name, x=x, y=0.0) for name, x in xs.items()}
+        graph = LayoutGraph(nodes.values(), [Arc(nodes[pair[0]], nodes[pair[1]]) for pair in arcs.split()])
+        wh_o, wh_d = (
+            Warehouse(
+                env=env,
+                name=name,
+                input_bays=[nodes[node]],
+                output_bays=[nodes[node]],
+                n_slots=1,
+                products=[sku],
+                initial_inventory={sku: level},
+                pick_time=1.0,
+                put_time=1.0,
+            )
+            for name, node, level in (("WH-O", origin, 100), ("WH-D", destination, 0))
+        )
+        station = ChargingStation(env=env, name="CS", node=nodes[charger], n_slots=1)
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0),
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=nodes["S"])
+        agv.battery.level = 7.0
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv], warehouses=[wh_o, wh_d], charging_stations=[station]
+        )
+        log: list[str] = []
+        env.bus.subscribe(
+            lambda e: log.append(e.reason if isinstance(e, OrderStatusChanged) else e.type_name),
+            (ChargingStarted, OrderStatusChanged),
+        )
+        order = coordinator.create_order(sku=sku, quantity=1, origin=wh_o, destination=wh_d)
+        coordinator.submit(order)
+        env.run()
+        return agv, order, station, log
+
+    def test_critical_at_the_origin_bay_picks_first_and_charges_on_the_way(self, env: Environment, sku_a: SKU) -> None:
+        # 2 left at O: critical. The loaded arc O -> D needs 5: the energy check diverts to the charger at O.
+        agv, order, station, log = self._run(
+            env, sku_a, {"S": 0.0, "O": 5.0, "D": 10.0}, "SO OD", origin="O", destination="D", charger="O"
+        )
+        assert order.status is OrderStatus.COMPLETED and agv.current_node is not None and agv.current_node.id == "D"
+        assert log.index("picked") < log.index("charging.started")  # before the executor it charged first
+        assert station.total_recharges == 1
+
+    def test_critical_at_the_destination_delivers_then_charges(self, env: Environment, sku_a: SKU) -> None:
+        # The AGV starts on the origin bay; 2 left at D: critical, it delivers and then charges (battery low).
+        agv, order, station, log = self._run(
+            env, sku_a, {"S": 0.0, "D": 5.0}, "SD", origin="S", destination="D", charger="D"
+        )
+        assert order.status is OrderStatus.COMPLETED
+        assert log[-2:] == ["delivered", "charging.started"]
+        assert station.total_recharges == 1
+
+    def test_a_charging_diversion_arriving_critical_charges_and_completes(self, env: Environment, sku_a: SKU) -> None:
+        """S to O (10) costs more than the 7 left; the charger at X (5) is reachable and the AGV arrives there with 2.
+        Before the executor the diversion ended there without charging and the AGV was stranded."""
+        agv, order, station, log = self._run(
+            env,
+            sku_a,
+            {"X": -5.0, "S": 0.0, "O": 10.0, "D": 15.0},
+            "XS SO OD",
+            origin="O",
+            destination="D",
+            charger="X",
+        )
+        assert order.status is OrderStatus.COMPLETED
+        assert station.total_recharges == 1
+        assert agv.state is AGVState.IDLE and agv.current_node is not None and agv.current_node.id == "D"
 
 
 class TestChargingHookSignature:
