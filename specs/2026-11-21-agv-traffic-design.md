@@ -324,8 +324,10 @@ rules extend it:
 - **Corridors (T5).** If the next leg enters a corridor from one of its ports, the claim for the leg into that
   port also contains the corridor with the orientation of travel. When the route starts at the port, the first
   leg carries it. A leg inside a corridor that the AGV already holds with a different orientation, or with none,
-  contains the corridor with the leg's orientation; this is the one case in which a held resource is claimed
-  again.
+  contains the corridor with the leg's orientation. Likewise a leg over a segment the AGV still holds in the
+  other direction (it reverses while its body is on the segment) contains the segment with the new direction.
+  These are the two cases in which a held resource is claimed again; a grant then changes the recorded
+  direction.
 - **Zones with `hold_back`.** The claim for the leg before the first leg that takes a member also contains the
   zone.
 
@@ -422,7 +424,7 @@ class TrafficPolicy(Protocol):
 ```
 
 `Wait` holds the AGV, its claim, the start time, the blockers (each with its disposition and the resources it
-blocks), the number of reviews, and the fields of `WaitHooks`. `loaded` means cargo on board
+blocks), the number of reviews, the priority read when the request was made, and the fields of `WaitHooks`. `loaded` means cargo on board
 (`agv.current_load`), not the `loaded` argument of the travel: a charging diversion travels unloaded in name
 while carrying cargo. `resolutions` counts the reactions staged for the AGV since it last arrived at the goal it
 is travelling to. Reactions are frozen values:
@@ -439,10 +441,10 @@ is travelling to. Reactions are frozen values:
 The controller tries the returned reactions in order. `on_blocked` is called when a wait starts and at each
 review. The policy never moves anything itself.
 
-**Reviews (T23).** A review is due `review_after` after the later of the previous review and the last change of
-traffic state (any grant or release). If no change happened since the previous review, no timer is scheduled:
-the wait sleeps until the next change and the delay starts then. A network in which nothing moves therefore
-schedules nothing.
+**Reviews (T23).** The first review of a wait is scheduled `review_after` after the wait opens. After a review,
+the next is due `review_after` later if a grant or release happened anywhere since the previous review;
+otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. A
+network in which nothing moves therefore schedules at most one review per wait.
 
 **Stuck waits.** When a review ends in `KeepWaiting` and every blocker of the wait is idle, stranded or stalled,
 the controller emits `traffic.wait_stuck` and logs a warning, once per wait. It is a report, not a deadlock.
@@ -668,7 +670,8 @@ class Router(Protocol):
 
 `TrafficView` is read-only: `graph`, `length(u, v)`, `speed_limit(u, v)`, `capacity(node)`,
 `resources(u, v)` (what a leg needs), `holders(resource)`, `pending(resource)` (count of pending claims that name
-it), `disposition(agv)`, `route_of(agv)`, `admissible(agv, claim)` and `mean_hold(resource)`. With
+it), `disposition(agv)`, `route_of(agv)`, `waiting_on(agv)` (the AGVs whose waits a resource held by `agv`
+blocks), `admissible(agv, claim)` and `mean_hold(resource)`. With
 `FreeFlowController` the dynamic members report an empty network. A space-time router can later be built on the
 same request and a view extended with reservation times; nothing here depends on that.
 
