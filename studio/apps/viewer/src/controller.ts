@@ -1,3 +1,4 @@
+import { layoutLabel } from "./layout-label";
 import { inspectValue, clearInspection } from "./value-inspector";
 import { createDockview, themeLight, type DockviewApi } from "dockview";
 import uPlot from "uplot";
@@ -339,7 +340,7 @@ export class Controller {
       this.timeline.step = "any";
       this.onInfo?.(
         name,
-        `${recording.trace.level} trace · ${recording.trace.outcome ?? "incomplete"} · ${recording.trace.layout?.schema_version === "1.0" ? "recorded layout" : "viewer fallback layout"}${recording.trace.level === "kpi" ? " · KPI-only: no entity animation or event stepping" : ""}`,
+        `${recording.trace.level} trace · ${recording.trace.outcome ?? "incomplete"} · ${layoutLabel(recording.trace.layout)}${recording.trace.level === "kpi" ? " · KPI-only: no entity animation or event stepping" : ""}`,
       );
       await this.charts();
       this.#after = undefined;

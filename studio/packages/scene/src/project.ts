@@ -1,5 +1,5 @@
 import type { PreparedFrame } from "@simulatte/playback";
-import type { State } from "@simulatte/trace";
+import { isKnownLayoutVersion, type State } from "@simulatte/trace";
 import { motionProgress } from "./motion";
 export interface Point {
   x: number;
@@ -62,7 +62,7 @@ export class Projector {
       );
   }
   project(frame: PreparedFrame): Projection {
-    const layout = ["1.0", "1.1"].includes(String(frame.layout?.schema_version)) ? frame.layout : null;
+    const layout = isKnownLayoutVersion(frame.layout?.schema_version) ? frame.layout : null;
     const placements = object(object(layout?.["resolved"])["placements"]);
     const nodes = new Map<string, Point>();
     for (const [id, fields] of Object.entries(frame.state)) {

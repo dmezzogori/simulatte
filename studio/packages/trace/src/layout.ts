@@ -3,7 +3,9 @@ import { validateLayoutDefinition, validateLayoutPatch } from "./layout-schema";
 import type { Wire } from "./wire";
 
 export type LayoutBundle = Readonly<Record<string, Wire>> & { readonly schema_version: string };
-const VERSIONS = ["1.0", "1.1"];
+const VERSIONS: readonly string[] = ["1.0", "1.1"];
+/** True for the layout schema versions this reader validates and the viewer draws from the recorded bundle. */
+export const isKnownLayoutVersion = (version: unknown): boolean => typeof version === "string" && VERSIONS.includes(version);
 const FIELDS = "schema_version algorithms stages topology targets layers dependencies resolved network aliases bindings diagnostics auto leaves required_paths full_hash physical_hash layers_hash".split(" ");
 type Map = Readonly<Record<string, Wire>>;
 function map(value: unknown): Map {
@@ -27,7 +29,7 @@ function finite(value: Wire): void {
 export function layoutOf(value: unknown): LayoutBundle {
   const data = map(value);
   const version = string(data["schema_version"]);
-  if (!VERSIONS.includes(version)) return data as LayoutBundle;
+  if (!isKnownLayoutVersion(version)) return data as LayoutBundle;
   if (Object.keys(data).length !== FIELDS.length || FIELDS.some((key) => !(key in data))) throw new TypeError("layout-v1 has missing or unknown fields");
   const algorithms = map(data["algorithms"]);
   if (Object.keys(algorithms).length !== 3 || algorithms["auto"] !== "layered-v1" || algorithms["network"] !== "network-v1" || algorithms["hash"] !== "layout-hash-v1") throw new TypeError("unsupported layout algorithm");
@@ -35,13 +37,13 @@ export function layoutOf(value: unknown): LayoutBundle {
   for (const name of ["stages", "topology", "targets", "layers", "dependencies", "resolved", "auto", "bindings"]) map(data[name]);
   for (const name of ["aliases", "diagnostics", "leaves", "required_paths"]) array(data[name]);
   const layers = map(data["layers"]);
-  if (!VERSIONS.includes(string(map(layers["file"])["schema_version"]))) throw new TypeError("invalid saved file layer");
+  if (!isKnownLayoutVersion(map(layers["file"])["schema_version"])) throw new TypeError("invalid saved file layer");
   const code = array(layers["code"]);
   for (const item of code) {
     const pair = array(item);
     if (pair.length !== 2) throw new TypeError("invalid saved code layer");
     string(pair[0]);
-    if (!VERSIONS.includes(string(map(pair[1])["schema_version"]))) throw new TypeError("invalid saved code patch");
+    if (!isKnownLayoutVersion(map(pair[1])["schema_version"])) throw new TypeError("invalid saved code patch");
   }
   Object.values(map(data["targets"])).forEach((value) => target(value, true));
   const closure = map(data["dependencies"]);
