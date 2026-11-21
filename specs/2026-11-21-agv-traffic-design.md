@@ -334,18 +334,14 @@ rules extend it:
   next leg enters, the claim also covers every following leg down to the route's final node. A route that enters
   a branch ends inside it, because routers return simple paths. When the route starts at the root or inside the
   branch and goes deeper, the claim covers all remaining legs. Legs that leave a branch are claimed one at a
-  time. A root of capacity above 1 is a place to wait without blocking the way out: the leg into such a root is
-  claimed on its own, and the claim of the next leg, which starts at the root, covers the branch.
+  time.
 - **Corridors (T5).** If the next leg enters a corridor from one of its ports, the claim for the leg into that
   port also contains the corridor with the orientation of travel. When the route starts at the port, the first
   leg carries it. A leg inside a corridor that the AGV already holds with a different orientation, or with none,
   contains the corridor with the leg's orientation. Likewise a leg over a segment the AGV still holds in the
   other direction (it reverses while its body is on the segment) contains the segment with the new direction.
   These are the two cases in which a held resource is claimed again; a grant then changes the recorded
-  direction. A port of capacity above 1 is likewise a place to wait: the leg into such a port does not carry
-  the corridor, and the first leg inside does, as when a route starts at the port. Without this exception a
-  passing place defined by capacity is never used for passing: two vehicles that meet head-on each stop one
-  node before it.
+  direction.
 - **Zones with `hold_back`.** The claim for the leg before the first leg that takes a member also contains the
   zone.
 
@@ -501,7 +497,8 @@ branch (§6.5) is not taken unless it is the node of a parking area: an idle AGV
 that must hold back for the branch, and the node where they hold back is often its only way out. Members of a
 branch stay valid targets, since on a layout made of dead ends a leaf is the natural place to rest. A
 candidate is not taken when a segment, zone or corridor of the last leg of its route is named by a pending
-claim. And a node the AGV has already made way from since its last mission is not taken (§7.10).
+claim. And a node the AGV has already made way from in the current chain of make-way moves is not taken
+(§7.10).
 
 `StandardTrafficPolicy(reroute_after=30.0, max_detour=1.5, max_resolutions=8)`:
 
@@ -531,8 +528,9 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   sleeping wait has no review left to report it. `make_way` refuses a target the fleet's router cannot
   reach, and an AGV whose make-way move ended on the node it started from is not asked again at the same
   instant, so a move that fails at once cannot repeat without time passing. An AGV does not make way to a node
-  it has already made way from since it last started a mission, which bounds a chain of make-way moves by the
-  number of nodes.
+  it has already made way from in the same chain of moves, which bounds a chain by the number of nodes. The
+  chain ends, and the memory is cleared, when the AGV starts a mission or becomes idle on a node where it blocks
+  no wait.
 - **Service nodes (T12).** A service node is a bay of one of the fleet's warehouses or the node of one of its
   charging stations. `FleetCoordinator(clear_service_nodes=True)`: when the controller controls occupancy, an AGV
   that would become idle on a service node, and for which the repositioning policy returned no target, first
@@ -984,6 +982,13 @@ parts A and B; each PR states why they changed.
   limits make this more likely on small layouts without parking: make-way is not transitive (an idle blocker
   whose only free neighbours are held by other idle AGVs stays), and the step-aside search excludes nodes ahead
   on the routes of the waits concerned even where a retreat exists.
+- **Passing places defined by capacity.** The hold-back rules of §7.2 treat a port or a root of capacity above 1
+  like any other: a vehicle that cannot enter the corridor or branch behind it waits one node before it. Two
+  vehicles that meet head-on at such a node therefore deadlock and one steps aside, where they could have
+  passed each other on the node. Letting a vehicle wait on the node itself is unsafe as a plain rule: with one
+  slot taken by a resting AGV, the waiting vehicle takes the slot the oncoming one needs, and neither moves. A
+  sound rule admits the waiting vehicle only while a slot remains for each oncoming one; it is not part of this
+  release. Authoring `passing` segments, or a siding, gives a passing place that works today.
 - **Look-ahead holds resources.** A fast AGV reserves its braking distance, which lowers density. This is the
   intended physical meaning, and `lookahead_margin` tunes it.
 - **Heuristic router.** `CongestionAwareRouter` can choose worse routes than `FastestRouter` in some states. It
