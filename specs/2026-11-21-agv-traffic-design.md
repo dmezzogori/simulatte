@@ -417,9 +417,14 @@ belongs to that larger remainder is marked yielding, which removes its gate unti
 is rescanned. This produces no policy call and no event. Only `D`, computed without gates, goes to the policy.
 
 When `D` is not empty the controller asks the policy for attempts (§7.9) and stages the first that succeeds,
-then emits `traffic.deadlock` with the members, the victim and the action. If none succeeds it emits
-`traffic.deadlock` with action `unresolved` and logs an error, once per distinct set, and the members keep
-waiting (T11). Any later release rescans as usual.
+then emits `traffic.deadlock` with the members, the victim and the action. Removing one member does not always
+break the deadlock (the victim may have been waiting behind a cycle it is not part of), so after the staged
+attempt and the rescan the reduction runs again, and the resolution repeats for the new `D`, with one
+`traffic.deadlock` per victim, until `D` is empty or no attempt succeeds. Each round removes one member from
+`W`, so the rounds are bounded by its size. If no attempt succeeds it emits `traffic.deadlock` with action
+`unresolved` and logs an error, once per distinct set, and the members keep waiting (T11). Any later release
+rescans as usual. The AGV whose stop started the detection gets its `on_blocked` call (§7.9) when its wait is
+still open and it is not a member of a set left unresolved.
 
 ### 7.9 Policy
 
@@ -450,8 +455,11 @@ review. The policy never moves anything itself.
 
 **Reviews (T23).** The first review of a wait is scheduled `review_after` after the wait opens. After a review,
 the next is due `review_after` later if a grant or release happened anywhere since the previous review;
-otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. A
-network in which nothing moves therefore schedules at most one review per wait.
+otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. The
+grant or release that wakes a sleeping wait is consumed by the wake-up: the review it schedules is followed by
+another only if something changed after the wake-up, so one change gives one review. A network in which nothing
+moves therefore schedules at most one review per wait. A wait that ends takes its review timer with it: the
+timer is removed from the event queue (`Environment.unschedule`), so it neither fires nor advances the clock.
 
 **Stuck waits.** When a review ends in `KeepWaiting` and every blocker of the wait is idle, stranded or stalled,
 the controller emits `traffic.wait_stuck` and logs a warning, once per wait. It is a report, not a deadlock.
