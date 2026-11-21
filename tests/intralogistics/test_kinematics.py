@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, arc_profile, rest_to_rest
+from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, arc_profile, plan_run, rest_to_rest
 from simulatte.intralogistics.speed import TrapezoidalProfile
 
 KIN = Kinematics(v_max=1.5, accel=0.8, decel=0.8)
@@ -165,3 +165,135 @@ def test_exit_speed_reachable_up_to_rounding() -> None:
     arc = arc_profile(v_in, v_out, 1.5, 0.5, KIN)
     assert arc.position(arc.duration) == pytest.approx(0.5, abs=1e-9)
     assert all(duration >= 0.0 for duration, _ in arc.phases)
+
+
+def _covered(arc: ArcProfile) -> float:
+    """The distance the phases cover, integrated independently of `position`."""
+    v, covered = arc.v_in, 0.0
+    for duration, accel in arc.phases:
+        assert duration >= 0.0
+        covered += v * duration + 0.5 * accel * duration * duration
+        v += accel * duration
+        assert v >= -1e-9
+    return covered
+
+
+@pytest.mark.parametrize("factor", [1 + 0.4e-12, 1 - 0.4e-12])
+def test_exit_speed_at_the_edge_of_feasibility_covers_the_length(factor: float) -> None:
+    v_in, length = 0.3, 0.5
+    reach = (v_in**2 + 2 * 0.8 * length) ** 0.5
+    arc = arc_profile(v_in, reach * factor, 1.5, length, KIN)
+    assert _covered(arc) == pytest.approx(length, abs=1e-9)
+    stop = arc_profile(1.0, 0.0, 1.5, 1.0**2 / (2 * 0.8) * (1 - 0.9e-12), KIN)
+    assert _covered(stop) == pytest.approx(stop.length, abs=1e-9)
+
+
+def _check_run(v0: float, lengths: list[float], run: tuple[ArcProfile, ...]) -> None:
+    assert len(run) == len(lengths)
+    speed = v0
+    for arc, length in zip(run, lengths, strict=True):
+        assert arc.length == length
+        assert arc.position(arc.duration) == pytest.approx(length, abs=1e-9)
+        assert _covered(arc) == pytest.approx(length, abs=1e-9)
+        assert arc.v_in == pytest.approx(speed, abs=1e-9)
+        speed = arc.v_out
+    assert speed == pytest.approx(0.0, abs=1e-9)
+
+
+def test_single_arc_equals_rest_to_rest() -> None:
+    (arc,) = plan_run(0.0, [10.0], [1.5], [0.0, 0.0], KIN)
+    assert arc == rest_to_rest(10.0, 1.5, KIN)
+
+
+def test_split_line_has_the_same_duration() -> None:
+    run = plan_run(0.0, [5.0, 5.0], [1.5, 1.5], [0.0, 1.5, 0.0], KIN)
+    _check_run(0.0, [5.0, 5.0], run)
+    assert [arc.duration for arc in run] == [pytest.approx(4.270833333333333, rel=1e-12)] * 2
+    assert sum(arc.duration for arc in run) == pytest.approx(8.541666666666666, rel=1e-12)
+    assert rest_to_rest(10.0, 1.5, KIN).duration == pytest.approx(8.541666666666666, rel=1e-12)
+    many = plan_run(0.0, [1.0] * 10, [1.5] * 10, [0.0] + [1.5] * 9 + [0.0], KIN)
+    _check_run(0.0, [1.0] * 10, many)
+    assert sum(arc.duration for arc in many) == pytest.approx(8.541666666666666, abs=1e-12)
+
+
+def test_speed_limit_change() -> None:
+    run = plan_run(0.0, [10.0, 10.0], [1.5, 0.5], [0.0, 1.5, 0.0], KIN)
+    _check_run(0.0, [10.0, 10.0], run)
+    assert run[0].duration == pytest.approx(8.020833333333334, rel=1e-12)
+    assert run[1].duration == pytest.approx(20.3125, rel=1e-12)
+    assert run[0].v_out == pytest.approx(0.5)
+    assert run[1].v_in == pytest.approx(0.5)
+
+
+def test_short_arc_is_triangular() -> None:
+    (arc,) = plan_run(0.0, [1.0], [1.5], [0.0, 0.0], KIN)
+    assert arc.duration == pytest.approx(2 * 0.8**0.5 / 0.8)
+    assert len(arc.phases) == 2
+
+
+def test_entering_at_speed() -> None:
+    (arc,) = plan_run(1.5, [5.0], [1.5], [1.5, 0.0], KIN)
+    assert [duration for duration, _ in arc.phases] == [
+        pytest.approx(2.3958333333333335, rel=1e-12),
+        pytest.approx(1.875, rel=1e-12),
+    ]
+    assert arc.phases[0][1] == 0.0
+
+
+def test_node_cap_limits_the_pass_speed() -> None:
+    run = plan_run(0.0, [10.0, 10.0], [1.5, 1.5], [0.0, 0.5, 0.0], KIN)
+    _check_run(0.0, [10.0, 10.0], run)
+    assert run[0].v_out == pytest.approx(0.5)
+    assert run[1].v_in == pytest.approx(0.5)
+
+
+def test_cannot_stop_in_the_horizon_raises() -> None:
+    with pytest.raises(ValueError, match=r"short by 0\.40"):
+        plan_run(1.5, [1.0], [1.5], [1.5, 0.0], KIN)
+
+
+def test_zero_length_arc_inside_a_run() -> None:
+    run = plan_run(0.0, [5.0, 0.0, 5.0], [1.5] * 3, [0.0, 1.5, 1.5, 0.0], KIN)
+    _check_run(0.0, [5.0, 0.0, 5.0], run)
+    assert run[1].phases == ()
+    assert run[1].duration == 0.0
+    assert run[1].v_in == run[1].v_out
+    assert sum(arc.duration for arc in run) == pytest.approx(8.541666666666666, rel=1e-12)
+
+
+def test_zero_length_run_at_rest() -> None:
+    run = plan_run(0.0, [0.0, 0.0], [1.5, 1.5], [0.0, 0.0, 0.0], KIN)
+    assert [arc.phases for arc in run] == [(), ()]
+
+
+def test_empty_run() -> None:
+    assert plan_run(0.0, [], [], [0.0], KIN) == ()
+    with pytest.raises(ValueError, match="empty"):
+        plan_run(0.5, [], [], [0.0], KIN)
+
+
+def test_last_node_cap_must_be_zero() -> None:
+    with pytest.raises(ValueError, match="last node"):
+        plan_run(0.0, [10.0], [1.5], [0.0, 0.5], KIN)
+
+
+@pytest.mark.parametrize(
+    ("v0", "lengths", "arc_caps", "node_caps"),
+    [
+        (0.0, [1.0, 1.0], [1.5], [0.0, 1.0, 0.0]),
+        (0.0, [1.0], [1.5], [0.0]),
+        (0.0, [-1.0], [1.5], [0.0, 0.0]),
+        (0.0, [1.0], [-1.5], [0.0, 0.0]),
+        (0.0, [1.0, 1.0], [1.5, 1.5], [0.0, -1.0, 0.0]),
+        (-0.1, [1.0], [1.5], [0.0, 0.0]),
+    ],
+)
+def test_invalid_inputs_raise(v0: float, lengths: list[float], arc_caps: list[float], node_caps: list[float]) -> None:
+    with pytest.raises(ValueError):
+        plan_run(v0, lengths, arc_caps, node_caps, KIN)
+
+
+def test_exit_speed_beyond_the_rounding_slack_raises() -> None:
+    reach = (0.3**2 + 2 * 0.8 * 0.5) ** 0.5
+    with pytest.raises(ValueError, match="cannot"):
+        arc_profile(0.3, reach * (1 + 1e-9), 1.5, 0.5, KIN)

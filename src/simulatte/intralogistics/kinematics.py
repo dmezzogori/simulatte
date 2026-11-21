@@ -6,12 +6,13 @@ This module is pure: it imports nothing from the simulation.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 Phase = tuple[float, float]
 """A phase of an arc profile: ``(duration, acceleration)``."""
 
-_FEASIBILITY_SLACK = 1e-9
+_FEASIBILITY_SLACK = 1e-12
 """Relative slack on the speed reachability checks, so exit speeds computed by a planner survive rounding."""
 
 
@@ -137,3 +138,40 @@ def arc_profile(v_in: float, v_out: float, cap: float, length: float, kin: Kinem
 def rest_to_rest(length: float, cap: float, kin: Kinematics) -> ArcProfile:
     """The profile of an arc entered and left at rest."""
     return arc_profile(0.0, 0.0, cap, length, kin)
+
+
+def plan_run(
+    v0: float, lengths: Sequence[float], arc_caps: Sequence[float], node_caps: Sequence[float], kin: Kinematics
+) -> tuple[ArcProfile, ...]:
+    """The profiles of a run of arcs that starts at speed `v0` and ends at rest at the last node (spec §9.2).
+
+    `lengths` and `arc_caps` hold one entry per arc; `node_caps` has one more, for the nodes from the current one to
+    the horizon. ``node_caps[0]`` is ignored in favour of `v0` and ``node_caps[-1]`` must be 0. The arc caps are folded
+    into the node caps, a backward pass with the deceleration bounds each node speed by what lets the AGV stop at the
+    horizon, a forward pass with the acceleration bounds it by what the AGV can reach, and `arc_profile` gives each arc.
+    Raises `ValueError` on inconsistent or negative inputs and when `v0` is too high to stop within the horizon.
+    """
+    count = len(lengths)
+    if len(arc_caps) != count or len(node_caps) != count + 1:
+        raise ValueError("a run needs one arc cap per arc and one node cap per node")
+    if node_caps[-1] != 0:
+        raise ValueError(f"the cap of the last node must be 0, not {node_caps[-1]}")
+    if v0 < 0 or any(value < 0 for value in (*lengths, *arc_caps, *node_caps)):
+        raise ValueError("lengths, caps and the entry speed must not be negative")
+    if count == 0:
+        if v0 != 0:
+            raise ValueError(f"an empty run cannot stop from the speed {v0}")
+        return ()
+    accel, decel = kin.accel, kin.decel
+    caps = [v0] + [min(node_caps[j], arc_caps[j - 1], arc_caps[j]) for j in range(1, count)] + [0.0]
+    backward = caps[:]
+    for j in range(count - 1, 0, -1):
+        backward[j] = min(caps[j], math.sqrt(backward[j + 1] ** 2 + 2 * decel * lengths[j]))
+    reach_squared = backward[1] ** 2 + 2 * decel * lengths[0]
+    if v0 * v0 > reach_squared * (1 + _FEASIBILITY_SLACK):
+        short = (v0 * v0 - reach_squared) / (2 * decel) if decel > 0 else math.inf
+        raise ValueError(f"the speed {v0} cannot stop within the horizon, which is short by {short:.6g}")
+    forward = [v0]
+    for j in range(count):
+        forward.append(min(backward[j + 1], math.sqrt(forward[j] ** 2 + 2 * accel * lengths[j])))
+    return tuple(arc_profile(forward[j], forward[j + 1], arc_caps[j], lengths[j], kin) for j in range(count))
