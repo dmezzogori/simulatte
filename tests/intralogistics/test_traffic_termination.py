@@ -375,6 +375,40 @@ def test_a_loaded_agv_stuck_behind_an_idle_one_that_cannot_move_leaves_one_stuck
     assert order.status is OrderStatus.IN_TRANSIT
 
 
+def diamond() -> tuple[LayoutGraph, dict[str, Node]]:
+    """Two parallel chains ``J, a1, b1, K`` and ``J, a2, b2, K`` between the bays ``s`` (off ``J``) and ``t`` (off
+    ``K``)."""
+    return build(
+        [("s", -10, 0), ("J", 0, 0), ("a1", 10, 10), ("b1", 20, 10), ("a2", 10, -10), ("b2", 20, -10)]
+        + [("K", 30, 0), ("t", 40, 0)],
+        [("s", "J"), ("J", "a1"), ("a1", "b1"), ("b1", "K"), ("J", "a2"), ("a2", "b2"), ("b2", "K"), ("K", "t")],
+    )
+
+
+@pytest.mark.parametrize("corridors", [False, True], ids=["plain", "corridors"])
+def test_a_travel_between_standing_blockers_is_rerouted_at_most_max_resolutions_times(corridors: bool) -> None:
+    """spec §7.9: stranded AGVs on b1 and b2; the loaded AGV is rerouted between the two chains until its resolutions
+    reach the bound, then waits, reported stuck once, and the run returns."""
+    m = mission_world(
+        diamond(),
+        {"X": "s", "S1": "b1", "S2": "b2"},
+        bays={"A": "s", "B": "t"},
+        agv_type=vehicle(battery=1e7),
+        controller_options={"derive_corridors": corridors},
+    )
+    for name in ("S1", "S2"):
+        m.fleet._transition_agv(m.agvs[name], AGVState.STRANDED)
+    order = m.order("A", "B", at=1.0)
+    m.env.run()
+    rerouted = [reason for reason, _, _ in m.routed("X") if reason == "blocked"]
+    assert len(rerouted) == StandardTrafficPolicy().max_resolutions
+    (stuck,) = m.events(TrafficWaitStuck)
+    assert (stuck.agv, dict(stuck.blockers)) == ("X", {"S1": "STRANDED"})
+    assert m.agvs["X"].current_node == m.nodes["a1"]
+    assert order.status is OrderStatus.IN_TRANSIT
+    assert m.env.peek() == float("inf")
+
+
 def test_no_retry_timer_while_a_serviceable_order_waits_and_dispatch_resumes_when_an_agv_is_idle() -> None:
     m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     first, second = m.order("WH-S", "WH-D"), m.order("WH-S", "WH-D")

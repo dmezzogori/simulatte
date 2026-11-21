@@ -945,6 +945,22 @@ class TestStandardTrafficPolicy:
             KeepWaiting(None),
         )
 
+    @pytest.mark.parametrize("resolutions", [7, 8, 9])
+    def test_reroutes_are_offered_only_below_the_resolution_bound(self, w: World, resolutions: int) -> None:
+        policy = StandardTrafficPolicy()
+        view = w.controller.view
+        stranded = Blocker(w.agvs["B"], Disposition.STRANDED, (w.nodes["N1"],))
+        moving = Blocker(w.agvs["C"], Disposition.MOVING, (w.nodes["N2"],))
+        keep = KeepWaiting(30.0)
+        below = resolutions < policy.max_resolutions
+        assert policy.on_blocked(a_wait(w.agvs["A"], stranded, resolutions=resolutions), view) == (
+            (Reroute(frozenset({w.nodes["N1"]})), keep) if below else (keep,)
+        )
+        assert policy.on_blocked(a_wait(w.agvs["A"], moving, reviews=2, resolutions=resolutions), view) == (
+            (Reroute(frozenset({w.nodes["N2"]}), 1.5), keep) if below else (keep,)
+        )
+        assert policy.on_blocked(a_wait(w.agvs["A"], moving, resolutions=resolutions), view) == (keep,)
+
     def test_deadlock_order_and_the_resolution_bound(self, w: World) -> None:
         policy = StandardTrafficPolicy(max_resolutions=2)
         a, b, c, d, e = (w.agvs[name] for name in "ABCDE")

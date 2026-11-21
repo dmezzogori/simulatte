@@ -26,7 +26,9 @@ class StandardTrafficPolicy:
 
     ``on_blocked``: with a stranded blocker, reroute around its resources at once; on the first call otherwise keep
     waiting; at a review, reroute around every blocked resource when the detour costs at most `max_detour` times the
-    remaining route. Every sequence ends with ``KeepWaiting(reroute_after)``.
+    remaining route. A reroute is offered only while the wait's resolutions are below `max_resolutions`, so a travel
+    between standing blockers is not rerouted back and forth without end. Every sequence ends with
+    ``KeepWaiting(reroute_after)``.
 
     ``on_deadlock``: members by priority (lowest first), unloaded before loaded, latest wait first, then id. First
     ``GiveUp`` for each unloaded member whose resolutions reached `max_resolutions`, then ``Reroute`` around what
@@ -44,6 +46,8 @@ class StandardTrafficPolicy:
 
     def on_blocked(self, wait: Wait, view: TrafficView) -> Sequence[Reaction]:
         keep = KeepWaiting(self.reroute_after)
+        if wait.resolutions >= self.max_resolutions:
+            return (keep,)
         stranded = [blocker for blocker in wait.blockers if blocker.disposition is Disposition.STRANDED]
         if stranded:
             return (Reroute(_avoid(stranded)), keep)
