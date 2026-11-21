@@ -372,7 +372,9 @@ exceptions. A zone or corridor held ahead of entry under a hold-back rule stays;
 corridor named by the AGV's pending claim stays, because the pending claim was built on holding it; for the same
 reason the resources of a pending claim that the AGV already holds are determined when the claim is granted, not
 when it is requested. A corridor that the AGV left onto one of its ports stays for as long as the AGV holds that
-port, and is released in the same event as the port. T8: the controller never takes a granted resource
+port, and is released in the same event as the port. Only a `release` at a clear point counts as leaving: when
+`retain` drops the last members (a travel that ends before entering), the corridor goes with them. The executor
+therefore releases what clears on arrival before it calls `retain` at the end of a travel. T8: the controller never takes a granted resource
 back. Every release emits one `traffic.released` and triggers a scan.
 
 ### 7.6 `FreeFlowController`
