@@ -106,9 +106,15 @@ class TrafficNetwork:
     ) -> None:
         explicit = dict(capacities or {})
         facilities = dict(facility_capacities or {})
-        for value in (node_capacity, *explicit.values(), *facilities.values()):
-            if value < 1:
-                raise ValueError(f"a node capacity must be at least 1, got {value}")
+        if node_capacity < 1:
+            raise ValueError(f"a node capacity must be at least 1, got {node_capacity}")
+        known = set(graph.nodes)
+        for name, mapping in (("capacities", explicit), ("facility_capacities", facilities)):
+            for node, value in mapping.items():
+                if node not in known:
+                    raise ValueError(f"{name}: node {node.id!r} is not in the graph")
+                if value < 1:
+                    raise ValueError(f"{name}: the capacity of node {node.id!r} must be at least 1, got {value}")
         self.graph = graph
         self._hold_back_dead_ends = hold_back_dead_ends
         nodes = graph.nodes
@@ -253,6 +259,8 @@ class TrafficNetwork:
                 raise ValueError(f"duplicate zone id {zone.id!r}")
             if zone.id in corridor_ids:
                 raise ValueError(f"zone id {zone.id!r} equals the id of a derived corridor")
+            if zone.capacity < 1:
+                raise ValueError(f"zone {zone.id!r}: capacity must be at least 1, got {zone.capacity}")
             ids.add(zone.id)
             for member in zone.members:
                 if isinstance(member, Node):

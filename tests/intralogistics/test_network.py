@@ -74,6 +74,18 @@ class TestCapacity:
         with pytest.raises(ValueError, match="capacity"):
             TrafficNetwork(graph, **{which: kwargs[which]})  # ty: ignore[invalid-argument-type]
 
+    @pytest.mark.parametrize("which", ["capacities", "facility_capacities"])
+    def test_value_below_one_names_the_node(self, which: str) -> None:
+        graph, nodes = line(3)
+        with pytest.raises(ValueError, match="N1"):
+            TrafficNetwork(graph, **{which: {nodes["N1"]: 0}})  # ty: ignore[invalid-argument-type]
+
+    @pytest.mark.parametrize("which", ["capacities", "facility_capacities"])
+    def test_node_outside_the_graph_raises(self, which: str) -> None:
+        graph, _ = line(3)
+        with pytest.raises(ValueError, match="typo"):
+            TrafficNetwork(graph, **{which: {Node("typo", 0, 0): 2}})  # ty: ignore[invalid-argument-type]
+
 
 class TestSegments:
     def test_two_way_arc_gives_one_segment(self) -> None:
@@ -455,6 +467,12 @@ class TestZoneValidation:
         graph, nodes = line(3)
         with pytest.raises(ValueError, match="adjacent"):
             TrafficNetwork(graph, zones=[Zone("z", ((nodes["N0"], nodes["N2"]),))])
+
+    @pytest.mark.parametrize("capacity", [0, -1])
+    def test_zone_capacity_below_one_raises(self, capacity: int) -> None:
+        graph, nodes = line(3)
+        with pytest.raises(ValueError, match="'z'"):
+            TrafficNetwork(graph, zones=[Zone("z", (nodes["N0"],), capacity=capacity)])
 
     def test_duplicate_zone_ids_raise(self) -> None:
         graph, nodes = line(3)
