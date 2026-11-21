@@ -6,10 +6,14 @@
 :class:`FleetTimeSeries`; the examples run as they are, with :class:`FleetTimeSeries` replaced by a recording
 subclass. Inventory snapshots were recorded keyed by warehouse id and SKU id, as the new series keys them.
 
-The historical example series and EMAs are compared exactly. The seeded simple systems include
-breakdowns and cancellations: their corrected outputs live in ``fleet_recovery_regression.json`` because
-#47/#49/#50/#51 intentionally change mission recovery, and because an interrupt during an arc takes effect at the
-arc's end node since the travel executor (AGV traffic spec §8.3). The original parity fixture remains unchanged.
+The historical example series and EMAs are compared exactly. The ``advanced`` entry was re-recorded when the
+coordinator began to take parking slots (AGV traffic part A, Task 9): its AGVs now fill the 3-slot parking area, so
+repositioning to a full area no longer happens; with slot-taking disabled the previous values are reproduced exactly.
+
+The seeded simple systems include breakdowns and cancellations: their corrected outputs live in
+``fleet_recovery_regression.json`` because #47/#49/#50/#51 intentionally change mission recovery, and because an
+interrupt during an arc takes effect at the arc's end node since the travel executor (AGV traffic spec §8.3). The
+other entries of the original parity fixture remain unchanged.
 
 The event mapping that reproduces the old callbacks:
 

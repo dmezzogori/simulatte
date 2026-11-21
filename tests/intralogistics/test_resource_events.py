@@ -109,7 +109,7 @@ from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph
-from tests.intralogistics.traffic_support import FullReplay
+from tests.intralogistics.traffic_support import FullReplay, StillFleet
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 
@@ -138,7 +138,7 @@ def test_node_capacity_two_reservations() -> None:
     controller = ReservationController(env=env, graph=graph, node_capacity=2)
     a, b = (AGV(env=env, agv_type=_sized(0.0), agv_id=name, initial_node=c1) for name in ("A", "B"))
     c = AGV(env=env, agv_type=_sized(0.0), agv_id="C", initial_node=out)
-    fleet = FleetCoordinator(
+    fleet = StillFleet(
         env=env, graph=graph, fleet=[a, b, c], warehouses=[], charging_stations=[], traffic_controller=controller
     )
     env.activate()

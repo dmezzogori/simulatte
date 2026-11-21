@@ -15,6 +15,7 @@ from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import RouteRequest
 from simulatte.intralogistics.traffic import TrafficView
 from simulatte.intralogistics.warehouse import Warehouse
+from tests.intralogistics.traffic_support import StillFleet
 
 
 # ---------------------------------------------------------------------------
@@ -897,7 +898,7 @@ class TestTravelCorrectness:
         agv_type = _make_agv_type(simple_speed, length=0.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         other = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_b)
-        coordinator = FleetCoordinator(
+        coordinator = StillFleet(
             env=env,
             graph=graph,
             fleet=[agv, other],
@@ -1366,13 +1367,14 @@ class TestTravelCorrectness:
         blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_blocked)
         traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
 
-        coordinator = FleetCoordinator(
+        coordinator = StillFleet(
             env=env,
             graph=graph,
             fleet=[traveler, blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
             traffic_controller=traffic,
+            clear_service_nodes=False,
         )
         routed: list[AgvRouted] = []
         env.bus.subscribe(routed.append, (AgvRouted,))
@@ -1440,13 +1442,14 @@ class TestTravelCorrectness:
         blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
         high = AGV(env=env, agv_type=agv_type, agv_id="high", initial_node=node_start)
 
-        coordinator = FleetCoordinator(
+        coordinator = StillFleet(
             env=env,
             graph=graph,
             fleet=[high, blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
             traffic_controller=traffic,
+            clear_service_nodes=False,
         )
         env.run(until=0.001)
 

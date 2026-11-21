@@ -19,6 +19,7 @@ from simulatte.intralogistics.reservation import ReservationController
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system, _warehouses
 from tests.intralogistics.test_fleet_events import FleetReplay
+from tests.intralogistics.traffic_support import StillFleet
 
 
 def _position(description: Any, t: float) -> tuple[float, float, float]:
@@ -145,7 +146,7 @@ def test_move_started_after_the_claim_is_granted() -> None:
     sized = dataclasses.replace(_agv_type(), length=1.0)
     blocker, waiter = (AGV(env=env, agv_type=sized, initial_node=node) for node in (c1, out))
     traffic = ReservationController(graph=graph, env=env)
-    coordinator = FleetCoordinator(
+    coordinator = StillFleet(
         env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
     )
     started: list[tuple[float, str, str, str]] = []
@@ -198,7 +199,7 @@ def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> Non
     out, c1, _, end = nodes
     blocker, waiter = (AGV(env=env, agv_type=shared, initial_node=node) for node in (c1, out))
     traffic = ReservationController(graph=graph, env=env)
-    coordinator = FleetCoordinator(
+    coordinator = StillFleet(
         env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
     )
     started: list[AgvMoveStarted] = []

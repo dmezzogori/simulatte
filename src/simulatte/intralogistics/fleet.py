@@ -33,7 +33,7 @@ from simulatte.intralogistics.policies import (
 )
 from simulatte.intralogistics.routing import ShortestDistanceRouter
 from simulatte.intralogistics.traffic import FreeFlowController
-from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome
+from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome, standard_target
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -87,6 +87,12 @@ class FleetCoordinator(Entity, kind="fleet"):
     transit, deliver, and completion.  Analogous to ``ShopFloor`` for
     production simulations but focused on warehouse-to-warehouse AGV transport.
 
+    Idle AGVs are kept out of the way (spec §7.10): :meth:`make_way` moves an idle AGV that blocks a claim, and with
+    ``clear_service_nodes`` (default true) an AGV that would become idle on a service node (a bay of a warehouse or the
+    node of a charging station) first moves off it, when the traffic controller controls occupancy. A move to the node
+    of a parking area takes a slot of the area (``area.enter``) at the decision and gives it back (``area.leave``) when
+    the AGV next departs from that node or when the move does not arrive.
+
     Its id is ``name`` when given, otherwise ``fleet-<n>``. Construction binds the graph's nodes (sorted by id)
     in the environment, registers the fleet with its traffic controller (``traffic_controller``, default
     :class:`~simulatte.intralogistics.traffic.FreeFlowController`) and registers an activation initializer that places
@@ -125,6 +131,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         dispatch_strategy: DispatchStrategy | None = None,
         repositioning_policy: RepositioningPolicy | None = None,
         load_recovery_strategy: LoadRecoveryStrategy | None = None,
+        clear_service_nodes: bool = True,
         default_metrics: bool = True,
         ema_alpha: float = 0.01,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
@@ -156,6 +163,9 @@ class FleetCoordinator(Entity, kind="fleet"):
                 raise LayoutError("AGV already belongs to a fleet or occurs twice")
         self.traffic_controller.register_fleet(self)
         self._executor = TravelExecutor(self)
+        self.clear_service_nodes = clear_service_nodes
+        """Whether an AGV that would become idle on a service node first moves off it (spec §7.10)."""
+        self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
         self._load_recovery_strategy: LoadRecoveryStrategy = load_recovery_strategy or ReturnToOrigin()
@@ -665,6 +675,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                 cb(order, agv)
 
             # Battery check after mission
+            target = None
             if agv.battery.is_low and self.charging_stations:
                 yield from self._charge_agv(agv)
             else:
@@ -677,15 +688,22 @@ class FleetCoordinator(Entity, kind="fleet"):
                 )
                 target = self._repositioning_policy.reposition(agv, repo_ctx)
                 if target is not None and target != agv.current_node:
-                    self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-                    outcome = yield from self._executor.travel(agv, target, loaded=False)
-                    if outcome is TravelOutcome.BATTERY_STRANDED:
-                        return
-                    if outcome in _TRAVEL_FAILED:
-                        self.env.warning(
-                            f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
-                            component="FleetCoordinator",
-                        )
+                    if self._take_slot(agv, target):
+                        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+                        outcome = yield from self._idle_travel(agv, target)
+                        if outcome is TravelOutcome.BATTERY_STRANDED:
+                            return
+                        if outcome in _TRAVEL_FAILED:
+                            self.env.warning(
+                                f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
+                                component="FleetCoordinator",
+                            )
+                    else:  # a full parking area is not a valid target (spec §7.10)
+                        target = None
+
+            # Clear a service node the AGV would otherwise idle on
+            if target is None and (yield from self._clear_service_node(agv)) is TravelOutcome.BATTERY_STRANDED:
+                return
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
@@ -725,7 +743,8 @@ class FleetCoordinator(Entity, kind="fleet"):
                         )
                     )
             # A generator closed unfinished (the process is discarded, e.g. garbage-collected) retires nothing.
-            if not isinstance(sys.exc_info()[1], GeneratorExit):
+            closed = isinstance(sys.exc_info()[1], GeneratorExit)
+            if not closed:
                 self._retire_if_terminal(order)
 
             # Hooks may dispatch immediately, so all old mission ownership must
@@ -734,6 +753,8 @@ class FleetCoordinator(Entity, kind="fleet"):
                 for cb in self._hooks_on_agv_idle:
                     cb(agv)
             self._check_pending_queue()
+            if not closed:
+                self._relieve(agv)
 
     def _recover_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
         """Finish an interrupted mission without exposing rollback to more interrupts."""
@@ -816,10 +837,113 @@ class FleetCoordinator(Entity, kind="fleet"):
         if env.wants(AgvStranded):
             env.emit(AgvStranded(agv=agv.id, node=node.id, reason=reason))
 
+    @property
+    def service_nodes(self) -> frozenset[Node]:
+        """The nodes AGVs should not idle on: the bays of the fleet's warehouses and the nodes of its charging
+        stations (spec §7.10)."""
+        nodes = {station.node for station in self.charging_stations}
+        for warehouse in self.warehouses:
+            nodes.update(warehouse.input_bays)
+            nodes.update(warehouse.output_bays)
+        return frozenset(nodes)
+
     def make_way(self, agv: AGV, target: Node | None = None, *, concerned: Sequence[AGV] = ()) -> bool:
-        """Move the idle `agv` out of the way of the waiting AGVs `concerned`, to `target` or to the standard-search
-        node (spec §7.10); whether a move was started. Not implemented yet: always false, the AGV stays."""
+        """Move the idle `agv` out of the way of the waiting AGVs `concerned`, to `target` or, without one, to the node
+        of the standard search for an idle AGV (spec §7.9, §7.10); whether a move was started.
+
+        Nothing happens, and false is returned, for an AGV that is not idle (one already making way is not), when there
+        is no target, and when the target is the AGV's own node or a parking area without a free slot. Otherwise the
+        AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
+        when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
+        ``on_agv_idle`` hooks and the pending-queue check run as after any mission.
+        """
+        if agv.state is not AGVState.IDLE or agv.current_node is None:
+            return False
+        if target is None:
+            target = standard_target(self, agv, concerned=concerned, idle=True)
+        if target is None or target == agv.current_node or not self._take_slot(agv, target):
+            return False
+        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        self.env.process(self._make_way_move(agv, target))
+        return True
+
+    def _make_way_move(self, agv: AGV, target: Node) -> ProcessGenerator:
+        """The process of one make-way move: the travel, then the idle bookkeeping of a finished mission."""
+        outcome = yield from self._idle_travel(agv, target, "make_way")
+        if outcome is TravelOutcome.BATTERY_STRANDED:
+            return
+        self._transition_agv(agv, AGVState.IDLE)
+        for cb in self._hooks_on_agv_idle:
+            cb(agv)
+        self._check_pending_queue()
+        self._relieve(agv)
+
+    def _relieve(self, agv: AGV) -> None:
+        """An idle AGV that blocks waiting AGVs is asked to make way, to the standard-search node (spec §7.10)."""
+        if agv.state is AGVState.IDLE:
+            waiting = self.traffic_controller.view.waiting_on(agv)
+            if waiting:
+                self.make_way(agv, None, concerned=waiting)
+
+    def _clear_service_node(self, agv: AGV) -> ProcessGenerator:
+        """Move `agv` off the service node it would idle on, to the standard-search node (spec §7.10).
+
+        Only with ``clear_service_nodes`` and a traffic controller that controls occupancy. Returns the outcome of the
+        travel, or None when the AGV stays (not on a service node, or no target).
+        """
+        if not self.clear_service_nodes or not self.traffic_controller.controls_occupancy:
+            return None
+        if agv.current_node not in self.service_nodes:
+            return None
+        target = standard_target(self, agv, idle=True)
+        if target is None or not self._take_slot(agv, target):
+            return None
+        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        return (yield from self._idle_travel(agv, target, "clear_node"))
+
+    def _idle_travel(self, agv: AGV, target: Node, purpose: str = "travel") -> ProcessGenerator:
+        """Travel `agv` unloaded to `target` and return the outcome. The parking slot that :meth:`_take_slot` took for
+        `target` is given back unless the AGV arrives; an interrupt that ends the travel at `target` itself (it takes
+        effect at the end of the arc) counts as an arrival."""
+        try:
+            outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
+        except simpy.Interrupt:
+            if agv.current_node != target:
+                self._release_slots(agv, target)
+            raise
+        if outcome is not TravelOutcome.ARRIVED:
+            self._release_slots(agv, target)
+        return outcome
+
+    # Parking slots (spec §7.10)
+
+    def _take_slot(self, agv: AGV, target: Node) -> bool:
+        """Take a slot for `agv` in the first parking area at `target` that has one, at once, and return true.
+
+        True without a slot when `target` is not the node of a parking area; false when it is and every area there is
+        full (nothing is taken).
+        """
+        areas = [area for area in self.parking_areas if area.node == target]
+        if not areas:
+            return True
+        for area in areas:
+            if area.available_capacity > 0:
+                for _ in area.enter(agv):  # the request is granted already: the process yields it once and ends
+                    pass
+                self._slots.setdefault(agv, []).append(area)
+                return True
         return False
+
+    def _release_slots(self, agv: AGV, node: Node) -> None:
+        """Give back the slots `agv` holds in the parking areas at `node`."""
+        areas = self._slots.get(agv)
+        if areas is None:
+            return
+        for area in [area for area in areas if area.node == node]:
+            areas.remove(area)
+            area.leave(agv)
+        if not areas:
+            del self._slots[agv]
 
     def _initial_placement(self) -> None:
         """Activation initializer: place every AGV that has a node with the traffic controller (S1).

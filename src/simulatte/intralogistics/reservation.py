@@ -622,11 +622,15 @@ class ReservationController:
         previous review (or the opening, or the wake-up); otherwise the wait is dormant until the next one (T23).
         """
         waiting.timer = None
+        if self._pending.get(waiting.agv) is not waiting:  # the wait ended meanwhile
+            return
         waiting.reviews += 1
         changed = waiting.seen != self._changes
         waiting.seen = self._changes
         wait = self._wait(waiting, self._blocking(waiting))
         self._make_way(wait)
+        if self._pending.get(waiting.agv) is not waiting:  # making way granted or withdrew the claim
+            return
         kept = self._react(waiting, wait)
         if kept is None:
             return

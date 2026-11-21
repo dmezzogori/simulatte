@@ -101,16 +101,29 @@ def standard_target(
     A candidate is any node other than the AGV's that has a free slot now, that the fleet's router reaches with a
     first claim admissible now, and that does not lie ahead on the remaining route of an AGV in `concerned` unless it
     would still have a free slot for each of them after the move. The cheapest by router cost wins, ties by node id.
-    `idle` is accepted for the rules of idle AGVs (parking first, no service node), which are not applied yet.
+
+    With `idle` (the AGV will be idle on arrival) the node of a parking area with a free slot is taken first, cheapest
+    first; failing that, the node is not a service node and not the node of a parking area that is full.
     """
     controller = fleet.traffic_controller
     view = controller.view
     origin = fleet._require_current_node(agv)
     ahead = [view.route_of(other)[1:] for other in concerned]
+    parking: set[Node] = set()  # nodes of parking areas with a free slot
+    full: set[Node] = set()  # nodes of parking areas that are all full
+    service: frozenset[Node] = frozenset()
+    if idle:
+        for area in fleet.parking_areas:
+            (parking if area.available_capacity > 0 else full).add(area.node)
+        full -= parking
+        service = fleet.service_nodes
     best: Node | None = None
-    best_key: tuple[float, str] | None = None
+    best_key: tuple[int, float, str] | None = None
     for node in view.graph.nodes:
-        if node == origin:
+        if node == origin or node in full:
+            continue
+        rank = 0 if node in parking else 1
+        if rank and node in service:
             continue
         free = view.capacity(node) - len(view.holders(node))
         if free < 1:
@@ -124,7 +137,7 @@ def standard_target(
         _check_route(fleet, route, origin, node)
         if not view.admissible(agv, controller.next_claim(agv, route.nodes, 0)):
             continue
-        key = (route.cost, node.id)
+        key = (rank, route.cost, node.id)
         if best_key is None or key < best_key:
             best, best_key = node, key
     return best
@@ -451,6 +464,7 @@ class _Trip:
         load_weight: float,
     ) -> ProcessGenerator:
         """Traverse the arc rest to rest, releasing each trail entry where the tail clears it."""
+        self.fleet._release_slots(self.agv, current)  # departing from a parking node gives its slot back
         self.executor._start_segment(self.agv, current, next_node, travel_time, description, self.loaded)
         if math.isfinite(travel_time):
             yield from self._move(current, next_node, distance, travel_time, load_weight)

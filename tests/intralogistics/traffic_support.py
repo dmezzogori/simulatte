@@ -12,6 +12,8 @@ from typing import Any
 
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent, apply_deltas
+from simulatte.intralogistics.agv import AGV
+from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node, NodeBinding
 from simulatte.intralogistics.reservation import ReservationController, SegmentBinding, ZoneBinding
 from simulatte.intralogistics.traffic import WaitHooks
@@ -62,6 +64,16 @@ def loop_with_side_node() -> tuple[LayoutGraph, dict[str, Node]]:
         [("J1", 0, 0), ("U", 10, 10), ("L", 10, -10), ("J2", 20, 0), ("S1", -10, 0), ("S2", 30, 0)],
         [("J1", "U"), ("U", "J2"), ("J1", "L"), ("L", "J2"), ("J1", "S1"), ("J2", "S2")],
     )
+
+
+class StillFleet(FleetCoordinator):
+    """A coordinator whose idle AGVs never make way (spec §7.10): an idle blocker stays where it stands.
+
+    For tests of the travel executor and of waits, which hold a blocker in place on purpose or drive travels without
+    taking the AGV out of ``IDLE``, as a mission does."""
+
+    def make_way(self, agv: AGV, target: Node | None = None, *, concerned: Sequence[AGV] = ()) -> bool:
+        return False
 
 
 class FullReplay:

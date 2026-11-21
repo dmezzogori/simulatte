@@ -1,0 +1,774 @@
+"""Idle AGVs (spec §7.9 standard search, §7.10): make-way moves, clearing of service nodes and parking slots.
+
+Every world runs :class:`FullReplay` over every event and, with a ``ReservationController``, :class:`TrafficInvariants`.
+Worlds with missions are built by :func:`mission_world` (warehouses, parking areas and charging stations on named
+nodes, orders submitted by :meth:`Mission.order`); worlds that only drive travels use ``world`` of ``test_travel``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+import pytest
+
+from simulatte.environment import Environment
+from simulatte.intralogistics.agv import AGV, AGVState, AGVType
+from simulatte.intralogistics.charging import ChargingStation
+from simulatte.intralogistics.events import (
+    AgvRouted,
+    AgvStateChanged,
+    ChargingStarted,
+    ParkingEntered,
+    ParkingLeft,
+    TrafficWaitEnded,
+    TrafficWaitStarted,
+    TrafficWaitStuck,
+)
+from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import LayoutGraph, Node
+from simulatte.intralogistics.order import OrderStatus, TransferOrder
+from simulatte.intralogistics.parking import ParkingArea
+from simulatte.intralogistics.policies import NearestParkingPolicy, RepositioningContext
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.routing import Route, RouteRequest, ShortestDistanceRouter
+from simulatte.intralogistics.sku import SKU
+from simulatte.intralogistics.traffic import FreeFlowController, TrafficView
+from simulatte.intralogistics.travel import TravelOutcome, standard_target
+from simulatte.intralogistics.warehouse import Warehouse
+from tests.intralogistics.test_travel import vehicle, world
+from tests.intralogistics.traffic_support import (
+    FullReplay,
+    TrafficInvariants,
+    build,
+    line,
+    t_layout,
+    two_junction_corridor,
+)
+
+SKU_A = SKU(id="SKU-A", weight=5.0, volume=0.1)
+
+
+# --- worlds with missions --------------------------------------------------------------------------------------------
+
+
+class Always:
+    """A repositioning policy that always names the node `node`."""
+
+    def __init__(self, node: Node) -> None:
+        self.node = node
+
+    def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
+        return self.node
+
+
+class Unreachable(ShortestDistanceRouter):
+    """A router that finds no route to the nodes in `nodes`."""
+
+    def __init__(self, *nodes: Node) -> None:
+        super().__init__()
+        self.nodes = nodes
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        if request.destination in self.nodes:
+            return None
+        return super().route(request, view)
+
+
+@dataclass
+class Mission:
+    env: Environment
+    fleet: FleetCoordinator
+    nodes: dict[str, Node]
+    agvs: dict[str, AGV]
+    warehouses: dict[str, Warehouse]
+    areas: dict[str, ParkingArea]
+    stations: dict[str, ChargingStation]
+    replay: FullReplay
+    orders: list[TransferOrder] = field(default_factory=list)
+
+    @property
+    def controller(self) -> Any:
+        return self.fleet.traffic_controller
+
+    def order(self, origin: str, destination: str, *, at: float = 0.0) -> TransferOrder:
+        """Create an order now and submit it at the absolute time `at`."""
+        order = self.fleet.create_order(
+            sku=SKU_A, quantity=1, origin=self.warehouses[origin], destination=self.warehouses[destination]
+        )
+        self.orders.append(order)
+        self.at(at, lambda: self.fleet.submit(order))
+        return order
+
+    def at(self, time: float, action: Any) -> None:
+        def later() -> Any:
+            yield self.env.timeout(time - self.env.now)
+            action()
+
+        self.env.process(later())
+
+    def events(self, *types: type, agv: str | None = None) -> list[Any]:
+        return [e for e in self.replay.of(*types) if agv is None or getattr(e, "agv", None) == agv]
+
+    def states(self, agv: str) -> list[tuple[float, str]]:
+        return [(e.t, e.state) for e in self.events(AgvStateChanged, agv=agv)]
+
+    def routed(self, agv: str) -> list[tuple[str, str, str]]:
+        """``(reason, origin, destination)`` of each route of `agv`."""
+        return [(e.reason, e.origin, e.destination) for e in self.events(AgvRouted, agv=agv)]
+
+
+def mission_world(
+    graph_nodes: tuple[LayoutGraph, dict[str, Node]],
+    agvs: dict[str, str],
+    *,
+    bays: dict[str, str] | None = None,
+    parking: dict[str, tuple[str, int]] | None = None,
+    chargers: dict[str, tuple[str, int]] | None = None,
+    reserve: bool = True,
+    agv_type: AGVType | None = None,
+    battery: dict[str, float] | None = None,
+    controller_options: dict[str, Any] | None = None,
+    **options: Any,
+) -> Mission:
+    """An activated world with missions: one warehouse per entry of `bays` (name to node id, input and output bay),
+    parking areas and charging stations by name to ``(node id, size)``, one fleet with the AGVs. `battery` sets the
+    level of some AGVs before the replay starts."""
+    graph, nodes = graph_nodes
+    env = Environment(debug=True)
+    controller: Any = (
+        ReservationController(env=env, graph=graph, **(controller_options or {})) if reserve else FreeFlowController()
+    )
+    kind = agv_type or vehicle()
+    vehicles = {
+        name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes[start]) for name, start in agvs.items()
+    }
+    warehouses = {
+        name: Warehouse(
+            env=env,
+            name=name,
+            input_bays=[nodes[node]],
+            output_bays=[nodes[node]],
+            n_slots=4,
+            products=[SKU_A],
+            initial_inventory={SKU_A: 100},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        for name, node in (bays or {}).items()
+    }
+    areas = {
+        name: ParkingArea(env=env, name=name, node=nodes[node], capacity=size)
+        for name, (node, size) in (parking or {}).items()
+    }
+    stations = {
+        name: ChargingStation(env=env, name=name, node=nodes[node], n_slots=size)
+        for name, (node, size) in (chargers or {}).items()
+    }
+    fleet = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=list(vehicles.values()),
+        warehouses=list(warehouses.values()),
+        charging_stations=list(stations.values()),
+        parking_areas=list(areas.values()),
+        traffic_controller=controller,
+        default_metrics=False,
+        **options,
+    )
+    for name, level in (battery or {}).items():
+        vehicles[name].battery.level = level
+    replay = FullReplay(env, from_snapshot=True)
+    if reserve:
+        TrafficInvariants(env, controller)
+    env.activate()
+    return Mission(env, fleet, nodes, vehicles, warehouses, areas, stations, replay)
+
+
+def lane() -> tuple[LayoutGraph, dict[str, Node]]:
+    """``S - M - D - FAR - END`` along a row with ``SIDE`` hanging off ``M``."""
+    return build(
+        [("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("SIDE", 10, 10), ("FAR", 35, 0), ("END", 50, 0)],
+        [("S", "M"), ("M", "D"), ("M", "SIDE"), ("D", "FAR"), ("FAR", "END")],
+    )
+
+
+# --- make way ------------------------------------------------------------------------------------------------------
+
+
+def test_an_idle_blocker_makes_way_and_goes_idle_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"}, make_way=True)
+    idle: list[tuple[float, AGVState]] = []
+    w.fleet.on_agv_idle(lambda agv: idle.append((float(w.env.now), agv.state)))
+    checked: list[AGVState] = []
+    original = w.fleet._check_pending_queue
+    monkeypatch.setattr(w.fleet, "_check_pending_queue", lambda: (checked.append(w.agvs["A"].state), original())[-1])
+    w.go("B", "LINE_IN")
+    w.env.run()
+
+    a = w.agvs["A"]
+    routed = w.of(AgvRouted, agv="A")
+    assert [(e.reason, e.origin, e.destination, e.nodes) for e in routed] == [
+        ("make_way", "C1", "PARK", ("C1", "PARK"))
+    ]
+    assert [(e.t, e.state) for e in w.of(AgvStateChanged, agv="A")] == [(0, "TRAVELING_EMPTY"), (_arrival(w), "IDLE")]
+    assert (a.state, a.current_node) == (AGVState.IDLE, w.nodes["PARK"])
+    assert w.outcomes == {"B": TravelOutcome.ARRIVED}
+    assert idle == [(_arrival(w), AGVState.IDLE)]  # on_agv_idle fired once, with the AGV idle
+    assert checked == [AGVState.IDLE]  # the pending-queue check ran after the move, with the AGV idle
+    assert [e.reason for e in w.of(AgvRouted, agv="B")] == ["travel"]
+    (started,) = w.of(TrafficWaitStarted)
+    assert (started.agv, started.blockers) == ("B", ("A",))
+
+
+def _arrival(w: Any) -> float:
+    """The time A ends its 10 m move to PARK."""
+    (ended,) = [e for e in w.of(AgvStateChanged, agv="A") if e.state == "IDLE"]
+    return float(ended.t)
+
+
+def test_make_way_refuses_what_cannot_move() -> None:
+    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"}, make_way=True)
+    fleet, a, b, nodes = w.fleet, w.agvs["A"], w.agvs["B"], w.nodes
+    b.transition_to(AGVState.TRAVELING_EMPTY)
+    assert fleet.make_way(b, nodes["C2"]) is False  # not idle
+    assert fleet.make_way(a, nodes["C1"]) is False  # its own node
+    assert fleet.make_way(a, concerned=(b,)) is True  # the standard search: C2 and PARK tie, C2 comes first
+    assert a.state is AGVState.TRAVELING_EMPTY  # out of IDLE before make_way returned
+    assert fleet.make_way(a, nodes["C2"]) is False  # one move at a time
+    assert fleet.make_way(a) is False
+    w.env.run()
+    assert [e.destination for e in w.of(AgvRouted, agv="A")] == ["C2"]
+
+
+def test_make_way_without_a_target_leaves_the_agv_idle() -> None:
+    w = world(line(2), {"A": "N0", "B": "N1"}, make_way=True)
+    assert standard_target(w.fleet, w.agvs["A"], idle=True) is None
+    assert w.fleet.make_way(w.agvs["A"]) is False
+    assert w.agvs["A"].state is AGVState.IDLE
+    assert w.of(AgvStateChanged) == []
+
+
+def test_make_way_takes_the_given_target() -> None:
+    w = world(t_layout(), {"A": "C1"}, make_way=True)
+    assert w.fleet.make_way(w.agvs["A"], w.nodes["C2"]) is True
+    w.env.run()
+    assert w.agvs["A"].current_node is w.nodes["C2"]
+    assert [(e.reason, e.destination) for e in w.of(AgvRouted)] == [("make_way", "C2")]
+
+
+def test_a_make_way_move_that_fails_ends_idle_where_it_stands() -> None:
+    w = world(t_layout(), {"A": "C1"}, make_way=True)
+    w.fleet.router = Unreachable(w.nodes["PARK"])
+    idle: list[str] = []
+    w.fleet.on_agv_idle(lambda agv: idle.append(agv.id))
+    assert w.fleet.make_way(w.agvs["A"], w.nodes["PARK"]) is True
+    w.env.run()
+    assert w.agvs["A"].state is AGVState.IDLE
+    assert w.agvs["A"].current_node is w.nodes["C1"]
+    assert idle == ["A"]
+
+
+def test_a_stranded_make_way_stays_stranded() -> None:
+    w = world(t_layout(), {"A": "C1"}, make_way=True, agv_type=vehicle(battery=0.5))
+    assert w.fleet.make_way(w.agvs["A"], w.nodes["PARK"]) is True
+    w.env.run()
+    assert w.agvs["A"].state is AGVState.STRANDED
+
+
+def test_a_make_way_move_that_must_retry_ends_idle() -> None:
+    """A travel that arrives with a critical battery before its goal ends with ``RETRY_FROM_CURRENT_POSITION``; a
+    make-way move does not retry, the AGV is idle where it stopped."""
+    m = mission_world(lane(), {"A": "M"}, agv_type=vehicle(battery=100.0), battery={"A": 12.0})
+    a = m.agvs["A"]
+    idle: list[str] = []
+    m.fleet.on_agv_idle(lambda agv: idle.append(agv.id))
+    assert m.fleet.make_way(a, m.nodes["END"]) is True
+    m.env.run()
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["D"])
+    assert idle == ["A"]
+
+
+def test_agv_making_way_is_not_dispatched() -> None:
+    m = mission_world(lane(), {"A": "M"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
+    order = m.order("WH-S", "WH-D")
+    m.env.run(until=1.0)
+    assert (order.status, order.assigned_agv, a.state) == (OrderStatus.PENDING, None, AGVState.TRAVELING_EMPTY)
+    m.env.run()
+    assert order.status is OrderStatus.COMPLETED  # dispatched when the move ended and the AGV was idle again
+    assert order.dispatched_at is not None and order.dispatched_at > 1.0
+    states = [state for _, state in m.states("A")]
+    assert states[:3] == ["TRAVELING_EMPTY", "IDLE", "TRAVELING_EMPTY"]
+
+
+def test_an_agv_that_becomes_idle_on_a_blocking_node_makes_way() -> None:
+    """A mission ends at M with B already waiting for it: the coordinator asks the idle AGV to make way."""
+    m = mission_world(lane(), {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
+    m.order("WH-S", "WH-M")  # A carries from S to M
+    m.at(2.0, lambda: m.env.process(_travel(m, "B", "S")))  # B wants to pass through M to S
+    m.env.run()
+    a, b = m.agvs["A"], m.agvs["B"]
+    assert b.current_node is m.nodes["S"]
+    reasons = [reason for reason, _, _ in m.routed("A")]
+    assert reasons[0] == "travel" and "make_way" in reasons
+    assert a.state is AGVState.IDLE
+
+
+def _travel(m: Mission, name: str, goal: str) -> Any:
+    agv = m.agvs[name]
+    agv.transition_to(AGVState.TRAVELING_EMPTY)
+    yield from m.fleet._executor.travel(agv, m.nodes[goal], loaded=False)
+    agv.transition_to(AGVState.IDLE)
+
+
+@pytest.mark.parametrize("make_way", [True, False])
+def test_an_agv_idle_on_the_exit_port_of_a_corridor_makes_way_for_the_opposite_traffic(make_way: bool) -> None:
+    """A leaves the corridor onto J2 (capacity 2) and idles there, which keeps the corridor oriented; B, coming from
+    the other end, waits for the corridor until A makes way."""
+    graph, nodes = two_junction_corridor()
+    w = world(
+        (graph, nodes), {"A": "J1", "B": "x2"}, make_way=make_way, capacities={nodes["J2"]: 2}, derive_corridors=True
+    )
+    w.go("A", "J2")
+    w.go("B", "x1", at=40.0)
+    w.env.run()
+
+    assert w.outcomes["A"] is TravelOutcome.ARRIVED
+    started = w.of(TrafficWaitStarted, agv="B")
+    assert [e.blockers for e in started] == [("A",)]
+    if make_way:
+        assert w.outcomes["B"] is TravelOutcome.ARRIVED
+        assert w.agvs["B"].current_node is nodes["x1"]
+        assert [(e.reason, e.origin) for e in w.of(AgvRouted, agv="A")][-1] == ("make_way", "J2")
+        assert w.agvs["A"].current_node is nodes["y2"]
+    else:
+        assert "B" not in w.outcomes  # nothing relieves the corridor: B waits at rest
+        assert w.agvs["A"].current_node is nodes["J2"]
+
+
+# --- the controller guards its review -----------------------------------------------------------------------------
+
+
+def test_a_review_stops_when_its_wait_ended() -> None:
+    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"})
+    w.go("B", "LINE_IN")
+    w.env.run(until=1.0)
+    waiting = w.controller._pending[w.agvs["B"]]
+    w.controller.withdraw(waiting.request)
+    assert w.controller._pending == {}
+    w.controller._review(waiting)  # a review of a wait that is gone changes nothing
+    assert waiting.reviews == 0
+    assert w.of(TrafficWaitEnded)[-1].reason == "interrupted"
+
+
+def test_a_review_stops_when_making_way_ended_the_wait() -> None:
+    """Making way at a review moves the blocker out of the way synchronously, so the claim is granted inside the
+    review: the review must not go on to react, to schedule another review or to report the wait stuck."""
+    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"})
+    controller, a, park = w.controller, w.agvs["A"], w.nodes["PARK"]
+    w.go("B", "LINE_IN")
+    w.env.run(until=1.0)
+    waiting = controller._pending[w.agvs["B"]]
+
+    def moved_at_once(agv: AGV, target: Node | None = None, *, concerned: Any = ()) -> bool:
+        controller.place(agv, park)
+        agv.current_node = park  # directly, as a fleet that moves its AGV in no time would
+        controller.release(agv, [w.nodes["C1"]])
+        return True
+
+    w.fleet.__dict__["make_way"] = moved_at_once  # shadows the method of this instance
+    w.env.run(until=31.0)  # the review is due at 30
+    assert waiting.reviews == 1 and waiting.timer is None  # no further review was scheduled
+    assert controller._pending == {} and w.of(TrafficWaitStuck) == []
+    assert [e.reason for e in w.of(TrafficWaitEnded)] == ["granted"]
+    w.env.run()
+    assert w.outcomes == {"B": TravelOutcome.ARRIVED}
+    assert a.current_node is park
+
+
+# --- service nodes -------------------------------------------------------------------------------------------------
+
+
+def test_service_nodes_are_the_bays_and_the_charger_nodes() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, chargers={"CS": ("SIDE", 1)})
+    assert m.fleet.service_nodes == frozenset(m.nodes[name] for name in ("S", "D", "SIDE"))
+
+
+def test_an_agv_leaves_the_delivery_bay_under_reservation() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    order = m.order("WH-S", "WH-D")
+    m.env.run()
+    a = m.agvs["A"]
+    assert order.status is OrderStatus.COMPLETED
+    assert m.routed("A")[-1] == ("clear_node", "D", "M")  # the cheapest node that is not a service node
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["M"])
+    assert m.states("A")[-2:][0][1] == "TRAVELING_EMPTY"
+    assert m.states("A")[-1][1] == "IDLE"
+
+
+def test_clearing_is_the_last_step_before_the_idle_hooks() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    seen: list[tuple[float, str]] = []
+    m.fleet.on_agv_idle(lambda agv: seen.append((float(m.env.now), agv.current_node.id)))  # type: ignore[union-attr]
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    ((time, node),) = seen
+    assert node == "M" and time == m.states("A")[-1][0]
+
+
+def test_an_agv_stays_on_the_bay_without_clear_service_nodes() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert m.agvs["A"].current_node is m.nodes["D"]
+    assert "clear_node" not in [reason for reason, _, _ in m.routed("A")]
+
+
+def test_an_agv_stays_on_the_bay_under_free_flow() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, reserve=False)
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert m.agvs["A"].current_node is m.nodes["D"]
+    assert [reason for reason, _, _ in m.routed("A")] == ["travel"]  # to D; it starts on the origin bay
+
+
+def test_an_agv_stays_when_the_search_finds_no_node() -> None:
+    m = mission_world(line(2), {"A": "N0"}, bays={"WH-0": "N0", "WH-1": "N1"})
+    order = m.order("WH-0", "WH-1")
+    m.env.run()
+    assert order.status is OrderStatus.COMPLETED
+    assert m.agvs["A"].current_node is m.nodes["N1"]  # the only other node is a bay too
+    assert "clear_node" not in [reason for reason, _, _ in m.routed("A")]
+
+
+def test_a_repositioning_target_prevents_clearing() -> None:
+    graph_nodes = lane()
+    m = mission_world(graph_nodes, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m.fleet._repositioning_policy = Always(m.nodes["FAR"])
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert m.agvs["A"].current_node is m.nodes["FAR"]
+    assert [reason for reason, _, _ in m.routed("A")] == ["travel", "travel"]  # to D, then to FAR
+
+
+def test_a_repositioning_policy_that_names_the_current_node_keeps_the_agv_there() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m.fleet._repositioning_policy = Always(m.nodes["D"])
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert m.agvs["A"].current_node is m.nodes["D"]
+
+
+def test_a_charged_agv_leaves_the_charger() -> None:
+    m = mission_world(
+        lane(),
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        chargers={"CS": ("FAR", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 38.0},  # 18 left after the delivery: low, and enough to reach the charger
+    )
+    a = m.agvs["A"]
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert len(m.events(ChargingStarted)) == 1
+    assert m.routed("A")[-1] == ("clear_node", "FAR", "END")  # off the charger, to the nearest node that is no bay
+    assert a.current_node is m.nodes["END"]
+
+
+def test_an_agv_that_a_low_battery_callback_moved_off_the_bays_is_not_cleared() -> None:
+    """The user's low-battery callback replaces the charge and here moves the AGV to M, which is no service node."""
+    holder: dict[str, Mission] = {}
+
+    def move_to_m(agv: AGV) -> Any:
+        m = holder["m"]
+        yield from m.fleet._executor.travel(agv, m.nodes["M"], loaded=False)
+
+    m = mission_world(
+        lane(),
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        chargers={"CS": ("FAR", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 38.0},
+        on_low_battery=move_to_m,
+    )
+    holder["m"] = m
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert m.agvs["A"].current_node is m.nodes["M"]
+    assert "clear_node" not in [reason for reason, _, _ in m.routed("A")]
+
+
+def test_a_clearing_move_that_is_stranded_ends_the_mission_stranded() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    a = m.agvs["A"]
+    original = m.fleet._executor.travel
+
+    def stranded(agv: AGV, goal: Node, *, loaded: bool, purpose: str = "travel") -> Any:
+        if purpose == "clear_node":
+            agv.transition_to(AGVState.STRANDED)
+            return TravelOutcome.BATTERY_STRANDED
+            yield  # pragma: no cover
+        return (yield from original(agv, goal, loaded=loaded, purpose=purpose))
+
+    m.fleet._executor.travel = stranded  # type: ignore[method-assign]
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert a.state is AGVState.STRANDED
+
+
+# --- parking -------------------------------------------------------------------------------------------------------
+
+
+def parked(m: Mission, area: str) -> list[str]:
+    return list(m.areas[area].snapshot()["parked"])
+
+
+def test_a_parking_node_gets_its_capacity_from_its_area() -> None:
+    m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 2)})
+    assert m.controller.network.capacity(m.nodes["PARK"]) == 2
+
+
+def test_agvs_placed_on_a_parking_node_take_no_slot() -> None:
+    m = mission_world(t_layout(), {"A": "PARK", "B": "PARK"}, parking={"P": ("PARK", 2)})
+    assert m.areas["P"].available_capacity == 2
+    assert m.events(ParkingEntered) == []
+
+
+def test_repositioning_takes_the_slot_at_the_decision_and_releases_it_at_departure() -> None:
+    m = mission_world(
+        lane(),
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 2)},
+        repositioning_policy=NearestParkingPolicy(),
+    )
+    area = m.areas["P"]
+    seen: list[tuple[float, int]] = []
+    m.env.bus.subscribe(lambda e: seen.append((float(e.t), area.available_capacity)), (AgvRouted,))
+    m.order("WH-S", "WH-D")
+    m.env.run(until=60.0)
+    a = m.agvs["A"]
+    assert a.current_node is m.nodes["FAR"]
+    (entered,) = m.events(ParkingEntered)
+    routed = [e for e in m.events(AgvRouted, agv="A")][-1]
+    assert (entered.agv, entered.area) == ("A", "P")
+    assert entered.t == routed.t  # decided together with the route
+    assert [available for t, available in seen if t == entered.t] == [1]  # taken before the first event of the travel
+    assert parked(m, "P") == ["A"] and area.available_capacity == 1
+    assert m.events(ParkingLeft) == []
+    # the next departure from the parking node gives the slot back
+    m.order("WH-S", "WH-D", at=m.env.now)
+    m.env.run(until=m.env.now + 1.0)
+    (left,) = m.events(ParkingLeft)
+    assert (left.agv, left.area) == ("A", "P")
+    assert left.t == [e for e in m.events(AgvRouted, agv="A") if e.origin == "FAR"][0].t
+    assert parked(m, "P") == [] and area.available_capacity == 2
+
+
+def test_a_repositioning_travel_that_does_not_arrive_gives_the_slot_back() -> None:
+    graph_nodes = lane()
+    m = mission_world(
+        graph_nodes,
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        repositioning_policy=NearestParkingPolicy(),
+    )
+    m.fleet.router = Unreachable(m.nodes["FAR"])
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    (entered,) = m.events(ParkingEntered)
+    (left,) = m.events(ParkingLeft)
+    assert entered.t == left.t
+    assert m.areas["P"].available_capacity == 1
+    assert m.agvs["A"].current_node is m.nodes["D"]
+
+
+@pytest.mark.parametrize(("interrupt_at", "kept"), [(0.5, False), (1.5, True)])
+def test_an_interrupted_idle_move_gives_the_slot_back_unless_it_ended_on_the_target(
+    interrupt_at: float, kept: bool
+) -> None:
+    """The interrupt takes effect at the end of the arc: in the first arc (D to FAR) that is short of END, the
+    parking node, so the slot goes back; in the second (FAR to END) the AGV is on the parking node."""
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("END", 1)})
+    m.fleet._repositioning_policy = Always(m.nodes["END"])
+    order = m.order("WH-S", "WH-D")
+
+    def interrupt() -> Any:
+        while not m.events(ParkingEntered):
+            yield m.env.timeout(0.25)
+        yield m.env.timeout(12.0 if kept else 0.5)
+        m.fleet._active_missions[order.id].interrupt("breakdown")
+
+    m.env.process(interrupt())
+    m.env.run()
+    a = m.agvs["A"]
+    assert a.state is AGVState.IDLE
+    assert (a.current_node is m.nodes["END"]) is kept
+    assert (m.areas["P"].available_capacity == 0) is kept
+    assert [e.agv for e in m.events(ParkingLeft)] == ([] if kept else ["A"])
+
+
+def test_a_full_area_is_not_a_target() -> None:
+    m = mission_world(lane(), {"A": "S", "B": "SIDE"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("FAR", 1)})
+    for _ in m.areas["P"].enter(m.agvs["B"]):  # B holds the only slot
+        pass
+    assert m.areas["P"].available_capacity == 0
+    m.fleet._repositioning_policy = Always(m.nodes["FAR"])  # a policy that ignores the slots
+    order = m.order("WH-S", "WH-D")
+    m.env.run()
+    assert order.status is OrderStatus.COMPLETED
+    assert [e.agv for e in m.events(ParkingEntered)] == ["B"]  # A took none
+    assert m.routed("A")[-1] == ("clear_node", "D", "M")  # a full area is no target: the service node is cleared
+    assert m.fleet.make_way(m.agvs["A"], m.nodes["FAR"]) is False
+    assert standard_target(m.fleet, m.agvs["A"], idle=True) is not m.nodes["FAR"]
+
+
+def test_an_area_of_two_never_lists_three_agvs() -> None:
+    m = mission_world(
+        lane(),
+        {"A": "S", "B": "S", "C": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 2)},
+        repositioning_policy=NearestParkingPolicy(),
+        controller_options={"node_capacity": 3},
+    )
+    listed: list[int] = []
+    m.env.bus.subscribe(lambda e: listed.append(len(parked(m, "P"))), (ParkingEntered, ParkingLeft))
+    for _ in range(3):
+        m.order("WH-S", "WH-D")
+    m.env.run()
+    assert all(order.status is OrderStatus.COMPLETED for order in m.orders)
+    assert max(listed) == 2
+    assert len(parked(m, "P")) == 2
+    elsewhere = [agv for agv in m.agvs.values() if agv.current_node is not m.nodes["FAR"]]
+    assert len(elsewhere) == 1
+
+
+def test_clearing_takes_a_parking_slot() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("FAR", 1)})
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert m.routed("A")[-1] == ("clear_node", "D", "FAR")  # the parking node comes first, though M is nearer
+    (entered,) = m.events(ParkingEntered)
+    assert entered.agv == "A" and m.areas["P"].available_capacity == 0
+
+
+def test_make_way_takes_a_parking_slot_and_gives_it_back_when_it_does_not_arrive() -> None:
+    m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 1)})
+    m.fleet.router = Unreachable(m.nodes["PARK"])
+    assert m.fleet.make_way(m.agvs["A"], m.nodes["PARK"]) is True
+    assert m.areas["P"].available_capacity == 0  # taken at the decision, before the move runs
+    m.env.run()
+    assert m.areas["P"].available_capacity == 1
+    assert [e.type_name for e in m.events(ParkingEntered, ParkingLeft)] == ["parking.entered", "parking.left"]
+
+
+def test_a_parked_agv_that_makes_way_departs_from_its_slot() -> None:
+    m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 1)})
+    assert m.fleet.make_way(m.agvs["A"], m.nodes["PARK"]) is True
+    m.env.run()
+    assert parked(m, "P") == ["A"]
+    assert m.fleet.make_way(m.agvs["A"], m.nodes["C2"]) is True
+    m.env.run()
+    assert parked(m, "P") == []
+    assert m.areas["P"].available_capacity == 1
+
+
+def test_standard_target_for_an_idle_agv_prefers_the_cheapest_parking_area_with_a_free_slot() -> None:
+    graph, nodes = build(
+        [("O", 0, 0), ("N", 10, 0), ("P1", 20, 0), ("P2", 30, 0), ("P3", 40, 0), ("SB", 0, 10)],
+        [("O", "N"), ("N", "P1"), ("P1", "P2"), ("P2", "P3"), ("O", "SB")],
+    )
+    m = mission_world(
+        (graph, nodes),
+        {"A": "O", "X": "P1"},
+        bays={"WH": "SB"},
+        parking={"A1": ("P1", 1), "A2": ("P2", 1), "A3": ("P3", 1)},
+    )
+    agv = m.agvs["A"]
+    assert standard_target(m.fleet, agv) is nodes["N"]  # the generic search takes the nearest node
+    assert standard_target(m.fleet, agv, idle=True) is nodes["P2"]  # P1 is held by X? X took no slot: P1 is nearest
+    for _ in m.areas["A1"].enter(m.agvs["X"]):
+        pass
+    assert standard_target(m.fleet, agv, idle=True) is nodes["P2"]
+    for _ in m.areas["A2"].enter(agv):
+        pass
+    assert standard_target(m.fleet, m.agvs["X"], idle=True) is nodes["P3"]
+    assert standard_target(m.fleet, agv, idle=True) is nodes["P3"]
+
+
+def test_standard_target_for_an_idle_agv_avoids_service_nodes_without_parking() -> None:
+    m = mission_world(lane(), {"A": "M"}, bays={"WH-S": "S", "WH-D": "D"})
+    agv = m.agvs["A"]
+    assert standard_target(m.fleet, agv) is m.nodes["D"]  # the generic search takes the first of the nearest
+    assert standard_target(m.fleet, agv, idle=True) is m.nodes["SIDE"]  # S and D are bays
+
+
+def test_standard_target_for_an_idle_agv_skips_the_node_of_a_full_area() -> None:
+    m = mission_world(lane(), {"A": "M", "B": "S"}, parking={"P": ("SIDE", 1)})
+    for _ in m.areas["P"].enter(m.agvs["B"]):
+        pass
+    assert standard_target(m.fleet, m.agvs["A"], idle=True) is m.nodes["D"]
+
+
+# --- passing a full charging node -------------------------------------------------------------------------------
+
+
+def bypass_layout(*, bypass: bool) -> tuple[LayoutGraph, dict[str, Node]]:
+    """``A - C - B`` along a row with the charger on ``C``, and with `bypass` also ``A - D - B`` around it."""
+    points = [("A", 0, 0), ("C", 10, 0), ("B", 20, 0), ("D", 10, 3)]
+    links = [("A", "C"), ("C", "B")] + ([("A", "D"), ("D", "B")] if bypass else [])
+    if not bypass:
+        points = points[:3]
+    return build(points, links)
+
+
+@pytest.mark.parametrize(("bypass", "level"), [(False, 80.0), (True, 5.0)])
+def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
+    """X charges on C (one slot) for 100 - `level` seconds. P, travelling from A to B through C, waits while the slot
+    is busy. At its review, at 30, it reroutes when a route around exists. Without one it is reported stuck, but only
+    once X has finished charging and sits idle where it cannot make way."""
+    m = mission_world(
+        bypass_layout(bypass=bypass),
+        {"X": "C", "P": "A"},
+        chargers={"CS": ("C", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"X": level},
+        clear_service_nodes=False,
+    )
+    x, p = m.agvs["X"], m.agvs["P"]
+    station = m.stations["CS"]
+
+    def charge() -> Any:
+        yield from m.fleet._charge_agv(x, station)
+        m.fleet._transition_agv(x, AGVState.IDLE)
+        m.fleet._relieve(x)
+
+    m.env.process(charge())
+    m.at(1.0, lambda: m.env.process(_travel(m, "P", "B")))
+    m.env.run(until=10.0)
+    # the slot is busy: P waits, X is not asked to move, nobody is stuck
+    (started,) = m.events(TrafficWaitStarted, agv="P")
+    assert (started.blockers, started.t) == (("X",), 1.0)
+    assert x.state is AGVState.CHARGING
+    assert m.events(TrafficWaitStuck) == [] and m.events(AgvRouted, agv="X") == []
+    m.env.run(until=29.0)
+    assert (x.state is AGVState.CHARGING) is bypass  # the long charge is still going at 29
+    m.env.run()
+    reasons = [e.reason for e in m.events(AgvRouted, agv="P")]
+    stuck = m.events(TrafficWaitStuck)
+    if bypass:
+        assert reasons == ["travel", "blocked"]  # rerouted around the full node at the review, X still charging
+        assert p.current_node is m.nodes["B"]
+        assert stuck == []
+    else:
+        assert reasons == ["travel"]
+        assert p.current_node is m.nodes["A"]  # no route around and X cannot move: P keeps waiting
+        assert [(e.t, e.agv) for e in stuck] == [(31.0, "P")]  # the review, at 30 after the wait opened at 1
+        assert x.state is AGVState.IDLE and x.current_node is m.nodes["C"]
+        assert m.events(AgvRouted, agv="X") == []  # X found no node to go to

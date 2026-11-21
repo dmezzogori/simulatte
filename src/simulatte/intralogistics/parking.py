@@ -34,7 +34,8 @@ class ParkingArea(Entity, kind="parking_area"):
     correct slot. Its id is ``name``.
 
     Events (spec §6.4): ``parking.entered`` when ``enter`` obtained a slot and ``parking.left`` when ``leave``
-    released it. ``FleetCoordinator`` does not call either.
+    released it. ``FleetCoordinator`` takes a slot at the decision to move an idle AGV to the node of an area and gives
+    it back when the AGV next departs from that node or does not arrive (spec §7.10).
     """
 
     state_schema: ClassVar[StateSchema] = StateSchema({"parked": FieldSpec("str", collection="list")})

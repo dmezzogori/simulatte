@@ -53,7 +53,15 @@ from simulatte.intralogistics.traffic import (
 )
 from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome, standard_target
 from simulatte.intralogistics.warehouse import Warehouse
-from tests.intralogistics.traffic_support import FullReplay, TrafficInvariants, build, fake_hooks, line, t_layout
+from tests.intralogistics.traffic_support import (
+    FullReplay,
+    StillFleet,
+    TrafficInvariants,
+    build,
+    fake_hooks,
+    line,
+    t_layout,
+)
 from tests.intralogistics.traffic_support import two_junction_corridor
 
 ARC = 8.541666666666668
@@ -173,9 +181,11 @@ def world(
     reserve: bool = True,
     agv_type: AGVType | None = None,
     router: Any = None,
+    make_way: bool = False,
     **options: Any,
 ) -> World:
-    """An activated world: `agvs` maps each AGV id to its start node id; one fleet with all the AGVs."""
+    """An activated world: `agvs` maps each AGV id to its start node id; one fleet with all the AGVs. Idle AGVs make
+    way only with `make_way` (spec §7.10; tests of idle traffic have their own file)."""
     graph, nodes = graph_nodes
     env = Environment(debug=True)
     replay = FullReplay(env)
@@ -184,7 +194,7 @@ def world(
     vehicles = {
         name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes[start]) for name, start in agvs.items()
     }
-    fleet = FleetCoordinator(
+    fleet = (FleetCoordinator if make_way else StillFleet)(
         env=env,
         graph=graph,
         fleet=list(vehicles.values()),
@@ -623,7 +633,7 @@ def test_standard_target_checks_the_router() -> None:
 # --- coordinator ---------------------------------------------------------------------------------------------------
 
 
-def test_coordinator_defaults_and_make_way_stub() -> None:
+def test_coordinator_defaults() -> None:
     env = Environment()
     graph, nodes = line(2)
     agv = AGV(env=env, agv_type=vehicle(length=None), initial_node=nodes["N0"])
@@ -632,8 +642,7 @@ def test_coordinator_defaults_and_make_way_stub() -> None:
     assert isinstance(fleet.router, ShortestDistanceRouter)
     assert fleet.traffic_controller.view.graph is graph  # the fleet registered with its controller
     assert isinstance(fleet._executor, TravelExecutor)
-    assert fleet.make_way(agv) is False
-    assert fleet.make_way(agv, nodes["N1"], concerned=(agv,)) is False
+    assert fleet.clear_service_nodes is True
 
 
 def test_coordinator_registers_with_a_reservation_controller() -> None:
