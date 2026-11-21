@@ -16,6 +16,7 @@ from simulatte.intralogistics.agv import AGV, AGVState
 from simulatte.intralogistics.events import (
     AgvRouted,
     ChargingStarted,
+    FleetPendingChanged,
     OrderAssigned,
     OrderStatusChanged,
     TrafficDeadlock,
@@ -36,6 +37,7 @@ from simulatte.intralogistics.traffic import (
 )
 from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from tests.intralogistics.test_idle_traffic import (
+    SKU_A,
     Always,
     Mission,
     idle_times,
@@ -506,19 +508,24 @@ def test_the_requeued_order_waits_behind_another_pending_one_which_the_agv_may_t
         bays={"WH-S": "S", "WH-D": "D", "WH-F": "FAR"},
         only=frozenset({"A"}),
     )
-    first = m.order("WH-S", "WH-D")
-    second = m.order("WH-F", "WH-D")  # no idle AGV when submitted: pending
+    first = m.fleet.create_order(sku=SKU_A, quantity=1, origin=m.warehouses["WH-S"], destination=m.warehouses["WH-D"])
+    second = m.fleet.create_order(sku=SKU_A, quantity=1, origin=m.warehouses["WH-F"], destination=m.warehouses["WH-D"])
+    m.orders += [first, second]
+    # One step: the first order takes the only AGV, the second finds none and is pending when the first gives up.
+    m.at(0.0, lambda: (m.fleet.submit(first), m.fleet.submit(second)))
     dispatched: list[tuple[float, str, list[str]]] = []
     m.fleet.on_order_dispatched(
         lambda o, a: dispatched.append((float(m.env.now), o.id, [p.id for p in m.fleet._pending_queue]))
     )
     m.env.run()
-    # first dispatched; given up; at the same instant the AGV takes the other order, the first one waits behind it
+    added = [(e.order, e.index) for e in m.events(FleetPendingChanged) if e.op == "added"]
+    assert added[:2] == [(second.id, 0), (first.id, 1)]  # pending first, then the re-queued order behind it
+    # at the instant of the give-up the AGV takes the other order, the re-queued one waits behind it
     assert [(t, o) for t, o, _ in dispatched[:2]] == [(0.0, first.id), (0.0, second.id)]
-    assert dispatched[1][2] == [first.id]
+    assert dispatched[1][2] == [second.id, first.id]
     assert (first.status, second.status) == (OrderStatus.COMPLETED, OrderStatus.COMPLETED)
     later = [t for t, o, _ in dispatched if o == first.id]
-    assert later[1] > 0.0  # offered to the same AGV again only at a later time
+    assert later[1] > 0.0  # the re-queued order goes to the same AGV again only at a later time
 
 
 # --- fix round 1: a give-up with cargo on board is a controller error ------------------------------------------------
@@ -536,3 +543,24 @@ def test_a_loaded_travel_ended_with_gave_up_is_a_controller_error() -> None:
     with pytest.raises(RuntimeError, match=r"Bypass.*A.*cargo"):
         m.env.run()
     assert order.status is not OrderStatus.FAILED  # not mapped like a missing route
+
+
+def test_a_charging_diversion_with_cargo_after_a_critical_arrival_is_a_controller_error() -> None:
+    """A arrives critical at M with its load, M is not its goal, and the mission charges first: that travel carries
+    cargo, so ending it with ``GaveUp`` is an error, as for any other loaded travel."""
+    graph_nodes = build([("S", 0, 0), ("M", 10, 0), ("D", 12, 0), ("CH", 10, 2)], [("S", "M"), ("M", "D"), ("M", "CH")])
+    m = quit_world(
+        graph_nodes,
+        {"A": "S"},
+        "CH",
+        bays={"WH-S": "S", "WH-D": "D"},
+        chargers={"CS": ("CH", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 14.0},
+        controller_type=Bypass,
+    )
+    order = m.order("WH-S", "WH-D")
+    with pytest.raises(RuntimeError, match=r"Bypass.*A.*cargo"):
+        m.env.run()
+    assert order.status is not OrderStatus.FAILED
+    assert m.events(ChargingStarted) == []
