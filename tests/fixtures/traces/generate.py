@@ -44,6 +44,7 @@ SEEDS: dict[str, int] = {
     "cell_ops": 7,
     "layout_full": 19,
     "layout_kpi": 19,
+    "layout_traffic": 19,
     "execution_full": 19,
 }
 """Generated fixtures and the explicit seed of each."""
@@ -271,12 +272,43 @@ def build_layout(env: Environment) -> None:
     layout.on_bind("width", lambda ctx: ctx.physical(width), reads=[width])
 
 
+def build_layout_traffic(env: Environment) -> None:
+    """A schema 1.1 layout: a passing lattice split into blocks, a zone and a non-passing column."""
+    from simulatte import Layout
+    from simulatte.layout import Grid, Lattice, Point
+    from simulatte.server import Server
+
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.1",
+            "overrides": [{"id": "p", "target": {"kind": "column", "i": 1}, "properties": {"passing": False}}],
+        },
+    )
+    layout.set_grid(Grid(2, 2))
+    layout.set_network(
+        Lattice(
+            (0, 0, 2, 0),
+            capacity=2,
+            passing=True,
+            block_length=1.0,
+            zones={"row": {"members": [{"kind": "row", "j": 0}]}},
+        )
+    )
+
+    @layout.stage("stations", reads=[])
+    def stations(ctx):
+        machine = Server(env=env, capacity=1, name="station")
+        layout.place(machine, position=Point(0, 3), footprint={"width": 2}, visual={"color": "#112233"})
+
+
 BUILDERS: dict[str, tuple[Callable[[Environment], object], float, int]] = {
     "shop_small": (build_shop_small, 20.0, 15),
     "lumscor": (build_lumscor, 25.0, 20),
     "cell_ops": (build_cell_ops, 30.0, 7),
     "layout_full": (build_layout, 1.0, 7),
     "layout_kpi": (build_layout, 1.0, 7),
+    "layout_traffic": (build_layout_traffic, 1.0, 7),
     "execution_full": (build_layout, 1.0, 7),
 }
 """For each generated fixture: the builder, the horizon and the events per chunk."""
