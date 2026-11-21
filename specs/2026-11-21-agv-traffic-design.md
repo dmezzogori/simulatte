@@ -245,11 +245,14 @@ once at activation.
 
 ### 6.5 Dead-end branches
 
-A dead-end branch is found from every node with exactly one neighbour (a leaf): walk away from the leaf through
-nodes with exactly two neighbours and capacity 1 until the first node with three or more neighbours or capacity
-above 1, the **root**. The branch is the leaf, the walked nodes and the segments between them and to the root.
-The root is not a member. If the walk reaches another leaf, the component is a plain line with no passing place
-and has no branch. Branches carry no resource of their own; they
+A dead-end branch is found from every node with exactly one neighbour (a leaf), whatever its capacity: walk
+away from the leaf through nodes with exactly two neighbours and capacity 1 until the first node with three or
+more neighbours or capacity above 1, the **root**. A leaf with capacity above 1 ends a walk as a root too. The
+branch is the starting leaf, the walked nodes and the segments between them and to the root. The root is not a
+member. If the walk reaches a leaf of capacity 1, the component is a plain line with no passing place and has no
+branch. On a line whose two end leaves both have capacity above 1, each interior node belongs to two branches,
+one per direction; a leg enters the branch in which it moves away from the root. A leaf is never a corridor
+port. Branches carry no resource of their own; they
 only shape claims (§7.2). `hold_back_dead_ends` (default true) turns the rule off.
 
 ### 6.6 Vehicle extent and release
