@@ -216,3 +216,17 @@ class TestSubdivide:
         frozen = LayoutGraph._from_layout([a, b], [Arc(a, b, bidirectional=False)])
         with pytest.raises(ValueError):
             frozen.subdivide(1.0)
+
+    def test_arcs_with_endpoints_outside_nodes_are_kept(self) -> None:
+        a, b, c = Node("A", 0.0, 0.0), Node("B", 6.0, 0.0), Node("C", 6.0, 6.0)
+        graph = LayoutGraph([a], [Arc(a, b), Arc(b, c)])
+        result = graph.subdivide(4.0)
+        assert [n.id for n in result.nodes] == ["A", "A~B#1", "B~C#1"]
+        ab, bc = result.nodes[1], result.nodes[2]
+        for src, dst in [(a, ab), (ab, b), (b, ab), (ab, a), (b, bc), (bc, c), (c, bc), (bc, b)]:
+            assert result.arc_between(src, dst) is not None
+
+    def test_generated_nodes_follow_arc_order(self) -> None:
+        a, b, c = Node("A", 0.0, 0.0), Node("B", 6.0, 0.0), Node("C", 6.0, 6.0)
+        result = LayoutGraph([a, b, c], [Arc(b, c, length=8.0), Arc(a, b)]).subdivide(4.0)
+        assert [n.id for n in result.nodes] == ["A", "B", "C", "B~C#1", "A~B#1"]

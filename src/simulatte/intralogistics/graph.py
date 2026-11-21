@@ -184,8 +184,8 @@ class LayoutGraph:
             raise ValueError("max_length must be positive and finite")
         arcs: list[Arc] = []
         seen: set[int] = set()
-        for node in self._nodes:
-            for arc in self._adjacency[node].values():
+        for edges in self._adjacency.values():
+            for arc in edges.values():
                 if id(arc) not in seen:
                     seen.add(id(arc))
                     arcs.append(arc)
