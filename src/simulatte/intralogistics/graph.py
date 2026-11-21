@@ -222,6 +222,7 @@ class LayoutGraph:
         return math.fsum(math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y) for i in range(len(path) - 1))
 
     def shortest_path(self, source: Node, target: Node) -> list[Node] | None:
-        from simulatte.intralogistics.pathfinding import DijkstraPlanner
+        from simulatte.intralogistics.routing import shortest_path
 
-        return DijkstraPlanner().plan(self, source, target)
+        found = shortest_path(self, source, target)
+        return None if found is None else list(found[0])
