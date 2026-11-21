@@ -386,9 +386,10 @@ exceptions. A zone or corridor held ahead of entry under a hold-back rule stays;
 corridor named by the AGV's pending claim stays, because the pending claim was built on holding it; for the same
 reason the resources of a pending claim that the AGV already holds are determined when the claim is granted, not
 when it is requested. A corridor that the AGV left onto one of its ports stays for as long as the AGV holds that
-port, and is released in the same event as the port. This holds for ports of capacity 1 only: on a port of
-capacity above 1 an opposite entrant waits on the port itself, the vehicle that left does not stand in its way,
-and the corridor is released with its last member. Only a `release` at a clear point counts as leaving: when
+port, and is released in the same event as the port. This holds for ports of capacity 1 only. A port of
+capacity above 1 is often a parking or charging node where the vehicle that left comes to rest; an exit record
+there would keep the corridor oriented for as long as it stays and block every opposite entrant, so the corridor
+is released with its last member. Only a `release` at a clear point counts as leaving: when
 `retain` drops the last members (a travel that ends before entering), the corridor goes with them. The executor
 therefore releases what clears on arrival before it calls `retain` at the end of a travel. T8: the controller never takes a granted resource
 back. Every release emits one `traffic.released` and triggers a scan.
