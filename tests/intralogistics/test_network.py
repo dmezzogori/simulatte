@@ -452,6 +452,56 @@ class TestClaims:
         assert describe(backward)[0] == ("corridor:A", "backward")
         assert describe(network.claim(route_of(nodes, "A", "B", "P"), 1))[0] == ("corridor:A", "forward")
 
+    def test_a_root_of_capacity_two_is_a_place_to_wait(self) -> None:
+        graph, nodes = t_layout()
+        network = TrafficNetwork(graph, capacities={nodes["C1"]: 2})
+        route = route_of(nodes, "STORE_OUT", "C1", "C2", "LINE_IN")
+        into_root = network.claim(route, 0)  # leaves a branch onto the root: the leg alone
+        assert into_root.legs == 1
+        assert describe(into_root) == [("C1~STORE_OUT", "backward"), ("C1", None)]
+        from_root = network.claim(route, 1)  # starts at the root and enters the branch: down to the final node
+        assert from_root.legs == 2
+        assert describe(from_root) == [("C1~C2", "forward"), ("C2", None), ("C2~LINE_IN", "forward"), ("LINE_IN", None)]
+        side = route_of(nodes, "LINE_IN", "C2", "C1", "PARK")
+        assert describe(network.claim(side, 1)) == [("C1~C2", "backward"), ("C1", None)]
+        assert network.claim(side, 2).legs == 1
+
+    def test_a_dead_end_line_through_a_capacity_two_node(self) -> None:
+        graph, nodes = build(
+            [("x1", 0, 0), ("a", 10, 0), ("P", 20, 0), ("b", 30, 0), ("x2", 40, 0)],
+            [("x1", "a"), ("a", "P"), ("P", "b"), ("b", "x2")],
+        )
+        network = TrafficNetwork(graph, capacities={nodes["P"]: 2})
+        assert network.branches == (
+            Branch(nodes["P"], (nodes["a"], nodes["x1"])),
+            Branch(nodes["P"], (nodes["b"], nodes["x2"])),
+        )
+        route = route_of(nodes, "x1", "a", "P", "b", "x2")
+        assert [network.claim(route, index).legs for index in range(4)] == [1, 1, 2, 1]
+        assert describe(network.claim(route, 1)) == [("P~a", "backward"), ("P", None)]
+
+    def test_a_port_of_capacity_two_is_a_place_to_wait(self) -> None:
+        graph, nodes = build(
+            [("J1", 0, 0), ("a", 10, 0), ("P", 20, 0), ("b", 30, 0), ("J2", 40, 0)]
+            + [("x1", -10, 10), ("y1", -10, -10), ("x2", 50, 10), ("y2", 50, -10)],
+            [("J1", "a"), ("a", "P"), ("P", "b"), ("b", "J2"), ("J1", "x1"), ("J1", "y1"), ("J2", "x2"), ("J2", "y2")],
+        )
+        network = TrafficNetwork(graph, capacities={nodes["P"]: 2})
+        assert [(c.id, [n.id for n in c.nodes]) for c in network.corridors] == [
+            ("corridor:a", ["J1", "a", "P"]),
+            ("corridor:b", ["J2", "b", "P"]),
+        ]
+        route = route_of(nodes, "x1", "J1", "a", "P", "b", "J2", "x2")
+        # into the capacity-1 port J1: the corridor comes with the leg, as before
+        assert describe(network.claim(route, 0)) == [("corridor:a", "forward"), ("J1~x1", "backward"), ("J1", None)]
+        # into the capacity-2 port P: the next corridor does not come with it
+        assert describe(network.claim(route, 2)) == [("corridor:a", "forward"), ("P~a", "backward"), ("P", None)]
+        # the first leg inside carries it
+        assert describe(network.claim(route, 3)) == [("corridor:b", "backward"), ("P~b", "forward"), ("b", None)]
+        back = route_of(nodes, "x2", "J2", "b", "P", "a", "J1", "x1")
+        assert describe(network.claim(back, 2)) == [("corridor:b", "forward"), ("P~b", "backward"), ("P", None)]
+        assert describe(network.claim(back, 3))[0] == ("corridor:a", "backward")
+
     def test_hold_back_zone_is_claimed_one_leg_early(self) -> None:
         graph, nodes = line(5)
         network = TrafficNetwork(graph, zones=[Zone("z", (nodes["N3"],), hold_back=True)])

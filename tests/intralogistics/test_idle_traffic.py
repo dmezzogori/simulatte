@@ -27,6 +27,7 @@ from simulatte.intralogistics.events import (
 )
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import LayoutGraph, Node
+from simulatte.intralogistics.network import Zone
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import NearestParkingPolicy, RepositioningContext
@@ -337,9 +338,10 @@ def _travel(m: Mission, name: str, goal: str) -> Any:
 
 
 @pytest.mark.parametrize("make_way", [True, False])
-def test_an_agv_idle_on_the_exit_port_of_a_corridor_makes_way_for_the_opposite_traffic(make_way: bool) -> None:
-    """A leaves the corridor onto J2 (capacity 2) and idles there, which keeps the corridor oriented; B, coming from
-    the other end, waits for the corridor until A makes way."""
+def test_an_agv_idle_on_a_roomy_exit_port_of_a_corridor_does_not_block_the_opposite_traffic(make_way: bool) -> None:
+    """A leaves the corridor onto J2 (capacity 2) and idles there. A port of capacity above 1 keeps no exit record
+    (spec §7.5): the corridor goes with A's last member, so B, coming from the other end, passes J2 and the corridor
+    without waiting, and A is not asked to move."""
     graph, nodes = two_junction_corridor()
     w = world(
         (graph, nodes), {"A": "J1", "B": "x2"}, make_way=make_way, capacities={nodes["J2"]: 2}, derive_corridors=True
@@ -348,17 +350,10 @@ def test_an_agv_idle_on_the_exit_port_of_a_corridor_makes_way_for_the_opposite_t
     w.go("B", "x1", at=40.0)
     w.env.run()
 
-    assert w.outcomes["A"] is TravelOutcome.ARRIVED
-    started = w.of(TrafficWaitStarted, agv="B")
-    assert [e.blockers for e in started] == [("A",)]
-    if make_way:
-        assert w.outcomes["B"] is TravelOutcome.ARRIVED
-        assert w.agvs["B"].current_node is nodes["x1"]
-        assert [(e.reason, e.origin) for e in w.of(AgvRouted, agv="A")][-1] == ("make_way", "J2")
-        assert w.agvs["A"].current_node is nodes["y2"]
-    else:
-        assert "B" not in w.outcomes  # nothing relieves the corridor: B waits at rest
-        assert w.agvs["A"].current_node is nodes["J2"]
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    assert w.of(TrafficWaitStarted) == []
+    assert (w.agvs["A"].current_node, w.agvs["B"].current_node) == (nodes["J2"], nodes["x1"])
+    assert [e.reason for e in w.of(AgvRouted, agv="A")] == ["travel"]
 
 
 # --- the controller guards its review -----------------------------------------------------------------------------
@@ -850,17 +845,22 @@ def test_an_idle_agv_is_not_shuttled_between_two_waits() -> None:
 def test_a_node_named_by_a_pending_claim_is_taken_when_a_slot_remains_for_each(
     capacity: int, expected: str | None
 ) -> None:
+    """W, on its way to g through X, holds back for the zone of g, which the stranded G holds: W's pending claim
+    names X. The layout has no dead end; Y is taken by another stranded AGV."""
     graph, nodes = build(
-        [("w1", -10, 0), ("X", 0, 0), ("g", 10, 0), ("e", 0, 10)], [("w1", "X"), ("X", "g"), ("X", "e")]
+        [("w1", -10, 0), ("X", 0, 0), ("g", 10, 0), ("e", 0, 10), ("Y", 0, 30)],
+        [("w1", "X"), ("X", "g"), ("X", "e"), ("w1", "Y"), ("g", "Y"), ("e", "Y")],
     )
     w = world(
         (graph, nodes),
-        {"A": "e", "W": "w1", "G": "g"},
+        {"A": "e", "W": "w1", "G": "g", "H": "Y"},
         make_way=True,
         capacities={nodes["X"]: capacity},
+        zones=(Zone("Z", (nodes["g"],), hold_back=True),),
         derive_corridors=False,
     )
     w.agvs["G"].transition_to(AGVState.STRANDED)
+    w.agvs["H"].transition_to(AGVState.STRANDED)
     w.go("W", "g")
     w.env.run(until=1.0)
     assert w.controller.view.pending(nodes["X"]) == 1  # W's claim names X

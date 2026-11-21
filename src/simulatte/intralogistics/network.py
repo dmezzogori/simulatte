@@ -326,20 +326,26 @@ class TrafficNetwork:
     # Claims
 
     def _reaches_dead_end(self, route: Sequence[Node], index: int) -> bool:
-        """Whether the leg at ``index`` enters a branch, or ends at a root that the next leg enters."""
+        """Whether the leg at ``index`` enters a branch, or ends at a root of capacity 1 that the next leg enters.
+
+        A root of capacity above 1 is a place to wait: the leg into it is claimed on its own, and the next leg, which
+        starts at the root and enters the branch, covers the branch.
+        """
         u, v = route[index], route[index + 1]
         for branch, position in self._branch_of.get(v, ()):
             if u == (branch.root if position == 0 else branch.nodes[position - 1]):
                 return True
-        if index + 2 < len(route):
+        if index + 2 < len(route) and self._capacity[v] == 1:
             return any(branch.nodes[0] == route[index + 2] for branch in self._branches_at.get(v, ()))
         return False
 
     def _ahead(self, route: Sequence[Node], index: int) -> dict[str, ClaimItem]:
-        """What the leg at ``index`` also claims for the next leg: a corridor it is about to enter, a held-back zone."""
+        """What the leg at ``index`` also claims for the next leg: a corridor it is about to enter through a port of
+        capacity 1, a held-back zone. A port of capacity above 1 is a place to wait: the first leg inside carries the
+        corridor."""
         v, w = route[index + 1], route[index + 2]
         ahead: dict[str, ClaimItem] = {}
-        entry = self._corridor_at.get(_key(v, w))
+        entry = self._corridor_at.get(_key(v, w)) if self._capacity[v] == 1 else None
         if entry is not None:
             corridor, i = entry
             orientation: Direction = "forward" if corridor.nodes[i] == v else "backward"

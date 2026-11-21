@@ -361,16 +361,21 @@ def stream_world() -> tuple[LayoutGraph, dict[str, Node]]:
     )
 
 
-def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside() -> None:
+@pytest.mark.parametrize("port", [1, 2], ids=["port-1", "port-2"])
+def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside(port: int) -> None:
     """Forward stream A1, A2 and a later A3; W comes the other way. W waits for A1 and A2, which are inside or ahead of
     it in the queue, but not for A3: A3 asks for the corridor while it is held in its own direction and is held
-    back by the gate until W has gone through."""
+    back by the gate until W has gone through. With a port of capacity 2 at W's end, W waits on the port itself and
+    the stream keeps no exit record there (spec §7.2, §7.5): the order of the grants is the same."""
+    graph, nodes = stream_world()
     m, invariants = scenario(
-        stream_world(),
+        (graph, nodes),
         {"A1": "x1", "A2": "y1", "W": "x2", "A3": "z1"},
         bays={name.upper(): name for name in ("x1", "y1", "z1", "u1", "x2", "y2", "w2", "v2")},
         parking={"P1": ("p1", 4), "P2": ("p2", 4)},
+        controller_options={"capacities": {nodes["J2"]: port}},
     )
+    spots = Spots(m)
     m.order("X1", "Y2")  # A1
     m.order("Y1", "W2")  # A2
     m.order("X2", "U1")  # W, the other way
@@ -389,6 +394,69 @@ def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_
     assert left["W"] <= entered["A3"]  # and A3 enters only when W has left the corridor
     assert entered["A3"] > float(held_back.t)  # A3 waited
     assert left["A1"] <= entered["W"] and left["A2"] <= entered["W"]  # W waited for the vehicles ahead only
+    assert spots.first("W")[1] == ("x2" if port == 1 else "J2")
+
+
+def passing_place(kind: str) -> tuple[LayoutGraph, dict[str, Node]]:
+    """``x1 ... a, P, b ... x2`` with P of capacity 2 (set by the test): two corridors ``J1, a, P`` and ``P, b, J2``
+    between junctions with two leaves each (``corridors``), or the line ``x1, a, P, b, x2`` of two dead ends rooted at
+    P (``dead_ends``)."""
+    if kind == "dead_ends":
+        return build(
+            [("x1", 0, 0), ("a", 10, 0), ("P", 20, 0), ("b", 30, 0), ("x2", 40, 0)],
+            [("x1", "a"), ("a", "P"), ("P", "b"), ("b", "x2")],
+        )
+    return build(
+        [("J1", 0, 0), ("a", 10, 0), ("P", 20, 0), ("b", 30, 0), ("J2", 40, 0)]
+        + [("x1", -10, 10), ("y1", -10, -10), ("x2", 50, 10), ("y2", 50, -10)],
+        [("J1", "a"), ("a", "P"), ("P", "b"), ("b", "J2"), ("J1", "x1"), ("J1", "y1"), ("J2", "x2"), ("J2", "y2")],
+    )
+
+
+@pytest.mark.parametrize("kind", ["corridors", "dead_ends"])
+def test_two_agvs_head_on_pass_each_other_on_a_node_of_capacity_two(kind: str) -> None:
+    """spec §7.2: the leg into a port or root of capacity above 1 is claimed on its own, so two AGVs that meet head-on
+    both reach P, stand on it together and go on: no deadlock."""
+    graph, nodes = passing_place(kind)
+    m, invariants = scenario(
+        (graph, nodes),
+        {"A": "x1", "B": "x2"},
+        bays={"WA": "x1", "WB": "x2"},
+        controller_options={"capacities": {nodes["P"]: 2}},
+    )
+    m.order("WA", "WB")  # A
+    m.order("WB", "WA")  # B
+    m.env.run()
+    assert_ran(m, invariants, orders=2)
+    assert not m.events(TrafficDeadlock)
+    on_p = {
+        agv: (
+            next(float(e.t) for e in m.events(AgvMoveEnded, agv=agv) if e.node == "P"),
+            next(float(e.t) for e in m.events(AgvMoveStarted, agv=agv) if e.from_node == "P"),
+        )
+        for agv in ("A", "B")
+    }
+    assert max(arrived for arrived, _ in on_p.values()) <= min(left for _, left in on_p.values())  # both on P
+
+
+def test_an_agv_parked_on_a_roomy_port_is_dispatched_through_the_empty_corridor_at_once() -> None:
+    """I1 and I2 came through the corridor to the parking area of capacity 2 on the port J2, whose other neighbours are
+    bays. I1 is then dispatched back through the empty corridor: neither keeps an exit record on J2 (spec §7.5), so
+    I1's claims are granted at once and the order completes."""
+    graph, nodes = two_junction_corridor()
+    m, invariants = scenario(
+        (graph, nodes),
+        {"I1": "x1", "I2": "y1"},
+        bays={"A": "x1", "D": "y1", "B": "x2", "C": "y2"},
+        parking={"P": ("J2", 2)},
+    )
+    m.at(1.0, lambda: m.fleet.make_way(m.agvs["I1"], nodes["J2"]))
+    m.at(60.0, lambda: m.fleet.make_way(m.agvs["I2"], nodes["J2"]))
+    m.order("D", "A", at=200.0)
+    m.env.run()
+    assert_ran(m, invariants, orders=1)
+    assert m.routed("I1")[:2] == [("make_way", "x1", "J2"), ("travel", "J2", "y1")]
+    assert not m.events(TrafficWaitStarted)
 
 
 def long_corridor() -> tuple[LayoutGraph, dict[str, Node]]:

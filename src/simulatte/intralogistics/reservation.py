@@ -381,7 +381,7 @@ class ReservationController:
 
         Resources the AGV does not hold are ignored, and so is a zone or corridor of which the AGV keeps a member. Three
         containers stay (spec §7.5): one held ahead of entry (no member held), one named by the AGV's pending claim,
-        and a corridor left onto a port the AGV still holds, which then goes with that port.
+        and a corridor left onto a port of capacity 1 the AGV still holds, which then goes with that port.
         """
         held = self._held.get(agv, {})
         wanted = set(resources)
@@ -417,8 +417,9 @@ class ReservationController:
         A container stays while the AGV keeps one of its members or its pending claim names it. An exit record (a
         corridor left onto a port) lives only while the AGV holds that port: freeing the port deletes the record and
         frees the corridor unless a member or the pending claim keeps it. Otherwise, in ``release``, a container whose
-        last held members go is freed, except a corridor whose port the AGV keeps, which gets an exit record; one held
-        ahead of entry stays. ``retain`` creates no exit record and frees every container nothing keeps.
+        last held members go is freed, except a corridor whose port of capacity 1 the AGV keeps, which gets an exit
+        record; one held ahead of entry stays. ``retain`` creates no exit record and frees every container nothing
+        keeps.
         """
         waiting = self._pending.get(agv)
         named = set() if waiting is None else {item.resource for item in waiting.request.claim.items}
@@ -442,10 +443,14 @@ class ReservationController:
                     exits[container] = port  # left onto the port: goes with it
 
     def _port_held(self, container: Container, held: Mapping[Resource, None], gone: set[Resource]) -> Node | None:
-        """The port of a corridor that the AGV holds and keeps, if any; None for a zone."""
+        """The port of capacity 1 of a corridor that the AGV holds and keeps, if any; None for a zone.
+
+        A port of capacity above 1 gets no exit record (spec §7.5): an opposite entrant waits on the port itself.
+        """
         if isinstance(container, Corridor):
+            network = self.network
             for port in (container.nodes[0], container.nodes[-1]):
-                if port in held and port not in gone:
+                if port in held and port not in gone and network.capacity(port) == 1:
                     return port
         return None
 
