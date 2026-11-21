@@ -94,7 +94,12 @@ def _load_weight(agv: AGV) -> float:
 
 
 def standard_target(
-    fleet: FleetCoordinator, agv: AGV, *, concerned: Sequence[AGV] = (), idle: bool = False
+    fleet: FleetCoordinator,
+    agv: AGV,
+    *,
+    concerned: Sequence[AGV] = (),
+    idle: bool = False,
+    purpose: str = "step_aside",
 ) -> Node | None:
     """The node of the standard search (spec §7.9) for `agv`, or None when no node qualifies.
 
@@ -103,7 +108,9 @@ def standard_target(
     would still have a free slot for each of them after the move. The cheapest by router cost wins, ties by node id.
 
     With `idle` (the AGV will be idle on arrival) the node of a parking area with a free slot is taken first, cheapest
-    first; failing that, the node is not a service node and not the node of a parking area that is full.
+    first; failing that, the node is not a service node and not the node of a parking area that is full. A node that
+    a pending claim names is not taken either unless it keeps a free slot for each of those claims after the move.
+    `purpose` is the purpose of the move the search is for; the router is asked with it.
     """
     controller = fleet.traffic_controller
     view = controller.view
@@ -131,7 +138,11 @@ def standard_target(
         on_routes = sum(1 for route in ahead if node in route)
         if on_routes and free - 1 < on_routes:
             continue
-        route = fleet.router.route(RouteRequest(agv, origin, node, _load_weight(agv), purpose="step_aside"), view)
+        if idle:
+            named = view.pending(node)
+            if named and free - 1 < named:
+                continue
+        route = fleet.router.route(RouteRequest(agv, origin, node, _load_weight(agv), purpose=purpose), view)
         if route is None:
             continue
         _check_route(fleet, route, origin, node)
@@ -464,7 +475,6 @@ class _Trip:
         load_weight: float,
     ) -> ProcessGenerator:
         """Traverse the arc rest to rest, releasing each trail entry where the tail clears it."""
-        self.fleet._release_slots(self.agv, current)  # departing from a parking node gives its slot back
         self.executor._start_segment(self.agv, current, next_node, travel_time, description, self.loaded)
         if math.isfinite(travel_time):
             yield from self._move(current, next_node, distance, travel_time, load_weight)
@@ -494,6 +504,7 @@ class _Trip:
         On arrival at a node of capacity above 1 the whole trail clears with the arrival releases (spec §6.6).
         """
         executor, agv, env = self.executor, self.agv, self.env
+        self.fleet._release_slots(agv, current)  # departing from a parking node gives its slot back
         arrival = env.timeout(travel_time)
         at_departure: list[Resource] = []
         inside: dict[float, list[Resource]] = {}
@@ -616,7 +627,7 @@ class _Trip:
             for item in () if request is None else request.claim.items:
                 concerned.update(dict.fromkeys(view.holders(item.resource)))
             concerned.pop(self.agv, None)
-            target = standard_target(self.fleet, self.agv, concerned=tuple(concerned))
+            target = standard_target(self.fleet, self.agv, concerned=tuple(concerned), purpose="step_aside")
         if target is None or target == here:
             return False
         route = self._route(here, target)

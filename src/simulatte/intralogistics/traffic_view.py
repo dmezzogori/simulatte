@@ -63,18 +63,7 @@ class ReservationView:
         return () if claim is None else tuple(claim.request.hooks.route())
 
     def waiting_on(self, agv: AGV) -> tuple[AGV, ...]:
-        controller = self._controller
-        waits = sorted(
-            (waiting for waiting in controller._queue if waiting.stopped), key=lambda waiting: waiting.key[1]
-        )
-        return tuple(
-            waiting.agv
-            for waiting in waits
-            if any(
-                agv in controller._blockers(waiting.agv, item)
-                for item in controller._needed(waiting.agv, waiting.request.claim)
-            )
-        )
+        return tuple(waiting.agv for waiting in self._controller._waits_blocked_by(agv))
 
     def admissible(self, agv: AGV, claim: Claim) -> bool:
         return self._controller._admissible(agv, claim)

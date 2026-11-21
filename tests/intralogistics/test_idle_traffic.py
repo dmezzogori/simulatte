@@ -33,10 +33,11 @@ from simulatte.intralogistics.policies import NearestParkingPolicy, Repositionin
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import Route, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
-from simulatte.intralogistics.traffic import FreeFlowController, TrafficView
+from simulatte.intralogistics.traffic import FreeFlowController, TrafficView, Wait
+from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from simulatte.intralogistics.travel import TravelOutcome, standard_target
 from simulatte.intralogistics.warehouse import Warehouse
-from tests.intralogistics.test_travel import vehicle, world
+from tests.intralogistics.test_travel import stalled, vehicle, world
 from tests.intralogistics.traffic_support import (
     FullReplay,
     TrafficInvariants,
@@ -728,11 +729,12 @@ def bypass_layout(*, bypass: bool) -> tuple[LayoutGraph, dict[str, Node]]:
     return build(points, links)
 
 
-@pytest.mark.parametrize(("bypass", "level"), [(False, 80.0), (True, 5.0)])
+@pytest.mark.parametrize(("bypass", "level"), [(False, 80.0), (False, 5.0), (True, 5.0)])
 def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
     """X charges on C (one slot) for 100 - `level` seconds. P, travelling from A to B through C, waits while the slot
-    is busy. At its review, at 30, it reroutes when a route around exists. Without one it is reported stuck, but only
-    once X has finished charging and sits idle where it cannot make way."""
+    is busy. At its review, at 30, it reroutes when a route around exists. Without one it is reported stuck, at the
+    instant X has finished charging and sits idle where it cannot make way, whether that is before or after the
+    review."""
     m = mission_world(
         bypass_layout(bypass=bypass),
         {"X": "C", "P": "A"},
@@ -747,7 +749,7 @@ def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
     def charge() -> Any:
         yield from m.fleet._charge_agv(x, station)
         m.fleet._transition_agv(x, AGVState.IDLE)
-        m.fleet._relieve(x)
+        m.controller.idle(x)
 
     m.env.process(charge())
     m.at(1.0, lambda: m.env.process(_travel(m, "P", "B")))
@@ -758,7 +760,7 @@ def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
     assert x.state is AGVState.CHARGING
     assert m.events(TrafficWaitStuck) == [] and m.events(AgvRouted, agv="X") == []
     m.env.run(until=29.0)
-    assert (x.state is AGVState.CHARGING) is bypass  # the long charge is still going at 29
+    assert (x.state is AGVState.CHARGING) is (level == 5.0)  # the long charge is still going at 29
     m.env.run()
     reasons = [e.reason for e in m.events(AgvRouted, agv="P")]
     stuck = m.events(TrafficWaitStuck)
@@ -769,6 +771,334 @@ def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
     else:
         assert reasons == ["travel"]
         assert p.current_node is m.nodes["A"]  # no route around and X cannot move: P keeps waiting
-        assert [(e.t, e.agv) for e in stuck] == [(31.0, "P")]  # the review, at 30 after the wait opened at 1
+        idle_at = [e.t for e in m.events(AgvStateChanged, agv="X") if e.state == "IDLE"]
+        assert [(e.t, e.agv) for e in stuck] == [(idle_at[0], "P")]  # reported once, when X became idle
         assert x.state is AGVState.IDLE and x.current_node is m.nodes["C"]
         assert m.events(AgvRouted, agv="X") == []  # X found no node to go to
+
+
+# --- fix round 1 ---------------------------------------------------------------------------------------------------
+
+
+def fork() -> tuple[LayoutGraph, dict[str, Node]]:
+    """``B0 - S - M - D`` along a row with the leaf ``SL`` off ``S``."""
+    return build(
+        [("B0", -10, 0), ("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("SL", 0, 10)],
+        [("B0", "S"), ("S", "M"), ("M", "D"), ("S", "SL")],
+    )
+
+
+def idle_times(m: Mission, agv: str) -> list[float]:
+    return [float(e.t) for e in m.events(AgvStateChanged, agv=agv) if e.state == "IDLE"]
+
+
+def make_way_times(m: Mission, agv: str) -> list[float]:
+    return [float(e.t) for e in m.events(AgvRouted, agv=agv) if e.reason == "make_way"]
+
+
+# Finding 1: the idle search does not land where another wait needs room
+
+
+def twin_roots() -> tuple[LayoutGraph, dict[str, Node]]:
+    """Two roots ``R1``, ``R2`` joined by an arc, each with a waiting AGV on one side and a dead-end branch on the other
+    whose leaf holds a stranded AGV."""
+    return build(
+        [
+            ("w1", -10, 0),
+            ("R1", 0, 0),
+            ("n1", 10, 0),
+            ("d1", 20, 0),
+            ("w2", -10, 20),
+            ("R2", 0, 20),
+            ("n2", 10, 20),
+            ("d2", 20, 20),
+        ],
+        [("w1", "R1"), ("R1", "n1"), ("n1", "d1"), ("w2", "R2"), ("R2", "n2"), ("n2", "d2"), ("R1", "R2")],
+    )
+
+
+def test_an_idle_agv_is_not_shuttled_between_two_waits() -> None:
+    w = world(
+        twin_roots(), {"A": "R1", "W1": "w1", "W2": "w2", "S1": "d1", "S2": "d2"}, make_way=True, derive_corridors=False
+    )
+    for name in ("S1", "S2"):
+        w.agvs[name].transition_to(AGVState.STRANDED)
+    w.go("W1", "d1")
+    w.go("W2", "d2")
+    w.env.run()  # returns: nothing keeps the simulation going
+    a = w.agvs["A"]
+    # W1's wait opens before W2 has asked, so A may make one move, to R2. There W2's claim names the node it stands on
+    # and R1 is named by W1's: it finds nothing, stays, and is not sent back (before the fix: 101 moves, then stranded).
+    assert len(w.of(AgvRouted, agv="A")) <= 1
+    assert a.state is AGVState.IDLE
+    assert sorted(e.agv for e in w.of(TrafficWaitStuck)) == ["W1", "W2"]
+
+
+@pytest.mark.parametrize(("capacity", "expected"), [(2, "X"), (1, None)])
+def test_a_node_named_by_a_pending_claim_is_taken_when_a_slot_remains_for_each(
+    capacity: int, expected: str | None
+) -> None:
+    graph, nodes = build(
+        [("w1", -10, 0), ("X", 0, 0), ("g", 10, 0), ("e", 0, 10)], [("w1", "X"), ("X", "g"), ("X", "e")]
+    )
+    w = world(
+        (graph, nodes),
+        {"A": "e", "W": "w1", "G": "g"},
+        make_way=True,
+        capacities={nodes["X"]: capacity},
+        derive_corridors=False,
+    )
+    w.agvs["G"].transition_to(AGVState.STRANDED)
+    w.go("W", "g")
+    w.env.run(until=1.0)
+    assert w.controller.view.pending(nodes["X"]) == 1  # W's claim names X
+    found = standard_target(w.fleet, w.agvs["A"], idle=True)
+    assert found is (None if expected is None else nodes[expected])
+    generic = standard_target(w.fleet, w.agvs["A"])  # without idle the rule does not apply
+    assert generic is nodes["X"]
+
+
+class Recording(ShortestDistanceRouter):
+    """A router that records the purpose of every request."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.purposes: list[str] = []
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        self.purposes.append(request.purpose)
+        return super().route(request, view)
+
+
+def test_the_search_and_the_move_use_the_same_purpose() -> None:
+    w = world(t_layout(), {"A": "C1"}, make_way=True, router=Recording())
+    router = w.fleet.router
+    assert w.fleet.make_way(w.agvs["A"]) is True
+    w.env.run()
+    assert set(router.purposes) == {"make_way"}  # the search for the node and the move, not "step_aside"
+
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, router=Recording())
+    router = m.fleet.router
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    delivered = router.purposes.index("clear_node")
+    assert set(router.purposes[delivered:]) == {"clear_node"}  # the whole search and the move, nothing else
+    assert "step_aside" not in router.purposes
+
+
+def test_a_purpose_sensitive_router_is_asked_with_the_purpose_of_the_move() -> None:
+    class NoStepAside(ShortestDistanceRouter):
+        def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+            return None if request.purpose == "step_aside" else super().route(request, view)
+
+    w = world(t_layout(), {"A": "C1"}, make_way=True, router=NoStepAside())
+    assert w.fleet.make_way(w.agvs["A"]) is True
+    w.env.run()
+    assert w.agvs["A"].current_node is not w.nodes["C1"]  # the search found a node: the move reached it
+
+
+# Finding 2: the idle transition on each path asks the AGV to make way at that instant
+
+
+def waiting_world(**options: Any) -> Mission:
+    return mission_world(
+        fork(), {"A": "S", "B": "M"}, bays={"WH-S": "S", "WH-M": "M", "WH-D": "D"}, clear_service_nodes=False, **options
+    )
+
+
+def test_a_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
+    m = mission_world(fork(), {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
+    m.order("WH-S", "WH-M")  # A ends on M
+    m.at(3.0, lambda: m.env.process(_travel(m, "B", "S")))  # B waits on M, held by A while it moves and serves
+    m.env.run()
+    (opened,) = m.events(TrafficWaitStarted, agv="B")
+    assert opened.t < idle_times(m, "A")[0]
+    assert make_way_times(m, "A") == [idle_times(m, "A")[0]]  # at the transition, not at the review 30 s later
+
+
+def test_a_failed_travel_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
+    m = mission_world(
+        fork(),
+        {"A": "S", "B": "M"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        clear_service_nodes=False,
+        router=Unreachable(Node("D", 20, 0)),
+    )
+    m.fleet.router = Unreachable(m.nodes["D"])
+    order = m.order("WH-S", "WH-D")
+    m.at(0.5, lambda: m.env.process(_travel(m, "B", "S")))  # B waits on S while A loads
+    m.env.run()
+    assert order.status is OrderStatus.FAILED
+    assert make_way_times(m, "A") == [idle_times(m, "A")[0]]
+
+
+def test_a_cancelled_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
+    m = mission_world(fork(), {"A": "S", "B": "M"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
+    order = m.order("WH-S", "WH-D")
+    m.at(0.5, lambda: m.env.process(_travel(m, "B", "S")))
+    m.at(1.0, lambda: m.fleet.cancel(order))
+    m.env.run()
+    assert order.status is OrderStatus.CANCELLED
+    assert make_way_times(m, "A") == [idle_times(m, "A")[0]]
+
+
+def test_the_end_of_a_make_way_move_that_blocks_another_wait_makes_way_at_once() -> None:
+    graph, nodes = build(
+        [("P", -10, 0), ("Y", 0, 0), ("Z", 10, 0), ("C0", 0, 10), ("E", 0, -10)],
+        [("P", "Y"), ("Y", "Z"), ("C0", "Y"), ("Y", "E")],
+    )
+    m = mission_world((graph, nodes), {"A": "P", "C": "C0", "S": "Z"}, clear_service_nodes=False)
+    m.agvs["S"].transition_to(AGVState.STRANDED)
+    m.at(0.5, lambda: m.env.process(_travel(m, "C", "Z")))  # C waits for Y and Z, which S holds
+    m.at(2.0, lambda: m.fleet.make_way(m.agvs["A"], nodes["Y"]))
+    m.env.run()
+    arrival = idle_times(m, "A")[0]
+    assert arrival > 2.0
+    assert [e.destination for e in m.events(AgvRouted, agv="A")][0] == "Y"
+    assert make_way_times(m, "A")[1:] == [arrival]  # the second make-way move starts when the first ends
+
+
+# Finding 3: the idle case belongs to the controller
+
+
+class Choosing(StandardTrafficPolicy):
+    """The standard policy, but with the make-way target `node` (recorded)."""
+
+    def __init__(self, node: Node | None) -> None:
+        super().__init__()
+        self.node = node
+        self.asked: list[tuple[str, str]] = []
+
+    def make_way_target(self, blocker: AGV, wait: Wait, view: TrafficView) -> Node | None:
+        self.asked.append((blocker.id, wait.agv.id))
+        return self.node
+
+
+def test_the_policys_make_way_target_is_used_on_the_idle_path() -> None:
+    graph_nodes = fork()
+    policy = Choosing(graph_nodes[1]["SL"])  # the standard search would take B0
+    m = mission_world(
+        graph_nodes,
+        {"A": "S", "B": "D"},
+        bays={"WH-S": "S", "WH-M": "M"},
+        clear_service_nodes=False,
+        controller_options={"policy": policy},
+    )
+    m.order("WH-S", "WH-M")
+    m.at(3.0, lambda: m.env.process(_travel(m, "B", "S")))
+    m.env.run()
+    assert ("A", "B") in policy.asked
+    assert [e.destination for e in m.events(AgvRouted, agv="A") if e.reason == "make_way"] == ["SL"]
+
+
+def test_free_flow_idle_does_nothing() -> None:
+    m = mission_world(lane(), {"A": "S"}, reserve=False)
+    before = len(m.replay.events)
+    assert FreeFlowController().idle(m.agvs["A"]) is None
+    assert m.controller.idle(m.agvs["A"]) is None
+    assert len(m.replay.events) == before
+
+
+def test_idle_on_an_agv_that_blocks_nobody_emits_nothing_and_asks_nothing() -> None:
+    m = mission_world(lane(), {"A": "S", "B": "D"})
+    calls: list[AGV] = []
+    m.fleet.make_way = lambda agv, target=None, *, concerned=(): calls.append(agv) or False  # type: ignore[method-assign]
+    before = len(m.replay.events)
+    m.controller.idle(m.agvs["A"])
+    assert calls == [] and len(m.replay.events) == before
+
+
+class Counting(StandardTrafficPolicy):
+    def __init__(self) -> None:
+        super().__init__()
+        self.blocked = 0
+
+    def on_blocked(self, wait: Wait, view: TrafficView) -> Any:
+        self.blocked += 1
+        return super().on_blocked(wait, view)
+
+
+def test_idle_does_not_review_or_schedule_and_reports_a_stuck_wait_once() -> None:
+    """An idle notification is not a review: no ``on_blocked``, no review count, no timer. A (idle on S) cannot move,
+    so the wait it blocks is reported stuck at once, and only once."""
+    policy = Counting()
+    m = mission_world(
+        fork(),
+        {"A": "S", "B": "M", "G1": "B0", "G2": "SL"},
+        clear_service_nodes=False,
+        controller_options={"policy": policy},
+    )
+    for name in ("G1", "G2"):
+        m.agvs[name].transition_to(AGVState.STRANDED)
+    m.at(0.5, lambda: m.env.process(_travel(m, "B", "S")))
+    m.env.run(until=1.0)
+    waiting = m.controller._pending[m.agvs["B"]]
+    reviews, timer, blocked = waiting.reviews, waiting.timer, policy.blocked
+    assert m.events(TrafficWaitStuck) == []  # the first review is due at 30
+    m.controller.idle(m.agvs["A"])
+    (stuck,) = m.events(TrafficWaitStuck)
+    assert (stuck.agv, stuck.t) == ("B", 1.0)
+    m.controller.idle(m.agvs["A"])
+    assert len(m.events(TrafficWaitStuck)) == 1
+    assert (waiting.reviews, waiting.timer, policy.blocked) == (reviews, timer, blocked)
+
+
+# Finding 4: no clearing while an order is pending
+
+
+def test_no_clearing_while_an_order_is_pending() -> None:
+    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    first, second = m.order("WH-S", "WH-D"), m.order("WH-S", "WH-D")
+    m.env.run()
+    assert first.status is second.status is OrderStatus.COMPLETED
+    assert m.routed("A") == [
+        ("travel", "S", "D"),
+        ("travel", "D", "S"),  # the second order is dispatched where A stands: no detour in between
+        ("travel", "S", "D"),
+        ("clear_node", "D", "M"),  # after the last delivery A still clears
+    ]
+    assert second.dispatched_at == first.delivered_at
+
+
+# Finding 5: the slot goes only when the AGV really leaves the node
+
+
+def test_a_stalled_first_arc_keeps_the_parking_slot() -> None:
+    m = mission_world(lane(), {"A": "M"}, parking={"P": ("SIDE", 1)})
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
+    m.env.run()
+    assert parked(m, "P") == ["A"]
+    a.agv_type = vehicle(profile=stalled())  # every arc has an infinite travel time from now on
+    assert m.fleet.make_way(a, m.nodes["M"]) is True
+    m.env.run(until=500.0)
+    assert (a.state, a.current_node) == (AGVState.TRAVELING_EMPTY, m.nodes["SIDE"])  # it never left
+    assert parked(m, "P") == ["A"] and m.events(ParkingLeft) == []
+
+
+def test_a_travel_that_ends_on_the_target_node_keeps_the_slot_whatever_its_outcome() -> None:
+    m = mission_world(lane(), {"A": "M"}, parking={"P": ("SIDE", 1)}, reserve=False)
+    a, target = m.agvs["A"], m.nodes["SIDE"]
+
+    def gives_up_on_the_target(agv: AGV, goal: Node, *, loaded: bool, purpose: str = "travel") -> Any:
+        agv.current_node = goal  # the AGV stands on the target, though the travel did not report an arrival
+        return TravelOutcome.GAVE_UP
+        yield  # pragma: no cover
+
+    m.fleet._executor.travel = gives_up_on_the_target  # type: ignore[method-assign]
+    assert m.fleet.make_way(a, target) is True
+    m.env.run()
+    assert (a.state, a.current_node) == (AGVState.IDLE, target)
+    assert parked(m, "P") == ["A"] and m.events(ParkingLeft) == []
+
+
+def test_idle_for_an_agv_without_a_fleet_reports_the_stuck_wait() -> None:
+    m = mission_world(fork(), {"B": "D"}, clear_service_nodes=False)
+    outsider = AGV(env=m.env, agv_type=vehicle(), agv_id="X", initial_node=m.nodes["M"])
+    m.controller.place(outsider, m.nodes["M"])  # an AGV that no fleet owns holds M
+    m.env.process(_travel(m, "B", "S"))
+    m.env.run(until=1.0)
+    assert m.events(TrafficWaitStuck) == []
+    m.controller.idle(outsider)  # nobody can ask it to move
+    (stuck,) = m.events(TrafficWaitStuck)
+    assert (stuck.agv, stuck.t) == ("B", 1.0)

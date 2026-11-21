@@ -329,6 +329,37 @@ class ReservationController:
         if kept is not None and kept.review_after is not None:
             self._schedule(waiting, kept.review_after)
 
+    def idle(self, agv: AGV) -> None:
+        """`agv` has just become ``IDLE`` where it stands (spec §7.10): ask it to make way for the open waits it blocks.
+
+        The waits are taken in request order. If there are none, nothing happens. Otherwise the AGV's fleet is asked
+        once, with the policy's ``make_way_target`` for the first wait and the AGVs of all of them as the concerned
+        ones. When the AGV does not move (it has no fleet, or the fleet refused) each of those waits is checked for the
+        stuck condition now, with its blockers recomputed, since a sleeping wait has no review left to report it. This
+        is not a review: ``on_blocked`` is not called, no review is counted and no timer is scheduled.
+        """
+        waits = self._waits_blocked_by(agv)
+        if not waits:
+            return
+        fleet = agv.fleet
+        first = waits[0]
+        if fleet is not None:
+            target = self._policy.make_way_target(agv, self._wait(first, self._blocking(first)), self.view)
+            if fleet.make_way(agv, target, concerned=tuple(waiting.agv for waiting in waits)):
+                return
+        for waiting in waits:
+            self._report_stuck(waiting, self._blocking(waiting))
+
+    def _waits_blocked_by(self, agv: AGV) -> list[_Pending]:
+        """The open waits blocked by a resource `agv` holds, in request order."""
+        return [
+            waiting
+            for waiting in sorted((waiting for waiting in self._queue if waiting.stopped), key=lambda w: w.key[1])
+            if any(
+                agv in self._blockers(waiting.agv, item) for item in self._needed(waiting.agv, waiting.request.claim)
+            )
+        ]
+
     def withdraw(self, request: ClaimRequest) -> None:
         """Cancel `request` if it is still pending; an open wait ends with ``interrupted``."""
         waiting = self._pending.get(request.agv)

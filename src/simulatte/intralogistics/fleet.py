@@ -754,7 +754,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                     cb(agv)
             self._check_pending_queue()
             if not closed:
-                self._relieve(agv)
+                self._notify_idle(agv)
 
     def _recover_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
         """Finish an interrupted mission without exposing rollback to more interrupts."""
@@ -860,7 +860,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         if agv.state is not AGVState.IDLE or agv.current_node is None:
             return False
         if target is None:
-            target = standard_target(self, agv, concerned=concerned, idle=True)
+            target = standard_target(self, agv, concerned=concerned, idle=True, purpose="make_way")
         if target is None or target == agv.current_node or not self._take_slot(agv, target):
             return False
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
@@ -876,26 +876,26 @@ class FleetCoordinator(Entity, kind="fleet"):
         for cb in self._hooks_on_agv_idle:
             cb(agv)
         self._check_pending_queue()
-        self._relieve(agv)
+        self._notify_idle(agv)
 
-    def _relieve(self, agv: AGV) -> None:
-        """An idle AGV that blocks waiting AGVs is asked to make way, to the standard-search node (spec §7.10)."""
+    def _notify_idle(self, agv: AGV) -> None:
+        """Tell the traffic controller that `agv` became idle where it stands, unless the hooks or the dispatch of a
+        pending order already took it out of ``IDLE`` (spec §7.1, §7.10)."""
         if agv.state is AGVState.IDLE:
-            waiting = self.traffic_controller.view.waiting_on(agv)
-            if waiting:
-                self.make_way(agv, None, concerned=waiting)
+            self.traffic_controller.idle(agv)
 
     def _clear_service_node(self, agv: AGV) -> ProcessGenerator:
         """Move `agv` off the service node it would idle on, to the standard-search node (spec §7.10).
 
-        Only with ``clear_service_nodes`` and a traffic controller that controls occupancy. Returns the outcome of the
-        travel, or None when the AGV stays (not on a service node, or no target).
+        Only with ``clear_service_nodes``, a traffic controller that controls occupancy and an empty pending queue (the
+        AGV is about to be dispatched where it stands). Returns the outcome of the travel, or None when the AGV stays
+        (not on a service node, or no target).
         """
-        if not self.clear_service_nodes or not self.traffic_controller.controls_occupancy:
+        if not self.clear_service_nodes or not self.traffic_controller.controls_occupancy or self._pending_queue:
             return None
         if agv.current_node not in self.service_nodes:
             return None
-        target = standard_target(self, agv, idle=True)
+        target = standard_target(self, agv, idle=True, purpose="clear_node")
         if target is None or not self._take_slot(agv, target):
             return None
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
@@ -903,16 +903,15 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     def _idle_travel(self, agv: AGV, target: Node, purpose: str = "travel") -> ProcessGenerator:
         """Travel `agv` unloaded to `target` and return the outcome. The parking slot that :meth:`_take_slot` took for
-        `target` is given back unless the AGV arrives; an interrupt that ends the travel at `target` itself (it takes
-        effect at the end of the arc) counts as an arrival."""
+        `target` is given back, whatever the outcome and for an interrupt, unless the AGV stands on `target` (an
+        interrupt takes effect at the end of the arc, which may be the last one)."""
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
         except simpy.Interrupt:
-            if agv.current_node != target:
-                self._release_slots(agv, target)
+            self._release_slots_unless_there(agv, target)
             raise
         if outcome is not TravelOutcome.ARRIVED:
-            self._release_slots(agv, target)
+            self._release_slots_unless_there(agv, target)
         return outcome
 
     # Parking slots (spec §7.10)
@@ -933,6 +932,11 @@ class FleetCoordinator(Entity, kind="fleet"):
                 self._slots.setdefault(agv, []).append(area)
                 return True
         return False
+
+    def _release_slots_unless_there(self, agv: AGV, node: Node) -> None:
+        """Give back the slots `agv` holds at `node` unless it stands on `node`."""
+        if agv.current_node != node:
+            self._release_slots(agv, node)
 
     def _release_slots(self, agv: AGV, node: Node) -> None:
         """Give back the slots `agv` holds in the parking areas at `node`."""
