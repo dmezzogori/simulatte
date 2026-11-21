@@ -217,6 +217,49 @@ class TestCorridors:
 
 
 class TestBranches:
+    def test_leaf_with_capacity_above_one_is_a_root(self) -> None:
+        graph, nodes = line(3)
+        network = TrafficNetwork(graph, capacities={nodes["N0"]: 2})
+        assert network.branches == (Branch(nodes["N0"], (nodes["N1"], nodes["N2"])),)
+        assert network.claim(route_of(nodes, "N0", "N1", "N2"), 0).legs == 2
+        assert network.claim(route_of(nodes, "N2", "N1", "N0"), 0).legs == 1
+
+    def test_facility_capacity_on_a_leaf_gives_the_same_branch(self) -> None:
+        graph, nodes = line(3)
+        network = TrafficNetwork(graph, facility_capacities={nodes["N0"]: 2})
+        assert network.branches == (Branch(nodes["N0"], (nodes["N1"], nodes["N2"])),)
+        assert network.claim(route_of(nodes, "N0", "N1", "N2"), 0).legs == 2
+
+    def test_two_nodes_with_a_roomy_leaf(self) -> None:
+        graph, nodes = line(2)
+        network = TrafficNetwork(graph, capacities={nodes["N0"]: 2})
+        assert network.branches == (Branch(nodes["N0"], (nodes["N1"],)),)
+
+    def test_two_roomy_leaves_share_the_interior(self) -> None:
+        graph, nodes = line(3)
+        network = TrafficNetwork(graph, capacities={nodes["N0"]: 2, nodes["N2"]: 2})
+        assert set(network.branches) == {
+            Branch(nodes["N0"], (nodes["N1"], nodes["N2"])),
+            Branch(nodes["N2"], (nodes["N1"], nodes["N0"])),
+        }
+        assert len(network.branches) == 2
+        assert network.claim(route_of(nodes, "N0", "N1", "N2"), 0).legs == 2
+        assert network.claim(route_of(nodes, "N2", "N1", "N0"), 0).legs == 2
+        assert network.corridors == ()
+        assert network.warnings == ()
+
+    def test_two_roomy_nodes(self) -> None:
+        graph, nodes = line(2)
+        network = TrafficNetwork(graph, capacities={nodes["N0"]: 2, nodes["N1"]: 2})
+        assert set(network.branches) == {Branch(nodes["N0"], (nodes["N1"],)), Branch(nodes["N1"], (nodes["N0"],))}
+        assert len(network.branches) == 2
+        assert network.corridors == ()
+
+    def test_route_starting_at_the_root_goes_deeper(self) -> None:
+        graph, nodes = t_layout()
+        network = TrafficNetwork(graph)
+        assert network.claim(route_of(nodes, "C1", "C2", "LINE_IN"), 0).legs == 2
+
     def test_t_layout(self) -> None:
         graph, nodes = t_layout()
         network = TrafficNetwork(graph)

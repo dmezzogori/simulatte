@@ -156,12 +156,13 @@ class TrafficNetwork:
 
         seen: set[Node] = set()  # interior nodes that a walk from a leaf or a port has passed
         self.branches: tuple[Branch, ...] = self._derive_branches(seen)
-        self._branch_of: dict[Node, tuple[Branch, int]] = {}
+        # A node can belong to two branches: on a line whose two end leaves both have capacity above 1.
+        self._branch_of: dict[Node, list[tuple[Branch, int]]] = {}
         self._branches_at: dict[Node, list[Branch]] = {}
         for branch in self.branches:
             self._branches_at.setdefault(branch.root, []).append(branch)
             for position, member in enumerate(branch.nodes):
-                self._branch_of[member] = (branch, position)
+                self._branch_of.setdefault(member, []).append((branch, position))
 
         corridors: list[Corridor] = []
         if derive_corridors:
@@ -206,7 +207,7 @@ class TrafficNetwork:
             (first,) = self._around[leaf]
             path, root = self._chain(leaf, first)
             seen.update(path)
-            if self._is_leaf(root):
+            if self._is_leaf(root) and self._capacity[root] == 1:
                 continue  # a plain line with no passing place
             branches.append(Branch(root, tuple(reversed(path))))
         return tuple(branches)
@@ -327,9 +328,7 @@ class TrafficNetwork:
     def _reaches_dead_end(self, route: Sequence[Node], index: int) -> bool:
         """Whether the leg at ``index`` enters a branch, or ends at a root that the next leg enters."""
         u, v = route[index], route[index + 1]
-        entry = self._branch_of.get(v)
-        if entry is not None:
-            branch, position = entry
+        for branch, position in self._branch_of.get(v, ()):
             if u == (branch.root if position == 0 else branch.nodes[position - 1]):
                 return True
         if index + 2 < len(route):
