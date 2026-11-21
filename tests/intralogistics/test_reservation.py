@@ -906,7 +906,7 @@ class TestLifecycle:
         graph, nodes = line(3)
         env = Environment()
         controller = ReservationController(env=env, graph=line(2)[0], capacities={nodes["N2"]: 4})
-        network = SimpleNamespace(graph=graph, capacities={nodes["N0"]: 3, nodes["N1"]: None, nodes["N2"]: 2})
+        network = SimpleNamespace(graph=graph, capacities={nodes["N0"]: 3, nodes["N1"]: None, nodes["N2"]: 2}, zones=())
         controller._install_layout_graph(network)  # type: ignore[arg-type]
         env.activate()
         assert controller.graph is graph

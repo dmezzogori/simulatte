@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -18,6 +19,7 @@ from .types import Direction, LayoutLimits, Point
 
 if TYPE_CHECKING:
     from simulatte.intralogistics.graph import LayoutGraph, Node
+    from simulatte.intralogistics.network import Zone
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,7 @@ class EdgeDefinition:
     speed_limit: float | None = None
     lineage: tuple[Address, ...] = ()
     blockers: tuple[str, ...] = ()
+    passing: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,7 @@ class _Builder:
             attributes.get("speed_limit"),
             lineage,
             self.segment_blockers(a, b),
+            attributes.get("passing", False),
         )
         for parent in lineage:
             self.lineage.setdefault(parent, []).append(address)
@@ -380,7 +384,7 @@ def _explicit(values: ResolvedValues, builder: _Builder) -> None:
             if direction == "backward"
             else [(source, target), (target, source)]
         )
-        attributes = (arc.get("enabled"), arc.get("speed_limit"))
+        attributes = (arc.get("enabled"), arc.get("speed_limit"), arc.get("passing", False))
         for pair in pairs:
             if pair in directed:
                 if directed[pair] != attributes:
@@ -393,7 +397,7 @@ def _explicit(values: ResolvedValues, builder: _Builder) -> None:
                 address,
                 ids[a],
                 ids[b],
-                {"enabled": attributes[0], "speed_limit": attributes[1]},
+                {"enabled": attributes[0], "speed_limit": attributes[1], "passing": attributes[2]},
                 default_direction="forward",
             )
 
@@ -411,6 +415,158 @@ def generate_base_network(values: ResolvedValues, *, limits: LayoutLimits) -> Ne
     builder = _Builder(network, _obstacles(values, network), limits)
     {"lattice": _lattice, "lanes": _lanes, "explicit": _explicit}[variant](values, builder)
     return builder.finish()
+
+
+GENERATED_KINDS = ("block_node", "block_edge")
+"""Address kinds of the elements that ``block_length`` generates (spec §12); overrides cannot target them."""
+
+
+def _piece_count(length: float, block_length: float, maximum: int) -> int:
+    """``ceil(length / block_length)``, without the piece that float noise in the quotient would add (0.3 / 0.1)."""
+    quotient = length / block_length * (1 - 1e-9)
+    return math.ceil(min(quotient, maximum + 1.0))
+
+
+def split_blocks(
+    definitions: NetworkDefinitions, block_length: float, *, capacity: int | None, limits: LayoutLimits
+) -> NetworkDefinitions:
+    """Split every enabled edge longer than ``block_length`` into ``ceil(length / block_length)`` equal pieces.
+
+    Runs after the overrides, so the pieces inherit the parent's effective properties. The generated nodes lie on
+    the chord, carry the network default ``capacity`` and are shared by the edges between the same two nodes (the
+    two directions of a pair). Their id is ``"<a>~<b>#<k>"`` with ``a`` and ``b`` the ids of the ends in sorted order
+    and ``k`` counted from ``a``, as in ``LayoutGraph.subdivide``; their address is ``block_node`` over the address
+    of the smallest parent edge of the pair. A piece's address is ``block_edge`` over its parent's. The parent is
+    replaced by its pieces and ``lineage`` maps it to them. ``max_nodes`` and ``max_directed_arcs`` apply to the
+    result.
+    """
+    nodes = definitions.nodes
+    groups: dict[tuple[Address, Address], list[EdgeDefinition]] = {}
+    arc_count = 0
+    for edge in definitions.edges.values():
+        source, target = nodes[edge.source], nodes[edge.target]
+        if not edge.enabled or not source.enabled or not target.enabled:
+            continue
+        arc_count += 2 if edge.direction == "both" else 1
+        low, high = sorted((source, target), key=lambda definition: definition.id)
+        length = math.hypot(high.position.x - low.position.x, high.position.y - low.position.y)
+        if _piece_count(length, block_length, limits.max_nodes) > 1:
+            groups.setdefault((low.address, high.address), []).append(edge)
+    if not groups:
+        return definitions
+    new_nodes = dict(nodes)
+    aliases = dict(definitions.aliases)
+    pieces: dict[Address, tuple[EdgeDefinition, ...]] = {}
+    for low_address, high_address in sorted(groups, key=lambda key: (nodes[key[0]].id, nodes[key[1]].id)):
+        low, high = nodes[low_address], nodes[high_address]
+        members = groups[low_address, high_address]
+        length = math.hypot(high.position.x - low.position.x, high.position.y - low.position.y)
+        count = _piece_count(length, block_length, limits.max_nodes)
+        _limit(len(new_nodes) + count - 1, limits.max_nodes, "max_nodes")
+        arc_count += sum((2 if edge.direction == "both" else 1) * (count - 1) for edge in members)
+        _limit(arc_count, limits.max_directed_arcs, "max_directed_arcs")
+        parent = min((edge.address for edge in members), key=lambda address: address._json)
+        chain = [low_address]
+        for k in range(1, count):
+            address = Address({"kind": "block_node", "edge": parent.to_dict(), "index": k})
+            point = Point(
+                low.position.x + (high.position.x - low.position.x) * k / count,
+                low.position.y + (high.position.y - low.position.y) * k / count,
+            )
+            blockers = tuple(o.id for o in definitions.obstacles if o.blocks_point(point, definitions.clearance))
+            new_nodes[address] = NodeDefinition(address, f"{low.id}~{high.id}#{k}", point, True, capacity, blockers)
+            aliases[address] = address
+            chain.append(address)
+        chain.append(high_address)
+        for edge in members:
+            forward = edge.source == low_address
+            made = []
+            for index, (a, b) in enumerate(zip(chain, chain[1:]), 1):
+                source, target = (a, b) if forward else (b, a)
+                address = Address({"kind": "block_edge", "edge": edge.address.to_dict(), "index": index})
+                blocked = tuple(
+                    o.id
+                    for o in definitions.obstacles
+                    if o.blocks_segment(new_nodes[source].position, new_nodes[target].position, definitions.clearance)
+                )
+                made.append(
+                    EdgeDefinition(
+                        address, source, target, edge.enabled, edge.direction, edge.speed_limit, edge.lineage,
+                        blocked, edge.passing,
+                    )
+                )  # fmt: skip
+            pieces[edge.address] = tuple(made)
+    edges: dict[Address, EdgeDefinition] = {}
+    for address, edge in definitions.edges.items():
+        for piece in pieces.get(address, (edge,)):
+            edges[piece.address] = piece
+    lineage = {parent: list(children) for parent, children in definitions.lineage.items()}
+    for address, made in pieces.items():
+        for parent in definitions.edges[address].lineage:
+            children = lineage[parent]
+            at = children.index(address)
+            children[at : at + 1] = [piece.address for piece in made]
+        lineage[address] = [piece.address for piece in made]
+    return NetworkDefinitions(
+        new_nodes,
+        edges,
+        aliases,
+        {parent: tuple(children) for parent, children in lineage.items()},
+        obstacles=definitions.obstacles,
+        clearance=definitions.clearance,
+    )
+
+
+def resolve_zones(
+    values: ResolvedValues,
+    definitions: NetworkDefinitions,
+    nodes: Mapping[Address, Node],
+    arcs: Mapping[tuple[Address, Address], Any],
+) -> tuple[tuple[Zone, ...], tuple[LayoutDiagnostic, ...]]:
+    """Resolve ``network.zones`` to concrete nodes and node pairs of the final graph, zones in id order.
+
+    A member is an element address or selector, as an override target, and matches the elements it selects in the
+    split network. Disabled elements and traversals that did not make the graph are left out; a member that matches
+    nothing at all is a ``stale-zone-member`` warning. Pairs are ordered by node id, members as nodes, then pairs.
+    """
+    from simulatte.intralogistics.network import Zone
+
+    from .overrides import _matches
+
+    diagnostics = []
+    zones = []
+    declared = values.explicit_data.get("network", {}).get("zones", {})
+    for zone_id in sorted(declared):
+        zone = declared[zone_id]
+        path = ("network", "zones", zone_id, "members")
+        found: set[Node] = set()
+        pairs: set[tuple[Node, Node]] = set()
+        for i, member in enumerate(values.require(path, explicit=True)):
+            selected_nodes, selected_edges = _matches(definitions, member)
+            if not selected_nodes and not selected_edges:
+                source = values.at((*path, str(i))).source
+                diagnostics.append(
+                    LayoutDiagnostic(
+                        "stale-zone-member",
+                        "warning",
+                        (*path, str(i)),
+                        source.stage if source else None,
+                        zone_id,
+                        "zone member matches no network element",
+                    )
+                )
+            found.update(nodes[a] for a in selected_nodes if a in nodes)
+            for address in selected_edges:
+                edge = definitions.edges[address]
+                if (edge.source, edge.target) in arcs or (edge.target, edge.source) in arcs:
+                    low, high = sorted((nodes[edge.source], nodes[edge.target]), key=lambda node: node.id)
+                    pairs.add((low, high))
+        ordered = (
+            *sorted(found, key=lambda node: node.id),
+            *sorted(pairs, key=lambda pair: (pair[0].id, pair[1].id)),
+        )
+        zones.append(Zone(zone_id, ordered, zone.get("capacity", 1), zone.get("hold_back", False)))
+    return tuple(zones), tuple(diagnostics)
 
 
 @dataclass(frozen=True)
@@ -437,6 +593,8 @@ class ResolvedNetwork:
     diagnostics: tuple[LayoutDiagnostic, ...]
     weak_components: tuple[tuple[Address, ...], ...]
     strong_components: tuple[tuple[Address, ...], ...]
+    zones: tuple[Zone, ...] = ()
+    """The authored zones as concrete nodes and node pairs of the graph, in id order (schema 1.1)."""
 
     def __post_init__(self) -> None:
         for name in ("nodes", "capacities"):
@@ -608,11 +766,24 @@ def resolve_network(
     dependencies.record(values, ("overrides",), kind="membership")
     for i, record in enumerate(values.explicit_data.get("overrides", ())):
         path = ("overrides", str(i))
+        if record["target"]["kind"] in GENERATED_KINDS:
+            source = values.at(path).source
+            raise LayoutError(
+                f"override {record['id']!r}: {record['target']['kind']} is a generated element and cannot be "
+                f"targeted: {dict(record['target'])}",
+                code="generated-override-target",
+                path=(*path, "target"),
+                stage=source.stage if source else None,
+                target=record["id"],
+            )
         dependencies.read(values, (*path, "target"))
         selected_nodes, selected_edges = _matches(definitions, record["target"])
         if selected_nodes or selected_edges:
             dependencies.read(values, (*path, "properties"))
     definitions, override_diagnostics = apply_overrides(values, definitions)
+    spec = values.explicit_data.get("network", {})
+    if "block_length" in spec:
+        definitions = split_blocks(definitions, spec["block_length"], capacity=spec.get("capacity"), limits=limits)
     nodes = {}
     ids = set()
     for address, definition in definitions.nodes.items():
@@ -636,7 +807,12 @@ def resolve_network(
         if edge.direction in ("both", "backward"):
             pairs.append((edge.target, edge.source))
         for source, target in pairs:
-            arc = Arc(nodes[source], nodes[target], False, edge.speed_limit)
+            arc = Arc(nodes[source], nodes[target], False, edge.speed_limit, passing=edge.passing)
+            reverse = arcs.get((target, source))
+            if reverse is not None and reverse.passing != arc.passing:
+                raise LayoutError(
+                    f"conflicting passing on the two directions: {source.to_dict()} <-> {target.to_dict()}"
+                )
             if (source, target) in arcs:
                 if arcs[source, target] != arc:
                     raise LayoutError(f"conflicting effective directed edges: {source.to_dict()} -> {target.to_dict()}")
@@ -655,7 +831,8 @@ def resolve_network(
         definitions.clearance,
     )
     weak, strong = _components(final_adjacency)
-    diagnostics = list(values.diagnostics) + list(override_diagnostics)
+    zones, zone_diagnostics = resolve_zones(values, definitions, nodes, arcs)
+    diagnostics = list(values.diagnostics) + list(override_diagnostics) + list(zone_diagnostics)
     if len(weak) > 1:
         diagnostics.append(
             LayoutDiagnostic(
@@ -677,4 +854,5 @@ def resolve_network(
         tuple(diagnostics),
         weak,
         strong,
+        zones,
     )

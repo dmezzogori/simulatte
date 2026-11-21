@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.1",
+  "network": {
+    "type": "explicit",
+    "arcs": [
+      {
+        "source": "a",
+        "target": "b",
+        "passing": 1
+      }
+    ]
+  }
+}

@@ -175,6 +175,12 @@ class ReservationController:
         self._pending_graph = None
         layout = {node: capacity for node, capacity in network.capacities.items() if capacity is not None}
         self._capacities = {**layout, **self._capacities}
+        known = {zone.id for zone in self._zones}
+        for zone in network.zones:
+            if zone.id in known:
+                raise ValueError(f"zone id {zone.id!r} is defined both by the controller and by the layout")
+            known.add(zone.id)
+        self._zones = (*self._zones, *network.zones)
 
     @property
     def network(self) -> TrafficNetwork:

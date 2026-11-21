@@ -149,7 +149,13 @@ def add_connectors(values: ResolvedValues, base: NetworkDefinitions, *, limits: 
                 for segment, source, destination in segments:
                     address = _address("connector", entity, name, segment=segment)
                     edges[address] = EdgeDefinition(
-                        address, source, destination, enabled, direction, connector.get("speed_limit")
+                        address,
+                        source,
+                        destination,
+                        enabled,
+                        direction,
+                        connector.get("speed_limit"),
+                        passing=connector.get("passing", False),
                     )
                 arc_count += len(segments) * (2 if direction == "both" else 1)
                 _limit(len(nodes), limits.max_nodes, "max_nodes")
