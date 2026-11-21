@@ -57,6 +57,7 @@ class Arc:
     length: float | None = None
     passing: bool = False
 
+
 class LayoutGraph:
     def length(self, source: Node, target: Node) -> float: ...
     def path_length(self, path: Sequence[Node]) -> float: ...
@@ -85,28 +86,34 @@ class Kinematics:
     accel: float
     decel: float
 
-Phase = tuple[float, float]            # (duration, acceleration)
+
+Phase = tuple[float, float]  # (duration, acceleration)
+
 
 @dataclass(frozen=True)
 class ArcProfile:
     v_in: float
     phases: tuple[Phase, ...]
     length: float
+
     @property
     def duration(self) -> float: ...
     @property
     def v_out(self) -> float: ...
-    def position(self, t: float) -> float: ...   # distance covered at elapsed time t
+    def position(self, t: float) -> float: ...  # distance covered at elapsed time t
     def speed(self, t: float) -> float: ...
-    def time_at(self, s: float) -> float: ...    # elapsed time at distance s
+    def time_at(self, s: float) -> float: ...  # elapsed time at distance s
+
 
 def arc_profile(v_in: float, v_out: float, cap: float, length: float, kin: Kinematics) -> ArcProfile: ...
 def rest_to_rest(length: float, cap: float, kin: Kinematics) -> ArcProfile: ...
+
 
 # speed.py
 @runtime_checkable
 class KinematicProfile(Protocol):
     def limits(self, load_weight: float, battery_level: float) -> Kinematics: ...
+
 
 class TrapezoidalProfile:
     def limits(self, load_weight: float = 0.0, battery_level: float = 1.0) -> Kinematics: ...
@@ -127,12 +134,14 @@ class TrapezoidalProfile:
 ```python
 Direction = Literal["forward", "backward"]
 
+
 @dataclass(frozen=True)
-class Segment:            # a.id < b.id; id == f"{a.id}~{b.id}"
+class Segment:  # a.id < b.id; id == f"{a.id}~{b.id}"
     a: Node
     b: Node
     length: float
     passing: bool
+
 
 @dataclass(frozen=True)
 class Zone:
@@ -141,45 +150,59 @@ class Zone:
     capacity: int = 1
     hold_back: bool = False
 
+
 @dataclass(frozen=True)
-class Corridor:           # nodes[0] and nodes[-1] are the ports, nodes[0].id < nodes[-1].id; forward follows the tuple
+class Corridor:  # nodes[0] and nodes[-1] are the ports, nodes[0].id < nodes[-1].id; forward follows the tuple
     id: str
     nodes: tuple[Node, ...]
 
+
 @dataclass(frozen=True)
-class Branch:             # nodes run from the node next to the root out to the leaf
+class Branch:  # nodes run from the node next to the root out to the leaf
     root: Node
     nodes: tuple[Node, ...]
 
+
 Resource = Node | Segment | Zone | Corridor
+
 
 @dataclass(frozen=True)
 class ClaimItem:
     resource: Resource
     direction: Direction | None = None
 
+
 @dataclass(frozen=True)
 class Claim:
     items: tuple[ClaimItem, ...]
     legs: int
 
+
 class TrafficNetwork:
-    def __init__(self, graph: LayoutGraph, *, node_capacity: int = 1,
-                 capacities: Mapping[Node, int] | None = None,
-                 facility_capacities: Mapping[Node, int] | None = None,
-                 zones: Sequence[Zone] = (), derive_corridors: bool = True,
-                 hold_back_dead_ends: bool = True) -> None: ...
+    def __init__(
+        self,
+        graph: LayoutGraph,
+        *,
+        node_capacity: int = 1,
+        capacities: Mapping[Node, int] | None = None,
+        facility_capacities: Mapping[Node, int] | None = None,
+        zones: Sequence[Zone] = (),
+        derive_corridors: bool = True,
+        hold_back_dead_ends: bool = True,
+    ) -> None: ...
+
     graph: LayoutGraph
-    segments: tuple[Segment, ...]       # id order
+    segments: tuple[Segment, ...]  # id order
     zones: tuple[Zone, ...]
     corridors: tuple[Corridor, ...]
     branches: tuple[Branch, ...]
     warnings: tuple[str, ...]
+
     def capacity(self, node: Node) -> int: ...
     def segment(self, u: Node, v: Node) -> Segment: ...
     def direction(self, u: Node, v: Node) -> Direction: ...
-    def leg(self, u: Node, v: Node) -> tuple[ClaimItem, ...]: ...      # base claim of one leg, spec §7.2
-    def claim(self, route: Sequence[Node], index: int) -> Claim: ...    # with the three extension rules
+    def leg(self, u: Node, v: Node) -> tuple[ClaimItem, ...]: ...  # base claim of one leg, spec §7.2
+    def claim(self, route: Sequence[Node], index: int) -> Claim: ...  # with the three extension rules
 ```
 
 `traffic_support.py` provides graph builders used by later tasks: `t_layout()` (spec Appendix A), `line(n, *, capacity=1)`, `two_junction_corridor()` (junctions `J1`, `J2` with three neighbours each, chain `J1–a–b–J2`, side nodes `x1`, `y1`, `x2`, `y2`), `loop_with_side_node()`.
@@ -202,38 +225,53 @@ class TrafficNetwork:
 
 ```python
 class Disposition(Enum):
-    MOVING = auto(); WAITING = auto(); SERVING = auto(); IDLE = auto(); STRANDED = auto()
+    MOVING = auto()
+    WAITING = auto()
+    SERVING = auto()
+    IDLE = auto()
+    STRANDED = auto()
+
 
 @dataclass(frozen=True)
 class Granted: ...
+
+
 @dataclass(frozen=True)
 class Rerouted: ...
+
+
 @dataclass(frozen=True)
 class SteppedAside: ...
+
+
 @dataclass(frozen=True)
 class GaveUp: ...
 
+
 @dataclass
 class WaitHooks:
-    route: Callable[[], tuple[Node, ...]]            # remaining route, current node first
-    loaded: Callable[[], bool]                       # cargo on board
+    route: Callable[[], tuple[Node, ...]]  # remaining route, current node first
+    loaded: Callable[[], bool]  # cargo on board
     resolutions: Callable[[], int]
     try_reroute: Callable[[frozenset[Resource], float | None], bool]
     try_step_aside: Callable[[Node | None], bool]
     give_up: Callable[[], bool]
 
+
 class ClaimRequest:
     agv: AGV
     claim: Claim
     hooks: WaitHooks
-    event: simpy.Event        # value: Granted | Rerouted | SteppedAside | GaveUp
+    event: simpy.Event  # value: Granted | Rerouted | SteppedAside | GaveUp
     granted: bool
+
 
 @dataclass(frozen=True)
 class Blocker:
     agv: AGV
     disposition: Disposition
     resources: tuple[Resource, ...]
+
 
 @dataclass(frozen=True)
 class Wait:
@@ -246,24 +284,40 @@ class Wait:
     loaded: bool
     resolutions: int
 
+
 @dataclass(frozen=True)
 class KeepWaiting:
     review_after: float | None = None
+
+
 @dataclass(frozen=True)
 class Reroute:
     avoid: frozenset[Resource] = frozenset()
     max_cost_ratio: float | None = None
+
+
 @dataclass(frozen=True)
 class StepAside:
     target: Node | None = None
+
+
 @dataclass(frozen=True)
 class GiveUp: ...
+
+
 Reaction = KeepWaiting | Reroute | StepAside | GiveUp
 
-class TrafficPolicy(Protocol): ...      # spec §7.9, three methods
-class TrafficView(Protocol): ...        # spec §10.1
+
+class TrafficPolicy(Protocol): ...  # spec §7.9, three methods
+
+
+class TrafficView(Protocol): ...  # spec §10.1
+
+
 class TrafficController(Protocol): ...  # spec §7.1, exactly those members
-class FreeFlowController: ...           # no constructor arguments
+
+
+class FreeFlowController: ...  # no constructor arguments
 ```
 
 - [ ] Tests: `FreeFlowController().controls_occupancy is False`; `next_claim(agv, route, 1)` on a four-node route returns `Claim((), 2)`; `request` returns a request whose event is already triggered with `Granted()`; `place`, `stopped`, `withdraw`, `release`, `retain` do nothing; with a subscriber on `"**"` no event is emitted and no entity is attached; `view.holders(node) == ()`, `view.pending(node) == 0`, `view.admissible(...) is True`, `view.mean_hold(node) == 0.0`; `view.graph` is the graph of the registered fleet; `isinstance(FreeFlowController(), TrafficController)`.
@@ -362,20 +416,29 @@ class RouteRequest:
     avoid: frozenset[Resource] = frozenset()
     purpose: str = "travel"
 
+
 @dataclass(frozen=True)
 class Route:
     nodes: tuple[Node, ...]
     cost: float
 
+
 class Router(Protocol):
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...
+
 
 class ShortestDistanceRouter:
     def __init__(self, algorithm: Literal["dijkstra", "astar"] = "dijkstra") -> None: ...
 
-def shortest_path(graph: LayoutGraph, origin: Node, destination: Node, *,
-                  allowed: Callable[[Node, Node], bool] | None = None,
-                  heuristic: bool = False) -> tuple[tuple[Node, ...], float] | None: ...
+
+def shortest_path(
+    graph: LayoutGraph,
+    origin: Node,
+    destination: Node,
+    *,
+    allowed: Callable[[Node, Node], bool] | None = None,
+    heuristic: bool = False,
+) -> tuple[tuple[Node, ...], float] | None: ...
 ```
 
 - [ ] Tests: every case of `tests/intralogistics/test_pathfinding.py` restated against `ShortestDistanceRouter` for both algorithms (same paths, ties by node id); cost equals `graph.path_length`, including an arc with an explicit `length`; `avoid` with a node, a segment and a zone or corridor excludes the legs that need them; origin equal to destination gives `Route((origin,), 0.0)`; an unreachable destination gives `None`.

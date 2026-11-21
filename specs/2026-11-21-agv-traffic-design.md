@@ -193,8 +193,8 @@ class Arc:
     target: Node
     bidirectional: bool = True
     speed_limit: float | None = None
-    length: float | None = None      # None: the chord between the endpoints
-    passing: bool = False            # opposite traffic may pass on this arc
+    length: float | None = None  # None: the chord between the endpoints
+    passing: bool = False  # opposite traffic may pass on this arc
 ```
 
 `length` must be finite and not smaller than the chord (relative tolerance 1e-9); otherwise `ValueError`.
@@ -652,10 +652,12 @@ class RouteRequest:
     avoid: frozenset[Resource] = frozenset()
     purpose: str = "travel"
 
+
 @dataclass(frozen=True)
 class Route:
-    nodes: tuple[Node, ...]     # a simple path from origin to destination
-    cost: float                 # the router's own unit; comparable only within one router
+    nodes: tuple[Node, ...]  # a simple path from origin to destination
+    cost: float  # the router's own unit; comparable only within one router
+
 
 class Router(Protocol):
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...

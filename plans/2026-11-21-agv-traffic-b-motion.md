@@ -46,8 +46,9 @@ Tasks run in order. Task 3 is the difficult one. Gate after Task 7. Every task e
 **Interfaces (produces):**
 
 ```python
-def plan_run(v0: float, lengths: Sequence[float], arc_caps: Sequence[float],
-             node_caps: Sequence[float], kin: Kinematics) -> tuple[ArcProfile, ...]: ...
+def plan_run(
+    v0: float, lengths: Sequence[float], arc_caps: Sequence[float], node_caps: Sequence[float], kin: Kinematics
+) -> tuple[ArcProfile, ...]: ...
 ```
 
 `lengths` and `arc_caps` have one entry per arc; `node_caps` has one more, for the nodes from the current one to the horizon. `node_caps[0]` is ignored in favour of `v0`; `node_caps[-1]` must be 0. The algorithm is spec §9.2: fold the arc caps into the node caps, backward pass with `decel`, forward pass with `accel`, then `arc_profile` per arc.
@@ -74,10 +75,14 @@ def plan_run(v0: float, lengths: Sequence[float], arc_caps: Sequence[float],
 ```python
 class ArcProfile:
     def description(self) -> MotionDescription: ...
+
     # {"curve": "piecewise", "v0": float, "phases": [[duration, acceleration], ...], "distance": float}
+
 
 # speed.py
 def motion_fraction(description: Mapping[str, object], duration: float, elapsed: float) -> float | None: ...
+
+
 # the position fraction of a valid piecewise description, or None when it is invalid
 ```
 

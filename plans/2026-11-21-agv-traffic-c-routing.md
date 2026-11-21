@@ -76,10 +76,13 @@ class DispatchContext:
     graph: LayoutGraph
     router: Router
     view: TrafficView
-    def cost(self, agv: AGV, node: Node, *, load_weight: float = 0.0) -> float: ...   # inf when unreachable
+
+    def cost(self, agv: AGV, node: Node, *, load_weight: float = 0.0) -> float: ...  # inf when unreachable
+
 
 class DispatchStrategy(Protocol):
     def select(self, order: TransferOrder, fleet: Sequence[AGV], context: DispatchContext) -> AGV | None: ...
+
 
 @dataclass(frozen=True)
 class RepositioningContext:
@@ -89,7 +92,9 @@ class RepositioningContext:
     fleet: Sequence[AGV]
     router: Router
     view: TrafficView
+
     def cost(self, agv: AGV, node: Node) -> float: ...
+
 
 class FleetCoordinator:
     def best_bay(self, agv: AGV, bays: Sequence[Node], *, load_weight: float = 0.0) -> Node: ...
