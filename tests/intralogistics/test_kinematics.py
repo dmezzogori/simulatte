@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import math
+import random
+
 import pytest
 
 from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, arc_profile, plan_run, rest_to_rest
@@ -208,9 +211,12 @@ def test_single_arc_equals_rest_to_rest() -> None:
 def test_split_line_has_the_same_duration() -> None:
     run = plan_run(0.0, [5.0, 5.0], [1.5, 1.5], [0.0, 1.5, 0.0], KIN)
     _check_run(0.0, [5.0, 5.0], run)
-    assert [arc.duration for arc in run] == [pytest.approx(4.270833333333333, rel=1e-12)] * 2
-    assert sum(arc.duration for arc in run) == pytest.approx(8.541666666666666, rel=1e-12)
-    assert rest_to_rest(10.0, 1.5, KIN).duration == pytest.approx(8.541666666666666, rel=1e-12)
+    # The brief's 4.270833333333333 and 8.541666666666666 differ from the computed values by rounding.
+    assert [arc.duration for arc in run] == [4.270833333333334] * 2
+    assert 4.270833333333333 == pytest.approx(run[0].duration, rel=1e-12)
+    assert sum(arc.duration for arc in run) == 8.541666666666668
+    assert 8.541666666666666 == pytest.approx(sum(arc.duration for arc in run), rel=1e-12)
+    assert rest_to_rest(10.0, 1.5, KIN).duration == 8.541666666666668
     many = plan_run(0.0, [1.0] * 10, [1.5] * 10, [0.0] + [1.5] * 9 + [0.0], KIN)
     _check_run(0.0, [1.0] * 10, many)
     assert sum(arc.duration for arc in many) == pytest.approx(8.541666666666666, abs=1e-12)
@@ -219,32 +225,31 @@ def test_split_line_has_the_same_duration() -> None:
 def test_speed_limit_change() -> None:
     run = plan_run(0.0, [10.0, 10.0], [1.5, 0.5], [0.0, 1.5, 0.0], KIN)
     _check_run(0.0, [10.0, 10.0], run)
-    assert run[0].duration == pytest.approx(8.020833333333334, rel=1e-12)
+    # The brief's 8.020833333333334 differs from the computed value by rounding.
+    assert run[0].duration == 8.020833333333332
+    assert 8.020833333333334 == pytest.approx(run[0].duration, rel=1e-12)
     assert run[1].duration == pytest.approx(20.3125, rel=1e-12)
-    assert run[0].v_out == pytest.approx(0.5)
-    assert run[1].v_in == pytest.approx(0.5)
+    assert run[0].v_out == pytest.approx(0.5, rel=1e-12)
+    assert run[1].v_in == pytest.approx(0.5, rel=1e-12)
 
 
 def test_short_arc_is_triangular() -> None:
     (arc,) = plan_run(0.0, [1.0], [1.5], [0.0, 0.0], KIN)
-    assert arc.duration == pytest.approx(2 * 0.8**0.5 / 0.8)
+    assert arc.duration == pytest.approx(2 * 0.8**0.5 / 0.8, rel=1e-12)
     assert len(arc.phases) == 2
 
 
 def test_entering_at_speed() -> None:
     (arc,) = plan_run(1.5, [5.0], [1.5], [1.5, 0.0], KIN)
-    assert [duration for duration, _ in arc.phases] == [
-        pytest.approx(2.3958333333333335, rel=1e-12),
-        pytest.approx(1.875, rel=1e-12),
-    ]
+    assert [duration for duration, _ in arc.phases] == [2.3958333333333335, 1.875]
     assert arc.phases[0][1] == 0.0
 
 
 def test_node_cap_limits_the_pass_speed() -> None:
     run = plan_run(0.0, [10.0, 10.0], [1.5, 1.5], [0.0, 0.5, 0.0], KIN)
     _check_run(0.0, [10.0, 10.0], run)
-    assert run[0].v_out == pytest.approx(0.5)
-    assert run[1].v_in == pytest.approx(0.5)
+    assert run[0].v_out == pytest.approx(0.5, rel=1e-12)
+    assert run[1].v_in == pytest.approx(0.5, rel=1e-12)
 
 
 def test_cannot_stop_in_the_horizon_raises() -> None:
@@ -297,3 +302,73 @@ def test_exit_speed_beyond_the_rounding_slack_raises() -> None:
     reach = (0.3**2 + 2 * 0.8 * 0.5) ** 0.5
     with pytest.raises(ValueError, match="cannot"):
         arc_profile(0.3, reach * (1 + 1e-9), 1.5, 0.5, KIN)
+
+
+def test_exit_speed_just_beyond_the_rounding_slack_raises() -> None:
+    # Accepted by a slack of 1e-9, where the phases would cover about 3e-10 more than the arc.
+    reach = (0.3**2 + 2 * 0.8 * 0.5) ** 0.5
+    with pytest.raises(ValueError, match="cannot"):
+        arc_profile(0.3, reach * (1 + 0.3e-9), 1.5, 0.5, KIN)
+
+
+def test_profile_reports_the_exit_speed_it_was_planned_with() -> None:
+    arc = arc_profile(0.3, 0.7, 1.5, 2.0, KIN)
+    assert arc.v_out == 0.7
+    assert arc.speed(arc.duration) == 0.7
+    assert rest_to_rest(10.0, 1.5, KIN).v_out == 0.0
+    assert arc_profile(0.4, 0.4, 1.5, 0.0, KIN).v_out == 0.4
+
+
+def test_first_arc_of_zero_length_with_v0_above_the_backward_pass() -> None:
+    kin = Kinematics(1.5, 1.0, 0.8)
+    lengths = [0.0, 0.001, 0.05]
+    v0 = 0.28565713714174257
+    arc_caps = [1.3676707557419192, 1.5, 1.5]
+    node_caps = [0.0, 2.8197267314469645, 3.540515158671178, 0.0]
+    run = plan_run(v0, lengths, arc_caps, node_caps, kin)
+    assert run[0].phases == ()
+    assert run[0].v_in == run[0].v_out
+    assert run[0].v_in == pytest.approx(v0, rel=1e-9)
+    assert run[-1].v_out == 0.0
+
+
+def test_rounding_sized_v0_before_zero_length_arcs_is_rest() -> None:
+    (arc,) = plan_run(1.7e-18, [0.0], [1.5], [0.0, 0.0], KIN)
+    assert arc.v_in == arc.v_out == 0.0
+    run = plan_run(1.7e-18, [0.0, 0.0], [1.5, 1.5], [0.0, 0.0, 0.0], KIN)
+    assert [arc.v_in for arc in run] == [0.0, 0.0]
+
+
+def test_v0_clamped_to_the_first_arc_cap() -> None:
+    (arc,) = plan_run(1.5 * (1 + 1e-13), [30.0], [1.5], [0.0, 0.0], KIN)
+    assert arc.v_in == 1.5
+    with pytest.raises(ValueError, match="cap"):
+        plan_run(1.5 * (1 + 1e-9), [30.0], [1.5], [0.0, 0.0], KIN)
+
+
+def test_v0_clearly_above_the_backward_pass_still_raises() -> None:
+    with pytest.raises(ValueError, match="short by"):
+        plan_run(0.5, [0.0], [1.5], [0.0, 0.0], KIN)
+
+
+@pytest.mark.parametrize("seed", range(300))
+def test_random_runs_have_exact_node_speeds(seed: int) -> None:
+    rng = random.Random(seed)
+    kin = Kinematics(rng.uniform(0.5, 3.0), rng.uniform(0.3, 2.0), rng.uniform(0.3, 2.0))
+    count = rng.randint(1, 8)
+    lengths = [0.0 if rng.random() < 0.15 else rng.uniform(0.001, 20.0) for _ in range(count)]
+    arc_caps = [rng.uniform(0.2, kin.v_max) for _ in range(count)]
+    node_caps = [0.0] + [rng.choice([0.0, rng.uniform(0.0, 3.0), 10.0]) for _ in range(count - 1)] + [0.0]
+    v0 = 0.0
+    if rng.random() < 0.5:
+        # Enter at a speed the first arc and the horizon allow.
+        bound = 0.0
+        for j in range(count - 1, -1, -1):
+            top = min(node_caps[j], arc_caps[j - 1], arc_caps[j]) if j else arc_caps[0]
+            bound = min(top, math.sqrt(bound**2 + 2 * kin.decel * lengths[j]))
+        v0 = rng.uniform(0.0, 1.0) * bound
+    run = plan_run(v0, lengths, arc_caps, node_caps, kin)
+    _check_run(v0, lengths, run)
+    for before, after in zip(run, run[1:], strict=False):
+        assert before.v_out == after.v_in
+    assert run[-1].v_out == 0.0

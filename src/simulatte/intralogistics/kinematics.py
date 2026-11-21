@@ -15,6 +15,9 @@ Phase = tuple[float, float]
 _FEASIBILITY_SLACK = 1e-12
 """Relative slack on the speed reachability checks, so exit speeds computed by a planner survive rounding."""
 
+_SPEED_FLOOR = 1e-12
+"""Absolute slack on speeds in `plan_run`, so an entry speed of rounding size counts as rest."""
+
 
 @dataclass(frozen=True)
 class Kinematics:
@@ -35,6 +38,8 @@ class ArcProfile:
     v_in: float
     phases: tuple[Phase, ...]
     length: float
+    exit_speed: float | None = None
+    """The exit speed the profile was planned with; when absent it is recomputed from the phases."""
 
     @property
     def duration(self) -> float:
@@ -42,6 +47,8 @@ class ArcProfile:
 
     @property
     def v_out(self) -> float:
+        if self.exit_speed is not None:
+            return self.exit_speed
         return max(0.0, self.v_in + sum(duration * accel for duration, accel in self.phases))
 
     def position(self, t: float) -> float:
@@ -114,7 +121,7 @@ def arc_profile(v_in: float, v_out: float, cap: float, length: float, kin: Kinem
     if length == 0:
         if v_in != v_out:
             raise ValueError("a zero-length arc cannot change the speed")
-        return ArcProfile(v_in, (), 0.0)
+        return ArcProfile(v_in, (), 0.0, v_in)
     accel, decel = kin.accel, kin.decel
     if cap <= 0 or accel <= 0 or decel <= 0:
         raise ValueError("the cap and the accelerations must be positive")
@@ -132,7 +139,7 @@ def arc_profile(v_in: float, v_out: float, cap: float, length: float, kin: Kinem
     else:
         peak = max(math.sqrt(peak_squared), v_in, v_out)
     candidates = (((peak - v_in) / accel, accel), (cruise / peak, 0.0), ((peak - v_out) / decel, -decel))
-    return ArcProfile(v_in, tuple(phase for phase in candidates if phase[0] > 0), length)
+    return ArcProfile(v_in, tuple(phase for phase in candidates if phase[0] > 0), length, v_out)
 
 
 def rest_to_rest(length: float, cap: float, kin: Kinematics) -> ArcProfile:
@@ -166,12 +173,23 @@ def plan_run(
     caps = [v0] + [min(node_caps[j], arc_caps[j - 1], arc_caps[j]) for j in range(1, count)] + [0.0]
     backward = caps[:]
     for j in range(count - 1, 0, -1):
-        backward[j] = min(caps[j], math.sqrt(backward[j + 1] ** 2 + 2 * decel * lengths[j]))
+        if lengths[j] == 0:
+            backward[j] = min(caps[j], backward[j + 1])
+        else:
+            backward[j] = min(caps[j], math.sqrt(backward[j + 1] ** 2 + 2 * decel * lengths[j]))
     reach_squared = backward[1] ** 2 + 2 * decel * lengths[0]
-    if v0 * v0 > reach_squared * (1 + _FEASIBILITY_SLACK):
-        short = (v0 * v0 - reach_squared) / (2 * decel) if decel > 0 else math.inf
-        raise ValueError(f"the speed {v0} cannot stop within the horizon, which is short by {short:.6g}")
+    reach = backward[1] if lengths[0] == 0 else math.sqrt(reach_squared)
+    if v0 > reach:
+        if v0 - reach > max(_FEASIBILITY_SLACK * reach, _SPEED_FLOOR):
+            short = (v0 * v0 - reach_squared) / (2 * decel) if decel > 0 else math.inf
+            raise ValueError(f"the speed {v0} cannot stop within the horizon, which is short by {short:.6g}")
+        v0 = reach
+    if arc_caps[0] < v0 <= arc_caps[0] + max(_FEASIBILITY_SLACK * arc_caps[0], _SPEED_FLOOR):
+        v0 = arc_caps[0]
     forward = [v0]
     for j in range(count):
-        forward.append(min(backward[j + 1], math.sqrt(forward[j] ** 2 + 2 * accel * lengths[j])))
+        if lengths[j] == 0:
+            forward.append(forward[j])
+        else:
+            forward.append(min(backward[j + 1], math.sqrt(forward[j] ** 2 + 2 * accel * lengths[j])))
     return tuple(arc_profile(forward[j], forward[j + 1], arc_caps[j], lengths[j], kin) for j in range(count))
