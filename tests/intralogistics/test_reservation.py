@@ -599,23 +599,22 @@ class TestRelease:
         assert w.held("B") == ["J1"]
 
     def test_a_corridor_left_onto_a_port_of_capacity_two_goes_with_its_last_member(self) -> None:
+        """spec §7.5: no exit record on a port of capacity above 1. W, held back before J2 by the corridor A holds
+        forward, is granted the corridor with J2 as soon as A releases its last member, while A still stands on J2."""
         graph, nodes = two_junction_corridor()
         w = world((graph, nodes), {"A": "J1", "W": "x2"}, capacities={nodes["J2"]: 2})
         step(w, "A", "J1 a b J2", 0)
         step(w, "A", "J1 a b J2", 1)
-        assert w.leg("W", "x2 J2 b a J1").granted  # the leg into J2 does not carry the corridor
-        w.move("W", "J2")
-        w.release("W", "x2", w.seg("x2", "J2"))
-        inside = w.leg("W", "x2 J2 b a J1", 1)
-        assert not inside.event.triggered  # the corridor is held forward by A
-        step(w, "A", "J1 a b J2", 2)  # A leaves onto J2, where W waits: no exit record, the corridor goes with b
+        waiter = w.leg("W", "x2 J2 b a J1")  # corridor, J2~x2, J2: the corridor is held forward by A
+        assert not waiter.event.triggered
+        step(w, "A", "J1 a b J2", 2)  # A leaves onto J2: no exit record, the corridor goes with b
         assert w.held("A") == ["J2"]
         assert w.controller._exits[w.agvs["A"]] == {}
         assert w.events()[-2:] == [
             ("traffic.released", "A", ("corridor:a", "b", "J2~b")),
-            ("traffic.reserved", "W", ("corridor:a", "J2~b", "b")),
+            ("traffic.reserved", "W", ("corridor:a", "J2~x2", "J2")),
         ]
-        assert inside.granted
+        assert waiter.granted
 
     def test_retain_at_the_entry_port_drops_the_corridor(self) -> None:
         w = world(two_junction_corridor(), {"A": "x1"})

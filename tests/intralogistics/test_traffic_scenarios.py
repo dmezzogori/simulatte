@@ -368,8 +368,8 @@ def stream_world() -> tuple[LayoutGraph, dict[str, Node]]:
 def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside(port: int) -> None:
     """Forward stream A1, A2 and a later A3; W comes the other way. W waits for A1 and A2, which are inside or ahead of
     it in the queue, but not for A3: A3 asks for the corridor while it is held in its own direction and is held
-    back by the gate until W has gone through. With a port of capacity 2 at W's end, W waits on the port itself and
-    the stream keeps no exit record there (spec §7.2, §7.5): the order of the grants is the same."""
+    back by the gate until W has gone through. With a port of capacity 2 at W's end the stream keeps no exit record
+    there (spec §7.5): W still waits before the port, and the grants and their times are the same."""
     graph, nodes = stream_world()
     m, invariants = scenario(
         (graph, nodes),
@@ -397,7 +397,7 @@ def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_
     assert left["W"] <= entered["A3"]  # and A3 enters only when W has left the corridor
     assert entered["A3"] > float(held_back.t)  # A3 waited
     assert left["A1"] <= entered["W"] and left["A2"] <= entered["W"]  # W waited for the vehicles ahead only
-    assert spots.first("W")[1] == ("x2" if port == 1 else "J2")
+    assert spots.first("W")[1] == "x2"
 
 
 def passing_place(kind: str) -> tuple[LayoutGraph, dict[str, Node]]:
@@ -417,9 +417,9 @@ def passing_place(kind: str) -> tuple[LayoutGraph, dict[str, Node]]:
 
 
 @pytest.mark.parametrize("kind", ["corridors", "dead_ends"])
-def test_two_agvs_head_on_pass_each_other_on_a_node_of_capacity_two(kind: str) -> None:
-    """spec §7.2: the leg into a port or root of capacity above 1 is claimed on its own, so two AGVs that meet head-on
-    both reach P, stand on it together and go on: no deadlock."""
+def test_two_agvs_head_on_at_a_node_of_capacity_two_complete_through_one_resolved_deadlock(kind: str) -> None:
+    """spec §7.2, §18: the hold-back treats a port or root of capacity above 1 like any other, so two AGVs that meet
+    head-on each stop one node before P; the deadlock is resolved by one step aside and both orders complete."""
     graph, nodes = passing_place(kind)
     m, invariants = scenario(
         (graph, nodes),
@@ -431,15 +431,44 @@ def test_two_agvs_head_on_pass_each_other_on_a_node_of_capacity_two(kind: str) -
     m.order("WB", "WA")  # B
     m.env.run()
     assert_ran(m, invariants, orders=2)
-    assert not m.events(TrafficDeadlock)
-    on_p = {
-        agv: (
-            next(float(e.t) for e in m.events(AgvMoveEnded, agv=agv) if e.node == "P"),
-            next(float(e.t) for e in m.events(AgvMoveStarted, agv=agv) if e.from_node == "P"),
-        )
-        for agv in ("A", "B")
-    }
-    assert max(arrived for arrived, _ in on_p.values()) <= min(left for _, left in on_p.values())  # both on P
+    assert [e.action for e in m.events(TrafficDeadlock)] == ["step_aside"]
+
+
+def test_a_vehicle_does_not_wait_on_a_roomy_port_where_a_resting_agv_holds_the_other_slot() -> None:
+    """The reviewer's plug: S1 rests on the port J2 (capacity 2); W carries from x2 into the corridor while S2, inside
+    it, carries out through J2. Had W waited on J2, it would take the slot S2 needs, and neither would move with nothing
+    reported. W holds back before the port instead, and both orders complete."""
+    graph, nodes = two_junction_corridor()
+    m, invariants = scenario(
+        (graph, nodes),
+        {"S1": "J2", "W": "x2", "S2": "x1"},
+        bays={"WA": "x1", "WB": "x2", "WC": "y2"},
+        controller_options={"capacities": {nodes["J2"]: 2}},
+    )
+    m.order("WA", "WC", at=1.0)  # S2, through the corridor and J2
+    m.order("WB", "WA", at=1.0)  # W, the other way
+    m.env.run()
+    assert_ran(m, invariants, orders=2)
+
+
+def test_a_swap_past_a_resting_agv_on_a_roomy_root_is_a_reported_deadlock() -> None:
+    """The reviewer's second plug: ``x1, a, P, b, x2`` with an AGV parked on the parking area of capacity 2 on P, and
+    two AGVs swapping ends. There is no way past: the deadlock is reported unresolved, once, and the run returns."""
+    graph, nodes = passing_place("dead_ends")
+    m, invariants = scenario(
+        (graph, nodes),
+        {"I": "P", "A": "x1", "B": "x2"},
+        bays={"WA": "x1", "WB": "x2"},
+        parking={"PK": ("P", 2)},
+    )
+    m.order("WA", "WB", at=1.0)
+    m.order("WB", "WA", at=1.0)
+    m.env.run()
+    assert invariants.checked > 0
+    assert m.env.peek() == float("inf")
+    assert [(e.agvs, e.action) for e in m.events(TrafficDeadlock)][-1:] == [(("A", "B"), "unresolved")]
+    assert len([e for e in m.events(TrafficDeadlock) if e.action == "unresolved"]) == 1
+    assert [o.status for o in m.orders] == [OrderStatus.IN_TRANSIT] * 2
 
 
 def test_an_agv_parked_on_a_roomy_port_is_dispatched_through_the_empty_corridor_at_once() -> None:

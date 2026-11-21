@@ -727,9 +727,9 @@ def assert_flowing(w: World) -> None:
 
 @pytest.mark.parametrize("length", [0.0, 1.0])
 def test_a_head_on_meeting_at_a_passing_place_completes_with_a_length(length: float) -> None:
-    """A from R to Z, B from Z to R, passing at P (capacity 2), the root of the dead ends towards R and towards Z. The
-    leg into P is claimed on its own (spec §7.2), so both reach P and pass there, with a length as without one: no
-    deadlock, and both arrive after four arcs."""
+    """A from R to Z, B from Z to R, passing at P (capacity 2). Q and Y lead into dead ends, so each waits at the
+    entry for the whole rest of its route: the deadlock is resolved by stepping A aside to P, with a length as
+    without one. Before the trail cleared on P, A kept ``P~Q`` there and the second deadlock stood unresolved."""
     graph_nodes = build(
         [("R", 0, 0), ("Q", 10, 0), ("P", 20, 0), ("Y", 30, 0), ("Z", 40, 0)],
         [("R", "Q"), ("Q", "P"), ("P", "Y"), ("Y", "Z")],
@@ -739,9 +739,9 @@ def test_a_head_on_meeting_at_a_passing_place_completes_with_a_length(length: fl
     w.go("A", "Z")
     w.go("B", "R")
     w.env.run()
-    assert_flowing(w)
     assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
-    assert w.env.now == pytest.approx(4 * ARC)
+    assert [(e.victim, e.action) for e in w.of(TrafficDeadlock)] == [("A", "step_aside")]
+    assert not w.of(TrafficWaitStuck)
 
 
 def test_two_vehicles_at_a_multi_slot_leaf_one_sent_away() -> None:
