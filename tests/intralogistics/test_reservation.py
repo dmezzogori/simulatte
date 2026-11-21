@@ -282,6 +282,58 @@ def test_own_holdings_never_block() -> None:
     assert w.controller.view.admissible(w.agvs["A"], backward)
     assert not w.controller.view.admissible(w.agvs["B"], backward)
     assert w.controller.request(w.agvs["A"], backward, fake_hooks()).granted
+    assert w.holders(segment) == ["A"]
+
+
+class TestSegmentReversal:
+    """A leg over a segment the AGV still holds in the other direction claims it again (spec §7.2)."""
+
+    def test_alone_the_reversal_is_granted_at_once(self) -> None:
+        w = world(line(4), {"A": "N1"})
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        assert w.ask("A", (segment, "backward")).granted
+        assert w.replay.state["N1~N2"]["forward"] == ()
+        assert w.replay.state["N1~N2"]["backward"] == ("A",)
+        reserved = w.replay.of(TrafficReserved)[-1]
+        assert reserved.resources == ("N1~N2",)
+        assert reserved.deltas.ops == (("remove", "N1~N2", "forward", "A"), ("insert", "N1~N2", "backward", 0, "A"))
+        assert w.replay.seeded == w.replay.state
+        w.release("A", segment)
+        assert w.replay.state["N1~N2"]["backward"] == ()
+
+    def test_a_same_direction_follower_holds_the_reversal_back(self) -> None:
+        w = world(line(4), {"A": "N1", "F": "N0"})
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        assert w.ask("F", (segment, "forward")).granted  # extents 4 + 4 fit in 10
+        reversal = w.ask("A", (segment, "backward"))
+        assert not reversal.event.triggered
+        assert w.replay.state["N1~N2"]["forward"] == ("A", "F")
+        w.release("F", segment)
+        assert reversal.granted
+        assert w.replay.state["N1~N2"]["forward"] == ()
+        assert w.replay.state["N1~N2"]["backward"] == ("A",)
+
+    def test_after_a_reversal_the_reverser_counts_in_its_new_direction(self) -> None:
+        w = world(line(4), {"A": "N1", "N": "N0"})
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        assert w.ask("A", (segment, "backward")).granted
+        assert not w.ask("N", (segment, "forward")).event.triggered
+
+    def test_on_a_passing_segment_the_reversal_needs_room_in_the_new_lane(self) -> None:
+        agvs: dict[str, str | tuple[str, AGVType]] = {"A": "N1", "F": "N1", "B": "N2", "C": "N2"}
+        w = world(passing_line(), agvs, place=False)
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        assert w.ask("F", (segment, "forward")).granted
+        assert w.ask("A", (segment, "backward")).granted  # F still forward: the backward lane is empty
+        assert w.replay.state["N1~N2"]["forward"] == ("F",)
+        assert w.replay.state["N1~N2"]["backward"] == ("A",)
+        assert w.ask("B", (segment, "backward")).granted  # 4 + 4 fit
+        assert w.ask("F", (segment, "backward")).granted is False  # 4 + 4 + 4 do not
+        assert w.replay.state["N1~N2"]["forward"] == ("F",)
 
 
 def test_own_holdings_never_block_a_long_vehicle() -> None:

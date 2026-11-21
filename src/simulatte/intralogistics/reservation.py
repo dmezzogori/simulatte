@@ -345,9 +345,9 @@ class ReservationController:
     def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest:
         """Ask for `claim` on behalf of `agv`; the returned request's event succeeds with ``Granted`` at the grant.
 
-        What the AGV already holds is dropped from the claim, except a corridor whose orientation changes; if nothing is
-        left the request is granted at once. ``priority_fn`` is read here, once. Raises `RuntimeError` when the AGV
-        already has a pending request.
+        What the AGV already holds is dropped from the claim, except a corridor or a segment held in another direction
+        (spec §7.2), which is claimed again; if nothing is left the request is granted at once. ``priority_fn`` is read
+        here, once. Raises `RuntimeError` when the AGV already has a pending request.
         """
         if agv in self._pending:
             raise RuntimeError(f"{agv.id} already has a pending traffic request")
@@ -411,11 +411,11 @@ class ReservationController:
         return agv_type.length + agv_type.min_gap
 
     def _holds(self, agv: AGV, item: ClaimItem) -> bool:
-        """Whether `agv` already holds `item`: a corridor counts only with the same orientation."""
+        """Whether `agv` already holds `item`: a corridor or a segment counts only with the same direction."""
         direction = self._holders.get(item.resource, {}).get(agv, _MISSING)
         if direction is _MISSING:
             return False
-        return not isinstance(item.resource, Corridor) or direction == item.direction
+        return not isinstance(item.resource, (Segment, Corridor)) or direction == item.direction
 
     def _blockers(self, agv: AGV, item: ClaimItem) -> list[AGV]:
         """The other holders that make `item` inadmissible for `agv` (spec §7.3); empty when it is admissible."""
@@ -511,7 +511,8 @@ class ReservationController:
         for item in items:
             resource = item.resource
             holders = self._holders.setdefault(resource, {})
-            renewed = agv in holders  # a corridor claimed again with a new orientation
+            previous = holders.get(agv, _MISSING)  # held: a segment or corridor claimed again in a new direction
+            renewed = previous is not _MISSING
             holders[agv] = item.direction
             held[resource] = None
             if isinstance(resource, Node):
@@ -523,6 +524,10 @@ class ReservationController:
             elif isinstance(resource, Segment):
                 segment = self._bindings[resource]
                 assert isinstance(segment, SegmentBinding)
+                if renewed:
+                    old = "forward" if previous == "forward" else "backward"
+                    getattr(segment, old).remove(agv.id)
+                    build.remove(segment.id, old, agv.id)
                 field = "forward" if item.direction == "forward" else "backward"
                 holding = getattr(segment, field)
                 holding.append(agv.id)
