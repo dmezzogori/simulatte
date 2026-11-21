@@ -7,7 +7,7 @@ import pytest
 
 from simulatte.environment import Environment
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
-from simulatte.intralogistics.network import Zone
+from simulatte.intralogistics.network import Corridor, Segment, Zone
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import Route, Router, RouteRequest, ShortestDistanceRouter, shortest_path
 from simulatte.intralogistics.traffic import FreeFlowController, TrafficView
@@ -107,7 +107,8 @@ class TestShortestDistanceRouter:
     def test_avoid_segment(self, algorithm: str) -> None:
         nodes, graph = grid()
         view = reservation_view(graph)
-        segment = view.resources(nodes["A"], nodes["B"])[-1]
+        segment = view.resources(nodes["A"], nodes["B"])[0]
+        assert isinstance(segment, Segment)
         route = ask(algorithm, view, nodes["A"], nodes["D"], avoid=frozenset({segment}))
         assert route is not None
         assert route.nodes == (nodes["A"], nodes["C"], nodes["D"])
@@ -123,7 +124,8 @@ class TestShortestDistanceRouter:
     def test_avoid_corridor(self, algorithm: str) -> None:
         graph, nodes = two_junction_corridor()
         view = reservation_view(graph)
-        (corridor,) = view.resources(nodes["a"], nodes["b"])[-1:]
+        corridor = view.resources(nodes["a"], nodes["b"])[0]
+        assert isinstance(corridor, Corridor)
         assert ask(algorithm, view, nodes["J1"], nodes["J2"]) is not None
         assert ask(algorithm, view, nodes["J1"], nodes["J2"], avoid=frozenset({corridor})) is None
 
