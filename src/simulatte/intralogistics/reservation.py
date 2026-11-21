@@ -18,7 +18,6 @@ from __future__ import annotations
 import math
 from bisect import insort
 from dataclasses import dataclass
-from heapq import heapify
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from simulatte._wire import FrozenMap, freeze
@@ -302,7 +301,8 @@ class ReservationController:
         """Open the wait of `request`, whose AGV is now at rest; nothing happens unless the request is still pending.
 
         Emits ``traffic.wait_started``, asks idle blockers to make way (spec §7.10), runs deadlock detection (§7.8)
-        and, unless the AGV is deadlocked, asks the policy how it reacts (§7.9).
+        and, when the wait is still open and the AGV is not left in an unresolved deadlock, asks the policy how it
+        reacts (§7.9).
         """
         agv = request.agv
         waiting = self._pending.get(agv)
@@ -328,8 +328,8 @@ class ReservationController:
                 )
             )
         self._make_way(self._wait(waiting, blockers))
-        deadlocked = self._detect()
-        if waiting in deadlocked or self._pending.get(agv) is not waiting:
+        unresolved = self._detect()
+        if waiting in unresolved or self._pending.get(agv) is not waiting:
             return
         kept = self._react(waiting, self._wait(waiting, self._blocking(waiting)))
         if kept is not None and kept.review_after is not None:
@@ -536,6 +536,7 @@ class ReservationController:
         for waiting in self._queue:  # dormant waits are reviewed once the network has changed (spec §7.9)
             if waiting.dormant is not None and waiting.seen != self._changes:
                 delay, waiting.dormant = waiting.dormant, None
+                waiting.seen = self._changes  # the wake-up consumes the change
                 self._schedule(waiting, delay)
 
     # Waits, reviews and deadlocks (spec §7.8-§7.10)
@@ -624,7 +625,7 @@ class ReservationController:
         """A review: make way and ``on_blocked`` again, with the blockers recomputed (spec §7.9).
 
         When it keeps waiting with a delay, the next review is scheduled if a grant or release happened since the
-        previous review (or the opening); otherwise the wait is dormant until the next one (T23).
+        previous review (or the opening, or the wake-up); otherwise the wait is dormant until the next one (T23).
         """
         waiting.timer = None
         waiting.reviews += 1
@@ -671,9 +672,7 @@ class ReservationController:
         timer = waiting.timer
         if timer is not None:  # no timer survives its wait (T23)
             waiting.timer = None
-            queue = self._env._queue
-            del queue[next(index for index, entry in enumerate(queue) if entry[3] is timer)]
-            heapify(queue)
+            self._env.unschedule(timer)
         agv = waiting.agv
         self._unresolved = [ids for ids in self._unresolved if agv.id not in ids]
         env = self._env
@@ -704,10 +703,13 @@ class ReservationController:
         return remaining
 
     def _detect(self) -> list[_Pending]:
-        """Deadlock detection among the stopped waiters (spec §7.8); returns the deadlocked set ``D``.
+        """Deadlock detection and resolution among the stopped waiters (spec §7.8); returns the deadlocked set left
+        unresolved, empty when there is none.
 
         Gating claims among the remainder of the reduction with gates are marked yielding and the queue is rescanned,
-        without an event. A non-empty ``D`` goes to the policy.
+        without an event. A non-empty ``D`` goes to the policy; after a staged attempt and its rescan the reduction
+        runs again, and the resolution repeats for the new ``D`` until it is empty or no attempt succeeds. Each round
+        removes one waiter from the queue, so the rounds are bounded by their number.
         """
         waiters = [waiting for waiting in self._queue if waiting.stopped]
         deadlocked = self._reduce(waiters, gates=False)
@@ -720,12 +722,15 @@ class ReservationController:
                 gate.yielding = yielded = True
         if yielded:
             self._scan()
-        if deadlocked:
-            self._resolve(deadlocked)
+        while deadlocked:
+            if not self._resolve(deadlocked):
+                return deadlocked
+            deadlocked = self._reduce([waiting for waiting in self._queue if waiting.stopped], gates=False)
         return deadlocked
 
-    def _resolve(self, deadlocked: list[_Pending]) -> None:
-        """Stage the first attempt of ``on_deadlock`` that succeeds, or report the set unresolved once (spec §7.8)."""
+    def _resolve(self, deadlocked: list[_Pending]) -> bool:
+        """Stage the first attempt of ``on_deadlock`` that succeeds and rescan, or report the set unresolved once (spec
+        §7.8); whether an attempt was staged."""
         env = self._env
         ids = tuple(sorted(waiting.agv.id for waiting in deadlocked))
         members = {waiting.agv: waiting for waiting in deadlocked}
@@ -739,13 +744,14 @@ class ReservationController:
                 if env.wants(TrafficDeadlock):
                     env.emit(TrafficDeadlock(agvs=ids, victim=agv.id, action=action))
                 self._scan()
-                return
+                return True
         if ids in self._unresolved:
-            return
+            return False
         self._unresolved.append(ids)
         if env.wants(TrafficDeadlock):
             env.emit(TrafficDeadlock(agvs=ids, victim=None, action="unresolved"))
         env.error(f"deadlock among {', '.join(ids)}: no resolution succeeded", component="ReservationController")
+        return False
 
     # Holdings
 

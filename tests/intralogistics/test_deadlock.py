@@ -447,7 +447,8 @@ class TestReactions:
 
 
 class TestReviews:
-    def test_no_change_no_timer_and_a_later_release_restarts_the_delay(self) -> None:
+    @pytest.mark.parametrize("later", [False, True], ids=["one-change", "change-after-wake-up"])
+    def test_no_change_no_timer_and_a_later_change_restarts_the_delay(self, later: bool) -> None:
         policy = Scripted(blocked=(KeepWaiting(30.0),))
         w = world({"A": "N1", "B": "N0", "C": "N3"}, policy=policy)
         w.state("A", AGVState.TRAVELING_EMPTY)
@@ -458,11 +459,14 @@ class TestReviews:
         assert [wait.reviews for wait in policy.of("on_blocked")] == [0, 1]
         assert timers(w) == []  # dormant: nothing changed since the wait opened
         run_to(w, 50.0)
-        w.leave("C", "N4")
+        assert w.ask("C", "N4").granted  # wakes the wait and is consumed by the wake-up
         assert timers(w) == [80.0]
-        w.env.run()  # at 80 the change at 50 is new since the review at 30: one more review, then dormant
-        assert w.env.now == 110.0
-        assert [wait.reviews for wait in policy.of("on_blocked")] == [0, 1, 2, 3]
+        if later:
+            run_to(w, 60.0)
+            assert w.ask("C", "N2").granted  # a change after the wake-up: one more review
+        w.env.run()
+        assert w.env.now == (110.0 if later else 80.0)
+        assert [wait.reviews for wait in policy.of("on_blocked")] == ([0, 1, 2, 3] if later else [0, 1, 2])
         assert timers(w) == []
 
     def test_a_change_during_the_delay_schedules_the_next_review(self) -> None:
@@ -515,6 +519,33 @@ class TestReviews:
         assert timers(w) == []
         w.env.run()
         assert w.env.now == 10.0
+
+    @pytest.mark.parametrize("end", ["granted", "withdrawn"])
+    def test_a_wait_that_ends_leaves_unrelated_timeouts_alone(self, end: str) -> None:
+        policy = Scripted(blocked=(KeepWaiting(30.0),))
+        w = world({"A": "N1", "B": "N0"}, policy=policy)
+        fired: list[float] = []
+
+        def unrelated(delay: float) -> None:
+            w.env.timeout(delay).callbacks.append(lambda _: fired.append(float(w.env.now)))
+
+        unrelated(20.0)
+        unrelated(30.0)  # same time as the review, scheduled before it
+        request = w.wait("B", "N1")
+        unrelated(30.0)  # same time as the review, scheduled after it
+        unrelated(40.0)
+        assert timers(w) == [20.0, 30.0, 30.0, 30.0, 40.0]
+        run_to(w, 10.0)
+        if end == "granted":
+            w.leave("A", "N2")
+            assert request.granted
+        else:
+            w.controller.withdraw(request)
+        assert timers(w) == [20.0, 30.0, 30.0, 40.0]
+        w.env.run()
+        assert fired == [20.0, 30.0, 30.0, 40.0]
+        assert w.env.now == 40.0
+        assert len(policy.of("on_blocked")) == 1  # the review never ran
 
     def test_a_dormant_wait_that_is_granted_is_not_woken(self) -> None:
         policy = Scripted(blocked=(KeepWaiting(30.0),))
@@ -765,6 +796,66 @@ class TestResolution:
         assert not second.event.triggered
         assert w.deadlocks() == [(("A", "B"), "A", "step_aside")]
         assert w.fleets["F1"].moves == w.fleets["F2"].moves == []
+
+    @staticmethod
+    def behind_a_cycle(
+        policy: Any, accept_a: Sequence[str] = (), accept_b: Sequence[str] = ()
+    ) -> tuple[World, dict[str, ClaimRequest]]:
+        """The reviewer's case on ``line(5)``: C (unloaded, accepts a reroute) waits behind the cycle of A and B (both
+        loaded); B's stop closes the set {A, B, C}."""
+        w = world({"A": "N0", "B": "N1", "C": "N2"}, policy=policy)
+        requests = {
+            "C": w.wait("C", "N1", with_hooks=hooks(name="C", accept=("try_reroute",))),
+            "A": w.wait("A", "N1", with_hooks=hooks(name="A", loaded=True, accept=accept_a)),
+            "B": w.wait("B", "N0", with_hooks=hooks(name="B", loaded=True, accept=accept_b)),
+        }
+        return w, requests
+
+    def test_a_victim_that_does_not_break_the_set_is_followed_by_another_round(self) -> None:
+        policy = Scripted()
+        w, requests = self.behind_a_cycle(policy)
+        assert requests["C"].event.value == Rerouted("deadlock")
+        assert w.deadlocks() == [(("A", "B", "C"), "C", "reroute"), (("A", "B"), None, "unresolved")]
+        assert [[wait.agv.id for wait in waits] for waits in policy.of("on_deadlock")] == [["C", "A", "B"], ["A", "B"]]
+        assert w.logged("ERROR") == [("deadlock among A, B: no resolution succeeded", "ReservationController")]
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["C", "A"]  # B is left deadlocked: no on_blocked
+        tail = [(e.type_name, getattr(e, "agv", None)) for e in w.replay.events[-3:]]
+        assert tail == [("traffic.wait_ended", "C"), ("traffic.deadlock", None), ("traffic.deadlock", None)]
+        assert not requests["A"].event.triggered and not requests["B"].event.triggered
+        w.env.run()
+        assert timers(w) == []
+        assert len(w.deadlocks()) == 2
+
+    @pytest.mark.parametrize("victim", ["A", "B"])
+    def test_a_second_round_can_resolve_what_is_left(self, victim: str) -> None:
+        policy = Scripted()
+        accept = ("try_reroute",)
+        w, requests = self.behind_a_cycle(
+            policy, accept_a=accept if victim == "A" else (), accept_b=accept if victim == "B" else ()
+        )
+        assert w.deadlocks() == [(("A", "B", "C"), "C", "reroute"), (("A", "B"), victim, "reroute")]
+        assert requests[victim].event.value == Rerouted("deadlock")
+        other = "B" if victim == "A" else "A"
+        assert not requests[other].event.triggered
+        assert w.logged("ERROR") == []
+        assert w.controller._unresolved == []
+        assert w.controller._reduce([p for p in w.controller._queue if p.stopped], gates=False) == []
+        # B closed the set: it is reviewed as usual only if its wait is still open
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["C", "A", *(["B"] if victim == "A" else [])]
+        w.env.run()
+        assert w.env.now == 0.0
+        assert w.invariants.checked > 0
+
+    def test_the_closer_left_waiting_outside_a_deadlock_gets_on_blocked(self) -> None:
+        w, requests = self.behind_a_cycle(StandardTrafficPolicy(), accept_a=("try_reroute",))
+        assert w.deadlocks() == [(("A", "B", "C"), "C", "reroute"), (("A", "B"), "A", "reroute")]
+        assert not requests["B"].event.triggered
+        assert w.replay.of(TrafficWaitStarted)[-1].agv == "B"
+        assert timers(w) == [30.0]  # on_blocked kept B waiting with a review
+        w.env.run()
+        assert w.env.now == 30.0
+        (stuck,) = w.replay.of(TrafficWaitStuck)  # A is rerouted but idle on N0, and nobody moves it
+        assert (stuck.agv, dict(stuck.blockers)) == ("B", {"A": "IDLE"})
 
     def test_keep_waiting_attempts_are_skipped_and_give_up_is_staged(self) -> None:
         def attempts(waits: Sequence[Wait]) -> Sequence[tuple[AGV, Reaction]]:
