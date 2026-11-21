@@ -461,7 +461,9 @@ is travelling to. Reactions are frozen values:
   to the rule on reviews below;
 - `Reroute(avoid, max_cost_ratio=None)`: succeeds when the fleet's router finds a route that avoids the given
   resources, whose first claim is admissible now, and, when a ratio is given, whose cost is at most that ratio
-  times the cost of the remaining current route;
+  times the cost of the remaining current route. An AGV that stands on its goal when asked (it can be there in
+  the middle of a step-aside excursion that passes through it) has arrived: the reroute succeeds with the
+  one-node route and the travel ends with `ARRIVED`;
 - `StepAside(target=None)`: succeeds when the target, or the node found by the standard search below, can be
   reached with a first claim that is admissible now;
 - `GiveUp()`: succeeds when the travel's `give_up()` hook accepts (§8.2); the travel then ends with `GAVE_UP`.
