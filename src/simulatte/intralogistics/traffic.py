@@ -191,7 +191,7 @@ class ResourceBasedTrafficManager:
         self._waiting[req] = node
         env = self._env
         if env.wants(TrafficWaitStarted):
-            env.emit(TrafficWaitStarted(agv=agv.id, node=node.id, reason="node_occupied"))
+            env.emit(TrafficWaitStarted(agv=agv.id, node=node.id, resources=(), blockers=(), reason="node_occupied"))
 
     def _end_wait(self, agv: AGV, req: Request, reason: str) -> None:
         """Close the wait of `req`, if it has one open, and emit ``traffic.wait_ended`` with `reason`."""
@@ -317,7 +317,12 @@ class Granted:
 
 @dataclass(frozen=True)
 class Rerouted:
-    """The request was withdrawn because the controller staged a reroute through the hooks."""
+    """The request was withdrawn because the controller staged a reroute through the hooks.
+
+    `reason` is ``"blocked"`` for a reaction of ``on_blocked`` and ``"deadlock"`` for a deadlock resolution.
+    """
+
+    reason: str = "blocked"
 
 
 @dataclass(frozen=True)
@@ -368,7 +373,7 @@ class Blocker:
 
 @dataclass(frozen=True)
 class Wait:
-    """A waiting AGV as the policy sees it."""
+    """A waiting AGV as the policy sees it; `priority` is the one the controller read when the request was made."""
 
     agv: AGV
     claim: Claim
@@ -378,6 +383,7 @@ class Wait:
     route: tuple[Node, ...]
     loaded: bool
     resolutions: int
+    priority: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -418,6 +424,7 @@ class TrafficView(Protocol):
     def pending(self, resource: Resource) -> int: ...
     def disposition(self, agv: AGV) -> Disposition: ...
     def route_of(self, agv: AGV) -> tuple[Node, ...]: ...
+    def waiting_on(self, agv: AGV) -> tuple[AGV, ...]: ...
     def admissible(self, agv: AGV, claim: Claim) -> bool: ...
     def mean_hold(self, resource: Resource) -> float: ...
 
@@ -459,6 +466,11 @@ _DISPOSITIONS = {
 }
 
 
+def disposition_of(agv: AGV) -> Disposition:
+    """The disposition that the AGV's state implies; a controller reports ``WAITING`` for an open wait instead."""
+    return _DISPOSITIONS[agv.state]
+
+
 class _FreeFlowView:
     """The view of a network without traffic: the graph is real, everything dynamic is empty."""
 
@@ -494,9 +506,12 @@ class _FreeFlowView:
         return 0
 
     def disposition(self, agv: AGV) -> Disposition:
-        return _DISPOSITIONS[agv.state]
+        return disposition_of(agv)
 
     def route_of(self, agv: AGV) -> tuple[Node, ...]:
+        return ()
+
+    def waiting_on(self, agv: AGV) -> tuple[AGV, ...]:
         return ()
 
     def admissible(self, agv: AGV, claim: Claim) -> bool:

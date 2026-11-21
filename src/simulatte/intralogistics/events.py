@@ -31,10 +31,12 @@ __all__ = [
     "OrderUnassigned",
     "ParkingEntered",
     "ParkingLeft",
+    "TrafficDeadlock",
     "TrafficReleased",
     "TrafficReserved",
     "TrafficWaitEnded",
     "TrafficWaitStarted",
+    "TrafficWaitStuck",
     "WarehouseInventoryChanged",
     "WarehouseSlotChanged",
 ]
@@ -232,15 +234,18 @@ class TrafficReleased(DomainEvent):
 
 @event_type("traffic.wait_started")
 class TrafficWaitStarted(DomainEvent):
-    """The AGV started waiting before entering `node`, the next node it means to enter.
+    """The AGV stopped to wait before entering `node`, the next node it means to enter (spec §11.2).
 
-    `reason` is ``"node_occupied"`` (``enter_node`` found the node fully reserved), ``"path_delay"`` (the traffic
-    manager's path check asked to wait until a later time) or ``"deadlock_backoff"`` (the coordinator backs off
-    after a deadlock timeout found no alternative route). It changes no state.
+    With ``ReservationController``, `resources` are the ids of the resources the waiting claim still needs,
+    `blockers` the ids of the AGVs that hold them (then of those whose earlier claims gate it) and `reason` is
+    ``"occupied"``. The old traffic manager and the coordinator's delays emit empty `resources` and `blockers` with
+    ``"node_occupied"``, ``"path_delay"`` or ``"deadlock_backoff"``. It changes no state.
     """
 
     agv: str
     node: str
+    resources: tuple[str, ...]
+    blockers: tuple[str, ...]
     reason: str
 
 
@@ -248,14 +253,41 @@ class TrafficWaitStarted(DomainEvent):
 class TrafficWaitEnded(DomainEvent):
     """A wait announced by ``traffic.wait_started`` ended; `node` is the same node.
 
-    `reason` is the outcome: ``"granted"`` (the node was reserved; ``traffic.reserved`` follows), ``"cancelled"``
-    (the traffic manager withdrew the waiting request), ``"interrupted"`` (the waiting process was interrupted) or
-    ``"elapsed"`` (a delay or a backoff ran out). It changes no state.
+    `reason` is the outcome: ``"granted"`` (``traffic.reserved`` follows), ``"rerouted"``, ``"stepped_aside"`` or
+    ``"gave_up"`` (the controller staged that reaction), ``"interrupted"`` (the request was withdrawn or the waiting
+    process was interrupted); the old traffic manager also ends waits with ``"cancelled"`` and the coordinator's
+    delays with ``"elapsed"``. It changes no state.
     """
 
     agv: str
     node: str
     reason: str
+
+
+@event_type("traffic.wait_stuck")
+class TrafficWaitStuck(DomainEvent):
+    """A review of the AGV's wait kept it waiting while every blocker was idle, stranded or stalled (spec §7.9).
+
+    `blockers` maps each blocker's id to its disposition name (``IDLE``, ``STRANDED``), or ``STALLED`` for an AGV
+    whose motion is stalled. Emitted once per wait; it is a report, not a deadlock, and changes no state.
+    """
+
+    agv: str
+    blockers: FrozenMap
+
+
+@event_type("traffic.deadlock")
+class TrafficDeadlock(DomainEvent):
+    """The waiting AGVs `agvs` (sorted ids) are deadlocked (spec §7.8).
+
+    `victim` is the AGV whose reaction was staged and `action` that reaction (``"reroute"``, ``"step_aside"`` or
+    ``"give_up"``); when no attempt succeeded `victim` is null and `action` is ``"unresolved"``, emitted once while
+    the same set stands. It changes no state.
+    """
+
+    agvs: tuple[str, ...]
+    victim: str | None
+    action: str
 
 
 # --- warehouses --------------------------------------------------------------------------------------------

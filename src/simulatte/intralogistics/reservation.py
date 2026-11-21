@@ -1,10 +1,16 @@
-"""The traffic controller that enforces occupancy with claims (spec §6, §7.1-§7.5, §7.7).
+"""The traffic controller that enforces occupancy with claims (spec §6, §7).
 
 An AGV asks :class:`ReservationController` for a :class:`~simulatte.intralogistics.network.Claim` and gets all of it or
 waits. The controller keeps the holdings of every resource, admits claims by the rules of spec §7.3, orders pending
 claims by priority and request counter behind the fairness gate of §7.4, and frees resources on release (§7.5). Each
-segment, zone and corridor is an entity (``segment``, ``zone``); nodes record their holders in the existing ``node``
-entities. ``traffic.reserved`` and ``traffic.released`` carry every change of that state.
+segment, zone and corridor is an entity (``segment``, ``zone``, in :mod:`~simulatte.intralogistics.traffic_entities`);
+nodes record their holders in the existing ``node`` entities. ``traffic.reserved`` and ``traffic.released`` carry
+every change of that state.
+
+An AGV that stops on a pending claim opens a wait (``traffic.wait_started``). The controller then asks idle blockers
+to make way (§7.10), looks for a deadlock among the waiting AGVs (§7.8) and asks the policy how the AGV reacts
+(§7.9), staging the first reaction that the travel's hooks accept; reviews follow on a timer only while the network
+changes (T23).
 """
 
 from __future__ import annotations
@@ -12,19 +18,43 @@ from __future__ import annotations
 import math
 from bisect import insort
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from heapq import heapify
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
-from simulatte._wire import wire_float
-from simulatte.entities import Entity, FieldSpec, StateSchema
+from simulatte._wire import FrozenMap, freeze
 from simulatte.events import Deltas
 from simulatte.layout.binding import graph_input, pending
-from simulatte.intralogistics.events import TrafficReleased, TrafficReserved
+from simulatte.intralogistics.events import (
+    TrafficDeadlock,
+    TrafficReleased,
+    TrafficReserved,
+    TrafficWaitEnded,
+    TrafficWaitStarted,
+    TrafficWaitStuck,
+)
 from simulatte.intralogistics.graph import Node
-from simulatte.intralogistics.network import ClaimItem, Corridor, Segment, TrafficNetwork, Zone
-from simulatte.intralogistics.traffic import _DISPOSITIONS, ClaimRequest, Disposition, Granted
+from simulatte.intralogistics.network import Claim, ClaimItem, Corridor, Segment, TrafficNetwork, Zone
+from simulatte.intralogistics.traffic import (
+    Blocker,
+    ClaimRequest,
+    Disposition,
+    GaveUp,
+    GiveUp,
+    Granted,
+    KeepWaiting,
+    Reroute,
+    Rerouted,
+    SteppedAside,
+    Wait,
+)
+from simulatte.intralogistics.traffic_entities import Container, SegmentBinding, ZoneBinding
+from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
+from simulatte.intralogistics.traffic_view import ReservationView
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+
+    from simpy.events import Timeout
 
     from simulatte.environment import Environment
     from simulatte.events import DeltaBuilder
@@ -33,103 +63,44 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.agv import AGV, AGVType
     from simulatte.intralogistics.fleet import FleetCoordinator
     from simulatte.intralogistics.graph import LayoutGraph
-    from simulatte.intralogistics.network import Claim, Direction, Resource
-    from simulatte.intralogistics.traffic import TrafficPolicy, WaitHooks
+    from simulatte.intralogistics.network import Direction, Resource
+    from simulatte.intralogistics.traffic import Reaction, TrafficPolicy, WaitHooks
 
 __all__ = ["ReservationController", "SegmentBinding", "ZoneBinding"]
 
-Container = Zone | Corridor
 
+class _MakesWay(Protocol):
+    """The coordinator's make-way move (spec §7.10)."""
 
-class SegmentBinding(Entity, kind="segment"):
-    """The entity of a :class:`~simulatte.intralogistics.network.Segment` (spec §11.1).
-
-    Its id is the segment id. ``source`` and ``target`` are the node ids in sorted order; ``forward`` lists the AGVs
-    holding the segment from ``source`` to ``target`` and ``backward`` the others, both in grant order.
-    """
-
-    state_schema: ClassVar[StateSchema] = StateSchema(
-        {
-            "source": FieldSpec("str"),
-            "target": FieldSpec("str"),
-            "length": FieldSpec("float"),
-            "forward": FieldSpec("str", collection="list"),
-            "backward": FieldSpec("str", collection="list"),
-        }
-    )
-
-    def __init__(self, env: Environment, segment: Segment) -> None:
-        self.segment = segment
-        self.forward: list[str] = []
-        self.backward: list[str] = []
-        env.entities.attach(self, name=segment.id)
-
-    def snapshot(self) -> dict[str, Any]:
-        """Current entity state: the end nodes, the length and the holders of each direction."""
-        segment = self.segment
-        return {
-            "source": segment.a.id,
-            "target": segment.b.id,
-            "length": wire_float(segment.length),
-            "forward": list(self.forward),
-            "backward": list(self.backward),
-            "label": self.label,
-        }
-
-
-class ZoneBinding(Entity, kind="zone"):
-    """The entity of an authored zone (``rule`` ``exclusive``) or a derived corridor (``same_direction``).
-
-    ``capacity`` is null for a corridor; ``members`` are node and segment ids; ``reserved_by`` lists the holders in
-    grant order; ``orientation`` is the orientation of a corridor's oriented holders, or null.
-    """
-
-    state_schema: ClassVar[StateSchema] = StateSchema(
-        {
-            "rule": FieldSpec("str"),
-            "capacity": FieldSpec("int", nullable=True),
-            "members": FieldSpec("str", collection="list"),
-            "reserved_by": FieldSpec("str", collection="list"),
-            "orientation": FieldSpec("str", nullable=True),
-        }
-    )
-
-    def __init__(self, env: Environment, container: Container, members: Sequence[str]) -> None:
-        self.container = container
-        self.rule = "same_direction" if isinstance(container, Corridor) else "exclusive"
-        self.capacity: int | None = None if isinstance(container, Corridor) else container.capacity
-        self.members = list(members)
-        self.reserved_by: list[str] = []
-        self.orientation: str | None = None
-        env.entities.attach(self, name=container.id)
-
-    def snapshot(self) -> dict[str, Any]:
-        """Current entity state: rule, capacity, members, holders and orientation."""
-        return {
-            "rule": self.rule,
-            "capacity": self.capacity,
-            "members": list(self.members),
-            "reserved_by": list(self.reserved_by),
-            "orientation": self.orientation,
-            "label": self.label,
-        }
+    def make_way(self, agv: AGV, target: Node | None, *, concerned: Sequence[AGV] = ()) -> bool: ...
 
 
 @dataclass(eq=False)
 class _Pending:
-    """A pending claim: the request (with its full claim) and its queue key.
+    """A pending claim: the request (with its full claim), its queue key and, once the AGV stopped, its wait.
 
     What the claim still needs is determined from the current holdings whenever it is tested (spec §7.5).
     """
 
     request: ClaimRequest
     key: tuple[float, int]  # (-priority, request counter)
-    stopped: bool = False
-    yielding: bool = False  # set by the policy (Task 6); the gate skips yielding claims
+    stopped: bool = False  # the wait is open
+    yielding: bool = False  # set by deadlock detection; the gate skips yielding claims
+    since: float = 0.0
+    node: str = ""  # the next node, as in traffic.wait_started
+    reviews: int = 0
+    timer: Timeout | None = None  # the scheduled review
+    seen: int = 0  # the change count at the opening of the wait or at its last review
+    dormant: float | None = None  # the delay of a review that waits for the next grant or release
+    stuck: bool = False  # traffic.wait_stuck was emitted
 
     @property
     def agv(self) -> AGV:
         return self.request.agv
+
+    @property
+    def priority(self) -> float:
+        return -self.key[0]
 
 
 _MISSING: Any = object()
@@ -139,59 +110,6 @@ def _no_length(agv_type: AGVType) -> str:
     return f"AGVType {agv_type.name!r} has no length: ReservationController needs the extent of every vehicle"
 
 
-class _ReservationView:
-    """The :class:`~simulatte.intralogistics.traffic.TrafficView` of a :class:`ReservationController`."""
-
-    def __init__(self, controller: ReservationController) -> None:
-        self._controller = controller
-
-    @property
-    def graph(self) -> LayoutGraph:
-        return self._controller.network.graph
-
-    def length(self, u: Node, v: Node) -> float:
-        return self.graph.length(u, v)
-
-    def speed_limit(self, u: Node, v: Node) -> float | None:
-        arc = self.graph.arc_between(u, v)
-        if arc is None:
-            raise ValueError(f"Nodes {u.id} and {v.id} are not connected by an arc")
-        return arc.speed_limit
-
-    def capacity(self, node: Node) -> int:
-        return self._controller.network.capacity(node)
-
-    def resources(self, u: Node, v: Node) -> tuple[Resource, ...]:
-        return tuple(item.resource for item in self._controller.network.leg(u, v))
-
-    def holders(self, resource: Resource) -> tuple[AGV, ...]:
-        return tuple(self._controller._holders.get(resource, ()))
-
-    def pending(self, resource: Resource) -> int:
-        controller = self._controller
-        return sum(
-            1
-            for waiting in controller._queue
-            if any(item.resource == resource for item in controller._needed(waiting.agv, waiting.request.claim))
-        )
-
-    def disposition(self, agv: AGV) -> Disposition:
-        claim = self._controller._pending.get(agv)
-        if claim is not None and claim.stopped:
-            return Disposition.WAITING
-        return _DISPOSITIONS[agv.state]
-
-    def route_of(self, agv: AGV) -> tuple[Node, ...]:
-        claim = self._controller._pending.get(agv)
-        return () if claim is None else tuple(claim.request.hooks.route())
-
-    def admissible(self, agv: AGV, claim: Claim) -> bool:
-        return self._controller._admissible(agv, claim)
-
-    def mean_hold(self, resource: Resource) -> float:
-        return 0.0
-
-
 class ReservationController:
     """Grants claims all or nothing and enforces the occupancy of nodes, segments, zones and corridors (spec §7.7).
 
@@ -199,7 +117,8 @@ class ReservationController:
     (explicit ones, then the parking areas and charging stations of the registered fleets, then ``node_capacity``),
     the authored ``zones`` and the derivation flags; its warnings are logged once. The same initializer attaches one
     ``segment`` entity per segment and one ``zone`` entity per zone and corridor, each group in id order. Fleets must
-    register before activation and their vehicle types must have a ``length``.
+    register before activation and their vehicle types must have a ``length``. ``policy`` defaults to
+    :class:`~simulatte.intralogistics.traffic_policy.StandardTrafficPolicy`.
     """
 
     controls_occupancy = True
@@ -228,7 +147,7 @@ class ReservationController:
         self._zones = tuple(zones)
         self._derive_corridors = derive_corridors
         self._hold_back_dead_ends = hold_back_dead_ends
-        self._policy = policy
+        self._policy: TrafficPolicy = StandardTrafficPolicy() if policy is None else policy
         self._priority_fn: Callable[[AGV], float] = priority_fn or (lambda agv: 0.0)
         self._fleets: list[FleetCoordinator] = []
         self._network: TrafficNetwork | None = None
@@ -244,7 +163,9 @@ class ReservationController:
         self._queue: list[_Pending] = []  # sorted by key
         self._pending: dict[AGV, _Pending] = {}
         self._counter = 0
-        self.view = _ReservationView(self)
+        self._changes = 0  # grants and releases so far: a review is due again only after one (T23)
+        self._unresolved: list[tuple[str, ...]] = []  # deadlocked sets reported unresolved that still stand
+        self.view = ReservationView(self)
         env.on_activate(self._finalize)
 
     # Layout and finalization
@@ -330,8 +251,10 @@ class ReservationController:
     def place(self, agv: AGV, node: Node) -> None:
         """Hold `node` and every zone and corridor containing it (a corridor without orientation) for `agv`.
 
-        Raises `RuntimeError`, naming the resource and its capacity, when one of them is full.
+        Raises `RuntimeError`, naming the resource and its capacity, when one of them is full, and `ValueError` when the
+        AGV's type has no length.
         """
+        self._extent(agv)
         network = self.network
         items = [ClaimItem(container) for container in self._containers_at.get(node, ())]
         items = [item for item in (*items, ClaimItem(node)) if not self._holds(agv, item)]
@@ -354,11 +277,16 @@ class ReservationController:
         """Ask for `claim` on behalf of `agv`; the returned request's event succeeds with ``Granted`` at the grant.
 
         What the AGV already holds is dropped from the claim, except a corridor or a segment held in another direction
-        (spec §7.2), which is claimed again; if nothing is left the request is granted at once. ``priority_fn`` is read
-        here, once. Raises `RuntimeError` when the AGV already has a pending request.
+        (spec §7.2), which is claimed again; if nothing is left the request is granted at once. An item named twice
+        counts once. ``priority_fn`` is read here, once. Raises `RuntimeError` when the AGV already has a pending
+        request and `ValueError` when its type has no length; the queue is then unchanged.
         """
+        self._extent(agv)
         if agv in self._pending:
             raise RuntimeError(f"{agv.id} already has a pending traffic request")
+        items = tuple(dict.fromkeys(claim.items))
+        if len(items) < len(claim.items):
+            claim = Claim(items, claim.legs)
         request = ClaimRequest(agv, claim, hooks, self._env.event())
         if not self._needed(agv, claim):
             request.event.succeed(Granted())
@@ -371,30 +299,65 @@ class ReservationController:
         return request
 
     def stopped(self, request: ClaimRequest) -> None:
-        """Note that the AGV of `request` is at rest and waiting on it (waits and policy calls come with Task 6)."""
-        waiting = self._pending.get(request.agv)
-        if waiting is not None and waiting.request is request:
-            waiting.stopped = True
+        """Open the wait of `request`, whose AGV is now at rest; nothing happens unless the request is still pending.
+
+        Emits ``traffic.wait_started``, asks idle blockers to make way (spec §7.10), runs deadlock detection (§7.8)
+        and, unless the AGV is deadlocked, asks the policy how it reacts (§7.9).
+        """
+        agv = request.agv
+        waiting = self._pending.get(agv)
+        if waiting is None or waiting.request is not request or waiting.stopped:
+            return
+        waiting.stopped = True
+        waiting.since = float(self._env.now)
+        waiting.seen = self._changes
+        route = request.hooks.route()
+        node = route[1] if len(route) > 1 else agv.current_node
+        assert node is not None
+        waiting.node = node.id
+        blockers = self._blocking(waiting)
+        env = self._env
+        if env.wants(TrafficWaitStarted):
+            env.emit(
+                TrafficWaitStarted(
+                    agv=agv.id,
+                    node=waiting.node,
+                    resources=tuple(item.resource.id for item in self._needed(agv, request.claim)),
+                    blockers=tuple(blocker.agv.id for blocker in blockers),
+                    reason="occupied",
+                )
+            )
+        self._make_way(self._wait(waiting, blockers))
+        deadlocked = self._detect()
+        if waiting in deadlocked or self._pending.get(agv) is not waiting:
+            return
+        kept = self._react(waiting, self._wait(waiting, self._blocking(waiting)))
+        if kept is not None and kept.review_after is not None:
+            self._schedule(waiting, kept.review_after)
 
     def withdraw(self, request: ClaimRequest) -> None:
-        """Cancel `request` if it is still pending."""
+        """Cancel `request` if it is still pending; an open wait ends with ``interrupted``."""
         waiting = self._pending.get(request.agv)
         if waiting is None or waiting.request is not request:
             return
         self._queue.remove(waiting)
         del self._pending[request.agv]
+        self._end_wait(waiting, "interrupted")
         self._scan()
 
     def release(self, agv: AGV, resources: Collection[Resource]) -> None:
         """Free the given resources that `agv` holds, and each zone or corridor whose last held member goes with them.
 
-        Resources the AGV does not hold are ignored. Three containers stay (spec §7.5): one held ahead of entry (no
-        member held), one named by the AGV's pending claim, and a corridor left onto a port the AGV still holds, which
-        then goes with that port.
+        Resources the AGV does not hold are ignored, and so is a zone or corridor of which the AGV keeps a member. Three
+        containers stay (spec §7.5): one held ahead of entry (no member held), one named by the AGV's pending claim,
+        and a corridor left onto a port the AGV still holds, which then goes with that port.
         """
         held = self._held.get(agv, {})
         wanted = set(resources)
         gone = {resource for resource in held if resource in wanted}
+        for container in self._containers_held(held):
+            if container in gone and any(member in held and member not in gone for member in self._members[container]):
+                gone.discard(container)
         self._settle(agv, held, gone, (), retaining=False)
         self._drop(agv, gone)
 
@@ -470,11 +433,14 @@ class ReservationController:
             return False
         return not isinstance(item.resource, (Segment, Corridor)) or direction == item.direction
 
-    def _blockers(self, agv: AGV, item: ClaimItem) -> list[AGV]:
-        """The other holders that make `item` inadmissible for `agv` (spec §7.3); empty when it is admissible."""
+    def _blockers(self, agv: AGV, item: ClaimItem, among: Collection[AGV] | None = None) -> list[AGV]:
+        """The other holders that make `item` inadmissible for `agv` (spec §7.3); empty when it is admissible.
+
+        With `among`, only the holdings of those AGVs exist (deadlock detection, spec §7.8).
+        """
         resource = item.resource
         holders = self._holders.get(resource, {})
-        others = [holder for holder in holders if holder is not agv]
+        others = [holder for holder in holders if holder is not agv and (among is None or holder in among)]
         if not others:
             return []
         if isinstance(resource, Segment):
@@ -497,14 +463,21 @@ class ReservationController:
         """The items of `claim` that `agv` does not hold yet (including a corridor or segment held the other way)."""
         return tuple(item for item in claim.items if not self._holds(agv, item))
 
-    def _gated(self, agv: AGV, items: Iterable[ClaimItem], earlier: Iterable[_Pending]) -> bool:
-        """Whether the claim of `items` by `agv` is held by the fairness gate (spec §7.4) of an earlier pending claim.
+    def _gating(
+        self,
+        agv: AGV,
+        items: Iterable[ClaimItem],
+        earlier: Iterable[_Pending],
+        among: Collection[AGV] | None = None,
+    ) -> Iterator[tuple[_Pending, ClaimItem]]:
+        """The earlier pending claims whose fairness gate (spec §7.4) holds the claim of `items` by `agv`, each with the
+        item it is gated on.
 
         A claim is gated on a segment or corridor ``r`` it names, and that its AGV does not hold, when an earlier,
         non-yielding claim names ``r``, is inadmissible on ``r``, and each of its other resources is admissible or
-        blocked only by holders of ``r``.
+        blocked only by holders of ``r``. With `among`, only the holdings of those AGVs exist.
         """
-        others = [(claim.agv, self._needed(claim.agv, claim.request.claim)) for claim in earlier if not claim.yielding]
+        others = [(claim, self._needed(claim.agv, claim.request.claim)) for claim in earlier if not claim.yielding]
         for item in items:
             resource = item.resource
             if not isinstance(resource, (Segment, Corridor)):
@@ -512,17 +485,26 @@ class ReservationController:
             holders = self._holders.get(resource, {})
             if agv in holders:
                 continue
-            for other_agv, needed in others:
+            for other, needed in others:
                 mine = next((own for own in needed if own.resource == resource), None)
-                if mine is None or not self._blockers(other_agv, mine):
+                if mine is None or not self._blockers(other.agv, mine, among):
                     continue
                 if all(
-                    all(blocker in holders for blocker in self._blockers(other_agv, other))
-                    for other in needed
-                    if other is not mine
+                    all(blocker in holders for blocker in self._blockers(other.agv, own, among))
+                    for own in needed
+                    if own is not mine
                 ):
-                    return True
-        return False
+                    yield other, item
+
+    def _gated(
+        self,
+        agv: AGV,
+        items: Iterable[ClaimItem],
+        earlier: Iterable[_Pending],
+        among: Collection[AGV] | None = None,
+    ) -> bool:
+        """Whether the claim of `items` by `agv` is held by the fairness gate of an earlier pending claim."""
+        return next(self._gating(agv, items, earlier, among), None) is not None
 
     def _admissible(self, agv: AGV, claim: Claim) -> bool:
         """Admission and gate for `claim`, as for a new request of `agv`."""
@@ -547,9 +529,223 @@ class ReservationController:
                     continue
                 self._queue.remove(waiting)
                 del self._pending[agv]
+                self._end_wait(waiting, "granted")
                 self._take(agv, items)
                 waiting.request.event.succeed(Granted())
                 granted = True
+        for waiting in self._queue:  # dormant waits are reviewed once the network has changed (spec §7.9)
+            if waiting.dormant is not None and waiting.seen != self._changes:
+                delay, waiting.dormant = waiting.dormant, None
+                self._schedule(waiting, delay)
+
+    # Waits, reviews and deadlocks (spec §7.8-§7.10)
+
+    def _blocking(self, waiting: _Pending) -> tuple[Blocker, ...]:
+        """The blockers of a pending claim: the AGVs whose holdings make one of its resources inadmissible, by the
+        claim's resource order and then grant order, followed by the AGVs whose earlier claims gate it."""
+        agv = waiting.agv
+        items = self._needed(agv, waiting.request.claim)
+        found: dict[AGV, dict[Resource, None]] = {}
+        for item in items:
+            for holder in self._blockers(agv, item):
+                found.setdefault(holder, {})[item.resource] = None
+        earlier = self._queue[: self._queue.index(waiting)]
+        for gate, item in self._gating(agv, items, earlier):
+            found.setdefault(gate.agv, {})[item.resource] = None
+        view = self.view
+        return tuple(Blocker(holder, view.disposition(holder), tuple(resources)) for holder, resources in found.items())
+
+    def _wait(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> Wait:
+        """The policy's picture of an open wait."""
+        hooks = waiting.request.hooks
+        return Wait(
+            agv=waiting.agv,
+            claim=waiting.request.claim,
+            since=waiting.since,
+            blockers=blockers,
+            reviews=waiting.reviews,
+            route=tuple(hooks.route()),
+            loaded=hooks.loaded(),
+            resolutions=hooks.resolutions(),
+            priority=waiting.priority,
+        )
+
+    def _make_way(self, wait: Wait) -> None:
+        """Ask each idle blocker of a fleet to move out of the way, once (spec §7.10)."""
+        view = self.view
+        for blocker in wait.blockers:
+            agv = blocker.agv
+            if blocker.disposition is not Disposition.IDLE or agv.fleet is None:
+                continue
+            target = self._policy.make_way_target(agv, wait, view)
+            concerned = (wait.agv, *(other for other in view.waiting_on(agv) if other is not wait.agv))
+            cast("_MakesWay", agv.fleet).make_way(agv, target, concerned=concerned)
+
+    def _react(self, waiting: _Pending, wait: Wait) -> KeepWaiting | None:
+        """Try the reactions of ``on_blocked`` in order (spec §7.9): None when one was staged, otherwise the
+        ``KeepWaiting`` that ended the sequence (``KeepWaiting()`` when it ran out)."""
+        for reaction in self._policy.on_blocked(wait, self.view):
+            if isinstance(reaction, KeepWaiting):
+                return reaction
+            if self._attempt(waiting, reaction, "blocked") is not None:
+                self._scan()
+                return None
+        return KeepWaiting()
+
+    def _attempt(self, waiting: _Pending, reaction: Reaction, cause: str) -> str | None:
+        """Try `reaction` through the request's hooks; when they accept, end the wait and the request with the
+        directive and return the ``traffic.deadlock`` action name. The caller scans."""
+        hooks = waiting.request.hooks
+        if isinstance(reaction, Reroute):
+            staged = hooks.try_reroute(reaction.avoid, reaction.max_cost_ratio)
+            action, reason, outcome = "reroute", "rerouted", Rerouted(cause)
+        elif isinstance(reaction, GiveUp):
+            staged = hooks.give_up()
+            action, reason, outcome = "give_up", "gave_up", GaveUp()
+        else:
+            assert not isinstance(reaction, KeepWaiting)
+            staged = hooks.try_step_aside(reaction.target)
+            action, reason, outcome = "step_aside", "stepped_aside", SteppedAside()
+        if not staged:
+            return None
+        self._queue.remove(waiting)
+        del self._pending[waiting.agv]
+        self._end_wait(waiting, reason)
+        waiting.request.event.succeed(outcome)
+        return action
+
+    def _schedule(self, waiting: _Pending, delay: float) -> None:
+        """Schedule the next review of the wait `delay` from now."""
+        timer = self._env.timeout(delay)
+        timer.callbacks.append(lambda _: self._review(waiting))
+        waiting.timer = timer
+
+    def _review(self, waiting: _Pending) -> None:
+        """A review: make way and ``on_blocked`` again, with the blockers recomputed (spec §7.9).
+
+        When it keeps waiting with a delay, the next review is scheduled if a grant or release happened since the
+        previous review (or the opening); otherwise the wait is dormant until the next one (T23).
+        """
+        waiting.timer = None
+        waiting.reviews += 1
+        changed = waiting.seen != self._changes
+        waiting.seen = self._changes
+        wait = self._wait(waiting, self._blocking(waiting))
+        self._make_way(wait)
+        kept = self._react(waiting, wait)
+        if kept is None:
+            return
+        if kept.review_after is not None:
+            if changed:
+                self._schedule(waiting, kept.review_after)
+            else:
+                waiting.dormant = kept.review_after
+        self._report_stuck(waiting, wait.blockers)
+
+    def _report_stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> None:
+        """Emit ``traffic.wait_stuck`` and log a warning, once per wait, when every blocker is idle, stranded or
+        stalled."""
+        if waiting.stuck:
+            return
+        found: dict[str, str] = {}
+        for blocker in blockers:
+            motion = blocker.agv.motion
+            if motion is not None and motion.get("stalled"):
+                found[blocker.agv.id] = "STALLED"
+            elif blocker.disposition in (Disposition.IDLE, Disposition.STRANDED):
+                found[blocker.agv.id] = blocker.disposition.name
+            else:
+                return
+        waiting.stuck = True
+        agv = waiting.agv
+        env = self._env
+        if env.wants(TrafficWaitStuck):
+            env.emit(TrafficWaitStuck(agv=agv.id, blockers=cast("FrozenMap", freeze(found))))
+        named = ", ".join(f"{blocker} ({state})" for blocker, state in found.items())
+        env.warning(f"wait of {agv.id} is stuck: blockers {named}", component="ReservationController")
+
+    def _end_wait(self, waiting: _Pending, reason: str) -> None:
+        """Close the open wait of a claim that left the queue: drop its review and emit ``traffic.wait_ended``."""
+        if not waiting.stopped:
+            return
+        timer = waiting.timer
+        if timer is not None:  # no timer survives its wait (T23)
+            waiting.timer = None
+            queue = self._env._queue
+            del queue[next(index for index, entry in enumerate(queue) if entry[3] is timer)]
+            heapify(queue)
+        agv = waiting.agv
+        self._unresolved = [ids for ids in self._unresolved if agv.id not in ids]
+        env = self._env
+        if env.wants(TrafficWaitEnded):
+            env.emit(TrafficWaitEnded(agv=agv.id, node=waiting.node, reason=reason))
+
+    def _reduce(self, waiters: list[_Pending], *, gates: bool) -> list[_Pending]:
+        """The waiters that cannot proceed even if every AGV outside them released everything (spec §7.8).
+
+        Repeatedly removes a waiter whose claim is admissible given only the holdings of the remaining ones (and,
+        with `gates`, not gated by an earlier remaining claim); the queue order is kept.
+        """
+        remaining = list(waiters)
+        removed = True
+        while removed:
+            removed = False
+            among = {waiting.agv for waiting in remaining}
+            for index, waiting in enumerate(remaining):
+                agv = waiting.agv
+                items = self._needed(agv, waiting.request.claim)
+                if any(self._blockers(agv, item, among) for item in items):
+                    continue
+                if gates and self._gated(agv, items, remaining[:index], among):
+                    continue
+                del remaining[index]
+                removed = True
+                break
+        return remaining
+
+    def _detect(self) -> list[_Pending]:
+        """Deadlock detection among the stopped waiters (spec §7.8); returns the deadlocked set ``D``.
+
+        Gating claims among the remainder of the reduction with gates are marked yielding and the queue is rescanned,
+        without an event. A non-empty ``D`` goes to the policy.
+        """
+        waiters = [waiting for waiting in self._queue if waiting.stopped]
+        deadlocked = self._reduce(waiters, gates=False)
+        remainder = self._reduce(waiters, gates=True)
+        among = {waiting.agv for waiting in remainder}
+        yielded = False
+        for index, waiting in enumerate(remainder):
+            items = self._needed(waiting.agv, waiting.request.claim)
+            for gate, _ in self._gating(waiting.agv, items, remainder[:index], among):
+                gate.yielding = yielded = True
+        if yielded:
+            self._scan()
+        if deadlocked:
+            self._resolve(deadlocked)
+        return deadlocked
+
+    def _resolve(self, deadlocked: list[_Pending]) -> None:
+        """Stage the first attempt of ``on_deadlock`` that succeeds, or report the set unresolved once (spec §7.8)."""
+        env = self._env
+        ids = tuple(sorted(waiting.agv.id for waiting in deadlocked))
+        members = {waiting.agv: waiting for waiting in deadlocked}
+        waits = [self._wait(waiting, self._blocking(waiting)) for waiting in deadlocked]
+        for agv, reaction in self._policy.on_deadlock(waits, self.view):
+            waiting = members.get(agv)
+            if waiting is None or isinstance(reaction, KeepWaiting):
+                continue
+            action = self._attempt(waiting, reaction, "deadlock")
+            if action is not None:
+                if env.wants(TrafficDeadlock):
+                    env.emit(TrafficDeadlock(agvs=ids, victim=agv.id, action=action))
+                self._scan()
+                return
+        if ids in self._unresolved:
+            return
+        self._unresolved.append(ids)
+        if env.wants(TrafficDeadlock):
+            env.emit(TrafficDeadlock(agvs=ids, victim=None, action="unresolved"))
+        env.error(f"deadlock among {', '.join(ids)}: no resolution succeeded", component="ReservationController")
 
     # Holdings
 
@@ -565,6 +761,7 @@ class ReservationController:
 
     def _take(self, agv: AGV, items: Sequence[ClaimItem]) -> None:
         """Record `items` as held by `agv` and emit one ``traffic.reserved``."""
+        self._changes += 1
         held = self._held.setdefault(agv, {})
         build = Deltas.build()
         ids: list[str] = []
@@ -613,6 +810,7 @@ class ReservationController:
         """Free `gone` (resources `agv` holds) in holding order, emit one ``traffic.released`` and scan."""
         if not gone:
             return
+        self._changes += 1
         held = self._held[agv]
         build = Deltas.build()
         ids: list[str] = []

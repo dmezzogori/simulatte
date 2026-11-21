@@ -1120,7 +1120,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         ``traffic.wait_ended`` (``elapsed``, or ``interrupted`` when the mission is interrupted meanwhile)."""
         env = self.env
         if env.wants(TrafficWaitStarted):
-            env.emit(TrafficWaitStarted(agv=agv.id, node=node.id, reason=reason))
+            env.emit(TrafficWaitStarted(agv=agv.id, node=node.id, resources=(), blockers=(), reason=reason))
         try:
             yield env.timeout(delay)
         except simpy.Interrupt:
