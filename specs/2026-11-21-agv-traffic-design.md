@@ -270,6 +270,16 @@ extent 0 a node is released at the instant the AGV leaves it and a segment at th
 far node. A zone or corridor is released by the controller when the AGV holds none of its members and has no
 pending entry (§7.5).
 
+A node of capacity above 1 is a place with room for whole vehicles (a bay with several slots, a charger, a
+parking area, a passing place): when an AGV comes to rest on one, every entry of its trail clears, and the
+executor releases them with the resources that clear on arrival. Without this rule two vehicles with a positive
+extent that rest on such a node each keep the segment they arrived on in its arrival direction, and neither can
+leave back over it. An AGV that passes such a node without stopping keeps its ordinary clear points.
+
+The trail follows the path travelled: the body is taken to be the last extent of that path. The model does not
+track a rigid body through a reversal, so what a reversing vehicle longer than its last arcs would sweep or
+overhang is not held.
+
 The time at which the odometer reaches a value inside the current arc is exact for kinematic profiles (§9.1).
 For other profiles, a clear point at the arc start is released at departure and every other clear point is
 released at the next arrival.
@@ -380,7 +390,9 @@ back. Every release emits one `traffic.released` and triggers a scan.
 ### 7.6 `FreeFlowController`
 
 `controls_occupancy` is false. `next_claim` returns an empty claim that covers the rest of the route. `request`
-returns an already granted request. It creates no entities and emits no events. It is the default.
+returns an already granted request. It creates no entities and emits no events. It is the default. It serves
+one graph, the one its view exposes to routers: registering a fleet on a different graph raises `ValueError`.
+Fleets on different graphs each take their own controller, as they do by default.
 
 ### 7.7 `ReservationController`
 
@@ -537,7 +549,7 @@ computed once per travel.
 | Outcome | Cause | Mission |
 |---|---|---|
 | `ARRIVED` | at the goal | continues |
-| `RETRY_FROM_CURRENT_POSITION` | battery critical, or a charging diversion ended | as today |
+| `RETRY_FROM_CURRENT_POSITION` | battery critical on arrival at a node other than the goal, or a charging diversion ended | as today |
 | `BATTERY_STRANDED` | no energy for the next arc and no reachable charger | as today |
 | `NO_ROUTE` | the router found no route | `FAILED` with `travel_failed`, cargo returned first, as today's `MISSION_FAILED` |
 | `GAVE_UP` | a `GiveUp` directive accepted by the travel's `give_up()` hook | see below |
@@ -556,7 +568,9 @@ computed once per travel.
 
 ### 8.3 Interrupts and stop requests
 
-An interrupt, a critical battery found on arrival, and the energy horizon are stop requests. A stop request
+An interrupt, a critical battery found on arrival at a node other than the goal, and the energy horizon are
+stop requests. A critical battery found on arrival at the goal does not change the outcome: the travel returns
+`ARRIVED` and the energy check before the next arc handles it. A stop request
 truncates the plan to the first node of the horizon at which the AGV can be at rest given its speed and
 deceleration. For an AGV at rest, or waiting, that is the current node and the request takes effect at once.
 When the AGV is at rest the executor withdraws its pending request, calls `retain`, and then:
@@ -567,6 +581,11 @@ When the AGV is at rest the executor withdraws its pending request, calls `retai
 
 The AGV is therefore always at a node, at rest, with energy charged for the arcs it covered, when the mission
 reacts.
+
+An arc whose travel time is not finite (a stalled vehicle, §9.1) is never left. Nothing is released at its
+departure, the AGV counts as at rest at the departure node, and a stop request takes effect at once: the
+executor emits `agv.move_ended` at the departure node, which clears the motion with no change of position or
+battery, and then proceeds as above.
 
 ### 8.4 Failure semantics
 
