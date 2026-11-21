@@ -104,6 +104,16 @@ class TestShortestDistanceRouter:
         assert route.nodes == (a, c, b)
         assert route.cost == pytest.approx(graph.path_length(route.nodes))
 
+    def test_cost_is_the_path_length_of_the_route(self, algorithm: str) -> None:
+        """The cost is ``graph.path_length`` (an fsum), not the running sum of the search: 0.1 + 0.2 + 0.3."""
+        nodes = [Node(name, 0.05 * i, 0.0) for i, name in enumerate("ABCD")]
+        arcs = [Arc(u, v, length=length) for u, v, length in zip(nodes[:-1], nodes[1:], (0.1, 0.2, 0.3), strict=True)]
+        graph = LayoutGraph(nodes, arcs)
+        route = ask(algorithm, free_view(graph), nodes[0], nodes[-1])
+        assert route is not None
+        assert 0.1 + 0.2 + 0.3 != 0.6
+        assert route.cost == graph.path_length(route.nodes) == 0.6
+
     def test_avoid_segment(self, algorithm: str) -> None:
         nodes, graph = grid()
         view = reservation_view(graph)

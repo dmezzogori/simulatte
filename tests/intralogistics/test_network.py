@@ -179,6 +179,19 @@ class TestCorridors:
         assert len(network.warnings) == 1
         assert "R0" in network.warnings[0]
 
+    @pytest.mark.parametrize("kind", ["one-way", "passing"])
+    def test_a_ring_that_could_not_be_a_corridor_is_not_reported(self, kind: str) -> None:
+        """Only a ring whose every segment is two-way and not passing lacks a corridor for want of a port."""
+        nodes = [Node(f"R{i}", x, y) for i, (x, y) in enumerate([(0, 0), (10, 0), (10, 10), (0, 10)])]
+        pairs = list(zip(nodes, nodes[1:] + nodes[:1], strict=True))
+        if kind == "one-way":
+            arcs = [Arc(u, v, bidirectional=False) for u, v in pairs]
+        else:
+            arcs = [Arc(u, v, passing=index == 0) for index, (u, v) in enumerate(pairs)]
+        network = TrafficNetwork(LayoutGraph(nodes, arcs))
+        assert network.corridors == ()
+        assert network.warnings == ()
+
     def test_ring_is_not_reported_when_derivation_is_off(self) -> None:
         graph, _ = build([("R0", 0, 0), ("R1", 10, 0), ("R2", 10, 10)], [("R0", "R1"), ("R1", "R2"), ("R2", "R0")])
         network = TrafficNetwork(graph, derive_corridors=False)

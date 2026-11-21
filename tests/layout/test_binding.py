@@ -428,6 +428,28 @@ def test_a_reservation_controller_must_be_the_registered_owner_of_its_environmen
         )
 
 
+def test_the_registered_resource_owner_is_accepted_whatever_its_class():
+    """spec §12: ``_validate_fleet`` checks the layout's record of resource owners, not the controller's class."""
+
+    class Owner(FreeFlowController):
+        controls_occupancy = True
+
+    env = Environment()
+    layout = line(env)
+    controller = Owner()
+    layout._register_manager(controller)
+    fleet = FleetCoordinator(
+        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=controller
+    )
+    assert fleet.traffic_controller is controller
+    other = Environment()
+    stranger = ReservationController(env=other, graph=line(other).graph())  # the owner of another layout
+    with pytest.raises(LayoutError, match="custom traffic controller requires"):
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=stranger
+        )
+
+
 def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication():
     for disabled in (False, True):
         env = Environment()

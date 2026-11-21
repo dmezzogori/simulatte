@@ -8,7 +8,7 @@ from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.kinematics import Kinematics
 from simulatte.intralogistics.metrics import FleetKPIs, FleetTimeSeries, OrderEMACollector, TrafficKPIs
-from simulatte.intralogistics.network import Zone
+from simulatte.intralogistics.network import Claim, ClaimItem, Corridor, Segment, Zone
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import (
@@ -30,14 +30,23 @@ from simulatte.intralogistics.routing import Route, Router, RouteRequest, Shorte
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import SpeedProfile, TrapezoidalProfile
 from simulatte.intralogistics.traffic import (
+    Blocker,
+    ClaimRequest,
+    Disposition,
     FreeFlowController,
+    GaveUp,
     GiveUp,
+    Granted,
     KeepWaiting,
     Reroute,
+    Rerouted,
     StepAside,
+    SteppedAside,
     TrafficController,
     TrafficPolicy,
     TrafficView,
+    Wait,
+    WaitHooks,
 )
 from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from simulatte.intralogistics.warehouse import Warehouse
@@ -64,6 +73,20 @@ __all__ = [
     "StepAside",
     "GiveUp",
     "Zone",
+    # controller protocol values
+    "Claim",
+    "ClaimItem",
+    "ClaimRequest",
+    "Segment",
+    "Corridor",
+    "WaitHooks",
+    "Wait",
+    "Blocker",
+    "Disposition",
+    "Granted",
+    "Rerouted",
+    "SteppedAside",
+    "GaveUp",
     # sku
     "SKU",
     # agv

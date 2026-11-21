@@ -81,7 +81,8 @@ def shortest_path(
 
 
 class ShortestDistanceRouter:
-    """Cost is the path length; a leg that needs an avoided resource, or enters an avoided node, is excluded."""
+    """Cost is the path length (``graph.path_length`` of the route); a leg that needs an avoided resource, or enters an
+    avoided node, is excluded."""
 
     def __init__(self, algorithm: Literal["dijkstra", "astar"] = "dijkstra") -> None:
         if algorithm not in ("dijkstra", "astar"):
@@ -101,4 +102,7 @@ class ShortestDistanceRouter:
             allowed=allowed if avoid else None,
             heuristic=self.algorithm == "astar",
         )
-        return None if found is None else Route(*found)
+        if found is None:
+            return None
+        path = found[0]
+        return Route(path, view.graph.path_length(path))  # an fsum, as every other user of route cost computes it

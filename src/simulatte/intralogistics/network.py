@@ -236,7 +236,8 @@ class TrafficNetwork:
         return corridors
 
     def _rings(self, seen: set[Node]) -> list[str]:
-        """One warning for every cycle of interior nodes that no port or leaf leads to."""
+        """One warning for every cycle of interior nodes that no port or leaf leads to and that would be a corridor if
+        it had a port: every segment two-way and not passing. A one-way ring needs no corridor."""
         warnings: list[str] = []
         for start in self.graph.nodes:
             if start in seen or not self._is_interior(start):
@@ -248,6 +249,8 @@ class TrafficNetwork:
                 one, two = self._around[current]
                 previous, current = current, (two if one == previous else one)
             seen.update(ring)
+            if not all(self._two_way_plain(u, v) for u, v in zip(ring, [*ring[1:], ring[0]], strict=True)):
+                continue
             warnings.append(f"no passing place on the cycle {', '.join(n.id for n in ring)}: no corridor derived")
         return warnings
 

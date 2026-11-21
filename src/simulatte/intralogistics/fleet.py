@@ -974,9 +974,11 @@ class FleetCoordinator(Entity, kind="fleet"):
 
         Only with ``clear_service_nodes``, a traffic controller that controls occupancy and an empty pending queue (the
         AGV is about to be dispatched where it stands). Returns the outcome of the travel, or None when the AGV stays
-        (not on a service node, or no target).
+        (stranded, not on a service node, or no target).
         """
         if not self.clear_service_nodes or not self.traffic_controller.controls_occupancy or self._pending_queue:
+            return None
+        if agv.state is AGVState.STRANDED:  # a charging travel after the mission ended stranded
             return None
         if agv.current_node not in self.service_nodes:
             return None

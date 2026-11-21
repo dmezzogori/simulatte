@@ -54,6 +54,31 @@ class TestImportSurface:
         assert (KeepWaiting, Reroute, StepAside, GiveUp) is not None
         assert Zone is not None
 
+    def test_controller_protocol_exports(self) -> None:
+        """What a third-party traffic controller needs (spec §14: ``Claim`` and ``ClaimRequest`` replace the old
+        types)."""
+        import simulatte.intralogistics as intralogistics
+        from simulatte.intralogistics import network, traffic
+
+        names = {
+            "Claim": network,
+            "ClaimItem": network,
+            "Segment": network,
+            "Corridor": network,
+            "ClaimRequest": traffic,
+            "WaitHooks": traffic,
+            "Wait": traffic,
+            "Blocker": traffic,
+            "Disposition": traffic,
+            "Granted": traffic,
+            "Rerouted": traffic,
+            "SteppedAside": traffic,
+            "GaveUp": traffic,
+        }
+        for name, module in names.items():
+            assert name in intralogistics.__all__, name
+            assert getattr(intralogistics, name) is getattr(module, name), name
+
     def test_sku_export(self) -> None:
         from simulatte.intralogistics import SKU
 

@@ -99,6 +99,7 @@ def standard_target(
     concerned: Sequence[AGV] = (),
     idle: bool = False,
     purpose: str = "step_aside",
+    load_weight: float = 0.0,
     exclude: Collection[Node] = (),
 ) -> Node | None:
     """The node of the standard search (spec §7.9) for `agv`, or None when no node qualifies.
@@ -113,7 +114,8 @@ def standard_target(
     A node that a pending claim names is not taken either unless it keeps a free slot for each of those claims after
     the move, and neither is a node whose route ends with a leg that needs a segment, zone or corridor named by a
     pending claim: an idle AGV moved out of one wait's way must not fill what another wait needs.
-    `purpose` is the purpose of the move the search is for; the router is asked with it. Nodes in `exclude` are never
+    `purpose` and `load_weight` are those of the move the search is for; the router is asked with them, so that the
+    search and the move make the same request apart from the destination. Nodes in `exclude` are never
     taken (a make-way move does not go back to a node the AGV made way from).
     """
     controller = fleet.traffic_controller
@@ -146,7 +148,7 @@ def standard_target(
             named = view.pending(node)
             if named and free - 1 < named:
                 continue
-        route = fleet.router.route(RouteRequest(agv, origin, node, _load_weight(agv), purpose=purpose), view)
+        route = fleet.router.route(RouteRequest(agv, origin, node, load_weight, purpose=purpose), view)
         if route is None:
             continue
         _check_route(fleet, route, origin, node)
@@ -326,7 +328,7 @@ class _Trip:
 
             current, next_node = self.route[self.index], self.route[self.index + 1]
             distance = fleet.graph.length(current, next_node)
-            load_weight = _load_weight(agv) if self.loaded else 0.0
+            load_weight = self._load()
             arc = fleet.graph.arc_between(current, next_node)
             assert arc is not None
             speed_limit = arc.speed_limit
@@ -384,11 +386,23 @@ class _Trip:
 
     # Routes
 
-    def _route(self, origin: Node, destination: Node, avoid: frozenset[Resource] = frozenset()) -> Route | None:
-        """The router's route, checked, or None."""
+    def _load(self) -> float:
+        """The load weight of this travel's arcs and route requests: the cargo's when the travel is loaded, else 0."""
+        return _load_weight(self.agv) if self.loaded else 0.0
+
+    def _route(
+        self, origin: Node, destination: Node, avoid: frozenset[Resource] = frozenset(), purpose: str | None = None
+    ) -> Route | None:
+        """The router's route, checked, or None; asked with the travel's purpose unless `purpose` is given."""
         fleet = self.fleet
-        load_weight = _load_weight(self.agv) if self.loaded else 0.0
-        request = RouteRequest(self.agv, origin, destination, load_weight, avoid=avoid, purpose=self.purpose)
+        request = RouteRequest(
+            self.agv,
+            origin,
+            destination,
+            self._load(),
+            avoid=avoid,
+            purpose=self.purpose if purpose is None else purpose,
+        )
         route = fleet.router.route(request, self.controller.view)
         if route is not None:
             _check_route(fleet, route, origin, destination)
@@ -515,7 +529,8 @@ class _Trip:
         On arrival at a node of capacity above 1 the whole trail clears with the arrival releases (spec §6.6).
         """
         executor, agv, env = self.executor, self.agv, self.env
-        self.fleet._release_slots(agv, current)  # departing from a parking node gives its slot back
+        if current != self.goal:  # departing from a parking node gives its slot back, unless the trip returns to it
+            self.fleet._release_slots(agv, current)
         arrival = env.timeout(travel_time)
         at_departure: list[Resource] = []
         inside: dict[float, list[Resource]] = {}
@@ -642,10 +657,12 @@ class _Trip:
             for item in () if request is None else request.claim.items:
                 concerned.update(dict.fromkeys(view.holders(item.resource)))
             concerned.pop(self.agv, None)
-            target = standard_target(self.fleet, self.agv, concerned=tuple(concerned), purpose="step_aside")
+            target = standard_target(
+                self.fleet, self.agv, concerned=tuple(concerned), purpose="step_aside", load_weight=self._load()
+            )
         if target is None or target == here:
             return False
-        route = self._route(here, target)
+        route = self._route(here, target, purpose="step_aside")  # as the search asked
         if route is None or not self._admissible_now(route):
             return False
         self._stage(route)

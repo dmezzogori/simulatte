@@ -18,6 +18,7 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import (
     AgvRouted,
     AgvStateChanged,
+    AgvStranded,
     ChargingStarted,
     ParkingEntered,
     ParkingLeft,
@@ -34,7 +35,7 @@ from simulatte.intralogistics.policies import NearestParkingPolicy, Repositionin
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import Route, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
-from simulatte.intralogistics.traffic import FreeFlowController, TrafficView, Wait
+from simulatte.intralogistics.traffic import FreeFlowController, KeepWaiting, StepAside, TrafficView, Wait
 from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from simulatte.intralogistics.travel import TravelOutcome, standard_target
 from simulatte.intralogistics.warehouse import Warehouse
@@ -529,7 +530,38 @@ def test_a_clearing_move_that_is_stranded_ends_the_mission_stranded() -> None:
     assert a.state is AGVState.STRANDED
 
 
+def test_an_agv_stranded_on_its_way_to_the_charger_after_a_mission_is_not_cleared() -> None:
+    """After the delivery on the bay D the battery is low and the only charger, on END, is out of reach: the charging
+    travel ends stranded at D. The stranded AGV does not travel on to clear the bay and is stranded once."""
+    m = mission_world(
+        lane(),
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        chargers={"CS": ("END", 1)},
+        parking={"P": ("SIDE", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 30.0},
+    )
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    assert [(e.node, e.reason) for e in m.events(AgvStranded)] == [("D", "no_reachable_charger")]
+    assert "clear_node" not in [reason for reason, _, _ in m.routed("A")]
+    assert m.events(ParkingEntered) == []
+    assert m.agvs["A"].current_node is m.nodes["D"]
+
+
 # --- parking -------------------------------------------------------------------------------------------------------
+
+
+class StepAsideTo(StandardTrafficPolicy):
+    """Steps a blocked AGV aside to `target` (None: the standard search) at once."""
+
+    def __init__(self, target: Node | None) -> None:
+        super().__init__()
+        self.target = target
+
+    def on_blocked(self, wait: Wait, view: TrafficView) -> Any:
+        return (StepAside(self.target), KeepWaiting(None))
 
 
 def parked(m: Mission, area: str) -> list[str]:
@@ -635,6 +667,49 @@ def test_a_full_area_is_not_a_target() -> None:
     assert m.routed("A")[-1] == ("clear_node", "D", "END")  # a full area is no target: the service node is cleared
     assert m.fleet.make_way(m.agvs["A"], m.nodes["FAR"]) is False
     assert standard_target(m.fleet, m.agvs["A"], idle=True) is not m.nodes["FAR"]
+
+
+class Via(ShortestDistanceRouter):
+    """The shortest-distance router, except for the routes named in `fixed` by ``(origin id, destination id)``."""
+
+    def __init__(self, nodes: dict[str, Node], fixed: dict[tuple[str, str], tuple[str, ...]]) -> None:
+        super().__init__()
+        self.fixed = {key: tuple(nodes[name] for name in path) for key, path in fixed.items()}
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        path = self.fixed.get((request.origin.id, request.destination.id))
+        if path is None:
+            return super().route(request, view)
+        return Route(path, view.graph.path_length(path))
+
+
+def test_a_step_aside_through_the_goal_keeps_the_parking_slot_of_the_goal() -> None:
+    """A travels from S to the parking node G, with its slot taken. X, stranded on X1, blocks the way; A is sent aside
+    to T along S, Y, G, T, departs from G, comes back to G and arrives: the slot is still its own (spec §7.10)."""
+    graph, nodes = build(
+        [("S", 0, 0), ("X1", 10, 0), ("G", 20, 0), ("Y", 10, -10), ("T", 30, 0)],
+        [("S", "X1"), ("X1", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+    )
+    m = mission_world(
+        (graph, nodes),
+        {"A": "S", "X": "X1"},
+        parking={"P": ("G", 1)},
+        router=Via(nodes, {("S", "T"): ("S", "Y", "G", "T")}),
+        controller_options={"policy": StepAsideTo(nodes["T"]), "derive_corridors": False},
+    )
+    a = m.agvs["A"]
+    m.fleet._transition_agv(m.agvs["X"], AGVState.STRANDED)
+    assert m.fleet._take_slot(a, nodes["G"])
+    m.env.process(_travel(m, "A", "G"))
+    m.env.run()
+    assert [(reason, origin, destination) for reason, origin, destination in m.routed("A")] == [
+        ("travel", "S", "G"),
+        ("step_aside", "S", "T"),
+        ("travel", "T", "G"),
+    ]
+    assert a.current_node is nodes["G"]
+    assert parked(m, "P") == ["A"] and m.areas["P"].available_capacity == 0
+    assert m.events(ParkingLeft) == []
 
 
 def test_an_area_of_two_never_lists_three_agvs() -> None:
@@ -976,6 +1051,44 @@ def test_the_search_and_the_move_use_the_same_purpose() -> None:
     delivered = router.purposes.index("clear_node")
     assert set(router.purposes[delivered:]) == {"clear_node"}  # the whole search and the move, nothing else
     assert "step_aside" not in router.purposes
+
+
+class Requests(ShortestDistanceRouter):
+    """A router that records ``(origin id, destination id, purpose, load weight)`` of every request."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.asked: list[tuple[str, str, str, float]] = []
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        self.asked.append((request.origin.id, request.destination.id, request.purpose, request.load_weight))
+        return super().route(request, view)
+
+
+def test_the_step_aside_search_and_its_move_ask_the_router_alike() -> None:
+    """A carries cargo on a travel that is not loaded in name (as a charging diversion does) and is sent aside by the
+    standard search: the search and the staged move ask with the same purpose and load weight (spec §7.9)."""
+    graph, nodes = build(
+        [("S", 0, 0), ("X1", 10, 0), ("G", 20, 0), ("Y", 10, -10), ("T", 30, 0)],
+        [("S", "X1"), ("X1", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+    )
+    m = mission_world(
+        (graph, nodes),
+        {"A": "S", "X": "X1"},
+        router=Requests(),
+        controller_options={"policy": StepAsideTo(None), "derive_corridors": False},
+    )
+    a = m.agvs["A"]
+    m.fleet._transition_agv(m.agvs["X"], AGVState.STRANDED)
+    m.fleet._set_load(a, {SKU_A: 2})
+    m.env.process(_travel(m, "A", "G"))
+    m.env.run()
+    router = m.fleet.router
+    assert isinstance(router, Requests)
+    aside = [step for step in m.routed("A") if step[0] == "step_aside"]
+    assert len(aside) == 1
+    from_s = [(purpose, load) for origin, _, purpose, load in router.asked[1:] if origin == "S"]
+    assert set(from_s) == {("step_aside", 0.0)}  # every request of the search and the one of the move
 
 
 def test_a_purpose_sensitive_router_is_asked_with_the_purpose_of_the_move() -> None:

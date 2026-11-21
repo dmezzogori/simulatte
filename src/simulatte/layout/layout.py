@@ -319,17 +319,16 @@ class Layout:
 
     def _validate_fleet(self, members: Sequence[Any], controller: Any) -> None:
         """Check a fleet's members and traffic controller: a controller that does not control occupancy needs no
-        registration; ``ReservationController`` must be the registered resource owner of this environment; any
-        other controller must be registered with :meth:`register_resource_owner`."""
-        from simulatte.intralogistics.reservation import ReservationController
-
+        registration; a built-in controller registered with this layout must be its resource owner; any other
+        controller must be registered with :meth:`register_resource_owner`. The layout's own record of registered
+        owners decides, not the controller's class (spec §12)."""
         for member in members:
             if getattr(member, "env", None) is not self.env or not self.env.entities.is_live(member):
                 raise LayoutError("fleet member must be live in the same environment")
         if not controller.controls_occupancy:
             return
-        if isinstance(controller, ReservationController):
-            if controller._env is not self.env or controller is not self._resource_owner:
+        if any(manager is controller for manager in self._resource_managers):
+            if controller is not self._resource_owner:
                 raise LayoutError("fleet must reuse the registered traffic controller in its environment")
         elif not any(item[0] is controller for item in self._custom_managers):
             raise LayoutError("custom traffic controller requires explicit resource owner and binder registration")

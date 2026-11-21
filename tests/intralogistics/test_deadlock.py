@@ -895,6 +895,7 @@ class TestResolution:
         w.env.run()  # A's first review, then nothing
         assert w.env.now == 30.0
         assert timers(w) == []
+        assert w.env.peek() == math.inf  # nothing left to happen (T23)
         assert len(w.deadlocks()) == 1
         assert len(w.logged("ERROR")) == 1
 
