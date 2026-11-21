@@ -74,6 +74,11 @@ class ParkingArea(Entity, kind="parking_area"):
         return {"parked": [agv.id for agv in self._agv_requests], "label": self.label}
 
     @property
+    def capacity(self) -> int:
+        """The number of parking slots."""
+        return int(self._resource.capacity)
+
+    @property
     def available_capacity(self) -> int:
         return int(self._resource.capacity - self._resource.count)
 

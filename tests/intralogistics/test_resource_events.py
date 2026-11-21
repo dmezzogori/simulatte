@@ -81,7 +81,7 @@ import pytest
 import simpy
 
 from simulatte.environment import Environment
-from simulatte.events import DomainEvent, apply_deltas
+from simulatte.events import DomainEvent
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import (
@@ -108,43 +108,11 @@ from simulatte.intralogistics.traffic import FreeTrafficManager, PathCheckResult
 from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph
+from tests.intralogistics.traffic_support import FullReplay
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 
 TRAFFIC = (TrafficReserved, TrafficReleased, TrafficWaitStarted, TrafficWaitEnded)
-
-
-class FullReplay:
-    """Applies the deltas of every domain event and compares EVERY live entity, of every kind, after each event.
-
-    Two readers are checked (spec §17, U3): ``state`` replays from the first event seen (from ``{}`` when created
-    before any entity, from the live snapshot otherwise), and ``seeded`` replays from ``env.initial_state`` as a
-    reader that seeks from the start of the run does. Comparing after every event is comparing at every cursor.
-    """
-
-    def __init__(self, env: Environment, *, from_snapshot: bool = False) -> None:
-        self.env = env
-        self.state: dict[str, dict[str, Any]] = (
-            {entity: dict(fields) for entity, fields in env.entities.snapshot().items()} if from_snapshot else {}
-        )
-        self.seeded: dict[str, dict[str, Any]] | None = None
-        self.events: list[DomainEvent] = []
-        env.bus.subscribe(self, "*")
-
-    def __call__(self, event: DomainEvent) -> None:
-        live = self.env.entities.snapshot()
-        apply_deltas(self.state, event.deltas)
-        assert self.state == live, event
-        initial = self.env._initial_state
-        if self.seeded is None and initial is not None:
-            self.seeded = {entity: dict(fields) for entity, fields in initial.items()}
-        if self.seeded is not None:
-            apply_deltas(self.seeded, event.deltas)
-            assert self.seeded == live, event
-        self.events.append(event)
-
-    def of(self, *types: type[DomainEvent]) -> list[Any]:
-        return [event for event in self.events if isinstance(event, types)]
 
 
 def _bound_line(env: Environment) -> tuple[list[Node], LayoutGraph]:
@@ -182,14 +150,17 @@ def test_node_capacity_two_reservations() -> None:
     env.process(leave_first())
     env.run()
 
-    seen = [(e.t, e.type_name, e.agv, e.node, getattr(e, "reason", None)) for e in replay.of(*TRAFFIC)]
+    seen = [
+        (e.t, e.type_name, e.agv, getattr(e, "resources", None) or e.node, getattr(e, "reason", None))
+        for e in replay.of(*TRAFFIC)
+    ]
     assert seen == [
-        (0, "traffic.reserved", "A", "C1", None),
-        (0, "traffic.reserved", "B", "C1", None),
+        (0, "traffic.reserved", "A", ("C1",), None),
+        (0, "traffic.reserved", "B", ("C1",), None),
         (0, "traffic.wait_started", "C", "C1", "node_occupied"),
-        (2, "traffic.released", "A", "C1", None),
+        (2, "traffic.released", "A", ("C1",), None),
         (2, "traffic.wait_ended", "C", "C1", "granted"),
-        (2, "traffic.reserved", "C", "C1", None),
+        (2, "traffic.reserved", "C", ("C1",), None),
     ]
     reserved = replay.of(TrafficReserved)
     assert [e.deltas.ops for e in reserved] == [

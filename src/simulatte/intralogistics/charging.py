@@ -110,6 +110,11 @@ class ChargingStation(Entity, kind="charging_station"):
         readonly(self.env, "node")
         self._node = value
 
+    @property
+    def n_slots(self) -> int:
+        """The number of charging slots."""
+        return int(self._slots.capacity)
+
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: slots in use and the swap-pool level (None without battery swapping)."""
         pool = self._swap_pool

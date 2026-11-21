@@ -66,6 +66,16 @@ class AGVType:
     """
     unload_time: SamplerDescription[float] | float | Callable[[], float] = 0.0
     """Unload duration, like :attr:`load_time`, bound to the stream ``<agv id>/unload``."""
+    length: float | None = None
+    """Length of the vehicle; ``ReservationController`` requires it (spec §6.6)."""
+    min_gap: float = 0.0
+    """Distance kept to the vehicle ahead; the extent of the vehicle is ``length + min_gap``."""
+
+    def __post_init__(self) -> None:
+        if self.length is not None and not (math.isfinite(self.length) and self.length >= 0):
+            raise ValueError(f"AGVType {self.name!r}: length must be finite and >= 0, got {self.length}")
+        if not (math.isfinite(self.min_gap) and self.min_gap >= 0):
+            raise ValueError(f"AGVType {self.name!r}: min_gap must be finite and >= 0, got {self.min_gap}")
 
 
 class AGV(Entity, kind="agv"):

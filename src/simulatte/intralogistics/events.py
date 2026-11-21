@@ -203,21 +203,31 @@ class AgvStranded(DomainEvent):
 # --- traffic -----------------------------------------------------------------------------------------------
 
 
-@event_type("traffic.reserved", touches={"node": ("reserved_by",)})
+_HOLDINGS = {"node": ("reserved_by",), "segment": ("forward", "backward"), "zone": ("reserved_by", "orientation")}
+
+
+@event_type("traffic.reserved", touches=_HOLDINGS)
 class TrafficReserved(DomainEvent):
-    """The traffic manager recorded a reservation of `node` for the AGV: at its initial placement (``place_now``)
-    or when ``enter_node`` resumed after the grant. The node's ``reserved_by`` gains the AGV."""
+    """The AGV took hold of `resources` (entity ids, in claim order): one event per grant or placement (spec §11.2).
+
+    The deltas insert the AGV into each node's and zone's ``reserved_by`` and into each segment's ``forward`` or
+    ``backward``, and set a corridor's ``orientation`` when it changes. A node without a binding is left out.
+    """
 
     agv: str
-    node: str
+    resources: tuple[str, ...]
 
 
-@event_type("traffic.released", touches={"node": ("reserved_by",)})
+@event_type("traffic.released", touches=_HOLDINGS)
 class TrafficReleased(DomainEvent):
-    """The AGV left `node` (``leave_node`` released a recorded reservation); the node's ``reserved_by`` loses it."""
+    """The AGV let go of `resources` (entity ids): one event per release call that frees something (spec §11.2).
+
+    The deltas remove the AGV from the lists :class:`TrafficReserved` inserted it into, and set a corridor's
+    ``orientation`` back to null when its last oriented holder leaves.
+    """
 
     agv: str
-    node: str
+    resources: tuple[str, ...]
 
 
 @event_type("traffic.wait_started")

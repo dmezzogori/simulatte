@@ -166,7 +166,7 @@ class ResourceBasedTrafficManager:
                 env.emit(
                     TrafficReserved(
                         agv=agv.id,
-                        node=binding.id,
+                        resources=(binding.id,),
                         deltas=Deltas.build().insert(binding.id, "reserved_by", len(reserved_by) - 1, agv.id).done(),
                     )
                 )
@@ -181,7 +181,7 @@ class ResourceBasedTrafficManager:
                 env.emit(
                     TrafficReleased(
                         agv=agv.id,
-                        node=binding.id,
+                        resources=(binding.id,),
                         deltas=Deltas.build().remove(binding.id, "reserved_by", agv.id).done(),
                     )
                 )
