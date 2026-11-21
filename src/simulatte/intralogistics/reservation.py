@@ -658,7 +658,8 @@ class ReservationController:
         waiting.timer = timer
 
     def _review(self, waiting: _Pending) -> None:
-        """A review: make way and ``on_blocked`` again, with the blockers recomputed (spec §7.9).
+        """A review: make way and ``on_blocked`` again, with the blockers recomputed before and after the make-way step
+        (spec §7.9).
 
         When it keeps waiting with a delay, the next review is scheduled if a grant or release happened since the
         previous review (or the opening, or the wake-up); otherwise the wait is dormant until the next one (T23).
@@ -669,10 +670,10 @@ class ReservationController:
         waiting.reviews += 1
         changed = waiting.seen != self._changes
         waiting.seen = self._changes
-        wait = self._wait(waiting, self._blocking(waiting))
-        self._make_way(wait)
+        self._make_way(self._wait(waiting, self._blocking(waiting)))
         if self._pending.get(waiting.agv) is not waiting:  # making way granted or withdrew the claim
             return
+        wait = self._wait(waiting, self._blocking(waiting))  # a blocker that accepted a make-way move is moving now
         kept = self._react(waiting, wait)
         if kept is None:
             return

@@ -570,6 +570,25 @@ class TestReviews:
         assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (30.0, "B", {"A": "IDLE"})
         assert w.logged("WARNING") == [("wait of B is stuck: blockers A (IDLE)", "ReservationController")]
 
+    def test_a_blocker_that_makes_way_at_a_review_is_not_reported_stuck(self) -> None:
+        """The idle blocker refuses to move when the wait opens and accepts at the first review: that review reports
+        nothing. Back to idle and refusing, it makes the wait stuck at the next review, which is reported."""
+        w = world(
+            {"A": ("N1", "F1"), "B": "N0", "C": "N3"}, refuse=("F1",), policy=Scripted(blocked=(KeepWaiting(30.0),))
+        )
+        w.wait("B", "N1")
+        w.fleets["F1"].accept = True
+        w.env.run()
+        assert w.env.now == 30.0
+        assert w.fleets["F1"].moves[-1][0] == "A" and w.agvs["A"].state is AGVState.TRAVELING_EMPTY
+        assert w.replay.of(TrafficWaitStuck) == []
+        w.fleets["F1"].accept = False
+        w.state("A", AGVState.IDLE)  # the stub's move goes nowhere
+        w.leave("C", "N4")  # a change: the dormant wait is reviewed again 30 s later
+        w.env.run()
+        (stuck,) = w.replay.of(TrafficWaitStuck)
+        assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (60.0, "B", {"A": "IDLE"})
+
     def test_stranded_and_stalled_blockers_make_a_stuck_wait(self) -> None:
         w = world({"A": "N1", "C": "N2", "B": "N0"}, policy=Scripted(blocked=(KeepWaiting(5.0),)))
         w.state("A", AGVState.STRANDED)
