@@ -358,16 +358,21 @@ order and grants every claim that is admissible and not gated.
 **Fairness gate (T7).** A claim is gated on a segment or corridor `r` when an earlier, non-yielding pending claim
 names `r`, is inadmissible on `r`, and each of its other resources is either admissible or blocked only by AGVs
 that hold `r`. The gate stops a stream in one direction from starving a waiter in the other: the stream's
-vehicles leave through the waiter's port and hold it on their last leg, which must not reopen the gate. Gates
-never cause a reported deadlock; §7.8 waives the ones that would.
+vehicles leave through the waiter's port and hold it on their last leg, which must not reopen the gate; for that
+reason a vehicle keeps the corridor until it releases the port it left through (§7.5). A claim is never gated on
+a resource its own AGV already holds. Gates never cause a reported deadlock; §7.8 waives the ones that would.
 
 A grant records the holdings, emits one `traffic.reserved` (§11.2) and succeeds the request's event.
 
 ### 7.5 Release
 
 Releases come from the executor (`release` at clear points, `retain` when a travel ends or its route changes).
-The controller releases a zone or corridor itself when the AGV's last member is released, unless the AGV holds it
-ahead of entry under a hold-back rule; `retain` drops those. T8: the controller never takes a granted resource
+The controller releases a zone or corridor itself when the AGV's last member is released, with three
+exceptions. A zone or corridor held ahead of entry under a hold-back rule stays; `retain` drops those. A zone or
+corridor named by the AGV's pending claim stays, because the pending claim was built on holding it; for the same
+reason the resources of a pending claim that the AGV already holds are determined when the claim is granted, not
+when it is requested. A corridor that the AGV left onto one of its ports stays for as long as the AGV holds that
+port, and is released in the same event as the port. T8: the controller never takes a granted resource
 back. Every release emits one `traffic.released` and triggers a scan.
 
 ### 7.6 `FreeFlowController`
