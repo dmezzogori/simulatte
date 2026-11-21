@@ -12,10 +12,7 @@ each item of §17.
 from __future__ import annotations
 
 import contextlib
-import os
 import runpy
-import subprocess
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -54,7 +51,6 @@ from simulatte.intralogistics.events import (
     TrafficWaitStuck,
 )
 from simulatte.intralogistics.reservation import SegmentBinding, ZoneBinding
-from simulatte.trace import TraceRecorder
 from tests.intralogistics.test_idle_traffic import SKU_A, Mission, mission_world
 from tests.intralogistics.test_travel import vehicle
 from tests.intralogistics.traffic_support import (
@@ -121,9 +117,9 @@ def timeline(replay: FullReplay) -> list[tuple[str, float, str]]:
 # --- spec Appendix A ---------------------------------------------------------------------------------------------
 
 
-def appendix_a(env: Environment, *, observed: bool = True) -> tuple[Mission, TrafficInvariants | None]:
+def appendix_a(env: Environment) -> tuple[Mission, TrafficInvariants]:
     """The graph and fleet of Appendix A under ``ReservationController`` with ``length=0.0`` and its three orders, none
-    submitted yet (see :func:`run_appendix_a`). With `observed` the invariants are attached."""
+    submitted yet (see :func:`run_appendix_a`). The replay and the invariants are attached."""
     graph, nodes = t_layout()
     controller = ReservationController(env=env, graph=graph)
     sku = SKU(id="A", weight=5.0, volume=0.2)
@@ -171,7 +167,7 @@ def appendix_a(env: Environment, *, observed: bool = True) -> tuple[Mission, Tra
         default_metrics=False,
     )
     replay = FullReplay(env, from_snapshot=True)
-    invariants = TrafficInvariants(env, controller) if observed else None
+    invariants = TrafficInvariants(env, controller)
     m = Mission(env, fleet, nodes, agvs, {"Storage": storage, "Line": line}, {}, {}, replay)
     m.orders = [fleet.create_order(sku=sku, quantity=2, origin=storage, destination=line) for _ in range(3)]
     return m, invariants
@@ -198,7 +194,7 @@ def test_appendix_a_scenario_1_completes_every_order() -> None:
     with Environment(debug=True) as env:
         m, invariants = appendix_a(env)
         run_appendix_a(1, m)
-        assert invariants is not None and invariants.checked > 0
+        assert invariants.checked > 0
         assert [o.status for o in m.orders] == [OrderStatus.COMPLETED] * 3
         assert not [e for e in m.events(OrderStatusChanged) if e.status == "FAILED"]
         assert not m.events(TrafficWaitStuck)
@@ -213,7 +209,7 @@ def test_appendix_a_scenario_2_completes_every_order_and_the_idle_agv_makes_way_
         m, invariants = appendix_a(env)
         spots = Spots(m)
         run_appendix_a(2, m)
-        assert invariants is not None and invariants.checked > 0
+        assert invariants.checked > 0
         assert [o.status for o in m.orders] == [OrderStatus.COMPLETED] * 3
         assert not [e for e in m.events(OrderStatusChanged) if e.status == "FAILED"]
         assert not m.events(TrafficWaitStuck) and not m.events(TrafficDeadlock)
@@ -481,6 +477,34 @@ def test_a_gate_that_would_complete_a_cycle_is_waived() -> None:
     assert all(float(e.t) > when for e in m.events(TrafficDeadlock))
 
 
+def test_a_reroute_asked_of_an_agv_on_its_goal_during_a_step_aside_does_not_raise() -> None:
+    """Found by these scenarios: A1 carries ``c -> b``, is sent aside along ``c, b, a, J1, z1``, stands on ``b``, its
+    goal, and is asked for a reroute. It has arrived (spec §7.9): the run goes on and every order completes."""
+    sites = ["x1", "y1", "z1", "x2", "y2", "z2", "a", "b", "c"]
+    m, invariants = scenario(
+        long_corridor(),
+        {"A0": "a", "A1": "c", "A2": "b", "A3": "x1"},
+        bays={f"B{site}": site for site in sites},
+        parking={"P1": ("p1", 4), "P2": ("p2", 4)},
+    )
+    m.order("Ba", "Bb")
+    m.order("Ba", "Bx1")
+    m.order("Bb", "Ba")
+    m.env.run(until=3000.0)
+    assert invariants.checked > 0
+    assert [o.status for o in m.orders] == [OrderStatus.COMPLETED] * 3
+    assert not [e for e in m.events(OrderStatusChanged) if e.status == "FAILED"]
+    assert all(e.action != "unresolved" for e in m.events(TrafficDeadlock))
+    arrived = [e for e in m.events(AgvRouted) if e.agv == "A1" and e.nodes == ("b",)]
+    assert [(e.origin, e.destination, e.cost, e.reason) for e in arrived] == [("b", "b", 0.0, "blocked")]
+    assert {agv.id: (agv.state.name, agv.current_node.id) for agv in m.agvs.values()} == {
+        "A0": ("IDLE", "p1"),
+        "A1": ("IDLE", "p1"),
+        "A2": ("IDLE", "x1"),
+        "A3": ("IDLE", "p1"),
+    }
+
+
 def test_the_default_builder_completes_twenty_transfer_orders_with_no_deadlock_and_no_stuck_wait() -> None:
     """``build_simple_system`` with its two AGVs: its parking node N1 and charging node N2 have capacity 2 and are the
     passing places. The orders go from A to B, so each AGV charges when its battery asks for it."""
@@ -711,48 +735,3 @@ def test_the_examples_hold_the_traffic_invariants_under_a_reservation_controller
     replay, invariants = pairs[0]
     assert replay.events and invariants.checked > 0
     assert replay.of(TrafficReserved)
-
-
-# --- spec §17: determinism ------------------------------------------------------------------------------------------
-
-
-def appendix_digest(observers: bool, trace: Path | None = None) -> tuple[str, str]:
-    """The digest and a summary of the final state of Appendix A scenario 1 (a deadlock resolved by a step aside)."""
-    with Environment(debug=observers, log_level="DEBUG" if observers else "INFO") as env:
-        env.enable_digest()
-        if trace is not None:
-            TraceRecorder(env, trace)
-        m, _ = appendix_a(env, observed=observers)
-        run_appendix_a(1, m)
-        digest = env.fingerprint().digest
-        assert digest is not None
-        state = repr(
-            (
-                float(env.now),
-                [(o.id, o.status.name, o.delivered_at) for o in m.orders],
-                [(a.id, a.state.name, a.current_node.id if a.current_node else None) for a in m.agvs.values()],
-            )
-        )
-        return digest, state
-
-
-def test_the_digest_is_the_same_with_and_without_observers(tmp_path: Path) -> None:
-    quiet = appendix_digest(False)
-    observed = appendix_digest(True, tmp_path / "scenario-1.simtrace")
-    assert quiet == observed
-
-
-def test_the_digest_is_the_same_across_hash_seeds() -> None:
-    expected = appendix_digest(False)[0]
-    code = "from tests.intralogistics.test_traffic_scenarios import appendix_digest; print(appendix_digest(False)[0])"
-    for seed in ("0", "1", "4242"):
-        done = subprocess.run(
-            [sys.executable, "-c", code],
-            cwd=ROOT,
-            env={**os.environ, "PYTHONHASHSEED": seed},
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert done.returncode == 0, done.stderr
-        assert done.stdout.splitlines()[-1] == expected, seed

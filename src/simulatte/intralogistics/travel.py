@@ -22,7 +22,7 @@ from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, AgvMoveStarted, AgvRouted
 from simulatte.intralogistics.kinematics import rest_to_rest
 from simulatte.intralogistics.network import Segment
-from simulatte.intralogistics.routing import RouteRequest
+from simulatte.intralogistics.routing import Route, RouteRequest
 from simulatte.intralogistics.speed import KinematicProfile, describe_motion
 from simulatte.intralogistics.traffic import GaveUp, Granted, Rerouted, WaitHooks
 
@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.fleet import FleetCoordinator
     from simulatte.intralogistics.graph import Node
     from simulatte.intralogistics.network import Resource
-    from simulatte.intralogistics.routing import Route
     from simulatte.intralogistics.speed import MotionDescription
     from simulatte.intralogistics.traffic import ClaimRequest, TrafficController
 
@@ -609,6 +608,10 @@ class _Trip:
 
     def _try_reroute(self, avoid: frozenset[Resource], max_cost_ratio: float | None) -> bool:
         here = self.route[self.index]
+        # Standing on the goal in the middle of a step aside means having arrived: nothing to claim (spec §7.9).
+        if here == self.goal:
+            self._stage(Route((here,), 0.0))
+            return True
         route = self._route(here, self.goal, avoid)
         if route is None or not self._admissible_now(route):
             return False

@@ -843,3 +843,50 @@ def test_a_staged_reroute_of_a_deadlock_is_executed() -> None:
         ("travel", ("A0", "A1")),
         ("deadlock", ("A0", "X", "A1")),
     ]
+
+
+class ThroughTheGoal(ShortestDistanceRouter):
+    """Routes the step aside from `S` to `T` along ``S, Y, G, T``, whatever the shortest route says."""
+
+    def __init__(self, nodes: dict[str, Node]) -> None:
+        super().__init__()
+        self.nodes = nodes
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        n = self.nodes
+        if request.origin == n["S"] and request.destination == n["T"]:
+            return Route((n["S"], n["Y"], n["G"], n["T"]), 30.0)
+        return super().route(request, view)
+
+
+def test_a_reroute_asked_of_an_agv_on_its_goal_ends_the_travel_as_arrived() -> None:
+    """A step aside from ``S`` to ``T`` passes through the goal ``G``; at ``G`` the way on is blocked by C and the
+    policy asks for a reroute. The AGV has arrived (spec §7.9): the reroute succeeds with the one-node route and the
+    travel ends, holding only the node it stands on."""
+    graph_nodes = build(
+        [("S", 0, 0), ("X", 10, 8), ("Y", 10, -9), ("G", 20, 0), ("T", 30, 0)],
+        [("S", "X"), ("X", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+    )
+    n = graph_nodes[1]
+    policy = Scripted(blocked=(StepAside(n["T"]), Reroute(frozenset({n["T"]}), 0.5)))
+    w = world(
+        graph_nodes,
+        {"A": "S", "B": "X", "C": "T"},
+        derive_corridors=False,
+        hold_back_dead_ends=False,
+        policy=policy,
+        router=ThroughTheGoal(n),
+    )
+    w.go("A", "G")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+    assert w.agvs["A"].current_node == n["G"]
+    assert [(e.reason, e.nodes, e.cost) for e in w.of(AgvRouted, agv="A")] == [
+        ("travel", ("S", "X", "G"), pytest.approx(w.controller.view.graph.path_length((n["S"], n["X"], n["G"])))),
+        ("step_aside", ("S", "Y", "G", "T"), 30.0),
+        ("blocked", ("G",), 0.0),  # no admissibility or cost test for a route without legs
+    ]
+    assert [e.reason for e in w.of(TrafficWaitEnded, agv="A")] == ["stepped_aside", "rerouted"]
+    assert w.held("A") == ["G"]
+    assert w.controller.view.holders(n["G"]) == (w.agvs["A"],)
+    assert not w.fleet._executor._resolutions  # the count of the goal is dropped, as on any arrival

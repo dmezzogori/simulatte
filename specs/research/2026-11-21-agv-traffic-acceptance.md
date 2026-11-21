@@ -9,8 +9,8 @@ part A, and "Routing" are out of scope.
 
 ## Result
 
-The end-to-end scenarios of Appendix A and of §17 behave as the spec says, with one exception to report: a deadlock
-reroute can raise instead of declining (see "Findings"). The Appendix A scenarios complete every order, the head-on,
+The end-to-end scenarios of Appendix A and of §17 behave as the spec says. The scenarios found one crash, since fixed
+(see "Findings"). The Appendix A scenarios complete every order, the head-on,
 swap, fairness and gate-waiver cases end to end resolve as specified, a lone AGV matches free flow, and the invariants
 hold in every scenario and in the three intralogistics examples run under `ReservationController`.
 
@@ -39,7 +39,7 @@ already cover an item end to end, the table names them instead of repeating them
 | Idle and parking | `test_idle_traffic.py`: `test_an_idle_blocker_makes_way_and_goes_idle_again`, `test_an_agv_idle_on_the_exit_port_of_a_corridor_makes_way_for_the_opposite_traffic`, `test_an_agv_leaves_the_delivery_bay_under_reservation`, `test_an_area_of_two_never_lists_three_agvs`, `test_a_full_area_is_not_a_target` |
 | Capacity above one, extent longer than a block, `passing` segments, authored zones | `test_travel.py::test_two_vehicles_at_a_multi_slot_leaf_one_sent_away`, `::test_extent_longer_than_arc_holds_two_segments`; `test_reservation.py::TestAdmission::test_passing_admits_both_directions`, `::TestAdmission::test_zone_capacity`, `::TestRelease::test_hold_back_zone_is_claimed_a_leg_early`; `test_network.py::TestCorridors::test_passing_segment_removes_the_corridor`, `::TestClaims::test_plain_zone_only_with_the_leg_that_takes_a_member` |
 | Vehicle length | `test_travel.py::test_coordinator_registers_with_a_reservation_controller`; `test_reservation.py::TestLifecycle::test_a_vehicle_type_without_length_cannot_register` |
-| Replay and purity | `FullReplay` in every world; `test_the_digest_is_the_same_with_and_without_observers` and `test_the_digest_is_the_same_across_hash_seeds` (Appendix A scenario 1, which includes a resolved deadlock); `test_invariance.py` for the advanced example under free flow; CPython and PyPy agree through the PyPy lane of CI |
+| Replay and purity | `FullReplay` in every world; `test_invariance.py`, which runs the advanced example under free flow and under `ReservationController` with no subscriber at all, with the digest only, with a key-performance-indicator trace, with a full trace and with everything on, and compares the final state, the digest, the report and the trace, and reproduces the digest in fresh processes with different `PYTHONHASHSEED` values; CPython and PyPy agree through the PyPy lane of CI |
 | Layout | `tests/layout/test_traffic_fields.py` (schema 1.0 loads unchanged, 1.1 round-trips, `block_length` and zones change the physical hash, twins) |
 | Free flow | `test_free_flow_creates_no_segment_or_zone_entity_and_emits_no_traffic_event`; `test_travel.py::test_free_flow_arrivals_and_events` |
 
@@ -65,63 +65,13 @@ Choices the scenarios make where the spec leaves them open:
 
 ## Findings
 
-1. **A deadlock reroute raises when the victim is on a step-aside excursion through its goal.** Reproduction, run
-   from the repository root with `uv run --all-extras python`:
-
-   ```python
-   from tests.intralogistics.test_idle_traffic import mission_world
-   from tests.intralogistics.traffic_support import build
-
-   graph = build(
-       [
-           ("J1", 0, 0),
-           ("a", 10, 0),
-           ("b", 20, 0),
-           ("c", 30, 0),
-           ("J2", 40, 0),
-           ("x1", -10, 10),
-           ("y1", -10, -10),
-           ("x2", 50, 10),
-           ("y2", 50, -10),
-           ("z1", -10, 0),
-           ("z2", 50, 0),
-           ("p1", 0, 20),
-           ("p2", 40, 20),
-       ],
-       [
-           ("J1", "a"),
-           ("a", "b"),
-           ("b", "c"),
-           ("c", "J2"),
-           ("J1", "x1"),
-           ("J1", "y1"),
-           ("J1", "z1"),
-           ("J2", "x2"),
-           ("J2", "y2"),
-           ("J2", "z2"),
-           ("J1", "p1"),
-           ("J2", "p2"),
-       ],
-   )
-   sites = ["x1", "y1", "z1", "x2", "y2", "z2", "a", "b", "c"]
-   m = mission_world(
-       graph,
-       {"A0": "a", "A1": "c", "A2": "b", "A3": "x1"},
-       bays={f"B{s}": s for s in sites},
-       parking={"P1": ("p1", 4), "P2": ("p2", 4)},
-   )
-   m.order("Ba", "Bb")
-   m.order("Ba", "Bx1")
-   m.order("Bb", "Ba")
-   m.env.run(until=3000)
-   ```
-
-   At t = 49.08 A1 follows the route `c, b, a, J1, z1` (a step aside), stands on `b`, which is also its goal, and
-   is a deadlock victim. The policy asks for a reroute; `_Trip._try_reroute` (`travel.py`, line 610) asks the router
-   for a route from `b` to `b`, gets one of zero legs, and `_admissible_now` calls
-   `controller.next_claim(agv, route.nodes, 0)`, which raises `ValueError: index 0 is outside the 0 legs of the route`
-   (`network.py`, line 365). The run stops. Expected: the attempt declines, or the AGV counts as arrived. No source file
-   was changed.
+1. **A reroute asked of an AGV that stands on its goal raised.** The scenarios found it: an AGV sent aside along a
+   route that passes through its goal stood on the goal, was asked for a reroute, and `_Trip._try_reroute` asked the
+   router for a route from the goal to itself, a route of zero legs, whose first claim raised
+   `ValueError: index 0 is outside the 0 legs of the route`. Fixed under the amended spec §7.9: the AGV has arrived,
+   the reroute succeeds with the one-node route and the travel ends with `ARRIVED`. Covered by
+   `test_travel.py::test_a_reroute_asked_of_an_agv_on_its_goal_ends_the_travel_as_arrived` and, end to end,
+   `test_traffic_scenarios.py::test_a_reroute_asked_of_an_agv_on_its_goal_during_a_step_aside_does_not_raise`.
 2. Under the default builder battery (100), orders in both directions strand an AGV under free flow and under
    reservation alike (see above). It is energy, not traffic.
 
@@ -158,7 +108,7 @@ reorder point, which moves with the trajectory; the trajectory differs for the r
 
 | Check | Result |
 |---|---|
-| `uv run --all-extras pytest` | 3,926 passed, 1 skipped, 3 warnings, 338 s; branch coverage 99.14 % (gate 99 %, previous 99.05 %) |
+| `uv run --all-extras pytest` | 3,930 passed, 1 skipped, 3 warnings, 338 s; branch coverage 99.14 % (gate 99 %, previous 99.05 %) |
 | `uv run --all-extras ruff check src tests` | all checks passed |
 | `uv run --all-extras ruff format --check` | 514 files already formatted |
 | `uv run --all-extras ty check src` | all checks passed |
