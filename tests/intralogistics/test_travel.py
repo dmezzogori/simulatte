@@ -698,6 +698,25 @@ def test_a_stalled_arc_is_never_left_and_an_interrupt_takes_effect_at_once() -> 
     assert w.env.entities.node_binding(w.nodes["N0"]).agvs == ["A"]
 
 
+def test_a_trip_stopped_before_departing_keeps_what_the_body_still_overlaps() -> None:
+    """A 12 m vehicle reverses out of the leaf N2 it reached from N1. Its claim back over ``N1~N2`` and ``N1`` lifts
+    them out of its trail; when the trip comes to rest without departing onto them (the reversal stalls and is
+    interrupted), they go back into the trail, so ``retain`` keeps what the body still stands on."""
+    w = world(line(3), {"A": "N1"}, agv_type=vehicle(length=12.0))
+    w.go("A", "N2")
+    w.env.run()
+    assert w.held("A") == ["N1", "N1~N2", "N2"]  # N1 clears 12 m after departure, N1~N2 at 22
+    a = w.agvs["A"]
+    a.agv_type = vehicle(length=12.0, profile=stalled())
+    process = w.go("A", "N0", at=50.0)
+    w.interrupt(process, 60.0)
+    w.env.run()
+    assert w.caught == {"A": "cancelled"}
+    assert a.current_node == w.nodes["N2"]
+    assert sorted(w.held("A")) == ["N1", "N1~N2", "N2"]
+    assert sorted(resource.id for resource in w.fleet._executor._trail(a).entries) == ["N1", "N1~N2"]
+
+
 def test_a_stalled_arc_interrupted_under_free_flow() -> None:
     w = world(line(3), {"A": "N0"}, reserve=False, agv_type=vehicle(profile=stalled()))
     process = w.go("A", "N2")

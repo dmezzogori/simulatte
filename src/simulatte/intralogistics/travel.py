@@ -11,6 +11,7 @@ releases each when the tail clears it (§6.6). A waiting travel answers the cont
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, cast
 
@@ -177,6 +178,19 @@ class _Trail:
         self.entries: dict[Resource, float] = {}
 
 
+@dataclass(frozen=True)
+class _ArcPlan:
+    """How one arc is traversed: its length and load, the duration (``inf`` when stalled), the motion description,
+    the elapsed time at which the front has covered a distance into the arc, and the planned speed at its end node."""
+
+    length: float
+    load_weight: float
+    duration: float
+    description: MotionDescription
+    time_at: Callable[[float], float]
+    exit_speed: float = 0.0
+
+
 class TravelExecutor:
     """Runs the travels of the AGVs of one fleet through its traffic controller and router (spec §8.1)."""
 
@@ -298,6 +312,9 @@ class _Trip:
         self.request: ClaimRequest | None = None
         self.staged: Route | None = None
         self.interrupt: simpy.Interrupt | None = None
+        # Trail entries a grant took out of the trail (they lie ahead), with their clear points: those the body still
+        # overlaps go back into the trail when the trip comes to rest without having reached them.
+        self.lifted: dict[Resource, float] = {}
         self.hooks = WaitHooks(
             route=self._remaining,
             loaded=self._carrying,
@@ -316,7 +333,7 @@ class _Trip:
             return TravelOutcome.NO_ROUTE
         while True:
             if self.index == len(self.route) - 1:
-                self._retain()
+                self._settle()
                 here = self.route[-1]
                 if here == self.goal:
                     self.executor._resolutions.pop((agv, self.goal), None)
@@ -327,18 +344,7 @@ class _Trip:
                 continue
 
             current, next_node = self.route[self.index], self.route[self.index + 1]
-            distance = fleet.graph.length(current, next_node)
-            load_weight = self._load()
-            arc = fleet.graph.arc_between(current, next_node)
-            assert arc is not None
-            speed_limit = arc.speed_limit
-            battery_pct = agv.battery.level_pct
-            profile = agv.agv_type.speed_profile
-            travel_time = profile.travel_time(distance, load_weight, battery_pct, speed_limit=speed_limit)
-            # Described now, with the arguments the travel time was just computed from (spec §6.5).
-            description = describe_motion(profile, distance, load_weight, battery_pct, speed_limit)
-            avg_speed = distance / travel_time if travel_time > 0 else 0.0
-            energy_cost = agv.battery.estimate_energy(distance, load_weight, avg_speed)
+            plan, energy_cost = self._rest_plan(current, next_node)
 
             if agv.battery.level < energy_cost:
                 return (yield from self._lacking_energy(current, energy_cost))
@@ -350,14 +356,34 @@ class _Trip:
                 if self.horizon == self.index:  # the route changed: a reroute or a step aside
                     continue
 
-            yield from self._traverse(current, next_node, distance, travel_time, description, load_weight)
+            yield from self._traverse(current, next_node, plan)
             if self.interrupt is not None:
-                self._retain()
+                self._settle()
                 self.executor._interrupted(agv, self.interrupt.cause)
                 raise self.interrupt
             if agv.battery.is_critical and next_node != self.goal:
-                self._retain()
+                self._settle()
                 return TravelOutcome.RETRY_FROM_CURRENT_POSITION
+
+    def _rest_plan(self, current: Node, next_node: Node) -> tuple[_ArcPlan, float]:
+        """The rest-to-rest plan of the arc from the profile's ``travel_time`` and motion description, with the energy
+        the executor estimates for it (spec §9.1)."""
+        agv = self.agv
+        graph = self.fleet.graph
+        distance = graph.length(current, next_node)
+        load_weight = self._load()
+        arc = graph.arc_between(current, next_node)
+        assert arc is not None
+        speed_limit = arc.speed_limit
+        battery_pct = agv.battery.level_pct
+        profile = agv.agv_type.speed_profile
+        travel_time = profile.travel_time(distance, load_weight, battery_pct, speed_limit=speed_limit)
+        # Described now, with the arguments the travel time was just computed from (spec §6.5).
+        description = describe_motion(profile, distance, load_weight, battery_pct, speed_limit)
+        avg_speed = distance / travel_time if travel_time > 0 else 0.0
+        energy_cost = agv.battery.estimate_energy(distance, load_weight, avg_speed)
+        time_at = self._clear_times(distance, travel_time, load_weight, battery_pct, speed_limit)
+        return _ArcPlan(distance, load_weight, travel_time, description, time_at), energy_cost
 
     def _lacking_energy(self, current: Node, energy_cost: float) -> ProcessGenerator:
         """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor."""
@@ -447,6 +473,7 @@ class _Trip:
         request = self.request = controller.request(agv, claim, self.hooks)
         event = request.event
         if not event.triggered:
+            event.callbacks.append(lambda _: self._granted(request))
             controller.stopped(request)
         if not event.triggered:
             try:
@@ -455,16 +482,12 @@ class _Trip:
                 self._settle()
                 self.executor._interrupted(agv, interrupt.cause)
                 raise
-        self.request = None
         value = event.value
         if isinstance(value, Granted):
-            self.horizon = self.index + claim.legs
-            if self.occupancy:  # what is claimed again lies ahead now, no longer behind the vehicle
-                entries = self.executor._trail(agv).entries
-                for item in claim.items:
-                    entries.pop(item.resource, None)
+            self._granted(request)  # nothing left to do when the event's callback took the grant already
             return None
-        self._retain()
+        self.request = None
+        self._settle()
         if isinstance(value, GaveUp):
             return TravelOutcome.GAVE_UP
         staged = self.staged
@@ -472,6 +495,25 @@ class _Trip:
         self.staged = None
         self._follow(staged, value.reason if isinstance(value, Rerouted) else "step_aside")
         return None
+
+    def _granted(self, request: ClaimRequest) -> None:
+        """Take the grant of `request` if it is still the trip's pending request: extend the horizon by the claim's
+        legs and lift the claimed resources out of the trail (they lie ahead now, no longer behind the vehicle).
+
+        Both the travel process and the request's event callback call it; the second call finds nothing to do, and so
+        does a call for a request the trip has withdrawn or that ended with a directive.
+        """
+        if self.request is not request or not request.granted:
+            return
+        self.request = None
+        claim = request.claim
+        self.horizon += claim.legs
+        if self.occupancy:
+            entries = self.executor._trail(self.agv).entries
+            for item in claim.items:
+                clear = entries.pop(item.resource, None)
+                if clear is not None:
+                    self.lifted[item.resource] = clear
 
     def _settle(self) -> None:
         """Withdraw a pending request and keep only what the body overlaps."""
@@ -482,27 +524,28 @@ class _Trip:
         self._retain()
 
     def _retain(self) -> None:
-        """Keep only what the body overlaps at rest: its node and the trail entries not yet cleared."""
+        """Keep only what the body overlaps at rest: its node and the trail entries not yet cleared.
+
+        Entries a grant lifted out of the trail that the odometer has not reached go back into it first: the trip came
+        to rest before departing onto them, so the body still overlaps them (spec §6.6).
+        """
+        lifted, self.lifted = self.lifted, {}
         if self.occupancy:
             agv = self.agv
             here = self.fleet._require_current_node(agv)
-            self.controller.retain(agv, [here, *self.executor._trail(agv).entries])
+            trail = self.executor._trail(agv)
+            for resource, clear in lifted.items():
+                if resource != here and resource not in trail.entries and not _reached(clear, trail.odometer):
+                    trail.entries[resource] = clear
+            self.controller.retain(agv, [here, *trail.entries])
 
     # One arc (spec §6.6, §8.1 step 6-7)
 
-    def _traverse(
-        self,
-        current: Node,
-        next_node: Node,
-        distance: float,
-        travel_time: float,
-        description: MotionDescription,
-        load_weight: float,
-    ) -> ProcessGenerator:
-        """Traverse the arc rest to rest, releasing each trail entry where the tail clears it."""
-        self.executor._start_segment(self.agv, current, next_node, travel_time, description, self.loaded)
-        if math.isfinite(travel_time):
-            yield from self._move(current, next_node, distance, travel_time, load_weight)
+    def _traverse(self, current: Node, next_node: Node, plan: _ArcPlan) -> ProcessGenerator:
+        """Traverse the arc as `plan` says, releasing each trail entry where the tail clears it."""
+        self.executor._start_segment(self.agv, current, next_node, plan.duration, plan.description, self.loaded)
+        if math.isfinite(plan.duration):
+            yield from self._move(current, next_node, plan)
         else:
             yield from self._stall(current)
 
@@ -521,14 +564,13 @@ class _Trip:
             executor._interrupted(agv, interrupt.cause)
             raise
 
-    def _move(
-        self, current: Node, next_node: Node, distance: float, travel_time: float, load_weight: float
-    ) -> ProcessGenerator:
+    def _move(self, current: Node, next_node: Node, plan: _ArcPlan) -> ProcessGenerator:
         """The finite part of :meth:`_traverse`: timers, releases at their clear points, the arrival.
 
         On arrival at a node of capacity above 1 the whole trail clears with the arrival releases (spec §6.6).
         """
         executor, agv, env = self.executor, self.agv, self.env
+        distance, travel_time = plan.length, plan.duration
         if current != self.goal:  # departing from a parking node gives its slot back, unless the trip returns to it
             self.fleet._release_slots(agv, current)
         arrival = env.timeout(travel_time)
@@ -545,7 +587,6 @@ class _Trip:
                 if isinstance(resource, Segment):
                     trail.entries.pop(resource, None)
                     trail.entries[resource] = end + extent
-            times: Callable[[float], float] | None = None  # computed for the first clear point inside the arc
             for resource, clear in trail.entries.items():
                 if _reached(clear, start):
                     at_departure.append(resource)
@@ -554,9 +595,7 @@ class _Trip:
                 elif _reached(end, clear):
                     at_arrival.append(resource)
                 else:
-                    if times is None:
-                        times = self._clear_times(distance, travel_time, load_weight, current, next_node)
-                    elapsed = times(clear - start)
+                    elapsed = plan.time_at(clear - start)
                     if elapsed >= travel_time:
                         at_arrival.append(resource)
                     else:
@@ -568,7 +607,7 @@ class _Trip:
                 self._release(trail, resources)
         yield from self._sleep(arrival)
         avg_speed = distance / travel_time if travel_time > 0 else 0.0
-        agv.battery.deplete(distance, load_weight, avg_speed)
+        agv.battery.deplete(distance, plan.load_weight, avg_speed)
         executor._end_segment(agv, next_node)
         self.index += 1
         if trail is not None:
@@ -583,17 +622,24 @@ class _Trip:
         return (0.0 if agv_type.length is None else agv_type.length) + agv_type.min_gap
 
     def _clear_times(
-        self, distance: float, travel_time: float, load_weight: float, current: Node, next_node: Node
+        self, distance: float, travel_time: float, load_weight: float, battery_pct: float, speed_limit: float | None
     ) -> Callable[[float], float]:
         """The elapsed time at which the front has covered a distance into the arc: exact for kinematic profiles
-        (spec §9.1), the arc's arrival for any other."""
+        (spec §9.1), the arc's arrival for any other. The limits are asked of the profile only for the first clear
+        point inside the arc."""
         profile = self.agv.agv_type.speed_profile
         if not isinstance(profile, KinematicProfile):
             return lambda covered: travel_time
-        limits = profile.limits(load_weight, self.agv.battery.level_pct)
-        speed_limit = self.controller.view.speed_limit(current, next_node)
-        cap = limits.v_max if speed_limit is None else min(limits.v_max, speed_limit)
-        return rest_to_rest(distance, cap, limits).time_at
+        found: list[Callable[[float], float]] = []
+
+        def time_at(covered: float) -> float:
+            if not found:
+                limits = profile.limits(load_weight, battery_pct)
+                cap = limits.v_max if speed_limit is None else min(limits.v_max, speed_limit)
+                found.append(rest_to_rest(distance, cap, limits).time_at)
+            return found[0](covered)
+
+        return time_at
 
     def _sleep(self, timer: Timeout) -> ProcessGenerator:
         """Wait for `timer`; an interrupt meanwhile is remembered (the first one) and the wait goes on (spec §8.3)."""
