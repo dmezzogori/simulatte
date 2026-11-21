@@ -334,14 +334,18 @@ rules extend it:
   next leg enters, the claim also covers every following leg down to the route's final node. A route that enters
   a branch ends inside it, because routers return simple paths. When the route starts at the root or inside the
   branch and goes deeper, the claim covers all remaining legs. Legs that leave a branch are claimed one at a
-  time.
+  time. A root of capacity above 1 is a place to wait without blocking the way out: the leg into such a root is
+  claimed on its own, and the claim of the next leg, which starts at the root, covers the branch.
 - **Corridors (T5).** If the next leg enters a corridor from one of its ports, the claim for the leg into that
   port also contains the corridor with the orientation of travel. When the route starts at the port, the first
   leg carries it. A leg inside a corridor that the AGV already holds with a different orientation, or with none,
   contains the corridor with the leg's orientation. Likewise a leg over a segment the AGV still holds in the
   other direction (it reverses while its body is on the segment) contains the segment with the new direction.
   These are the two cases in which a held resource is claimed again; a grant then changes the recorded
-  direction.
+  direction. A port of capacity above 1 is likewise a place to wait: the leg into such a port does not carry
+  the corridor, and the first leg inside does, as when a route starts at the port. Without this exception a
+  passing place defined by capacity is never used for passing: two vehicles that meet head-on each stop one
+  node before it.
 - **Zones with `hold_back`.** The claim for the leg before the first leg that takes a member also contains the
   zone.
 
@@ -386,7 +390,9 @@ exceptions. A zone or corridor held ahead of entry under a hold-back rule stays;
 corridor named by the AGV's pending claim stays, because the pending claim was built on holding it; for the same
 reason the resources of a pending claim that the AGV already holds are determined when the claim is granted, not
 when it is requested. A corridor that the AGV left onto one of its ports stays for as long as the AGV holds that
-port, and is released in the same event as the port. Only a `release` at a clear point counts as leaving: when
+port, and is released in the same event as the port. This holds for ports of capacity 1 only: on a port of
+capacity above 1 an opposite entrant waits on the port itself, the vehicle that left does not stand in its way,
+and the corridor is released with its last member. Only a `release` at a clear point counts as leaving: when
 `retain` drops the last members (a travel that ends before entering), the corridor goes with them. The executor
 therefore releases what clears on arrival before it calls `retain` at the end of a travel. T8: the controller never takes a granted resource
 back. Every release emits one `traffic.released` and triggers a scan.
@@ -461,7 +467,7 @@ is travelling to. Reactions are frozen values:
   to the rule on reviews below;
 - `Reroute(avoid, max_cost_ratio=None)`: succeeds when the fleet's router finds a route that avoids the given
   resources, whose first claim is admissible now, and, when a ratio is given, whose cost is at most that ratio
-  times the cost of the remaining current route. An AGV that stands on its goal when asked (it can be there in
+  times the cost of the router's route to the goal without `avoid`. An AGV that stands on its goal when asked (it can be there in
   the middle of a step-aside excursion that passes through it) has arrived: the reroute succeeds with the
   one-node route and the travel ends with `ARRIVED`;
 - `StepAside(target=None)`: succeeds when the target, or the node found by the standard search below, can be
@@ -489,13 +495,20 @@ For an AGV that will be idle on arrival (§7.10), the node of the cheapest parki
 first; failing that, the node must not be a service node. For such an AGV a node that any pending claim names is
 not taken either, unless it would still have a free slot for each of those claims after the move: an idle AGV
 moved out of one wait's way must not land in another's, or two waits could send it back and forth without end.
-The search asks the router with the purpose of the move it is for, so that the search and the move agree.
+The search asks the router with the purpose and the load weight of the move it is for, so that the search and
+the move agree. Three more rules apply to an AGV that will be idle on arrival. A node that is the root or a
+member of a dead-end branch (§6.5) is not taken unless it is the node of a parking area: an idle AGV in the
+mouth of a dead end stops every vehicle that must hold back for the branch, and has no way out past them. A
+candidate is not taken when a segment, zone or corridor of the last leg of its route is named by a pending
+claim. And a node the AGV has already made way from since its last mission is not taken (§7.10).
 
 `StandardTrafficPolicy(reroute_after=30.0, max_detour=1.5, max_resolutions=8)`:
 
 - `on_blocked`: with a stranded blocker, `Reroute(avoid=its resources)` then `KeepWaiting(reroute_after)`. On the
   first call otherwise, `KeepWaiting(reroute_after)`. At a review, `Reroute(avoid=blocked resources,
-  max_cost_ratio=max_detour)` then `KeepWaiting(reroute_after)`.
+  max_cost_ratio=max_detour)` then `KeepWaiting(reroute_after)`. A `Reroute` is offered only while the wait's
+  `resolutions` is below `max_resolutions`; after that the answer is `KeepWaiting(reroute_after)` alone, so a
+  travel between standing blockers is not rerouted back and forth without end.
 - `on_deadlock`: order the members by priority (lowest first), unloaded before loaded, latest wait first, id.
   First, `GiveUp` for each unloaded member whose `resolutions` reached `max_resolutions`. Then, for the members
   below that bound, `Reroute(avoid=the resources its claim is blocked on)` in order, then `StepAside()` in
@@ -516,7 +529,9 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   order, and when the AGV does not move it checks those waits for the stuck condition (§7.9) at once, since a
   sleeping wait has no review left to report it. `make_way` refuses a target the fleet's router cannot
   reach, and an AGV whose make-way move ended on the node it started from is not asked again at the same
-  instant, so a move that fails at once cannot repeat without time passing.
+  instant, so a move that fails at once cannot repeat without time passing. An AGV does not make way to a node
+  it has already made way from since it last started a mission, which bounds a chain of make-way moves by the
+  number of nodes.
 - **Service nodes (T12).** A service node is a bay of one of the fleet's warehouses or the node of one of its
   charging stations. `FleetCoordinator(clear_service_nodes=True)`: when the controller controls occupancy, an AGV
   that would become idle on a service node, and for which the repositioning policy returned no target, first
@@ -721,7 +736,7 @@ class Router(Protocol):
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...
 ```
 
-`TrafficView` is read-only: `graph`, `length(u, v)`, `speed_limit(u, v)`, `capacity(node)`,
+`TrafficView` is read-only: `graph`, `length(u, v)`, `speed_limit(u, v)`, `capacity(node)`, `dead_end(node)` (whether the node is the root or a member of a dead-end branch, §6.5),
 `resources(u, v)` (what a leg needs), `holders(resource)`, `pending(resource)` (count of pending claims that name
 it), `disposition(agv)`, `route_of(agv)`, `waiting_on(agv)` (the AGVs whose waits a resource held by `agv`
 blocks), `admissible(agv, claim)` and `mean_hold(resource)`. With
@@ -806,7 +821,7 @@ generated fixtures. `trapezoidal` stays valid and is still what a profile's own 
 
 ### 11.4 Collector
 
-`TrafficKPIs(controller_or_fleet)` in `intralogistics/metrics.py` subscribes to the traffic events and declares,
+`TrafficKPIs(fleet)` in `intralogistics/metrics.py` subscribes to the traffic events and declares,
 per fleet: blocked time (sum of closed waits, clipped to the observation window), number of waits, stuck waits,
 deadlocks by action, reroutes, make-way moves and re-queued orders. Declarations follow SP1 §12.
 
@@ -882,8 +897,10 @@ architecture section of `CLAUDE.md`.
 - Every ordering is explicit: queues by priority and counter, entity creation by id, searches tie-broken by
   node id. No set or dict of nodes is iterated for a decision without a defined order.
 - No randomness is added. Review timers and `mean_hold` exist whether or not anything observes them.
-- Cost per leg is proportional to the resources of the claim. A scan is linear in pending claims, of which there
-  is at most one per AGV. Detection is quadratic in waiting AGVs and runs only when an AGV starts waiting.
+- Cost per leg is proportional to the resources of the claim. A scan pass is linear in pending claims, of which there
+  is at most one per AGV, and at worst quadratic when gates apply. Detection runs only when an AGV starts
+  waiting; its reduction is quadratic in waiting AGVs and its gate pass cubic at worst. Measured on a line of
+  80 waiters, the last `stopped` call takes about 11 ms and a scan 0.1 ms.
 - With `FreeFlowController` the executor makes no controller calls per arc beyond the first claim.
 - `benchmarks/intralogistics.py` is run before and after each part and reported; it stays ungated.
 
@@ -915,7 +932,8 @@ Tests extend `tests/intralogistics`, `tests/layout` and the TypeScript suites.
 
 - **Invariants.** A test helper replays any trace and asserts at every event: node holders within capacity; a
   single-lane segment never holds both directions; zone holders within capacity; a corridor never holds both
-  orientations; an AGV at rest holds its node. It runs over every scenario below and the three examples.
+  orientations; an AGV at rest holds its node; an AGV that holds a member of a zone or corridor holds the zone
+  or corridor. It runs over every scenario below and the three examples.
 - **Baseline scenarios (Appendix A)** with `ReservationController`: all orders complete, none is `FAILED`, and
   in the second scenario the later AGV waits at `PARK`, not at `C1`.
 - **Following.** Two AGVs on a subdivided one-way line: the second follows one block behind; neither fails.
@@ -960,7 +978,10 @@ parts A and B; each PR states why they changed.
 
 - **Size.** Part A is large. A2 is testable without the coordinator, which limits the risk.
 - **Tight layouts.** A layout with no place to step aside produces standing deadlocks. That is reported, not
-  hidden, but users may read it as a defect. The docs must say how to add passing places and parking.
+  hidden, but users may read it as a defect. The docs must say how to add passing places and parking. Two
+  limits make this more likely on small layouts without parking: make-way is not transitive (an idle blocker
+  whose only free neighbours are held by other idle AGVs stays), and the step-aside search excludes nodes ahead
+  on the routes of the waits concerned even where a retreat exists.
 - **Look-ahead holds resources.** A fast AGV reserves its braking distance, which lowers density. This is the
   intended physical meaning, and `lookahead_margin` tunes it.
 - **Heuristic router.** `CongestionAwareRouter` can choose worse routes than `FastestRouter` in some states. It
