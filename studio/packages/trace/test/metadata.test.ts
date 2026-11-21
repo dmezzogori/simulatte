@@ -127,3 +127,37 @@ it.each([
   else query.observed[field as string] = value;
   await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
 });
+
+const trafficExpected = JSON.parse(readFileSync(new URL("../../../../tests/fixtures/traces/generated/layout_traffic.expected.json", import.meta.url), "utf8")) as { layout: Record<string, any> };
+
+it("opens a schema 1.1 layout bundle and validates it like a 1.0 bundle", async () => {
+  expect(trafficExpected.layout["schema_version"]).toBe("1.1");
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout: trafficExpected.layout }));
+  expect(trace.layout).toEqual(trafficExpected.layout);
+  const zones = (trafficExpected.layout["network"].graph.zones as { members: unknown[] }[]);
+  expect(zones.length).toBe(1);
+  expect(zones[0]!.members.some((member) => Array.isArray(member))).toBe(true);
+});
+
+it.each([
+  ["full_hash", "bad"], ["algorithms", {}], ["stages", []],
+])("rejects malformed 1.1 layout %s", async (key, value) => {
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: { ...trafficExpected.layout, [key as string]: value } }))).rejects.toThrow(TraceCorrupted);
+});
+
+it.each([
+  [["network", "graph", "zones", 0, "capacity"], 0],
+  [["network", "graph", "zones", 0, "hold_back"], "yes"],
+  [["network", "graph", "zones", 0, "members"], [42]],
+  [["network", "graph", "zones", 0, "members", 3], ["a"]],
+  [["network", "graph", "zones", 0, "extra"], 1],
+  [["network", "graph", "arcs", 0, "passing"], "yes"],
+  [["network", "edges", 0, "passing"], 1],
+  [["network", "graph", "nodes", 0, "capacity"], -1],
+])("rejects nested 1.1 layout corruption %j", async (path, value) => {
+  const layout = structuredClone(trafficExpected.layout);
+  let parent: any = layout;
+  for (const key of (path as (string | number)[]).slice(0, -1)) parent = parent[key];
+  parent[(path as (string | number)[]).at(-1)!] = value;
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+});

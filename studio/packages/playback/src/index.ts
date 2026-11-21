@@ -365,7 +365,7 @@ export class Session {
               "KPI-only recording: entity animation and event stepping are unavailable",
             ]
           : []),
-        ...(r.trace.layout && r.trace.layout.schema_version !== "1.0"
+        ...(r.trace.layout && !["1.0", "1.1"].includes(r.trace.layout.schema_version)
           ? ["Unknown layout version: using viewer fallback geometry"]
           : []),
         ...(r.trace.endTime !== null && !Number.isFinite(r.trace.endTime)

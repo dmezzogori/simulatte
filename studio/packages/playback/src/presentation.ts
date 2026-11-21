@@ -1,6 +1,7 @@
 import {layoutOf, type LayoutBundle, type RecordingView} from '@simulatte/trace';
 
-const pinnedLayouts = new WeakSet<object>();
+const SUPPORTED_LAYOUT = ['1.0', '1.1'];
+const pinnedLayouts =new WeakSet<object>();
 
 /** Copy data-only presentation metadata so later edits cannot change a pinned view/export. */
 export function freezePresentation(layout: LayoutBundle): LayoutBundle {
@@ -22,7 +23,7 @@ export function freezePresentation(layout: LayoutBundle): LayoutBundle {
       return Object.freeze(result);
     } finally {ancestors.delete(value);}
   };
-  if (layout.schema_version !== '1.0') throw new TypeError('Unsupported presentation layout schema');
+  if (!SUPPORTED_LAYOUT.includes(layout.schema_version)) throw new TypeError('Unsupported presentation layout schema');
   const result = layoutOf(copy(layout, 0));
   pinnedLayouts.add(result);
   return result;
@@ -30,7 +31,7 @@ export function freezePresentation(layout: LayoutBundle): LayoutBundle {
 export function pinPresentation(recording: RecordingView, layout: LayoutBundle | null): LayoutBundle | null {
   if (layout === null) return null;
   const original = recording.trace.layout;
-  if (!original || original.schema_version !== '1.0') throw new TypeError('Presentation requires a supported recorded layout');
+  if (!original || !SUPPORTED_LAYOUT.includes(original.schema_version)) throw new TypeError('Presentation requires a supported recorded layout');
   const pinned = freezePresentation(layout);
   if (pinned.physical_hash !== original.physical_hash) throw new TypeError('Presentation layout has a different physical hash');
   return pinned;

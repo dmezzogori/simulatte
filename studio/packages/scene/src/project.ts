@@ -32,6 +32,7 @@ export const object = (v: unknown): Record<string, unknown> =>
     : {};
 const finite = (v: unknown, defaultValue = 0): number =>
   typeof v === "number" && Number.isFinite(v) ? v : defaultValue;
+const TRAFFIC_KINDS = ["segment", "zone"];
 const position = (v: unknown): Point | null =>
   Array.isArray(v) &&
   typeof v[0] === "number" &&
@@ -51,7 +52,9 @@ export class Projector {
     Object.keys(initial)
       .filter(
         (id) =>
-          !["job", "order", "agv"].includes(String(initial[id]?.["$kind"])),
+          ![...TRAFFIC_KINDS, "job", "order", "agv"].includes(
+            String(initial[id]?.["$kind"]),
+          ),
       )
       .sort()
       .forEach((id, i) =>
@@ -59,7 +62,7 @@ export class Projector {
       );
   }
   project(frame: PreparedFrame): Projection {
-    const layout = frame.layout?.schema_version === "1.0" ? frame.layout : null;
+    const layout = ["1.0", "1.1"].includes(String(frame.layout?.schema_version)) ? frame.layout : null;
     const placements = object(object(layout?.["resolved"])["placements"]);
     const nodes = new Map<string, Point>();
     for (const [id, fields] of Object.entries(frame.state)) {
@@ -96,8 +99,9 @@ export class Projector {
       }
     let unplaced = 0;
     for (const [id, fields] of Object.entries(frame.state)) {
-      const kind = String(fields["$kind"]),
-        place = object(placements[id]),
+      const kind = String(fields["$kind"]);
+      if (TRAFFIC_KINDS.includes(kind)) continue;
+      const place = object(placements[id]),
         visual = object(place["visual"]),
         footprint = object(place["footprint"]);
       let point = nodes.get(id) ?? null,
