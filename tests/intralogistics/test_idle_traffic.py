@@ -76,6 +76,17 @@ class Unreachable(ShortestDistanceRouter):
         return super().route(request, view)
 
 
+class Scripted(ShortestDistanceRouter):
+    """A router that answers its requests in turn: ``found[i]`` says whether the i-th request has a route."""
+
+    def __init__(self, *found: bool) -> None:
+        super().__init__()
+        self.found = list(found)
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        return super().route(request, view) if self.found.pop(0) else None
+
+
 @dataclass
 class Mission:
     env: Environment
@@ -260,7 +271,7 @@ def test_make_way_takes_the_given_target() -> None:
 
 def test_a_make_way_move_that_fails_ends_idle_where_it_stands() -> None:
     w = world(t_layout(), {"A": "C1"}, make_way=True)
-    w.fleet.router = Unreachable(w.nodes["PARK"])
+    w.fleet.router = Scripted(True, False)  # the check finds a route, the move does not
     idle: list[str] = []
     w.fleet.on_agv_idle(lambda agv: idle.append(agv.id))
     assert w.fleet.make_way(w.agvs["A"], w.nodes["PARK"]) is True
@@ -661,7 +672,7 @@ def test_clearing_takes_a_parking_slot() -> None:
 
 def test_make_way_takes_a_parking_slot_and_gives_it_back_when_it_does_not_arrive() -> None:
     m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 1)})
-    m.fleet.router = Unreachable(m.nodes["PARK"])
+    m.fleet.router = Scripted(True, False)  # the check finds a route, the move does not
     assert m.fleet.make_way(m.agvs["A"], m.nodes["PARK"]) is True
     assert m.areas["P"].available_capacity == 0  # taken at the decision, before the move runs
     m.env.run()
@@ -900,12 +911,6 @@ def test_a_purpose_sensitive_router_is_asked_with_the_purpose_of_the_move() -> N
 # Finding 2: the idle transition on each path asks the AGV to make way at that instant
 
 
-def waiting_world(**options: Any) -> Mission:
-    return mission_world(
-        fork(), {"A": "S", "B": "M"}, bays={"WH-S": "S", "WH-M": "M", "WH-D": "D"}, clear_service_nodes=False, **options
-    )
-
-
 def test_a_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
     m = mission_world(fork(), {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
     m.order("WH-S", "WH-M")  # A ends on M
@@ -922,7 +927,6 @@ def test_a_failed_travel_that_ends_idle_on_a_blocking_node_makes_way_at_once() -
         {"A": "S", "B": "M"},
         bays={"WH-S": "S", "WH-D": "D"},
         clear_service_nodes=False,
-        router=Unreachable(Node("D", 20, 0)),
     )
     m.fleet.router = Unreachable(m.nodes["D"])
     order = m.order("WH-S", "WH-D")
@@ -1102,3 +1106,61 @@ def test_idle_for_an_agv_without_a_fleet_reports_the_stuck_wait() -> None:
     m.controller.idle(outsider)  # nobody can ask it to move
     (stuck,) = m.events(TrafficWaitStuck)
     assert (stuck.agv, stuck.t) == ("B", 1.0)
+
+
+# --- fix round 2: a make-way move that fails at once is not repeated at the same instant --------------------------
+
+
+def run_bounded(m: Mission, steps: int = 5000) -> int:
+    """Step the environment until its queue is empty or `steps` is reached; the number of steps taken."""
+    taken = 0
+    while m.env.peek() != float("inf") and taken < steps:
+        m.env.step()
+        taken += 1
+    return taken
+
+
+def test_a_policy_target_that_the_router_cannot_reach_does_not_loop() -> None:
+    graph_nodes = fork()
+    policy = Choosing(graph_nodes[1]["SL"])
+    m = mission_world(
+        graph_nodes,
+        {"A": "S", "B": "D"},
+        bays={"WH-S": "S", "WH-M": "M"},
+        clear_service_nodes=False,
+        controller_options={"policy": policy},
+    )
+    m.fleet.router = Unreachable(m.nodes["SL"])
+    m.order("WH-S", "WH-M")
+    m.at(3.0, lambda: m.env.process(_travel(m, "B", "S")))
+    assert run_bounded(m) < 5000  # the run ends: nothing repeats without end at one instant
+    assert len(policy.asked) < 10
+    assert [e.reason for e in m.events(AgvRouted, agv="A")] == ["travel"]  # no make-way move was started
+    assert [e.agv for e in m.events(TrafficWaitStuck)] == ["B"]  # the wait is reported stuck, once
+
+
+def test_make_way_refuses_a_target_the_router_cannot_reach(caplog: pytest.LogCaptureFixture) -> None:
+    w = world(t_layout(), {"A": "C1"}, make_way=True)
+    w.fleet.router = Unreachable(w.nodes["PARK"])
+    before = len(w.replay.events)
+    assert w.fleet.make_way(w.agvs["A"], w.nodes["PARK"]) is False
+    assert w.agvs["A"].state is AGVState.IDLE
+    assert len(w.replay.events) == before  # no travel, no state change
+    assert [r for r in caplog.records if r.levelname == "ERROR"] == []  # and no error is logged
+
+
+def test_a_make_way_move_that_ends_at_once_is_not_repeated_at_the_same_instant() -> None:
+    m = mission_world(fork(), {"A": "S"})
+    a, sl = m.agvs["A"], m.nodes["SL"]
+    m.fleet.router = Scripted(True, False, True, True)  # the check finds a route, the move does not; then both do
+    assert m.fleet.make_way(a, sl) is True
+    while a.state is not AGVState.IDLE:
+        m.env.step()
+    assert (m.env.now, a.current_node) == (0, m.nodes["S"])  # the move failed at once, where it started
+    assert m.fleet.make_way(a, sl) is False  # not again at this instant
+    assert a.state is AGVState.IDLE
+    m.env.run(until=2.0)
+    assert m.fleet.make_way(a, sl) is True  # a later time: allowed again
+    m.env.run()
+    assert (a.state, a.current_node) == (AGVState.IDLE, sl)
+    assert make_way_times(m, "A") == [2.0]

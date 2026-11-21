@@ -31,7 +31,7 @@ from simulatte.intralogistics.policies import (
     RoundRobinStrategy,
     StayInPlace,
 )
-from simulatte.intralogistics.routing import ShortestDistanceRouter
+from simulatte.intralogistics.routing import RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome, standard_target
 
@@ -165,6 +165,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._executor = TravelExecutor(self)
         self.clear_service_nodes = clear_service_nodes
         """Whether an AGV that would become idle on a service node first moves off it (spec §7.10)."""
+        self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node
         self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
@@ -852,26 +853,42 @@ class FleetCoordinator(Entity, kind="fleet"):
         of the standard search for an idle AGV (spec §7.9, §7.10); whether a move was started.
 
         Nothing happens, and false is returned, for an AGV that is not idle (one already making way is not), when there
-        is no target, and when the target is the AGV's own node or a parking area without a free slot. Otherwise the
+        is no target, when the target is the AGV's own node, a node the router cannot reach from the AGV's node
+        (asked with purpose ``make_way``, for a target that was given) or a parking area without a free slot, and when
+        the AGV's previous make-way move ended at the current time on the node it started from (so that a move that
+        fails at once is not repeated without time passing). Otherwise the
         AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
         when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
         ``on_agv_idle`` hooks and the pending-queue check run as after any mission.
         """
-        if agv.state is not AGVState.IDLE or agv.current_node is None:
+        origin = agv.current_node
+        if agv.state is not AGVState.IDLE or origin is None:
+            return False
+        if self._returned.get(agv) == (float(self.env.now), origin):
             return False
         if target is None:
             target = standard_target(self, agv, concerned=concerned, idle=True, purpose="make_way")
-        if target is None or target == agv.current_node or not self._take_slot(agv, target):
+        elif target != origin and not self._reachable(agv, origin, target):
+            return False
+        if target is None or target == origin or not self._take_slot(agv, target):
             return False
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
         self.env.process(self._make_way_move(agv, target))
         return True
 
+    def _reachable(self, agv: AGV, origin: Node, target: Node) -> bool:
+        """Whether the router finds a route for a make-way move of `agv` from `origin` to `target`."""
+        request = RouteRequest(agv, origin, target, 0.0, purpose="make_way")
+        return self.router.route(request, self.traffic_controller.view) is not None
+
     def _make_way_move(self, agv: AGV, target: Node) -> ProcessGenerator:
         """The process of one make-way move: the travel, then the idle bookkeeping of a finished mission."""
+        origin = self._require_current_node(agv)
         outcome = yield from self._idle_travel(agv, target, "make_way")
         if outcome is TravelOutcome.BATTERY_STRANDED:
             return
+        if agv.current_node == origin:
+            self._returned[agv] = (float(self.env.now), origin)
         self._transition_agv(agv, AGVState.IDLE)
         for cb in self._hooks_on_agv_idle:
             cb(agv)
