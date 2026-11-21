@@ -79,7 +79,8 @@ class OrderStatusChanged(DomainEvent):
     (``dispatched_at``, ``delivered_at``); with reason ``load_recovery`` they also set the order's ``agv`` when the
     strategy changed it together with the status (``ReturnToOrigin`` clears it). `reason` names the transition:
     ``awaiting_activation``, ``no_idle_agv``, ``dispatched``, ``arrived_at_origin``, ``picked``,
-    ``arrived_at_destination``, ``delivered``, ``interrupted`` (re-queued before pickup), ``cancelled``,
+    ``arrived_at_destination``, ``delivered``, ``interrupted`` (re-queued before pickup), ``traffic_requeued``
+    (re-queued before pickup because the AGV gave up its travel in traffic, spec §8.2), ``cancelled``,
     ``load_recovery`` (set by the load-recovery strategy), ``battery_stranded``, ``travel_failed`` (the router found
     no route), ``cargo_dropped`` or ``retries_exhausted``.
     """

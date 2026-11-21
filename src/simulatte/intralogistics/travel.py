@@ -354,7 +354,8 @@ class _Trip:
         charger = fleet._find_reachable_charger(agv)
         if charger is not None:
             prior_state = agv.state
-            yield from fleet._charge_agv(agv, charger)
+            if (yield from fleet._charge_agv(agv, charger)) is TravelOutcome.GAVE_UP:
+                return TravelOutcome.GAVE_UP  # the diversion gave up: this travel ends where the AGV stopped
             fleet._transition_agv(agv, prior_state)
             if agv.battery.level < energy_cost:
                 fleet._transition_agv(agv, AGVState.STRANDED)
@@ -637,4 +638,4 @@ class _Trip:
         return True
 
     def _give_up(self) -> bool:
-        return False
+        return self.fleet._may_give_up(self.agv)

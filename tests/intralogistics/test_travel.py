@@ -539,7 +539,7 @@ def test_hooks_of_a_waiting_travel() -> None:
     hooks = w.hooks("A")
     assert hooks.route() == (n["S"], n["P"], n["E"])
     assert hooks.loaded() is False
-    assert hooks.give_up() is False
+    assert hooks.give_up() is True  # a travel with no order and no cargo may give up (spec §8.2)
     assert hooks.try_reroute(frozenset({n["P"], n["Q"]}), None) is False  # no route
     assert hooks.try_reroute(frozenset(), None) is False  # the first claim is not admissible
     assert hooks.try_reroute(frozenset({n["P"]}), 1.0) is False  # too long: 28.3 > 20

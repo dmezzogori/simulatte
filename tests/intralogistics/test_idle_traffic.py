@@ -141,6 +141,7 @@ def mission_world(
     agv_type: AGVType | None = None,
     battery: dict[str, float] | None = None,
     controller_options: dict[str, Any] | None = None,
+    controller_type: type[ReservationController] = ReservationController,
     **options: Any,
 ) -> Mission:
     """An activated world with missions: one warehouse per entry of `bays` (name to node id, input and output bay),
@@ -149,7 +150,7 @@ def mission_world(
     graph, nodes = graph_nodes
     env = Environment(debug=True)
     controller: Any = (
-        ReservationController(env=env, graph=graph, **(controller_options or {})) if reserve else FreeFlowController()
+        controller_type(env=env, graph=graph, **(controller_options or {})) if reserve else FreeFlowController()
     )
     kind = agv_type or vehicle()
     vehicles = {

@@ -72,8 +72,9 @@ class _TransferOrderOptions(TypedDict, total=False):
 
 
 _TRAVEL_FAILED = frozenset({TravelOutcome.NO_ROUTE, TravelOutcome.GAVE_UP})
-"""Travel outcomes that fail the mission as ``travel_failed``. ``GAVE_UP`` cannot occur yet (no travel accepts a
-give-up); until it gets its own handling (spec §8.2) it is treated like ``NO_ROUTE``."""
+"""Outcomes that fail a mission travelling with cargo as ``travel_failed``. ``GAVE_UP`` is listed for safety only: a
+travel with cargo on board refuses to give up (spec §8.2, :meth:`FleetCoordinator._may_give_up`). The travels that do
+give up are handled where they are made."""
 
 
 _STATUS_TIMESTAMPS = {OrderStatus.DISPATCHED: "dispatched_at", OrderStatus.COMPLETED: "delivered_at"}
@@ -86,6 +87,10 @@ class FleetCoordinator(Entity, kind="fleet"):
     Manages transfer orders from submission through dispatch, travel, pick,
     transit, deliver, and completion.  Analogous to ``ShopFloor`` for
     production simulations but focused on warehouse-to-warehouse AGV transport.
+
+    An AGV whose traffic controller tells it to give up a travel (spec §8.2) stops where it stands and becomes ``IDLE``,
+    unless it carries cargo, which it never gives up; an order that was not picked up yet goes back to ``PENDING``
+    (reason ``traffic_requeued``), at most ``max_traffic_requeues`` times per order.
 
     Idle AGVs are kept out of the way (spec §7.10): :meth:`make_way` moves an idle AGV that blocks a claim, and with
     ``clear_service_nodes`` (default true) an AGV that would become idle on a service node (a bay of a warehouse or the
@@ -132,6 +137,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         repositioning_policy: RepositioningPolicy | None = None,
         load_recovery_strategy: LoadRecoveryStrategy | None = None,
         clear_service_nodes: bool = True,
+        max_traffic_requeues: int = 3,
         default_metrics: bool = True,
         ema_alpha: float = 0.01,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
@@ -165,6 +171,10 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._executor = TravelExecutor(self)
         self.clear_service_nodes = clear_service_nodes
         """Whether an AGV that would become idle on a service node first moves off it (spec §7.10)."""
+        self.max_traffic_requeues = max_traffic_requeues
+        """How many times an order that has not been picked up goes back to the pending queue because its AGV gave up
+        a travel in traffic; the next give-up is refused (spec §8.2)."""
+        self._requeues: dict[str, int] = {}  # by order id: how many times the order was requeued for traffic
         self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node
         self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
@@ -558,6 +568,7 @@ class FleetCoordinator(Entity, kind="fleet"):
     def _retire_if_terminal(self, order: TransferOrder) -> None:
         """Retire `order` if its status is terminal and it is still live (spec §5.1)."""
         if order.status in TERMINAL_STATUSES and self.env.entities.is_live(order):
+            self._requeues.pop(order.id, None)
             self.env.entities.retire(order)
 
     def _dispatch(self, order: TransferOrder, agv: AGV) -> None:
@@ -610,13 +621,19 @@ class FleetCoordinator(Entity, kind="fleet"):
                 if outcome is TravelOutcome.BATTERY_STRANDED:
                     self._set_status(order, OrderStatus.FAILED, "battery_stranded")
                     return
-                if outcome in _TRAVEL_FAILED:
+                if outcome is TravelOutcome.NO_ROUTE:
                     self._set_status(order, OrderStatus.FAILED, "travel_failed")
                     self._transition_agv(agv, AGVState.IDLE)
                     return
+                gave_up = outcome is TravelOutcome.GAVE_UP
                 # Charging diversion or critical battery — charge first if needed
-                if agv.battery.is_critical and self.charging_stations:
-                    yield from self._charge_agv(agv)
+                if not gave_up and agv.battery.is_critical and self.charging_stations:
+                    gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
+                if gave_up:  # before pickup, so the order goes back to the pending queue (spec §8.2)
+                    self._requeue_for_traffic(order, agv)
+                    self._transition_agv(agv, AGVState.IDLE)
+                    notify_idle = True
+                    return
                 self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
 
             # 2. Pick
@@ -677,8 +694,9 @@ class FleetCoordinator(Entity, kind="fleet"):
 
             # Battery check after mission
             target = None
+            gave_up = False
             if agv.battery.is_low and self.charging_stations:
-                yield from self._charge_agv(agv)
+                gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
             else:
                 # Repositioning
                 repo_ctx = RepositioningContext(
@@ -694,7 +712,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                         outcome = yield from self._idle_travel(agv, target)
                         if outcome is TravelOutcome.BATTERY_STRANDED:
                             return
-                        if outcome in _TRAVEL_FAILED:
+                        if outcome is TravelOutcome.NO_ROUTE:
                             self.env.warning(
                                 f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
                                 component="FleetCoordinator",
@@ -702,9 +720,10 @@ class FleetCoordinator(Entity, kind="fleet"):
                     else:  # a full parking area is not a valid target (spec §7.10)
                         target = None
 
-            # Clear a service node the AGV would otherwise idle on
-            if target is None and (yield from self._clear_service_node(agv)) is TravelOutcome.BATTERY_STRANDED:
-                return
+            # Clear a service node the AGV would otherwise idle on (not after a travel that gave up: it idles in place)
+            if not gave_up and target is None:
+                if (yield from self._clear_service_node(agv)) is TravelOutcome.BATTERY_STRANDED:
+                    return
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
@@ -837,6 +856,30 @@ class FleetCoordinator(Entity, kind="fleet"):
         env = self.env
         if env.wants(AgvStranded):
             env.emit(AgvStranded(agv=agv.id, node=node.id, reason=reason))
+
+    def _may_give_up(self, agv: AGV) -> bool:
+        """Whether the travel of `agv` may give up now: the ``give_up`` hook of the executor (spec §8.2).
+
+        Never with cargo on board, whatever the travel (a charging diversion travels unloaded and still refuses). An
+        order mission before pickup (its order is ``DISPATCHED``), including a charging diversion inside it, may while
+        the order was requeued for traffic fewer than ``max_traffic_requeues`` times. A travel with no order
+        (repositioning, make way, clearing a service node, charging after a mission) always may.
+        """
+        if agv.current_load is not None:
+            return False
+        order = self._agv_mission.get(agv)
+        if order is None or order.status is not OrderStatus.DISPATCHED:
+            return True
+        return self._requeues.get(order.id, 0) < self.max_traffic_requeues
+
+    def _requeue_for_traffic(self, order: TransferOrder, agv: AGV) -> None:
+        """Put the order of a mission that gave up before pickup back to ``PENDING``, unassigned, at the end of the
+        pending queue (spec §8.2); the mission counts one more requeue of the order."""
+        self._requeues[order.id] = self._requeues.get(order.id, 0) + 1
+        self._set_status(order, OrderStatus.PENDING, "traffic_requeued")
+        self._unassign_order(order, agv)
+        self._pending_add(order)
+        self._ensure_pending_retry_loop()
 
     @property
     def service_nodes(self) -> frozenset[Node]:
@@ -976,7 +1019,11 @@ class FleetCoordinator(Entity, kind="fleet"):
                 self.traffic_controller.place(agv, agv.current_node)
 
     def _charge_agv(self, agv: AGV, station: ChargingStation | None = None) -> ProcessGenerator:
-        """Navigate to a charging station and recharge."""
+        """Navigate to a charging station and recharge.
+
+        Returns ``TravelOutcome.GAVE_UP`` when the travel to the station gave up (the AGV stands where it stopped,
+        nothing was charged), and None otherwise.
+        """
         if station is None:
             station = self._find_reachable_charger(agv) or self._find_nearest_charger(agv)
         if station is None:
@@ -1011,7 +1058,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             outcome = yield from self._executor.travel(agv, station.node, loaded=False)
             if outcome is not TravelOutcome.ARRIVED:
                 self._low_battery_flags.discard(agv)
-                return
+                return outcome if outcome is TravelOutcome.GAVE_UP else None
 
         # Charge
         self._transition_agv(agv, AGVState.CHARGING)
@@ -1152,13 +1199,31 @@ class FleetCoordinator(Entity, kind="fleet"):
         if self._pending_queue:
             self._ensure_pending_retry_loop()
 
+    def _needs_retry_ticks(self) -> bool:
+        """Whether the pending queue needs the periodic retry (spec §8.4).
+
+        A custom dispatch strategy is polled for as long as an order is pending. With a built-in strategy dispatch is
+        restarted by every transition to ``IDLE``, so ticks are needed only to count retries: for an order no AGV can
+        carry, and for an order an idle AGV that can carry it was not selected for (a route it cannot take).
+        """
+        if not self._pending_queue:
+            return False
+        if type(self._dispatch_strategy) not in (NearestIdleStrategy, RoundRobinStrategy):
+            return True
+        if self._pending_unserviceable:
+            return True
+        idle = [agv for agv in self.fleet if agv.state == AGVState.IDLE]
+        return bool(idle) and any(
+            agv.can_carry(order.sku, order.quantity) for order in self._pending_queue for agv in idle
+        )
+
     def _ensure_pending_retry_loop(self) -> None:
-        if self._pending_queue and not self._pending_retry_scheduled:
+        if not self._pending_retry_scheduled and self._needs_retry_ticks():
             self._pending_retry_scheduled = True
             self.env.process(self._pending_retry_loop())
 
     def _pending_retry_loop(self) -> ProcessGenerator:
-        while self._pending_queue:
+        while self._needs_retry_ticks():
             yield self.env.timeout(self._pending_retry_delay)
             self._check_pending_queue()
         self._pending_retry_scheduled = False
