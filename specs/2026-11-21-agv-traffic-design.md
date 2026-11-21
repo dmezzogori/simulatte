@@ -512,7 +512,9 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   target exists the blocker stays and the waiter's `on_blocked` reviews continue. The idle case comes through
   `idle(agv)` (§7.1): the controller asks the AGV to make way once, for the waits it blocks taken in request
   order, and when the AGV does not move it checks those waits for the stuck condition (§7.9) at once, since a
-  sleeping wait has no review left to report it.
+  sleeping wait has no review left to report it. `make_way` refuses a target the fleet's router cannot
+  reach, and an AGV whose make-way move ended on the node it started from is not asked again at the same
+  instant, so a move that fails at once cannot repeat without time passing.
 - **Service nodes (T12).** A service node is a bay of one of the fleet's warehouses or the node of one of its
   charging stations. `FleetCoordinator(clear_service_nodes=True)`: when the controller controls occupancy, an AGV
   that would become idle on a service node, and for which the repositioning policy returned no target, first
