@@ -575,7 +575,11 @@ computed once per travel.
 - an order mission before pickup, including a charging diversion inside it: accepted while the order has been
   re-queued for traffic fewer than `FleetCoordinator(max_traffic_requeues=3)` times, refused afterwards. The
   order goes back to `PENDING` with reason `traffic_requeued`, is unassigned and appended to the pending queue;
-  the AGV becomes `IDLE` where it stands, and §7.10 applies;
+  the AGV becomes `IDLE` where it stands, and §7.10 applies. On this path the controller is told first
+  (`idle`, §7.1), so that the AGV can make way before the pending queue is checked, and the pending-queue check
+  of that instant does not offer the order back to the AGV that gave it up: otherwise the nearest idle AGV,
+  which is usually the same one, would take the order again at once, re-enter the same wait and spend every
+  re-queue without time passing;
 - a travel with no order (repositioning, make way, clearing a service node, charging after a mission):
   accepted; the travel ends and the AGV becomes `IDLE` where it stands.
 
