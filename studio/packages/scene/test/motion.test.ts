@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { motionProgress } from "../src/motion";
 import { equipment, Projector } from "../src/project";
@@ -154,4 +155,98 @@ it("expires decoration by active milliseconds or six export frames, independentl
         trails.update(from, projector.project(from), lifetime + 2, lifetime),
       ).toHaveLength(0);
     }
+});
+
+type PiecewiseCase = {
+  name: string;
+  t_start: number;
+  t_end: number;
+  description: Record<string, unknown>;
+  samples: [number, number][] | null;
+};
+const piecewiseCases: PiecewiseCase[] = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../../tests/fixtures/motion/piecewise.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
+
+it("reproduces every sample of the shared piecewise fixture", () => {
+  const valid = piecewiseCases.filter((c) => c.samples !== null);
+  expect(valid.length).toBeGreaterThanOrEqual(6);
+  for (const c of valid)
+    for (const [time, fraction] of c.samples!) {
+      const result = motionProgress(c, time);
+      expect(result.approximate, c.name).toBe(false);
+      expect(result.diagnostic, c.name).toBeNull();
+      expect(Math.abs(result.fraction - fraction), c.name).toBeLessThan(1e-9);
+    }
+});
+
+it("falls back to linear for every invalid piecewise description", () => {
+  const invalid = piecewiseCases.filter((c) => c.samples === null);
+  expect(invalid.length).toBeGreaterThanOrEqual(6);
+  for (const c of invalid) {
+    const time = (c.t_start + c.t_end) / 2;
+    const result = motionProgress(c, time);
+    expect(result.approximate, c.name).toBe(true);
+    expect(result.diagnostic, c.name).toBe("Approximate motion");
+    expect(result.fraction, c.name).toBeCloseTo(0.5, 12);
+  }
+});
+
+it("falls back for malformed piecewise values and copes with a zero-length motion", () => {
+  const good = {
+    curve: "piecewise",
+    v0: 0,
+    phases: [
+      [2, 0.5],
+      [1, -1],
+    ],
+    distance: 1.5,
+  };
+  const at = (description: unknown) =>
+    motionProgress({ t_start: 0, t_end: 3, description }, 1.5);
+  expect(at(good).approximate).toBe(false);
+  for (const patch of [
+    { v0: "0" },
+    { v0: -1 },
+    { v0: Infinity },
+    { distance: null },
+    { distance: 0 },
+    { phases: null },
+    { phases: [[2, 0.5], [1]] },
+    {
+      phases: [
+        [2, 0.5],
+        [1, "x"],
+      ],
+    },
+    { phases: [[2, 0.5], 7] },
+    {
+      phases: [
+        [2, 0.5],
+        [Infinity, 0],
+      ],
+    },
+    {
+      phases: [
+        [2, 0.5],
+        [1, NaN],
+      ],
+    },
+  ])
+    expect(at({ ...good, ...patch }).approximate, JSON.stringify(patch)).toBe(
+      true,
+    );
+  const instant = { t_start: 5, t_end: 5, description: good };
+  expect(motionProgress(instant, 4)).toEqual({
+    fraction: 0,
+    approximate: false,
+    diagnostic: null,
+  });
+  expect(motionProgress(instant, 5).fraction).toBe(1);
 });

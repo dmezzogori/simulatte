@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, TypeAlias, TypeGuard, runtime_checkable
 
 from simulatte.intralogistics.kinematics import Kinematics
 
@@ -14,6 +14,60 @@ MotionDescription: TypeAlias = Mapping[str, object]
 
 LINEAR_MOTION: MotionDescription = {"curve": "linear", "approximate": True}
 """The description of a profile without ``motion``: viewers interpolate linearly and mark the motion approximate."""
+
+
+def motion_fraction(description: MotionDescription, duration: float, elapsed: float) -> float | None:
+    """The position fraction of a ``piecewise`` description `elapsed` seconds into a motion of `duration` seconds.
+
+    `elapsed` is clamped to ``[0, duration]``. Returns ``None`` for any other curve and for an invalid
+    description (spec §11.3): no phase, a duration that is not positive and finite, durations that do not sum to
+    `duration` (within the tolerance of ``keyframes``), a speed below -1e-9 at a phase boundary, an integrated
+    distance that differs from ``distance`` by more than ``max(1e-9, 1e-9 * distance)``, or a ``distance`` that
+    is not positive and finite. Speeds are floored at zero between phases, as :class:`ArcProfile` does.
+    """
+    if description.get("curve") != "piecewise" or not math.isfinite(duration) or duration < 0:
+        return None
+    v0, phases, distance = description.get("v0"), description.get("phases"), description.get("distance")
+    if (
+        not _is_number(v0)
+        or not _is_number(distance)
+        or not isinstance(phases, list | tuple)
+        or not phases
+        or not math.isfinite(v0)
+        or not math.isfinite(distance)
+        or v0 < -1e-9
+        or distance <= 0
+    ):
+        return None
+    parsed: list[tuple[float, float]] = []
+    for phase in phases:
+        if not isinstance(phase, list | tuple) or len(phase) != 2 or not all(_is_number(x) for x in phase):
+            return None
+        length, accel = phase
+        if not (math.isfinite(length) and length > 0 and math.isfinite(accel)):
+            return None
+        parsed.append((float(length), float(accel)))
+    tolerance = max(1e-12, 8 * math.ldexp(1.0, math.frexp(max(duration, 5e-324))[1] - 1 - 52))
+    if abs(sum(length for length, _ in parsed) - duration) > tolerance:
+        return None
+    t = min(max(elapsed, 0.0), duration)
+    covered, speed, position = 0.0, float(v0), None
+    for length, accel in parsed:
+        if position is None and t <= length:
+            position = covered + speed * t + 0.5 * accel * t * t
+        covered += speed * length + 0.5 * accel * length * length
+        speed += accel * length
+        if speed < -1e-9:
+            return None
+        speed = max(0.0, speed)
+        t -= length
+    if abs(covered - distance) > max(1e-9, 1e-9 * distance):
+        return None
+    return min(1.0, max(0.0, (covered if position is None else position) / distance))
+
+
+def _is_number(value: object) -> TypeGuard[float]:
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 @runtime_checkable

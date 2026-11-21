@@ -8,6 +8,10 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from simulatte.intralogistics.speed import MotionDescription
 
 Phase = tuple[float, float]
 """A phase of an arc profile: ``(duration, acceleration)``."""
@@ -78,6 +82,22 @@ class ArcProfile:
             t -= duration
         duration, accel = self.phases[-1]
         return covered, v, accel, min(t, duration)  # rounding may leave t a little past the last phase
+
+    def description(self) -> MotionDescription:
+        """The trace description of the profile (spec §11.3).
+
+        A profile with phases is ``piecewise``: entry speed, ``[duration, acceleration]`` pairs and the arc length;
+        phases of zero duration never occur in a profile, so none is written. A profile without phases (a
+        zero-length arc) has no motion to describe and is ``{"curve": "linear"}``.
+        """
+        if not self.phases:
+            return {"curve": "linear"}
+        return {
+            "curve": "piecewise",
+            "v0": self.v_in,
+            "phases": [[duration, accel] for duration, accel in self.phases],
+            "distance": self.length,
+        }
 
     def time_at(self, s: float) -> float:
         """Elapsed time at distance `s` in ``[0, length]`` (rounding beyond the end is tolerated).
