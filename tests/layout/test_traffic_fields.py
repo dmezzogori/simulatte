@@ -271,6 +271,7 @@ def test_code_api_carries_the_new_fields():
     result = layout.prepare()
     assert result.bundle.schema_version == "1.1"
     assert [zone.capacity for zone in result.network.zones] == [2]
+    assert len(result.network.zones[0].members) == 3 + 2 + 4  # the row's nodes, its generated nodes and pieces
     assert len(result.network.graph.nodes) == 3 + 2  # 0.5 m blocks cut each 1 m lattice edge in two
     network = layout.to_dict()
     assert "network" not in network  # code declarations stay out of the file layer
@@ -659,6 +660,63 @@ def test_ports_and_bays_keep_their_nodes(block_length):
     assert len(ids) == 6 + (expected[0] - 2) + expected[1]
 
 
+def test_a_warehouse_bay_on_a_split_edge_keeps_its_node():
+    from simulatte.intralogistics.sku import SKU
+    from simulatte.intralogistics.warehouse import Warehouse
+
+    sku = SKU("stock", 1, 1)
+    env = Environment()
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.1",
+            **explicit_patch([{"source": "A", "target": "B", "direction": "both"}], block_length=4),
+        },
+    )
+    house = Warehouse(
+        env=env,
+        name="house",
+        input_bays=[layout.node("B")],
+        output_bays=[layout.node("A"), layout.node("B")],
+        n_slots=1,
+        products=[sku],
+        initial_inventory={sku: 1},
+        pick_time=0,
+        put_time=0,
+    )
+    network = layout.prepare().network
+    assert [n.id for n in house.input_bays] == ["B"] and [n.id for n in house.output_bays] == ["A", "B"]
+    assert house.input_bays[0] is network.node(explicit_node("B"))
+    assert house.output_bays[0] is network.node(explicit_node("A"))
+    assert sorted(n.id for n in network.graph.nodes) == ["A", "A~B#1", "A~B#2", "B"]
+
+
+STALE = {"id": "o", "target": {"kind": "explicit", "id": "gone"}, "properties": {"speed_limit": 1}}
+
+
+def test_re_resolution_requires_a_rerun_when_the_layers_change_the_bundle_version():
+    from simulatte.layout.bundle import reresolve_presentation
+
+    base = explicit_patch([{"source": "A", "target": "B", "direction": "both"}])
+    stale_passing = {**STALE, "properties": {"passing": True}}
+    old = prepared({**base, "overrides": [STALE]}, version="1.0")
+    assert old.bundle.schema_version == "1.0"
+    upgraded = {**base, "schema_version": "1.1", "overrides": [stale_passing]}
+    outcome = reresolve_presentation(old.bundle, upgraded)
+    assert outcome.requires_rerun and outcome.bundle is None
+    assert outcome.original_physical_hash == old.physical_hash
+    fresh = prepared({**base, "overrides": [stale_passing]}, version="1.1")
+    assert fresh.bundle.schema_version == "1.1" and fresh.physical_hash != old.physical_hash
+    # The reverse edit: a 1.1 bundle whose layers no longer use a 1.1 field.
+    outcome = reresolve_presentation(fresh.bundle, {**base, "schema_version": "1.0", "overrides": [STALE]})
+    assert outcome.requires_rerun and outcome.bundle is None
+    # Presentation edits that keep the version still re-resolve.
+    same = reresolve_presentation(
+        fresh.bundle, {**base, "schema_version": "1.1", "overrides": [stale_passing], "placements": {}}
+    )
+    assert not same.requires_rerun and same.bundle is not None and same.bundle.schema_version == "1.1"
+
+
 # --- zones --------------------------------------------------------------------------------------------------------
 
 
@@ -708,10 +766,133 @@ def test_zone_members_follow_a_split_edge():
     )
     result = resolve(patch)
     zones = {zone.id: zone for zone in result.zones}
-    assert len(zones["seg"].members) == 3 and all(isinstance(m, tuple) for m in zones["seg"].members)
-    assert len(zones["lane"].members) == 4 + 3
+    # A matched edge stands for its three pieces and the two generated nodes between them; its ends only when selected.
+    assert len(zones["seg"].members) == 3 + 2
+    assert sum(isinstance(m, tuple) for m in zones["seg"].members) == 3
+    assert {m.id for m in zones["seg"].members if not isinstance(m, tuple)} == {
+        n.id for n in result.graph.nodes if "~" in n.id
+    }
+    assert len(zones["lane"].members) == 2 + 2 + 3
     zones_after = resolve(lane_patch(block_length=100, zones=patch["network"]["zones"]))
     assert {z.id: len(z.members) for z in zones_after.zones} == {"lane": 3, "seg": 1}
+
+
+def stretch(zone: Zone, graph: LayoutGraph) -> set[Any]:
+    """The members of a zone without ``block_length`` expanded onto the split graph: the same nodes, and for each
+    pair the pieces and the generated nodes strictly between its ends."""
+    nodes = {n.id: n for n in graph.nodes}
+    expected: set[Any] = set()
+    for member in zone.members:
+        if not isinstance(member, tuple):
+            expected.add(member.id)
+            continue
+        a, b = (nodes[m.id] for m in member)
+        on = [
+            n
+            for n in graph.nodes
+            if abs((b.x - a.x) * (n.y - a.y) - (b.y - a.y) * (n.x - a.x)) < 1e-9
+            and min(a.x, b.x) - 1e-9 <= n.x <= max(a.x, b.x) + 1e-9
+            and min(a.y, b.y) - 1e-9 <= n.y <= max(a.y, b.y) + 1e-9
+        ]
+        chain = sorted(on, key=lambda n: math.hypot(n.x - a.x, n.y - a.y))
+        assert chain[0] is a and chain[-1] is b
+        expected.update(n.id for n in chain[1:-1])
+        expected.update(tuple(sorted((x.id, y.id))) for x, y in zip(chain, chain[1:]))
+    return expected
+
+
+GRID = {"grid": {"dx": 1, "dy": 1}}
+LATTICE = {"type": "lattice", "bounds": [0, 0, 2, 1]}
+BENT = {"type": "lanes", "lanes": {"L": {"vertices": [vertex("a", 0), vertex("b", 10), vertex("c", 10, 7)]}}}
+COVERS = {
+    "row": (GRID, LATTICE, {"kind": "row", "j": 0}),
+    "column": (GRID, LATTICE, {"kind": "column", "i": 1}),
+    "rectangle": (GRID, LATTICE, {"kind": "rectangle", "bounds": [0, 0, 1, 1]}),
+    "lane": ({}, BENT, {"kind": "lane", "id": "L"}),
+    "lane_segment": ({}, BENT, {"kind": "lane_segment", "lane": "L", "source": "b", "target": "c"}),
+    "explicit_arc": (
+        {},
+        explicit_patch([{"source": "A", "target": "B", "direction": "both"}], [("A", 0, 0), ("B", 7, 0)])["network"],
+        {"kind": "explicit_arc", "source": "A", "target": "B"},
+    ),
+}
+
+
+@pytest.mark.parametrize("kind", sorted(COVERS))
+def test_a_zone_covers_the_same_stretch_with_and_without_block_length(kind):
+    extra, network, member = COVERS[kind]
+
+    def zone(**more: Any) -> Zone:
+        patch = {**extra, "network": {**network, **more, "zones": {"z": {"members": [member]}}}}
+        (found,) = resolve(patch).zones
+        return found
+
+    whole = zone()
+    split = resolve({**extra, "network": {**network, "block_length": 0.4, "zones": {"z": {"members": [member]}}}})
+    assert any(isinstance(m, tuple) for m in whole.members)
+    assert members(split.zones[0]) == stretch(whole, split.graph)
+    assert len(split.zones[0].members) > len(whole.members)
+
+
+def test_a_row_zone_keeps_its_segments_when_the_network_is_split():
+    plain = resolve({**GRID, "network": {**LATTICE, "zones": {"z": {"members": [{"kind": "row", "j": 0}]}}}})
+    assert len(plain.zones[0].members) == 3 + 2
+    split = resolve(
+        {**GRID, "network": {**LATTICE, "block_length": 0.5, "zones": {"z": {"members": [{"kind": "row", "j": 0}]}}}}
+    )
+    (zone,) = split.zones
+    assert sum(not isinstance(m, tuple) for m in zone.members) == 3 + 2  # the row's nodes and one per segment
+    assert sum(isinstance(m, tuple) for m in zone.members) == 4  # two pieces per segment
+
+
+def test_a_row_zone_holds_the_second_cart_with_and_without_block_length():
+    from simulatte.intralogistics.agv import AGVState
+    from simulatte.intralogistics.events import TrafficWaitStarted
+
+    def run(block_length: float | None) -> tuple[str, bool]:
+        network: dict[str, Any] = {
+            "type": "lattice",
+            "bounds": [0, 0, 20, 4],
+            "zones": {"row": {"members": [{"kind": "row", "j": 0}]}},
+        }
+        if block_length is not None:
+            network["block_length"] = block_length
+        env = Environment(debug=True)
+        layout = Layout.from_dict(env, {"schema_version": "1.1", "grid": {"dx": 10, "dy": 4}, "network": network})
+        ReservationController(env=env, graph=layout.graph())
+        at = lambda i, j: layout.node_at(Address({"kind": "lattice", "i": i, "j": j}))  # noqa: E731
+        carts = {
+            "c1": AGV(env=env, agv_type=vehicle_type(), agv_id="c1", initial_node=at(0, 0)),
+            "c2": AGV(env=env, agv_type=vehicle_type(), agv_id="c2", initial_node=at(0, 1)),
+        }
+        fleet = StillFleet(
+            env=env,
+            graph=layout.graph(),
+            fleet=list(carts.values()),
+            warehouses=[],
+            charging_stations=[],
+            traffic_controller=env.layout._resource_owner,
+            default_metrics=False,
+        )
+        result = layout.prepare()
+        waits: list[Any] = []
+        env.bus.subscribe(waits.append, (TrafficWaitStarted,))
+        env.activate()
+
+        def mission(agv: AGV, goal: Node):
+            agv.transition_to(AGVState.TRAVELING_EMPTY)
+            yield from fleet._executor.travel(agv, goal, loaded=False, purpose="travel")
+            agv.transition_to(AGVState.IDLE)
+
+        env.process(mission(carts["c1"], result.network.node(Address({"kind": "lattice", "i": 2, "j": 0}))))
+        env.process(mission(carts["c2"], result.network.node(Address({"kind": "lattice", "i": 1, "j": 0}))))
+        env.run(until=100)
+        return carts["c2"].current_node.id, any(w.agv == "c2" for w in waits)
+
+    for block_length in (None, 5):
+        node, waited = run(block_length)
+        # c1 ends on the zone's last node and keeps the zone, so c2 never enters it, with or without blocks.
+        assert waited and node == run(None)[0]
 
 
 def test_a_zone_member_that_matches_nothing_is_a_stale_diagnostic():
@@ -946,13 +1127,18 @@ def run_twin(env: Environment, graph: Any, start: Any, nodes: Any, controller: A
 
 
 def test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream():
-    # The explicit model: the line in 5 m blocks, Q a passing place, and a zone over the segment M~Q and the node Q.
+    # The explicit model: the line in 5 m blocks, Q a passing place, and a zone over the segment M~Q (both its
+    # pieces and the node between them) and the node Q.
     plain = {name: Node(name, x, y) for name, x, y in POINTS}
     arcs = [Arc(plain[a], plain[b], passing=a == "Q") for a, b in LINKS]
     arcs += [Arc(plain[b], plain[a], passing=a == "Q") for a, b in LINKS]
     graph = LayoutGraph(plain.values(), arcs).subdivide(5)
     by_id = {node.id: node for node in graph.nodes}
-    gate = Zone("gate", (by_id["Q"], (by_id["M"], by_id["M~Q#1"]), (by_id["M~Q#1"], by_id["Q"])), capacity=1)
+    gate = Zone(
+        "gate",
+        (by_id["M~Q#1"], by_id["Q"], (by_id["M"], by_id["M~Q#1"]), (by_id["M~Q#1"], by_id["Q"])),
+        capacity=1,
+    )
     env = Environment(debug=True)
     controller = ReservationController(env=env, graph=graph, zones=[gate])
     explicit = run_twin(env, graph, lambda at: by_id[at], lambda: by_id, controller)

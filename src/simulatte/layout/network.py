@@ -519,15 +519,19 @@ def split_blocks(
 
 def resolve_zones(
     values: ResolvedValues,
+    unsplit: NetworkDefinitions,
     definitions: NetworkDefinitions,
     nodes: Mapping[Address, Node],
     arcs: Mapping[tuple[Address, Address], Any],
 ) -> tuple[tuple[Zone, ...], tuple[LayoutDiagnostic, ...]]:
     """Resolve ``network.zones`` to concrete nodes and node pairs of the final graph, zones in id order.
 
-    A member is an element address or selector, as an override target, and matches the elements it selects in the
-    split network. Disabled elements and traversals that did not make the graph are left out; a member that matches
-    nothing at all is a ``stale-zone-member`` warning. Pairs are ordered by node id, members as nodes, then pairs.
+    A member is an element address or selector, as an override target, and is matched against the network the
+    overrides see (``unsplit``, before ``block_length``). A matched node stays itself; a matched edge stands for all
+    its pieces and the generated nodes between them, so a zone covers the same stretch with and without
+    ``block_length``, and the end nodes of an edge are members only if the member also selects them. Disabled
+    elements and traversals that did not make the graph are left out; a member that matches nothing at all is a
+    ``stale-zone-member`` warning. Pairs are ordered by node id, members as nodes, then pairs.
     """
     from simulatte.intralogistics.network import Zone
 
@@ -542,7 +546,7 @@ def resolve_zones(
         found: set[Node] = set()
         pairs: set[tuple[Node, Node]] = set()
         for i, member in enumerate(values.require(path, explicit=True)):
-            selected_nodes, selected_edges = _matches(definitions, member)
+            selected_nodes, selected_edges = _matches(unsplit, member)
             if not selected_nodes and not selected_edges:
                 source = values.at((*path, str(i))).source
                 diagnostics.append(
@@ -557,10 +561,15 @@ def resolve_zones(
                 )
             found.update(nodes[a] for a in selected_nodes if a in nodes)
             for address in selected_edges:
-                edge = definitions.edges[address]
-                if (edge.source, edge.target) in arcs or (edge.target, edge.source) in arcs:
+                for piece in definitions.lineage[address] if address not in definitions.edges else (address,):
+                    edge = definitions.edges[piece]
+                    if (edge.source, edge.target) not in arcs and (edge.target, edge.source) not in arcs:
+                        continue
                     low, high = sorted((nodes[edge.source], nodes[edge.target]), key=lambda node: node.id)
                     pairs.add((low, high))
+                    found.update(
+                        nodes[end] for end in (edge.source, edge.target) if end.to_dict()["kind"] in GENERATED_KINDS
+                    )
         ordered = (
             *sorted(found, key=lambda node: node.id),
             *sorted(pairs, key=lambda pair: (pair[0].id, pair[1].id)),
@@ -781,6 +790,7 @@ def resolve_network(
         if selected_nodes or selected_edges:
             dependencies.read(values, (*path, "properties"))
     definitions, override_diagnostics = apply_overrides(values, definitions)
+    unsplit = definitions
     spec = values.explicit_data.get("network", {})
     if "block_length" in spec:
         definitions = split_blocks(definitions, spec["block_length"], capacity=spec.get("capacity"), limits=limits)
@@ -831,7 +841,7 @@ def resolve_network(
         definitions.clearance,
     )
     weak, strong = _components(final_adjacency)
-    zones, zone_diagnostics = resolve_zones(values, definitions, nodes, arcs)
+    zones, zone_diagnostics = resolve_zones(values, unsplit, definitions, nodes, arcs)
     diagnostics = list(values.diagnostics) + list(override_diagnostics) + list(zone_diagnostics)
     if len(weak) > 1:
         diagnostics.append(

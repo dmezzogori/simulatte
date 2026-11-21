@@ -726,6 +726,9 @@ def reresolve_presentation(bundle: LayoutBundle, file_patch: Mapping[str, Any]) 
     changed = closure.reevaluate(stages, file_layer)
     if changed:
         return PresentationResult(True, changed, None, bundle.physical_hash)
+    if _version(explicit) != bundle.schema_version:
+        # The version is part of every hash, and a field of a stale override is no physical read.
+        return PresentationResult(True, (("schema_version",),), None, bundle.physical_hash)
     auto = auto_layout(targets, StaticTopology.from_dict(data["topology"]), explicit)
     values = resolve_layers(stages, file_layer, targets=kinds, final=True, auto_layer=auto.data)
     data["layers"]["file"] = file_layer.to_dict()
