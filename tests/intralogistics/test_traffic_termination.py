@@ -16,6 +16,7 @@ from simulatte.intralogistics.agv import AGV, AGVState
 from simulatte.intralogistics.events import (
     AgvRouted,
     ChargingStarted,
+    OrderAssigned,
     OrderStatusChanged,
     TrafficDeadlock,
     TrafficWaitStuck,
@@ -51,15 +52,24 @@ class Quitter(ReservationController):
     `asked` lists ``(agv id, goal id, answer of give_up)`` for each claim of such a travel; a refused claim goes on to
     the real controller."""
 
-    def __init__(self, *args: Any, quits: frozenset[str] = frozenset(), **options: Any) -> None:
+    ask_hook = True  # a subclass may end travels with GaveUp without asking the coordinator
+
+    def __init__(
+        self,
+        *args: Any,
+        quits: frozenset[str] = frozenset(),
+        agvs: frozenset[str] | None = None,
+        **options: Any,
+    ) -> None:
         super().__init__(*args, **options)
         self.quits = quits
+        self.agvs = agvs  # the AGVs that give up; None: all
         self.asked: list[tuple[str, str, bool]] = []
 
     def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest:
         goal = hooks.route()[-1]
-        if goal.id in self.quits:
-            answer = hooks.give_up()
+        if goal.id in self.quits and (self.agvs is None or agv.id in self.agvs):
+            answer = hooks.give_up() if self.ask_hook else True
             self.asked.append((agv.id, goal.id, answer))
             if answer:
                 event = simpy.Event(agv.env)
@@ -69,10 +79,15 @@ class Quitter(ReservationController):
 
 
 def quit_world(
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]], agvs: dict[str, str], *goals: str, **kw: Any
+    graph_nodes: tuple[LayoutGraph, dict[str, Node]],
+    agvs: dict[str, str],
+    *goals: str,
+    only: frozenset[str] | None = None,
+    controller_type: type[Quitter] = Quitter,
+    **kw: Any,
 ) -> Mission:
-    options = {"quits": frozenset(goals)}
-    return mission_world(graph_nodes, agvs, controller_type=Quitter, controller_options=options, **kw)
+    options = {"quits": frozenset(goals), "agvs": only}
+    return mission_world(graph_nodes, agvs, controller_type=controller_type, controller_options=options, **kw)
 
 
 def asked(m: Mission) -> list[tuple[str, str, bool]]:
@@ -127,8 +142,10 @@ def test_an_order_is_requeued_for_traffic_at_most_max_traffic_requeues_times(lim
     assert asked(m) == [("A", "S", True)] * bound + [("A", "S", False)]  # the next one is refused
     assert reasons(m, order).count("traffic_requeued") == bound
     assert order.status is OrderStatus.COMPLETED  # after the last refusal the AGV waits for its claim and goes on
-    for seen in snapshots.seen[:bound]:  # PENDING, unassigned and queued, the AGV idle in place and without the order
-        assert seen == (0.0, AGVState.IDLE, "M", OrderStatus.PENDING, None, [order.id], None)
+    # PENDING, unassigned and queued, the AGV idle in place and without the order; the pending-queue check of the
+    # instant does not offer the order back, so each new attempt is the next retry tick (spec §8.2)
+    for tick, seen in enumerate(snapshots.seen[:bound]):
+        assert seen == (float(tick), AGVState.IDLE, "M", OrderStatus.PENDING, None, [order.id], None)
     statuses = [e.status for e in m.events(OrderStatusChanged) if e.order == order.id]
     assert statuses[:3] == (
         ["DISPATCHED", "PENDING", "DISPATCHED"] if bound else ["DISPATCHED", "PICKING", "IN_TRANSIT"]
@@ -185,8 +202,8 @@ def test_a_charging_diversion_before_pickup_is_part_of_the_order_mission() -> No
     m.env.run()
     assert asked(m) == [("A", "CH", True)] * 3 + [("A", "CH", False)]
     assert reasons(m, order).count("traffic_requeued") == 3
-    for seen in snapshots.seen[:3]:
-        assert seen == (0.0, AGVState.IDLE, "M", OrderStatus.PENDING, None, [order.id], None)
+    for tick, seen in enumerate(snapshots.seen[:3]):  # one attempt per retry tick
+        assert seen == (float(tick), AGVState.IDLE, "M", OrderStatus.PENDING, None, [order.id], None)
     assert len(m.events(ChargingStarted)) == 1  # the fourth time the AGV charges
     assert order.status is OrderStatus.COMPLETED
 
@@ -423,3 +440,99 @@ def test_a_custom_dispatch_strategy_keeps_the_polling_loop() -> None:
     assert m.fleet._pending_retry_scheduled is True
     m.env.run()
     assert (order.status, m.env.now) == (OrderStatus.FAILED, 3.0)
+
+
+# --- fix round 1: the AGV that gave up makes way before the order is offered again ------------------------------------
+
+
+def head_on() -> tuple[LayoutGraph, dict[str, Node]]:
+    """``N0 - N1 - N2 - N3`` along a row with the side node ``SIDE`` off ``N1``."""
+    return build(
+        [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("N3", 30, 0), ("SIDE", 10, 10)],
+        [("N0", "N1"), ("N1", "N2"), ("N2", "N3"), ("N1", "SIDE")],
+    )
+
+
+def test_a_deadlock_give_up_frees_the_way_before_the_order_is_offered_again() -> None:
+    """A carries a load from N3 to N0 and B, unloaded, goes to N3 for the same pickup: head on, with no resolution left
+    but giving up. B gives up once, at the first give-up instant, makes way to SIDE, and A delivers."""
+    m = mission_world(
+        head_on(),
+        {"A": "N3", "B": "N0"},
+        bays={"W3": "N3", "W0": "N0"},
+        controller_options={"policy": StandardTrafficPolicy(max_resolutions=0)},
+    )
+    first = m.order("W3", "W0")
+    second = m.order("W3", "W0")
+    m.env.run()  # returns
+    requeued = [e for e in m.events(OrderStatusChanged) if e.reason == "traffic_requeued"]
+    assert len(requeued) == 1  # not spent three times at one instant
+    (deadlock,) = [e for e in m.events(TrafficDeadlock) if e.action == "give_up"]
+    assert (deadlock.victim, deadlock.t) == ("B", requeued[0].t)
+    (way,) = [e for e in m.events(AgvRouted, agv="B") if e.reason == "make_way"]
+    assert (way.t, way.origin) == (requeued[0].t, "N0")  # B, idle where it stopped, makes way at that instant
+    assert first.status is OrderStatus.COMPLETED  # A delivered
+    assert second.status is OrderStatus.COMPLETED  # and the order went to an AGV later
+
+
+def test_the_requeued_order_goes_to_another_idle_agv_at_once() -> None:
+    m = quit_world(
+        lane(),
+        {"A": "M", "C": "SIDE"},
+        "S",
+        only=frozenset({"A"}),
+        bays={"WH-S": "S", "WH-D": "D"},
+    )
+    order = m.order("WH-S", "WH-D")
+    log: list[str] = []
+    controller, fleet = m.controller, m.fleet
+    idle, check = controller.idle, fleet._check_pending_queue
+    controller.idle = lambda agv: (log.append(f"idle:{agv.id}"), idle(agv))[-1]  # type: ignore[method-assign]
+    fleet._check_pending_queue = lambda: (log.append("check"), check())[-1]  # type: ignore[method-assign]
+    m.env.run()
+    assigned = [(e.agv, e.t) for e in m.events(OrderAssigned) if e.order == order.id]
+    assert assigned[:2] == [("A", 0), ("C", 0)]  # the same instant, the other AGV
+    assert log[:2] == ["idle:A", "check"]  # A is told first, then the pending queue is checked
+    assert "traffic_requeued" in reasons(m, order)
+    assert m.agvs["A"].state is AGVState.IDLE
+    assert order.status is OrderStatus.COMPLETED
+
+
+def test_the_requeued_order_waits_behind_another_pending_one_which_the_agv_may_take_at_once() -> None:
+    m = quit_world(
+        lane(),
+        {"A": "M"},
+        "S",
+        bays={"WH-S": "S", "WH-D": "D", "WH-F": "FAR"},
+        only=frozenset({"A"}),
+    )
+    first = m.order("WH-S", "WH-D")
+    second = m.order("WH-F", "WH-D")  # no idle AGV when submitted: pending
+    dispatched: list[tuple[float, str, list[str]]] = []
+    m.fleet.on_order_dispatched(
+        lambda o, a: dispatched.append((float(m.env.now), o.id, [p.id for p in m.fleet._pending_queue]))
+    )
+    m.env.run()
+    # first dispatched; given up; at the same instant the AGV takes the other order, the first one waits behind it
+    assert [(t, o) for t, o, _ in dispatched[:2]] == [(0.0, first.id), (0.0, second.id)]
+    assert dispatched[1][2] == [first.id]
+    assert (first.status, second.status) == (OrderStatus.COMPLETED, OrderStatus.COMPLETED)
+    later = [t for t, o, _ in dispatched if o == first.id]
+    assert later[1] > 0.0  # offered to the same AGV again only at a later time
+
+
+# --- fix round 1: a give-up with cargo on board is a controller error ------------------------------------------------
+
+
+class Bypass(Quitter):
+    """Ends the travels it is told to with ``GaveUp`` without asking the coordinator."""
+
+    ask_hook = False
+
+
+def test_a_loaded_travel_ended_with_gave_up_is_a_controller_error() -> None:
+    m = quit_world(lane(), {"A": "S"}, "D", bays={"WH-S": "S", "WH-D": "D"}, controller_type=Bypass)
+    order = m.order("WH-S", "WH-D")
+    with pytest.raises(RuntimeError, match=r"Bypass.*A.*cargo"):
+        m.env.run()
+    assert order.status is not OrderStatus.FAILED  # not mapped like a missing route

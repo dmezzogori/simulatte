@@ -71,12 +71,6 @@ class _TransferOrderOptions(TypedDict, total=False):
     assigned_agv: AGV | None
 
 
-_TRAVEL_FAILED = frozenset({TravelOutcome.NO_ROUTE, TravelOutcome.GAVE_UP})
-"""Outcomes that fail a mission travelling with cargo as ``travel_failed``. ``GAVE_UP`` is listed for safety only: a
-travel with cargo on board refuses to give up (spec §8.2, :meth:`FleetCoordinator._may_give_up`). The travels that do
-give up are handled where they are made."""
-
-
 _STATUS_TIMESTAMPS = {OrderStatus.DISPATCHED: "dispatched_at", OrderStatus.COMPLETED: "delivered_at"}
 """The order timestamp set together with each status (spec §6.4, ``order.status_changed``)."""
 
@@ -175,6 +169,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         """How many times an order that has not been picked up goes back to the pending queue because its AGV gave up
         a travel in traffic; the next give-up is refused (spec §8.2)."""
         self._requeues: dict[str, int] = {}  # by order id: how many times the order was requeued for traffic
+        self._withheld: tuple[TransferOrder, AGV] | None = None  # the order the pending-queue check does not offer
         self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node
         self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
@@ -610,6 +605,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         """Full mission lifecycle as a SimPy process."""
         mission = self.env.active_process
         notify_idle = False
+        gave_up_before_pickup = False
         try:
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
@@ -632,7 +628,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                 if gave_up:  # before pickup, so the order goes back to the pending queue (spec §8.2)
                     self._requeue_for_traffic(order, agv)
                     self._transition_agv(agv, AGVState.IDLE)
-                    notify_idle = True
+                    notify_idle = gave_up_before_pickup = True
                     return
                 self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
 
@@ -660,6 +656,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
             while True:
                 outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
+                self._refuse_give_up_with_cargo(agv, outcome)
                 if outcome is TravelOutcome.ARRIVED:
                     break
                 if outcome is TravelOutcome.BATTERY_STRANDED:
@@ -668,7 +665,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                     self._set_status(order, OrderStatus.FAILED, "battery_stranded")
                     self._transition_agv(agv, AGVState.STRANDED)
                     return
-                if outcome in _TRAVEL_FAILED:
+                if outcome is TravelOutcome.NO_ROUTE:
                     if agv.current_load is not None:
                         yield from self._return_cargo_to_origin(order, agv)
                     self._set_status(order, OrderStatus.FAILED, "travel_failed")
@@ -772,9 +769,19 @@ class FleetCoordinator(Entity, kind="fleet"):
             if notify_idle:
                 for cb in self._hooks_on_agv_idle:
                     cb(agv)
-            self._check_pending_queue()
-            if not closed:
+            if gave_up_before_pickup:
+                # The controller is told first, so that the AGV can make way, and the pending-queue check of this
+                # instant does not hand the order back to the AGV that gave it up (spec §8.2).
                 self._notify_idle(agv)
+                self._withheld = (order, agv)
+                try:
+                    self._check_pending_queue()
+                finally:
+                    self._withheld = None
+            else:
+                self._check_pending_queue()
+                if not closed:
+                    self._notify_idle(agv)
 
     def _recover_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
         """Finish an interrupted mission without exposing rollback to more interrupts."""
@@ -804,9 +811,10 @@ class FleetCoordinator(Entity, kind="fleet"):
                     self._transition_agv(agv, AGVState.TRAVELING_LOADED)
                     while True:
                         outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
+                        self._refuse_give_up_with_cargo(agv, outcome)
                         if outcome is TravelOutcome.ARRIVED:
                             break
-                        if outcome is TravelOutcome.BATTERY_STRANDED or outcome in _TRAVEL_FAILED:
+                        if outcome is TravelOutcome.BATTERY_STRANDED or outcome is TravelOutcome.NO_ROUTE:
                             # H1 fix: fall back to return-to-origin, then drop
                             yield from self._return_cargo_to_origin(order, agv)
                             stranded = outcome is TravelOutcome.BATTERY_STRANDED
@@ -871,6 +879,15 @@ class FleetCoordinator(Entity, kind="fleet"):
         if order is None or order.status is not OrderStatus.DISPATCHED:
             return True
         return self._requeues.get(order.id, 0) < self.max_traffic_requeues
+
+    def _refuse_give_up_with_cargo(self, agv: AGV, outcome: TravelOutcome) -> None:
+        """Fail loudly when a travel with cargo on board ended with ``GAVE_UP``. The ``give_up`` hook refuses such a
+        travel, so only a controller that ends a travel with ``GaveUp`` without asking the hook can cause this."""
+        if outcome is TravelOutcome.GAVE_UP:
+            raise RuntimeError(
+                f"{type(self.traffic_controller).__name__} ended a travel of {agv.agv_id} with cargo on board with "
+                "GaveUp; a travel with cargo refuses to give up"
+            )
 
     def _requeue_for_traffic(self, order: TransferOrder, agv: AGV) -> None:
         """Put the order of a mission that gave up before pickup back to ``PENDING``, unassigned, at the end of the
@@ -1091,6 +1108,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         if current_node != origin_bay:
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
             outcome = yield from self._executor.travel(agv, origin_bay, loaded=True)
+            self._refuse_give_up_with_cargo(agv, outcome)
             if outcome is not TravelOutcome.ARRIVED:
                 self._drop_cargo(agv)
                 self._set_status(order, OrderStatus.FAILED, "cargo_dropped")
@@ -1169,6 +1187,9 @@ class FleetCoordinator(Entity, kind="fleet"):
             if builtin and not idle and order.id not in self._pending_unserviceable:
                 break
             candidates = idle if builtin else self.fleet
+            withheld = self._withheld
+            if withheld is not None and withheld[0] is order:  # not offered to the AGV that just gave it up
+                candidates = [a for a in candidates if a is not withheld[1]]
             agv = self._dispatch_strategy.select(order, candidates, self.graph)
             if agv is not None:
                 dispatched.append(order)
@@ -1176,6 +1197,8 @@ class FleetCoordinator(Entity, kind="fleet"):
                 self._dispatch(order, agv)
                 if builtin:
                     idle = [a for a in idle if a.state == AGVState.IDLE]
+            elif withheld is not None and withheld[0] is order:
+                continue  # waits for a later check; no retry is spent on an order that was not offered
             else:
                 capable_agvs = [a for a in self.fleet if a.can_carry(order.sku, order.quantity)]
                 if capable_agvs:
