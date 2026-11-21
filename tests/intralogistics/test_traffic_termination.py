@@ -278,13 +278,13 @@ def test_a_repositioning_travel_that_gives_up_ends_idle_in_place(caplog: pytest.
 
 
 def test_a_clearing_travel_that_gives_up_ends_idle_in_place() -> None:
-    m = quit_world(lane(), {"A": "S"}, "M", bays={"WH-S": "S", "WH-D": "D"})
+    m = quit_world(lane(), {"A": "S"}, "FAR", bays={"WH-S": "S", "WH-D": "D"})
     m.order("WH-S", "WH-D")
     m.env.run()
     a = m.agvs["A"]
-    assert asked(m) == [("A", "M", True)]
+    assert asked(m) == [("A", "FAR", True)]
     assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["D"])
-    assert m.routed("A")[-1] == ("clear_node", "D", "M")
+    assert m.routed("A")[-1] == ("clear_node", "D", "FAR")
 
 
 def test_a_charging_travel_after_the_mission_that_gives_up_ends_idle_in_place() -> None:

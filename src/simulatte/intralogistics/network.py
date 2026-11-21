@@ -283,6 +283,10 @@ class TrafficNetwork:
         """The capacity of ``node``."""
         return self._capacity[node]
 
+    def branch_root(self, node: Node) -> bool:
+        """Whether ``node`` is the root of a dead-end branch; false for every node when the dead-end rule is off."""
+        return self._hold_back_dead_ends and node in self._branches_at
+
     def segment(self, u: Node, v: Node) -> Segment:
         """The segment between two adjacent nodes, whichever way they are given."""
         try:

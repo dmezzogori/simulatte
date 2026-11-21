@@ -410,8 +410,9 @@ def test_an_agv_leaves_the_delivery_bay_under_reservation() -> None:
     m.env.run()
     a = m.agvs["A"]
     assert order.status is OrderStatus.COMPLETED
-    assert m.routed("A")[-1] == ("clear_node", "D", "M")  # the cheapest node that is not a service node
-    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["M"])
+    # the cheapest node that is not a service node nor a branch root (M roots the dead ends of the lane)
+    assert m.routed("A")[-1] == ("clear_node", "D", "FAR")
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"])
     assert m.states("A")[-2:][0][1] == "TRAVELING_EMPTY"
     assert m.states("A")[-1][1] == "IDLE"
 
@@ -423,7 +424,7 @@ def test_clearing_is_the_last_step_before_the_idle_hooks() -> None:
     m.order("WH-S", "WH-D")
     m.env.run()
     ((time, node),) = seen
-    assert node == "M" and time == m.states("A")[-1][0]
+    assert node == "FAR" and time == m.states("A")[-1][0]
 
 
 def test_an_agv_stays_on_the_bay_without_clear_service_nodes() -> None:
@@ -631,7 +632,7 @@ def test_a_full_area_is_not_a_target() -> None:
     m.env.run()
     assert order.status is OrderStatus.COMPLETED
     assert [e.agv for e in m.events(ParkingEntered)] == ["B"]  # A took none
-    assert m.routed("A")[-1] == ("clear_node", "D", "M")  # a full area is no target: the service node is cleared
+    assert m.routed("A")[-1] == ("clear_node", "D", "END")  # a full area is no target: the service node is cleared
     assert m.fleet.make_way(m.agvs["A"], m.nodes["FAR"]) is False
     assert standard_target(m.fleet, m.agvs["A"], idle=True) is not m.nodes["FAR"]
 
@@ -722,6 +723,35 @@ def test_standard_target_for_an_idle_agv_skips_the_node_of_a_full_area() -> None
     for _ in m.areas["P"].enter(m.agvs["B"]):
         pass
     assert standard_target(m.fleet, m.agvs["A"], idle=True) is m.nodes["D"]
+
+
+def ring_with_a_tail() -> tuple[LayoutGraph, dict[str, Node]]:
+    """The ring ``A0, B0, C0, D0`` with the dead end ``T1, T2`` rooted at ``B0``."""
+    return build(
+        [("A0", 0, 0), ("B0", 10, 0), ("C0", 10, 10), ("D0", 0, 10), ("T1", 20, 0), ("T2", 30, 0)],
+        [("A0", "B0"), ("B0", "C0"), ("C0", "D0"), ("D0", "A0"), ("B0", "T1"), ("T1", "T2")],
+    )
+
+
+@pytest.mark.parametrize(
+    ("others", "parking", "expected"),
+    [
+        ({"C": "C0"}, None, "D0"),  # B0, as near and first by id, roots the dead end
+        ({"C": "C0", "D": "D0"}, None, "T1"),  # members of the branch stay valid
+        ({"C": "C0"}, ("B0", 1), "B0"),  # a parking node on the root is taken
+    ],
+    ids=["root", "member", "parking-root"],
+)
+def test_standard_target_for_an_idle_agv_skips_a_branch_root_unless_it_is_a_parking_node(
+    others: dict[str, str], parking: tuple[str, int] | None, expected: str
+) -> None:
+    """spec §7.9: an idle AGV does not rest on the root of a dead-end branch unless on a parking node; members of the
+    branch are valid targets."""
+    graph, nodes = ring_with_a_tail()
+    m = mission_world((graph, nodes), {"A": "A0", **others}, parking={"P": parking} if parking else None)
+    agv = m.agvs["A"]
+    assert standard_target(m.fleet, agv) is nodes["B0"]  # the generic search takes the nearest node, root or not
+    assert standard_target(m.fleet, agv, idle=True) is nodes[expected]
 
 
 # --- passing a full charging node -------------------------------------------------------------------------------
@@ -1060,7 +1090,7 @@ def test_no_clearing_while_an_order_is_pending() -> None:
         ("travel", "S", "D"),
         ("travel", "D", "S"),  # the second order is dispatched where A stands: no detour in between
         ("travel", "S", "D"),
-        ("clear_node", "D", "M"),  # after the last delivery A still clears
+        ("clear_node", "D", "FAR"),  # after the last delivery A still clears
     ]
     assert second.dispatched_at == first.delivered_at
 

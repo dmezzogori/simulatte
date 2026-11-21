@@ -105,6 +105,7 @@ class TestFreeFlowController:
         assert view.route_of(agv) == ()
         assert view.admissible(agv, Claim((), 1)) is True
         assert view.mean_hold(n0) == 0.0
+        assert view.branch_root(n0) is False
 
     def test_view_graph_is_the_registered_fleets_and_fleets_on_it_share(self) -> None:
         controller, _, _, _ = self._controller()

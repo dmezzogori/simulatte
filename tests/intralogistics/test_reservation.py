@@ -36,6 +36,7 @@ from tests.intralogistics.traffic_support import (
     fake_hooks,
     line,
     loop_with_side_node,
+    t_layout,
     two_junction_corridor,
 )
 
@@ -953,6 +954,21 @@ class TestView:
         assert view.capacity(n1) == 1
         assert view.resources(n0, n1) == (w.seg("N0", "N1"), n1)
         assert view.mean_hold(n1) == 0.0
+
+    def test_branch_root_is_the_root_of_a_dead_end_branch_only(self) -> None:
+        graph, nodes = t_layout()  # C1 roots the three branches; the other nodes are members
+        view = world((graph, nodes), {"A": "C1"}).controller.view
+        assert [node.id for node in graph.nodes if view.branch_root(node)] == ["C1"]
+        off = world((graph, nodes), {"A": "C1"}, hold_back_dead_ends=False).controller.view
+        assert not any(off.branch_root(node) for node in graph.nodes)
+        graph, nodes = line(3)  # a plain line has no branch
+        view = world((graph, nodes), {"A": "N0"}).controller.view
+        assert not any(view.branch_root(node) for node in graph.nodes)
+        roomy = world((graph, nodes), {"A": "N0"}, capacities={nodes["N0"]: 2}).controller.view  # rooted at N0
+        assert [node.id for node in graph.nodes if roomy.branch_root(node)] == ["N0"]
+        graph, nodes = two_junction_corridor()  # the junctions root the leaves
+        view = world((graph, nodes), {"A": "x1"}).controller.view
+        assert [node.id for node in graph.nodes if view.branch_root(node)] == ["J1", "J2"]
 
     def test_dynamic_queries(self) -> None:
         w = world(line(3), {"A": "N1", "B": "N0"})

@@ -100,9 +100,9 @@ def assert_ran(m: Mission, invariants: TrafficInvariants, *, orders: int) -> Non
     assert all(e.action != "unresolved" for e in m.events(TrafficDeadlock))
 
 
-def departures(m: Mission, agv: str) -> dict[str, float]:
-    """The time at which `agv` started an arc from each node, for the nodes it left once."""
-    started = m.events(AgvMoveStarted, agv=agv)
+def departures(m: Mission, agv: str, *, until: float = float("inf")) -> dict[str, float]:
+    """The time at which `agv` started an arc from each node, for the nodes it left once, before `until`."""
+    started = [e for e in m.events(AgvMoveStarted, agv=agv) if e.t < until]
     assert len({e.from_node for e in started}) == len(started)
     return {e.from_node: float(e.t) for e in started}
 
@@ -286,7 +286,9 @@ def test_head_on_in_a_corridor_the_second_agv_waits_before_its_port() -> None:
     # B goes as soon as A has left the far port J2, the corridor's exit, and not before.
     (ended,) = m.events(TrafficWaitEnded, agv="B")
     assert ended.reason == "granted"
-    assert float(ended.t) == departures(m, "A")["J2"] == departures(m, "B")["x2"]
+    # (A clears the bay y2 after its delivery through J2 and b: only the order travels count)
+    delivered = float(m.orders[0].delivered_at or 0.0)
+    assert float(ended.t) == departures(m, "A", until=delivered)["J2"] == departures(m, "B", until=delivered)["x2"]
 
 
 def test_a_swap_with_a_second_route_is_resolved_by_reroute() -> None:

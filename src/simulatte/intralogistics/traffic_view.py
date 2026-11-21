@@ -38,6 +38,9 @@ class ReservationView:
     def capacity(self, node: Node) -> int:
         return self._controller.network.capacity(node)
 
+    def branch_root(self, node: Node) -> bool:
+        return self._controller.network.branch_root(node)
+
     def resources(self, u: Node, v: Node) -> tuple[Resource, ...]:
         return tuple(item.resource for item in self._controller.network.leg(u, v))
 

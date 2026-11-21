@@ -107,8 +107,10 @@ def standard_target(
     would still have a free slot for each of them after the move. The cheapest by router cost wins, ties by node id.
 
     With `idle` (the AGV will be idle on arrival) the node of a parking area with a free slot is taken first, cheapest
-    first; failing that, the node is not a service node and not the node of a parking area that is full. A node that
-    a pending claim names is not taken either unless it keeps a free slot for each of those claims after the move.
+    first; failing that, the node is not a service node, not the root of a dead-end branch (an idle AGV there stops
+    every vehicle that holds back for the branch; members stay valid) and not the node of a parking area that is full.
+    A node that a pending claim names is not taken either unless it keeps a free slot for each of those claims after
+    the move.
     `purpose` is the purpose of the move the search is for; the router is asked with it.
     """
     controller = fleet.traffic_controller
@@ -129,7 +131,7 @@ def standard_target(
         if node == origin or node in full:
             continue
         rank = 0 if node in parking else 1
-        if rank and node in service:
+        if rank and (node in service or (idle and view.branch_root(node))):
             continue
         free = view.capacity(node) - len(view.holders(node))
         if free < 1:
