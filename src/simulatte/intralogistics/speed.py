@@ -4,6 +4,8 @@ import math
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Protocol, TypeAlias, runtime_checkable
 
+from simulatte.intralogistics.kinematics import Kinematics
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -38,6 +40,16 @@ class SpeedProfile(Protocol):
     ) -> float: ...
 
 
+@runtime_checkable
+class KinematicProfile(Protocol):
+    """A profile that reports its motion limits for a load and a battery level (spec §9.1).
+
+    A non-positive ``v_max`` or ``accel`` means the AGV cannot move.
+    """
+
+    def limits(self, load_weight: float, battery_level: float) -> Kinematics: ...
+
+
 def describe_motion(
     profile: object, distance: float, load_weight: float, battery_level: float, speed_limit: float | None
 ) -> MotionDescription:
@@ -66,20 +78,30 @@ class TrapezoidalProfile:
         # motion() for the same segment does not call the factor functions again.
         self._last: tuple[tuple[float, float, float | None], tuple[float, float, float, bool]] | None = None
 
-    def _effective(
-        self, load_weight: float, battery_level: float, speed_limit: float | None
-    ) -> tuple[float, float, float, bool]:
-        """(v_max, accel, decel, moving): the scaled parameters; `moving` is False when a factor is not positive."""
+    def _scaled(self, load_weight: float, battery_level: float) -> tuple[float, float, float, bool]:
+        """(v_max, accel, decel, moving) before any speed limit; `moving` is False when a factor is not positive."""
         battery_factor = self._battery_degradation_fn(battery_level)
         load_factor = self._load_speed_factor_fn(load_weight)
         # Battery scales v_max and acceleration; load scales v_max only; deceleration is unscaled
         v_max = self._max_speed * battery_factor * load_factor
+        moving = not (battery_factor <= 0 or load_factor <= 0)
+        return v_max, self._acceleration * battery_factor, self._deceleration, moving
+
+    def _effective(
+        self, load_weight: float, battery_level: float, speed_limit: float | None
+    ) -> tuple[float, float, float, bool]:
+        """(v_max, accel, decel, moving): the scaled parameters; `moving` is False when a factor is not positive."""
+        v_max, accel, decel, moving = self._scaled(load_weight, battery_level)
         if speed_limit is not None:
             v_max = min(v_max, speed_limit)
-        moving = not (battery_factor <= 0 or load_factor <= 0)
-        effective = (v_max, self._acceleration * battery_factor, self._deceleration, moving)
+        effective = (v_max, accel, decel, moving)
         self._last = ((load_weight, battery_level, speed_limit), effective)
         return effective
+
+    def limits(self, load_weight: float = 0.0, battery_level: float = 1.0) -> Kinematics:
+        """The scaled limits :meth:`travel_time` starts from, before any speed limit; the motion cache is untouched."""
+        v_max, accel, decel, _ = self._scaled(load_weight, battery_level)
+        return Kinematics(v_max, accel, decel)
 
     def travel_time(
         self,
