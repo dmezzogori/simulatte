@@ -102,7 +102,8 @@ class TrafficInvariants:
 
     Node holders stay within the network capacity; a segment without ``passing`` never holds both directions; zone
     holders stay within capacity; a corridor's holders never show both orientations; every AGV placed with the
-    controller that has no active motion holds its current node. ``checked`` counts the events checked (those after
+    controller that has no active motion holds its current node; an AGV holding a member of a zone or corridor holds
+    that zone or corridor. ``checked`` counts the events checked (those after
     the network is built).
     """
 
@@ -133,6 +134,9 @@ class TrafficInvariants:
         for agv in controller._placed:
             if agv.motion is None:
                 assert agv.current_node in controller._held.get(agv, {}), (event, agv.id)
+        for agv, held in controller._held.items():
+            for container, members in controller._members.items():
+                assert container in held or not any(member in held for member in members), (event, agv.id, container)
         self.checked += 1
 
 

@@ -117,10 +117,12 @@ class ZoneBinding(Entity, kind="zone"):
 
 @dataclass(eq=False)
 class _Pending:
-    """A pending claim: the request, the items left after dropping what the AGV holds, and its queue key."""
+    """A pending claim: the request (with its full claim) and its queue key.
+
+    What the claim still needs is determined from the current holdings whenever it is tested (spec §7.5).
+    """
 
     request: ClaimRequest
-    items: tuple[ClaimItem, ...]
     key: tuple[float, int]  # (-priority, request counter)
     stopped: bool = False
     yielding: bool = False  # set by the policy (Task 6); the gate skips yielding claims
@@ -166,7 +168,12 @@ class _ReservationView:
         return tuple(self._controller._holders.get(resource, ()))
 
     def pending(self, resource: Resource) -> int:
-        return sum(1 for claim in self._controller._queue if any(item.resource == resource for item in claim.items))
+        controller = self._controller
+        return sum(
+            1
+            for waiting in controller._queue
+            if any(item.resource == resource for item in controller._needed(waiting.agv, waiting.request.claim))
+        )
 
     def disposition(self, agv: AGV) -> Disposition:
         claim = self._controller._pending.get(agv)
@@ -233,6 +240,7 @@ class ReservationController:
         self._holders: dict[Resource, dict[AGV, Direction | None]] = {}
         self._held: dict[AGV, dict[Resource, None]] = {}
         self._placed: dict[AGV, None] = {}
+        self._exits: dict[AGV, dict[Container, Node]] = {}  # corridors left onto a port, kept until the port goes
         self._queue: list[_Pending] = []  # sorted by key
         self._pending: dict[AGV, _Pending] = {}
         self._counter = 0
@@ -351,12 +359,11 @@ class ReservationController:
         """
         if agv in self._pending:
             raise RuntimeError(f"{agv.id} already has a pending traffic request")
-        items = tuple(item for item in claim.items if not self._holds(agv, item))
         request = ClaimRequest(agv, claim, hooks, self._env.event())
-        if not items:
+        if not self._needed(agv, claim):
             request.event.succeed(Granted())
             return request
-        waiting = _Pending(request, items, (-self._priority_fn(agv), self._counter))
+        waiting = _Pending(request, (-self._priority_fn(agv), self._counter))
         self._counter += 1
         insort(self._queue, waiting, key=lambda claim: claim.key)
         self._pending[agv] = waiting
@@ -381,26 +388,73 @@ class ReservationController:
     def release(self, agv: AGV, resources: Collection[Resource]) -> None:
         """Free the given resources that `agv` holds, and each zone or corridor whose last held member goes with them.
 
-        Resources the AGV does not hold are ignored. A zone or corridor held ahead of entry (no member held) stays.
+        Resources the AGV does not hold are ignored. Three containers stay (spec §7.5): one held ahead of entry (no
+        member held), one named by the AGV's pending claim, and a corridor left onto a port the AGV still holds, which
+        then goes with that port.
         """
         held = self._held.get(agv, {})
         wanted = set(resources)
         gone = {resource for resource in held if resource in wanted}
-        for container in self._containers_held(held):
-            members = [member for member in self._members[container] if member in held]
-            if members and all(member in gone for member in members):
-                gone.add(container)
+        self._settle(agv, held, gone, (), drop_ahead=False)
         self._drop(agv, gone)
 
     def retain(self, agv: AGV, resources: Collection[Resource]) -> None:
-        """Free everything `agv` holds except `resources` and the zones and corridors containing one of them."""
+        """Free everything `agv` holds except `resources`, the zones and corridors containing one of them, those its
+        pending claim names, and a corridor left through a port that is kept."""
         held = self._held.get(agv, {})
         wanted = set(resources)
-        kept = {resource for resource in held if resource in wanted}
+        kept = [resource for resource in held if resource in wanted]
+        containers = self._containers_held(held)
+        gone = {resource for resource in held if resource not in wanted and resource not in containers}
+        self._settle(agv, held, gone, kept, drop_ahead=True)
+        self._drop(agv, gone)
+
+    def _settle(
+        self,
+        agv: AGV,
+        held: Mapping[Resource, None],
+        gone: set[Resource],
+        kept: Collection[Resource],
+        *,
+        drop_ahead: bool,
+    ) -> None:
+        """Add to `gone` the zones and corridors that go with it (spec §7.5); `kept` are never freed.
+
+        A container keeps while the AGV holds a member that stays, while its pending claim names it, and while it holds
+        the port it left a corridor through. A corridor whose last members go while the AGV holds one of its ports is
+        left onto that port: it stays and goes with the port. A container held ahead of entry goes only with
+        `drop_ahead` (``retain``).
+        """
+        waiting = self._pending.get(agv)
+        named = set() if waiting is None else {item.resource for item in waiting.request.claim.items}
+        exits = self._exits.setdefault(agv, {})
         for container in self._containers_held(held):
-            if any(member in kept for member in self._members[container]):
-                kept.add(container)
-        self._drop(agv, {resource for resource in held if resource not in kept})
+            if container in gone or container in kept or container in named:
+                continue
+            members = [member for member in self._members[container] if member in held]
+            if any(member not in gone for member in members):
+                continue
+            port = exits.get(container)
+            if port is not None:
+                if port in gone:
+                    gone.add(container)
+                continue
+            if members:
+                port = self._port_held(container, held, gone)
+                if port is None:
+                    gone.add(container)
+                else:
+                    exits[container] = port  # left onto the port: goes with it
+            elif drop_ahead:
+                gone.add(container)
+
+    def _port_held(self, container: Container, held: Mapping[Resource, None], gone: set[Resource]) -> Node | None:
+        """The port of a corridor that the AGV holds and keeps, if any; None for a zone."""
+        if isinstance(container, Corridor):
+            for port in (container.nodes[0], container.nodes[-1]):
+                if port in held and port not in gone:
+                    return port
+        return None
 
     # Admission
 
@@ -440,25 +494,32 @@ class ReservationController:
         capacity = self.network.capacity(resource) if isinstance(resource, Node) else resource.capacity
         return others if len(others) >= capacity else []
 
-    def _gated(self, items: Iterable[ClaimItem], earlier: Iterable[_Pending]) -> bool:
-        """Whether a claim of `items` is held by the fairness gate (spec §7.4) of an earlier pending claim.
+    def _needed(self, agv: AGV, claim: Claim) -> tuple[ClaimItem, ...]:
+        """The items of `claim` that `agv` does not hold yet (including a corridor or segment held the other way)."""
+        return tuple(item for item in claim.items if not self._holds(agv, item))
 
-        A claim is gated on a segment or corridor ``r`` it names when an earlier, non-yielding claim names ``r``, is
-        inadmissible on ``r``, and each of its other resources is admissible or blocked only by holders of ``r``.
+    def _gated(self, agv: AGV, items: Iterable[ClaimItem], earlier: Iterable[_Pending]) -> bool:
+        """Whether the claim of `items` by `agv` is held by the fairness gate (spec §7.4) of an earlier pending claim.
+
+        A claim is gated on a segment or corridor ``r`` it names, and that its AGV does not hold, when an earlier,
+        non-yielding claim names ``r``, is inadmissible on ``r``, and each of its other resources is admissible or
+        blocked only by holders of ``r``.
         """
-        earlier = [claim for claim in earlier if not claim.yielding]
+        others = [(claim.agv, self._needed(claim.agv, claim.request.claim)) for claim in earlier if not claim.yielding]
         for item in items:
             resource = item.resource
             if not isinstance(resource, (Segment, Corridor)):
                 continue
             holders = self._holders.get(resource, {})
-            for claim in earlier:
-                mine = next((own for own in claim.items if own.resource == resource), None)
-                if mine is None or not self._blockers(claim.agv, mine):
+            if agv in holders:
+                continue
+            for other_agv, needed in others:
+                mine = next((own for own in needed if own.resource == resource), None)
+                if mine is None or not self._blockers(other_agv, mine):
                     continue
                 if all(
-                    all(blocker in holders for blocker in self._blockers(claim.agv, other))
-                    for other in claim.items
+                    all(blocker in holders for blocker in self._blockers(other_agv, other))
+                    for other in needed
                     if other is not mine
                 ):
                     return True
@@ -466,12 +527,12 @@ class ReservationController:
 
     def _admissible(self, agv: AGV, claim: Claim) -> bool:
         """Admission and gate for `claim`, as for a new request of `agv`."""
-        items = [item for item in claim.items if not self._holds(agv, item)]
+        items = self._needed(agv, claim)
         if any(self._blockers(agv, item) for item in items):
             return False
         key = (-self._priority_fn(agv), self._counter)
         earlier = [waiting for waiting in self._queue if waiting.key < key and waiting.agv is not agv]
-        return not self._gated(items, earlier)
+        return not self._gated(agv, items, earlier)
 
     def _scan(self) -> None:
         """Grant, in queue order, every pending claim that is admissible and not gated, until none is."""
@@ -480,14 +541,14 @@ class ReservationController:
             granted = False
             earlier: list[_Pending] = []
             for waiting in list(self._queue):
-                if any(self._blockers(waiting.agv, item) for item in waiting.items) or self._gated(
-                    waiting.items, earlier
-                ):
+                agv = waiting.agv
+                items = self._needed(agv, waiting.request.claim)
+                if any(self._blockers(agv, item) for item in items) or self._gated(agv, items, earlier):
                     earlier.append(waiting)
                     continue
                 self._queue.remove(waiting)
-                del self._pending[waiting.agv]
-                self._take(waiting.agv, waiting.items)
+                del self._pending[agv]
+                self._take(agv, items)
                 waiting.request.event.succeed(Granted())
                 granted = True
 
@@ -541,6 +602,10 @@ class ReservationController:
                 if isinstance(resource, Corridor):
                     self._orient(zone, resource, build)
             ids.append(resource.id)
+        exits = self._exits.get(agv)
+        if exits:  # a corridor entered again is no longer held through its exit port
+            for corridor in [c for c in exits if any(member in held for member in self._members[c])]:
+                del exits[corridor]
         env = self._env
         if ids and env.wants(TrafficReserved):
             env.emit(TrafficReserved(agv=agv.id, resources=tuple(ids), deltas=build.done()))
@@ -552,8 +617,10 @@ class ReservationController:
         held = self._held[agv]
         build = Deltas.build()
         ids: list[str] = []
+        exits = self._exits.get(agv, {})
         for resource in [resource for resource in held if resource in gone]:
             del held[resource]
+            exits.pop(resource, None)
             direction = self._holders[resource].pop(agv)
             if isinstance(resource, Node):
                 binding = self._env.entities.node_binding(resource)

@@ -129,6 +129,15 @@ def world(
     return World(env, controller, nodes, vehicles, replay, invariants)
 
 
+def step(w: World, agv: str, route: str, index: int) -> None:
+    """Leg `index` of `route` for an extent-0 vehicle: granted at once, the AGV arrives and frees what is behind."""
+    nodes = route.split()
+    here, there = nodes[index], nodes[index + 1]
+    assert w.leg(agv, route, index).granted, (agv, route, index)
+    w.move(agv, there)
+    w.release(agv, here, w.seg(here, there))
+
+
 def passing_line() -> tuple[LayoutGraph, dict[str, Node]]:
     """``N0, N1, N2`` with a passing arc between ``N1`` and ``N2``."""
     nodes = {name: Node(name, 10 * i, 0) for i, name in enumerate(("N0", "N1", "N2"))}
@@ -443,23 +452,35 @@ class TestGate:
         w.controller._pending[w.agvs["W"]].yielding = True
         assert w.leg("F", "x1 J1 a").granted
 
-    def test_still_holds_when_the_port_is_held_by_a_corridor_holder(self) -> None:
+    def test_a_stream_does_not_reopen_the_gate_at_the_waiters_port(self) -> None:
+        w = world(two_junction_corridor(), {"H": "J1", "W": "x2", "F": "x1"})
+        step(w, "H", "J1 a b J2", 0)
+        waiter = w.leg("W", "x2 J2 b a J1")
+        follower = w.leg("F", "x1 J1 a b J2")
+        assert not waiter.event.triggered
+        assert not follower.event.triggered  # gated by W
+        step(w, "H", "J1 a b J2", 1)
+        step(w, "H", "J1 a b J2", 2)  # H left the corridor onto W's port: it keeps the corridor
+        assert w.held("H") == ["corridor:a", "J2"]
+        assert not follower.event.triggered
+        step(w, "H", "J2 y2", 0)  # H releases the port, and the corridor with it
+        assert w.events()[-2] == ("traffic.released", "H", ("corridor:a", "J2", "J2~y2"))
+        assert waiter.granted
+        assert not follower.event.triggered
+        for index in range(4):
+            step(w, "W", "x2 J2 b a J1", index)
+            assert not follower.event.triggered
+        assert w.held("W") == ["corridor:a", "J1"]
+        step(w, "W", "J1 y1", 0)
+        assert follower.granted
+
+    def test_a_holder_reversing_is_not_gated_by_a_waiter_it_blocks(self) -> None:
         w = self._waiting()
-        assert w.leg("H", "J1 a b J2", 1).granted
-        w.move("H", "b")
-        w.release("H", "a", w.seg("a", "b"))
-        assert w.leg("H", "J1 a b J2", 2).granted
-        w.move("H", "J2")
-        w.release("H", "b")  # the tail is still on b~J2: H holds the corridor and the port J2
-        assert w.held("H") == ["corridor:a", "J2~b", "J2"]
         waiter = w.leg("W", "x2 J2 b a J1")
         assert not waiter.event.triggered
-        follower = w.leg("F", "x1 J1 a")
-        assert not follower.event.triggered
-        w.release("H", w.seg("b", "J2"))  # H leaves the corridor and with it the corridor's last member
-        assert w.held("H") == ["J2"]
-        assert follower.granted  # W is no longer inadmissible on the corridor: no gate
-        assert not waiter.event.triggered  # and now F holds it
+        reversal = w.ask("H", (w.corridor(), "backward"))
+        assert reversal.granted
+        assert waiter.granted  # now both travel backward
 
     def test_does_not_hold_when_blocked_by_an_unrelated_agv(self) -> None:
         w = self._waiting(("U", "J2"))
@@ -548,6 +569,67 @@ class TestRelease:
         assert w.events()[-1] == ("traffic.released", "A", ("Z", "N2", "N2~N3"))
         assert w.held("A") == ["N3"]
         assert w.replay.state["Z"]["reserved_by"] == ()
+
+    def test_a_corridor_left_through_a_port_goes_with_the_port(self) -> None:
+        w = world(two_junction_corridor(), {"A": "J1", "B": "x1"})
+        for index in range(3):
+            step(w, "A", "J1 a b J2", index)
+        assert w.held("A") == ["corridor:a", "J2"]
+        w.retain("A", "J2")  # the travel ends on the port: the corridor stays
+        assert w.held("A") == ["corridor:a", "J2"]
+        assert w.leg("A", "J2 y2").granted
+        w.move("A", "y2")
+        w.release("A", "J2")
+        assert w.events()[-1] == ("traffic.released", "A", ("corridor:a", "J2"))
+        assert w.replay.state["corridor:a"]["reserved_by"] == ()
+        # B ends a travel on the port J1 through retain: the corridor is left onto the port.
+        assert w.leg("B", "x1 J1 a b").granted
+        step(w, "B", "x1 J1 a b", 0)
+        step(w, "B", "x1 J1 a b", 1)
+        assert w.leg("B", "a J1", 0).granted  # back out
+        w.move("B", "J1")
+        w.retain("B", "J1")
+        assert w.held("B") == ["corridor:a", "J1"]
+        assert w.leg("B", "J1 a").granted  # entering again: held through a member, no longer through the port
+        w.move("B", "a")
+        w.release("B", "J1")
+        assert w.held("B") == ["corridor:a", "J1~a", "a"]
+
+    def test_a_corridor_goes_with_its_last_member_when_the_port_goes_too(self) -> None:
+        w = world(two_junction_corridor(), {"C": "x2"})
+        step(w, "C", "x2 J2 b", 0)
+        step(w, "C", "x2 J2 b", 1)
+        assert w.leg("C", "b J2").granted  # back out, the corridor turned forward
+        w.move("C", "J2")
+        assert w.leg("C", "J2 y2").granted
+        w.move("C", "y2")
+        w.release("C", "b", w.seg("b", "J2"), "J2")
+        assert w.events()[-1] == ("traffic.released", "C", ("corridor:a", "b", "J2~b", "J2"))
+        assert w.held("C") == ["J2~y2", "y2"]
+
+    @pytest.mark.parametrize("how", ["release", "retain"])
+    def test_a_pending_claim_keeps_its_zone(self, how: str) -> None:
+        graph, nodes = line(5)
+        zone = Zone("Z", (nodes["N0"], nodes["N2"]))
+        w = world((graph, nodes), {"A": "N0", "B": "N4", "C": "N3"}, zones=[zone])
+        assert w.held("A") == ["Z", "N0"]
+        assert w.ask("C", (w.seg("N1", "N2"), "backward")).granted
+        assert w.leg("A", "N0 N1 N2 N3").granted
+        w.move("A", "N1")
+        look_ahead = w.leg("A", "N0 N1 N2 N3", 1)  # Z, N1~N2, N2: waits for the segment
+        assert not look_ahead.event.triggered
+        if how == "release":
+            w.release("A", "N0", w.seg("N0", "N1"))
+        else:
+            w.retain("A", "N1")
+        assert w.held("A") == ["Z", "N1"]  # the pending claim names Z
+        other = w.ask("B", zone)
+        assert not other.event.triggered
+        w.release("C", w.seg("N1", "N2"))
+        assert look_ahead.granted
+        assert w.held("A") == ["Z", "N1", "N1~N2", "N2"]
+        assert w.replay.state["Z"]["reserved_by"] == ("A",)
+        assert not other.event.triggered
 
     def test_retain_keeps_a_zone_with_a_kept_member(self) -> None:
         graph, nodes = line(3)
