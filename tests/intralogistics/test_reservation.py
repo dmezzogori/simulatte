@@ -35,6 +35,7 @@ from tests.intralogistics.traffic_support import (
     build,
     fake_hooks,
     line,
+    loop_with_side_node,
     two_junction_corridor,
 )
 
@@ -582,18 +583,81 @@ class TestRelease:
         w.release("A", "J2")
         assert w.events()[-1] == ("traffic.released", "A", ("corridor:a", "J2"))
         assert w.replay.state["corridor:a"]["reserved_by"] == ()
-        # B ends a travel on the port J1 through retain: the corridor is left onto the port.
-        assert w.leg("B", "x1 J1 a b").granted
-        step(w, "B", "x1 J1 a b", 0)
-        step(w, "B", "x1 J1 a b", 1)
-        assert w.leg("B", "a J1", 0).granted  # back out
+        # B leaves onto the port J1 by a release: an exit record.
+        step(w, "B", "x1 J1 a", 0)
+        step(w, "B", "x1 J1 a", 1)
+        assert w.leg("B", "a J1").granted  # back out
         w.move("B", "J1")
-        w.retain("B", "J1")
+        w.release("B", "a", w.seg("J1", "a"))
         assert w.held("B") == ["corridor:a", "J1"]
-        assert w.leg("B", "J1 a").granted  # entering again: held through a member, no longer through the port
-        w.move("B", "a")
-        w.release("B", "J1")
-        assert w.held("B") == ["corridor:a", "J1~a", "a"]
+        assert w.controller._exits[w.agvs["B"]] == {w.corridor(): w.nodes["J1"]}
+        # Entering again deletes the record, so a cancelled entry drops the corridor.
+        assert w.leg("B", "J1 a").granted
+        assert w.controller._exits[w.agvs["B"]] == {}
+        w.retain("B", "J1")
+        assert w.held("B") == ["J1"]
+
+    def test_retain_at_the_entry_port_drops_the_corridor(self) -> None:
+        w = world(two_junction_corridor(), {"A": "x1"})
+        step(w, "A", "x1 J1 a b J2", 0)
+        assert w.leg("A", "x1 J1 a b J2", 1).granted  # the first leg into the corridor
+        w.retain("A", "J1")  # cancelled before departure: members go, the port stays, no exit record
+        assert w.held("A") == ["J1"]
+        assert w.events()[-1] == ("traffic.released", "A", ("corridor:a", "J1~a", "a"))
+        assert w.controller._exits[w.agvs["A"]] == {}
+
+    @pytest.mark.parametrize("variant", ["withdrawn", "granted"])
+    def test_an_exit_record_goes_with_its_port_under_a_pending_claim(self, variant: str) -> None:
+        w = world(loop_with_side_node(), {"A": "J1", "X": "S1", "W": "S2"})
+        a = w.agvs["A"]
+        step(w, "A", "J1 U J2", 0)
+        step(w, "A", "J1 U J2", 1)
+        w.retain("A", "J2")
+        assert w.held("A") == ["corridor:U", "J2"]
+        assert w.ask("X", w.nodes["J1"]).granted  # X stands on J1
+        w.move("X", "J1")
+        w.release("X", "S1")
+        assert w.leg("A", "J2 L J1 U", 0).granted
+        look_ahead = w.leg("A", "J2 L J1 U", 1)  # names corridor:U, waits for J1
+        assert not look_ahead.event.triggered
+        w.move("A", "L")
+        w.release("A", "J2", w.seg("J2", "L"))  # the port goes with its record; the pending claim keeps the corridor
+        assert w.held("A") == ["corridor:U", "corridor:L", "L"]
+        assert w.controller._exits[a] == {}
+        if variant == "withdrawn":
+            w.controller.withdraw(look_ahead)
+            w.retain("A", "L")
+            assert w.held("A") == ["corridor:L", "L"]
+        else:
+            assert w.ask("X", w.nodes["S1"]).granted
+            w.move("X", "S1")
+            w.release("X", "J1")
+            assert look_ahead.granted
+            w.move("A", "J1")
+            w.retain("A", "J1")  # the travel ends before entering U
+            assert w.held("A") == ["J1"]
+        (corridor_u,) = [c for c in w.controller.network.corridors if c.id == "corridor:U"]
+        assert w.holders(corridor_u) == []
+        assert w.replay.state["corridor:U"]["orientation"] is None
+        assert w.controller._exits[a] == {}
+        assert w.leg("W", "S2 J2 U J1").granted
+
+    def test_a_claim_is_determined_when_granted(self) -> None:
+        graph, nodes = line(5)
+        zone = Zone("Z", (nodes["N0"], nodes["N2"]))
+        w = world((graph, nodes), {"A": "N0", "B": "N4", "C": "N3"}, zones=[zone])
+        assert w.ask("C", (w.seg("N1", "N2"), "backward")).granted
+        assert w.leg("A", "N0 N1 N2 N3").granted
+        w.move("A", "N1")
+        pending = w.leg("A", "N0 N1 N2 N3", 1)  # Z, N1~N2, N2; Z held
+        w.release("A", "N0", w.seg("N0", "N1"))
+        w.release("A", zone)  # released on purpose while the claim waits
+        assert w.ask("B", zone).granted
+        w.release("C", w.seg("N1", "N2"))
+        assert not pending.event.triggered  # it needs Z again, and B holds it
+        w.release("B", zone)
+        assert pending.granted
+        assert w.events()[-1] == ("traffic.reserved", "A", ("Z", "N1~N2", "N2"))
 
     def test_a_corridor_goes_with_its_last_member_when_the_port_goes_too(self) -> None:
         w = world(two_junction_corridor(), {"C": "x2"})
