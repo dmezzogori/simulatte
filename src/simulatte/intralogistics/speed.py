@@ -16,14 +16,17 @@ LINEAR_MOTION: MotionDescription = {"curve": "linear", "approximate": True}
 """The description of a profile without ``motion``: viewers interpolate linearly and mark the motion approximate."""
 
 
-def motion_fraction(description: MotionDescription, duration: float, elapsed: float) -> float | None:
+def motion_fraction(
+    description: MotionDescription, duration: float, elapsed: float, *, t_start: float = 0.0
+) -> float | None:
     """The position fraction of a ``piecewise`` description `elapsed` seconds into a motion of `duration` seconds.
 
     `elapsed` is clamped to ``[0, duration]``. Returns ``None`` for any other curve and for an invalid
     description (spec §11.3): no phase, a duration that is not positive and finite, durations that do not sum to
-    `duration` (within the tolerance of ``keyframes``), a speed below -1e-9 at a phase boundary, an integrated
+    `duration` (within the tolerance of ``keyframes``, which depends on the event times), a speed below -1e-9 at a phase boundary, an integrated
     distance that differs from ``distance`` by more than ``max(1e-9, 1e-9 * distance)``, or a ``distance`` that
-    is not positive and finite. Speeds are floored at zero between phases, as :class:`ArcProfile` does.
+    is not positive and finite. A caller that has the event times passes ``duration = t_end - t_start`` and
+    `t_start`, so that the tolerance is the one Studio computes. Speeds are floored at zero between phases, as :class:`ArcProfile` does.
     """
     if description.get("curve") != "piecewise" or not math.isfinite(duration) or duration < 0:
         return None
@@ -47,7 +50,9 @@ def motion_fraction(description: MotionDescription, duration: float, elapsed: fl
         if not (math.isfinite(length) and length > 0 and math.isfinite(accel)):
             return None
         parsed.append((float(length), float(accel)))
-    tolerance = max(1e-12, 8 * math.ldexp(1.0, math.frexp(max(duration, 5e-324))[1] - 1 - 52))
+    # The tolerance of ``keyframes`` and of Studio: eight ulps of the larger absolute event time, at least 1e-12.
+    magnitude = max(abs(t_start), abs(t_start + duration), 5e-324)
+    tolerance = max(1e-12, 8 * math.ldexp(1.0, math.frexp(magnitude)[1] - 1 - 52))
     if abs(sum(length for length, _ in parsed) - duration) > tolerance:
         return None
     t = min(max(elapsed, 0.0), duration)

@@ -24,18 +24,24 @@ STEPS = 16
 
 def _valid(name: str, profile: ArcProfile, t_start: float) -> dict[str, Any]:
     duration = profile.duration
-    elapsed = [duration * k / STEPS for k in range(STEPS + 1)]
+    times = [t_start + duration * k / STEPS for k in range(STEPS + 1)]
+    # The elapsed time an evaluator sees is time - t_start, which at a large t_start differs from the exact value.
+    elapsed = [min(time - t_start, duration) for time in times]
     return {
         "name": name,
         "t_start": t_start,
         "t_end": t_start + duration,
         "description": profile.description(),
-        "samples": [[t_start + e, profile.position(e) / profile.length] for e in elapsed],
+        "samples": [[time, profile.position(e) / profile.length] for time, e in zip(times, elapsed, strict=True)],
     }
 
 
 def _invalid(name: str, t_end: float, description: dict[str, Any]) -> dict[str, Any]:
     return {"name": name, "t_start": 0.0, "t_end": t_end, "description": description, "samples": None}
+
+
+def _invalid_late(name: str, t_start: float, t_end: float, description: dict[str, Any]) -> dict[str, Any]:
+    return {**_invalid(name, t_end, description), "t_start": t_start}
 
 
 def cases() -> list[dict[str, Any]]:
@@ -47,6 +53,8 @@ def cases() -> list[dict[str, Any]]:
         _valid("four phases", four, 0.0),
         _valid("nonzero entry speed", arc_profile(0.6, 0.3, 1.0, 3.0, KIN), 100.0),
         _valid("zero acceleration only", arc_profile(1.0, 1.0, 1.0, 5.0, KIN), 7.5),
+        _valid("large time 5e4", arc_profile(0.0, 0.0, 1.5, 17.3, KIN), 5e4),
+        _valid("large time 1e6", arc_profile(0.4, 0.0, 1.5, 23.7, KIN), 1e6),
     ]
     good: dict[str, Any] = {"curve": "piecewise", "v0": 0.0, "phases": [[2.0, 0.5], [1.0, -1.0]], "distance": 1.5}
     out += [
@@ -56,6 +64,7 @@ def cases() -> list[dict[str, Any]]:
             2.0,
             {"curve": "piecewise", "v0": 0.5, "phases": [[1.0, 0.0], [1.0, -1.0]], "distance": 0.5},
         ),
+        _invalid_late("duration mismatch at a large time", 1e6, 1e6 + 3.0 + 1e-6, good),
         _invalid("distance mismatch", 3.0, {**good, "distance": 1.6}),
         _invalid("empty phase list", 3.0, {**good, "phases": []}),
         _invalid("zero duration", 3.0, {**good, "phases": [[2.0, 0.5], [0.0, 0.0], [1.0, -1.0]]}),

@@ -3,13 +3,14 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import random
 import sys
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, arc_profile, plan_run
+from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, arc_profile, plan_run, rest_to_rest
 from simulatte.intralogistics.speed import motion_fraction
 
 MOTION = Path(__file__).resolve().parents[1] / "fixtures" / "motion"
@@ -39,21 +40,21 @@ def test_fixture_covers_the_required_cases() -> None:
     assert {"one phase", "two phases", "three phases", "four phases", "nonzero entry speed"} <= names
     assert {"zero acceleration only", "duration mismatch", "negative speed", "distance mismatch"} <= names
     assert {"empty phase list", "zero duration", "negative duration"} <= names
-    assert sorted(len(case["description"]["phases"]) for case in VALID) == [1, 1, 2, 3, 3, 4]
+    assert sorted(len(case["description"]["phases"]) for case in VALID) == [1, 1, 2, 3, 3, 3, 3, 4]
 
 
 @pytest.mark.parametrize("case", VALID, ids=lambda case: case["name"])
 def test_motion_fraction_reproduces_the_samples(case: dict) -> None:
     duration = case["t_end"] - case["t_start"]
     for time, fraction in case["samples"]:
-        value = motion_fraction(case["description"], duration, time - case["t_start"])
+        value = motion_fraction(case["description"], duration, time - case["t_start"], t_start=case["t_start"])
         assert value == pytest.approx(fraction, abs=1e-12)
 
 
 @pytest.mark.parametrize("case", INVALID, ids=lambda case: case["name"])
 def test_motion_fraction_is_none_for_invalid_descriptions(case: dict) -> None:
     duration = case["t_end"] - case["t_start"]
-    assert motion_fraction(case["description"], duration, 0.5 * duration) is None
+    assert motion_fraction(case["description"], duration, 0.5 * duration, t_start=case["t_start"]) is None
 
 
 def test_motion_fraction_clamps_elapsed() -> None:
@@ -130,3 +131,22 @@ def test_planned_profiles_never_describe_zero_duration_phases() -> None:
             assert all(duration > 0 for duration, _ in description["phases"])  # type: ignore[attr-defined]
         else:
             assert description == {"curve": "linear"}
+
+
+def test_tolerance_follows_the_event_times() -> None:
+    description = {"curve": "piecewise", "v0": 0.0, "phases": [[2.0 + 5e-10, 0.5], [1.0, -1.0]], "distance": 1.5}
+    t_end = 1e6 + 3.0 + 5e-10
+    assert motion_fraction(description, t_end - 1e6, 1.5, t_start=1e6) is not None
+    assert motion_fraction(description, t_end - 1e6, 1.5) is None
+
+
+def test_planned_arcs_are_valid_at_large_times() -> None:
+    rng = random.Random(20261122)
+    for _ in range(3000):
+        profile = rest_to_rest(rng.uniform(0.5, 40.0), 1.5, KIN)
+        t_start = rng.uniform(0.0, 1e6)
+        duration = (t_start + profile.duration) - t_start
+        elapsed = rng.uniform(0.0, duration)
+        value = motion_fraction(profile.description(), duration, elapsed, t_start=t_start)
+        assert value is not None
+        assert value == pytest.approx(profile.position(min(elapsed, profile.duration)) / profile.length, abs=1e-9)
