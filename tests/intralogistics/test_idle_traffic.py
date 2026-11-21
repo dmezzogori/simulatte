@@ -977,23 +977,110 @@ def test_an_idle_agv_is_not_shuttled_between_two_zones() -> None:
     assert not w.outcomes  # both waits stand, reported
 
 
-def test_an_agv_does_not_make_way_back_to_a_node_it_made_way_from_until_its_next_mission() -> None:
-    m = mission_world(lane(), {"A": "M"}, bays={"WH-S": "S", "WH-E": "END"})
+def test_an_agv_does_not_make_way_back_within_a_chain_of_moves_until_its_next_mission() -> None:
+    """spec §7.10: X made way from A to B, where it blocks W2's wait: the chain goes on, and a move back to A is
+    refused although A is free and reachable. A mission ends the chain."""
+    graph, nodes = build(
+        [("P1", 0, 0), ("A1", 10, 0), ("A", 20, 0), ("B", 30, 0), ("B1", 40, 0), ("P2", 50, 0)],
+        [("P1", "A1"), ("A1", "A"), ("A", "B"), ("B", "B1"), ("B1", "P2")],
+    )
+    zones = (Zone("Z1", (nodes["A1"], nodes["A"]), capacity=2), Zone("Z2", (nodes["B"], nodes["B1"]), capacity=2))
+    m = mission_world(
+        (graph, nodes),
+        {"X": "A", "S1": "A1", "S2": "B1", "W1": "P1", "W2": "P2"},
+        bays={"WP1": "P1", "WP2": "P2"},
+        controller_options={"zones": zones, "derive_corridors": False, "hold_back_dead_ends": False},
+    )
+    x = m.agvs["X"]
+    for name in ("S1", "S2"):
+        m.fleet._transition_agv(m.agvs[name], AGVState.STRANDED)
+    m.env.process(_travel(m, "W1", "A1"))
+    m.env.process(_travel(m, "W2", "B1"))
+    m.env.run()
+    assert m.routed("X") == [("make_way", "A", "B")]
+    assert m.controller.view.waiting_on(x) == (m.agvs["W2"],)
+    assert m.fleet.make_way(x, nodes["A"]) is False  # A made way from A in this chain
+    m.order("WP1", "WP2", at=m.env.now)  # X is dispatched: the chain ends
+    m.env.run(until=m.env.now + 1.0)
+    assert x.state is AGVState.TRAVELING_EMPTY
+    assert x not in m.fleet._made_way_from
+
+
+def test_a_chain_of_make_way_moves_ends_where_the_agv_blocks_no_wait() -> None:
+    """spec §7.10: A made way from M to SIDE and blocks no wait there; the chain ends, and M is a target again."""
+    m = mission_world(lane(), {"A": "M"})
     a = m.agvs["A"]
     assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
     m.env.run()
-    assert m.fleet.make_way(a, m.nodes["M"]) is False  # A made way from M
-    assert m.fleet.make_way(a) is True  # the standard search does not take M either
-    m.env.run()
-    assert m.routed("A")[-1] == ("make_way", "SIDE", "D")
-    assert m.fleet.make_way(a, m.nodes["SIDE"]) is False
-    assert m.fleet.make_way(a, m.nodes["M"]) is False
-    order = m.order("WH-S", "WH-E", at=m.env.now)  # a mission starts: the memory is cleared
-    m.env.run()
-    assert order.status is OrderStatus.COMPLETED
+    assert a.current_node is m.nodes["SIDE"]
     assert m.fleet.make_way(a, m.nodes["M"]) is True
     m.env.run()
     assert a.current_node is m.nodes["M"]
+
+
+def test_a_spare_agv_keeps_making_way_on_a_ring() -> None:
+    """The reviewer's spare AGV: a ring of six nodes with three bays, one AGV of one fleet carrying 60 orders and an
+    idle AGV of a second fleet on the same controller, which makes way again and again. Each chain ends where it blocks
+    no wait, so it is never left without a target: every order completes and no stuck wait is open at the end."""
+    import random
+
+    graph, nodes = build(
+        [("r0", 0, 0), ("r1", 10, 0), ("r2", 20, 0), ("r3", 20, 10), ("r4", 10, 10), ("r5", 0, 10)]
+        + [("L", -10, 0), ("R", 30, 0), ("T", 10, 20)],
+        [("r0", "r1"), ("r1", "r2"), ("r2", "r3"), ("r3", "r4"), ("r4", "r5"), ("r5", "r0")]
+        + [("L", "r0"), ("R", "r2"), ("T", "r4")],
+    )
+    env = Environment(debug=True)
+    controller = ReservationController(env=env, graph=graph)
+    kind = vehicle(length=0.0, battery=1e9)
+    bays = ["L", "R", "T"]
+    sites = {
+        bay: Warehouse(
+            env=env,
+            name=f"WH-{bay}",
+            input_bays=[nodes[bay]],
+            output_bays=[nodes[bay]],
+            n_slots=2,
+            products=[SKU_A],
+            initial_inventory={SKU_A: 1000},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        for bay in bays
+    }
+    common: dict[str, Any] = {"env": env, "graph": graph, "traffic_controller": controller, "default_metrics": False}
+    working = FleetCoordinator(
+        fleet=[AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes["L"])],
+        warehouses=list(sites.values()),
+        charging_stations=[],
+        name="working",
+        **common,
+    )
+    spare = FleetCoordinator(
+        fleet=[AGV(env=env, agv_type=kind, agv_id="I", initial_node=nodes["r1"])],
+        warehouses=[],
+        charging_stations=[],
+        name="spare",
+        **common,
+    )
+    replay = FullReplay(env, from_snapshot=True)
+    invariants = TrafficInvariants(env, controller)
+    rng = random.Random(0)
+    orders = []
+    for _ in range(60):
+        origin, destination = rng.sample(bays, 2)
+        order = working.create_order(sku=SKU_A, quantity=1, origin=sites[origin], destination=sites[destination])
+        orders.append(order)
+        working.submit(order)
+    env.run()
+    assert invariants.checked > 0
+    assert [order.status for order in orders] == [OrderStatus.COMPLETED] * 60
+    assert len([e for e in replay.of(AgvRouted) if e.agv == "I" and e.reason == "make_way"]) > 5
+    events = replay.events
+    for index, stuck in enumerate(events):
+        if isinstance(stuck, TrafficWaitStuck):
+            assert any(isinstance(e, TrafficWaitEnded) and e.agv == stuck.agv for e in events[index:]), stuck
+    assert spare.fleet[0].state is AGVState.IDLE
 
 
 @pytest.mark.parametrize(("capacity", "expected"), [(2, "X"), (1, None)])
