@@ -298,6 +298,7 @@ class TrafficController(Protocol):
     def next_claim(self, agv: AGV, route: Sequence[Node], index: int) -> Claim: ...
     def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest: ...
     def stopped(self, request: ClaimRequest) -> None: ...
+    def idle(self, agv: AGV) -> None: ...
     def withdraw(self, request: ClaimRequest) -> None: ...
     def release(self, agv: AGV, resources: Collection[Resource]) -> None: ...
     def retain(self, agv: AGV, resources: Collection[Resource]) -> None: ...
@@ -312,6 +313,9 @@ class TrafficController(Protocol):
 - `stopped` tells the controller that the AGV is now at rest and waiting on the request. The wait, its events,
   deadlock detection and policy calls start here. The executor calls it at once when a request made at rest is
   not granted immediately.
+- `idle` tells the controller that the AGV has just become `IDLE` where it stands. The coordinator calls it on
+  every transition to `IDLE`. `ReservationController` uses it for the waits the AGV blocks (§7.10);
+  `FreeFlowController` does nothing.
 - `withdraw` cancels a pending request. `release` frees specific resources. `retain` frees everything the AGV
   holds except the given resources.
 - `WaitHooks` carries what the controller and the policy may ask of the waiting travel: `route` (remaining
@@ -480,7 +484,10 @@ the controller emits `traffic.wait_stuck` and logs a warning, once per wait. It 
 the cheapest node that has free capacity and does not lie ahead on the remaining route of an AGV in the waits
 concerned, unless the node would still have a free slot for each of them after the move. Ties break by node id.
 For an AGV that will be idle on arrival (§7.10), the node of the cheapest parking area with a free slot is taken
-first; failing that, the node must not be a service node.
+first; failing that, the node must not be a service node. For such an AGV a node that any pending claim names is
+not taken either, unless it would still have a free slot for each of those claims after the move: an idle AGV
+moved out of one wait's way must not land in another's, or two waits could send it back and forth without end.
+The search asks the router with the purpose of the move it is for, so that the search and the move agree.
 
 `StandardTrafficPolicy(reroute_after=30.0, max_detour=1.5, max_resolutions=8)`:
 
@@ -502,11 +509,15 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   asked to move: the controller takes `make_way_target`, or the standard search, and calls
   `blocker.fleet.make_way(blocker, target)`. The coordinator runs it as a short travel (`TRAVELING_EMPTY`, then
   `IDLE`, then the pending-queue check and the `on_agv_idle` hooks). One make-way move per AGV at a time. If no
-  target exists the blocker stays and the waiter's `on_blocked` reviews continue.
+  target exists the blocker stays and the waiter's `on_blocked` reviews continue. The idle case comes through
+  `idle(agv)` (§7.1): the controller asks the AGV to make way once, for the waits it blocks taken in request
+  order, and when the AGV does not move it checks those waits for the stuck condition (§7.9) at once, since a
+  sleeping wait has no review left to report it.
 - **Service nodes (T12).** A service node is a bay of one of the fleet's warehouses or the node of one of its
   charging stations. `FleetCoordinator(clear_service_nodes=True)`: when the controller controls occupancy, an AGV
   that would become idle on a service node, and for which the repositioning policy returned no target, first
-  travels to the standard-search target. If there is none it stays.
+  travels to the standard-search target. If there is none it stays. An AGV does not clear while the pending
+  queue holds an order: it becomes `IDLE` where it stands and the pending-queue check runs.
 - **Parking (T13).** When the target of a repositioning, a service-node clearance or a make-way move is the node
   of a parking area with a free slot, the coordinator calls `area.enter(agv)` at the decision, which is granted
   at once, and `area.leave(agv)` when the AGV next departs from that node or when the travel does not arrive. A
