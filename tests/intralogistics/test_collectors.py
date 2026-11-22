@@ -302,19 +302,19 @@ def test_fleet_kpis_in_the_window() -> None:
 def test_fleet_kpis_window_excludes_warmup_orders() -> None:
     env = Environment()
     coordinator, (first, second) = _two_orders(env)
-    env.configure_kpis(warmup=60.0)
+    env.configure_kpis(warmup=50.0)
     kpis = FleetKPIs(coordinator).attach(env)
     env.run(until=150)
 
     _, _, _, v1 = _times(first)
     c2, d2, _, v2 = _times(second)
-    assert v1 < 60.0 <= v2 < 150 and d2 < 60.0
+    assert v1 < 50.0 <= v2 < 150 and d2 < 50.0
     key = f"{coordinator.id}/"
     scalars = kpis.scalars()
     assert scalars[key + "fulfillment_time"] == v2 - c2
     assert scalars[key + "late_fraction"] == 1.0
-    assert scalars[key + "throughput"] == 1 / 90
-    assert scalars[key + "utilization"] == pytest.approx((v2 - 60.0) / 90, rel=1e-12)
+    assert scalars[key + "throughput"] == 1 / 100
+    assert scalars[key + "utilization"] == pytest.approx((v2 - 50.0) / 100, rel=1e-12)
     assert scalars[key + "pending_orders"] == 0.0
 
 

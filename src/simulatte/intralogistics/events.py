@@ -124,12 +124,13 @@ class AgvStateChanged(DomainEvent):
     previous: str
 
 
-@event_type("agv.placed", touches={"agv": ("node",), "node": ("agvs",)})
+@event_type("agv.placed", touches={"agv": ("node", "heading"), "node": ("agvs",)})
 class AgvPlaced(DomainEvent):
     """The AGV was located at `node` without a movement segment.
 
     Emitted when an AGV is created at a node that is already bound (the node's ``agvs`` gains the AGV) and when
-    ``current_node`` is assigned directly. Movement along the graph emits :class:`AgvMoveEnded` instead.
+    ``current_node`` is assigned directly, which makes the AGV's ``heading`` unknown (None). Movement along the graph
+    emits :class:`AgvMoveEnded` instead.
     """
 
     agv: str
@@ -170,9 +171,13 @@ class AgvMoveStarted(DomainEvent):
     loaded: bool
 
 
-@event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion"), "node": ("agvs",)})
+@event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion", "heading"), "node": ("agvs",)})
 class AgvMoveEnded(DomainEvent):
-    """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion."""
+    """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion.
+
+    Its deltas also set the AGV's ``heading`` to the direction of the segment. An AGV that passes `node` at speed
+    starts its next segment at the same instant.
+    """
 
     agv: str
     node: str
@@ -184,7 +189,8 @@ class AgvMoveInterrupted(DomainEvent):
     """The travel was interrupted and the AGV came to rest at `node` (spec §8.3).
 
     An interrupt received while the AGV waits for a claim takes effect at once, at the node where it waits; one
-    received during a segment takes effect at the segment's end node, after ``agv.move_ended``. `reason` is the
+    received while it moves takes effect where it comes to rest, after ``agv.move_ended``: the end node of the
+    segment for a rest-to-rest profile, the node it held last when the interrupt arrived for a run. `reason` is the
     interrupt cause when it is a string, otherwise ``"interrupted"``. It changes no state: ``agv.move_ended`` already
     cleared the motion.
     """

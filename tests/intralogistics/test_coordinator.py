@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from simulatte.environment import Environment
@@ -37,6 +39,19 @@ def sku_a() -> SKU:
 def simple_speed() -> TrapezoidalProfile:
     """Constant-speed profile: max_speed=10, instant accel/decel."""
     return TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+
+
+class RestToRest:
+    """A trapezoidal profile without ``limits``: every arc is driven rest to rest, as before runs (spec §9.1)."""
+
+    def __init__(self, profile: TrapezoidalProfile) -> None:
+        self._profile = profile
+
+    def travel_time(self, *args: Any, **kwargs: Any) -> float:
+        return self._profile.travel_time(*args, **kwargs)
+
+    def motion(self, *args: Any) -> Any:
+        return self._profile.motion(*args)
 
 
 def _make_agv_type(speed: TrapezoidalProfile, length: float | None = None) -> AGVType:
@@ -1507,10 +1522,11 @@ class TestTravelCorrectness:
 class TestInterruptSafety:
     """Tests for H3, M2, H4, H5: interrupt safety and resource cleanup."""
 
-    def test_cancel_during_travel_comes_to_rest_at_the_next_node(
+    def test_cancel_during_travel_comes_to_rest_at_the_horizon(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """T4: Cancelling a mission mid-arc lets the AGV finish the arc (spec §8.3); it then holds NEXT only.
+        """T4: Cancelling a mission mid-arc lets the AGV run on to the end of the claims it holds then, END here: its
+        braking distance is 0.05 m, so it claimed both arcs at FAR (spec §8.3, §9.3). It then holds END only.
 
         Graph:  FAR -- NEXT -- END (AGV starts at FAR, origin warehouse
         output bay is at END, so AGV must travel through NEXT).
@@ -1570,8 +1586,7 @@ class TestInterruptSafety:
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
         coordinator.submit(order)
 
-        # Travel from FAR to NEXT: distance=5, speed=10 -> travel_time=0.5s.
-        # Cancel at t=0.2 — mid-arc; the interrupt takes effect at NEXT, at 0.5.
+        # Travel from FAR to END in one run of 10 m at 10 m/s. Cancel at t=0.2, mid-arc.
         def cancel_later():
             yield env.timeout(0.2)
             coordinator.cancel(order)
@@ -1579,9 +1594,9 @@ class TestInterruptSafety:
         env.process(cancel_later())
         env.run()
 
-        assert agv.current_node == node_next
-        assert [resource.id for resource in traffic._held[agv]] == ["NEXT"]
-        assert traffic.view.holders(node_far) == traffic.view.holders(node_end) == ()
+        assert agv.current_node == node_end
+        assert [resource.id for resource in traffic._held[agv]] == ["END"]
+        assert traffic.view.holders(node_far) == traffic.view.holders(node_next) == ()
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
 
@@ -1809,8 +1824,9 @@ class TestInterruptSafety:
     def test_cancel_keeps_only_what_the_body_overlaps(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """M2: after a cancel the AGV has no pending request and holds what its 1 m body overlaps at MID: MID and
-        the segment behind it; FAR was released 1 m into the arc.
+        """M2: after a cancel the AGV has no pending request and holds what its 1 m body overlaps where it comes to
+        rest, at C (the end of the claims it held, spec §8.3): C and the segment behind it; FAR and MID were released
+        1 m past them.
 
         Graph: FAR -- MID -- C  (AGV starts at FAR, origin output bay at C).
         """
@@ -1869,7 +1885,7 @@ class TestInterruptSafety:
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
         coordinator.submit(order)
 
-        # Travel FAR->MID: distance=5, speed=10 -> 0.5s. Cancel at t=0.2, mid-arc.
+        # Travel FAR->C in one run of 10 m at 10 m/s. Cancel at t=0.2, mid-arc.
         def cancel_later():
             yield env.timeout(0.2)
             coordinator.cancel(order)
@@ -1878,9 +1894,9 @@ class TestInterruptSafety:
         env.run()
 
         assert agv not in traffic._pending
-        assert agv.current_node == node_mid
-        assert [resource.id for resource in traffic._held[agv]] == ["FAR~MID", "MID"]
-        assert traffic.view.holders(node_far) == traffic.view.holders(node_c) == ()
+        assert agv.current_node == node_c
+        assert [resource.id for resource in traffic._held[agv]] == ["C~MID", "C"]
+        assert traffic.view.holders(node_far) == traffic.view.holders(node_mid) == ()
 
 
 # ===========================================================================
@@ -2982,7 +2998,7 @@ class TestResumeDeliveryFallbackToReturn:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=simple_speed,
+            speed_profile=RestToRest(simple_speed),  # rest to rest: the interrupt takes effect at MID
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -3069,7 +3085,7 @@ class TestResumeDeliveryFallbackChain:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=simple_speed,
+            speed_profile=RestToRest(simple_speed),  # rest to rest: the interrupt takes effect at MID
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,

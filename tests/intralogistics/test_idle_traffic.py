@@ -39,7 +39,7 @@ from simulatte.intralogistics.traffic import FreeFlowController, KeepWaiting, St
 from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from simulatte.intralogistics.travel import TravelOutcome, standard_target
 from simulatte.intralogistics.warehouse import Warehouse
-from tests.intralogistics.test_travel import stalled, vehicle, world
+from tests.intralogistics.test_travel import Plain, stalled, vehicle, world
 from tests.intralogistics.traffic_support import (
     FullReplay,
     TrafficInvariants,
@@ -634,9 +634,16 @@ def test_a_repositioning_travel_that_does_not_arrive_gives_the_slot_back() -> No
 def test_an_interrupted_idle_move_gives_the_slot_back_unless_it_ended_on_the_target(
     interrupt_at: float, kept: bool
 ) -> None:
-    """The interrupt takes effect at the end of the arc: in the first arc (D to FAR) that is short of END, the
-    parking node, so the slot goes back; in the second (FAR to END) the AGV is on the parking node."""
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("END", 1)})
+    """With a rest-to-rest profile (no limits) the interrupt takes effect at the end of the arc: in the first arc (D to
+    FAR) that is short of END, the parking node, so the slot goes back; in the second (FAR to END) the AGV is on the
+    parking node. (A kinematic vehicle claims through to END from D and would come to rest there either way.)"""
+    m = mission_world(
+        lane(),
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("END", 1)},
+        agv_type=vehicle(profile=Plain()),
+    )
     m.fleet._repositioning_policy = Always(m.nodes["END"])
     order = m.order("WH-S", "WH-D")
 

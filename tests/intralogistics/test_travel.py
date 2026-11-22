@@ -34,6 +34,7 @@ from simulatte.intralogistics.events import (
 )
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, plan_run
 from simulatte.intralogistics.network import Claim
 from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.reservation import ReservationController
@@ -69,7 +70,15 @@ ARC = 8.541666666666668
 (8.541666666666666 within one unit in the last place)."""
 
 TAIL = 2.2708333333333335
-"""Time after departure at which the front has covered 2 m of a 10 m arc with the same profile."""
+"""Time after departure at which the front has covered 2 m of a 10 m arc with the same profile, from rest."""
+
+KIN = Kinematics(1.5, 0.8, 0.8)
+"""The limits of :func:`steady`, and of the default profile at a full battery."""
+
+
+def run_of(arcs: int) -> tuple[ArcProfile, ...]:
+    """The profiles of a run over `arcs` arcs of 10 m from rest to rest at :data:`KIN` (spec §9.2)."""
+    return plan_run(0.0, [10.0] * arcs, [1.5] * arcs, [0.0] + [1.5] * (arcs - 1) + [0.0], KIN)
 
 
 def steady() -> TrapezoidalProfile:
@@ -182,10 +191,12 @@ def world(
     agv_type: AGVType | None = None,
     router: Any = None,
     make_way: bool = False,
+    lookahead_margin: float = 0.0,
     **options: Any,
 ) -> World:
     """An activated world: `agvs` maps each AGV id to its start node id; one fleet with all the AGVs. Idle AGVs make
-    way only with `make_way` (spec §7.10; tests of idle traffic have their own file)."""
+    way only with `make_way` (spec §7.10; tests of idle traffic have their own file). `options` go to the
+    ``ReservationController``."""
     graph, nodes = graph_nodes
     env = Environment(debug=True)
     replay = FullReplay(env)
@@ -203,6 +214,7 @@ def world(
         traffic_controller=controller,
         router=router,
         default_metrics=False,
+        lookahead_margin=lookahead_margin,
     )
     if reserve:
         TrafficInvariants(env, controller)
@@ -223,18 +235,17 @@ def diamond() -> tuple[LayoutGraph, dict[str, Node]]:
 
 
 def test_free_flow_arrivals_and_events() -> None:
-    profile = TrapezoidalProfile(1.5, 0.8, 0.8)  # slowed by the battery level, as before the executor
+    profile = TrapezoidalProfile(1.5, 0.8, 0.8)  # slowed by the battery level, sampled when the run starts
     w = world(t_layout(), {"A": "STORE_OUT"}, reserve=False, agv_type=vehicle(profile=profile))
     w.go("A", "LINE_IN")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}
     assert profile.travel_time(10.0) == ARC == pytest.approx(8.541666666666666, rel=1e-15)
-    expected, now, level = [], 0.0, 1000.0
-    for _ in range(3):  # what FleetCoordinator._travel computed: travel_time at the level, then 10 m depleted
-        now += profile.travel_time(10.0, 0.0, level / 1000.0)
-        level -= 10.0
+    expected, now = [], 0.0
+    for arc in run_of(3):  # one run at the limits of the full battery, through C1 and C2 at speed
+        now += arc.duration
         expected.append(now)
-    assert expected[0] == ARC
+    assert expected[-1] == pytest.approx(profile.travel_time(30.0), rel=1e-12)
     assert [e.t for e in w.of(AgvMoveEnded)] == expected
     names = [e.type_name for e in w.events if e.type_name != "agv.state_changed"]
     assert names == ["agv.routed", *["agv.move_started", "agv.move_ended"] * 3]
@@ -292,8 +303,9 @@ def test_the_node_behind_is_released_one_extent_after_departure() -> None:
     w.go("A", "N2")
     w.env.run()
     released = [(e.t, e.resources) for e in w.of(TrafficReleased)]
-    # N0 clears 2 m into the first arc; N0~N1 and N1 both clear 2 m into the second, in one release call.
-    assert released == [(TAIL, ("N0",)), (ARC + TAIL, ("N0~N1", "N1"))]
+    # N0 clears 2 m into the first arc; N0~N1 and N1 both clear 2 m into the second, passed at speed, in one call.
+    first, second = run_of(2)
+    assert released == [(TAIL, ("N0",)), (first.duration + second.time_at(2.0), ("N0~N1", "N1"))]
     assert w.held("A") == ["N1~N2", "N2"]
 
 
@@ -319,7 +331,8 @@ def test_extent_longer_than_arc_holds_two_segments() -> None:
     w.go("A", "N2")
     w.env.run()
     assert w.held("A") == ["N0~N1", "N1", "N1~N2", "N2"]
-    assert [(e.t, e.resources) for e in w.of(TrafficReleased)] == [(ARC + TAIL, ("N0",))]
+    first, second = run_of(2)
+    assert [(e.t, e.resources) for e in w.of(TrafficReleased)] == [(first.duration + second.time_at(2.0), ("N0",))]
     # The next travel releases what the tail clears 2 m into its first arc.
     w.go("A", "N4", at=100.0)
     w.env.run()
@@ -356,7 +369,9 @@ def test_at_the_exit_port_the_corridor_stays_and_gates_a_later_same_direction_cl
 # --- interrupts --------------------------------------------------------------------------------------------------
 
 
-def test_an_interrupt_during_an_arc_takes_effect_at_its_end_node() -> None:
+def test_an_interrupt_during_an_arc_takes_effect_where_the_run_comes_to_rest() -> None:
+    """At 3 A holds N0 to N2 (the next arc and its braking distance); it claims no more, passes N1 at speed and comes
+    to rest at N2, where the interrupt takes effect (spec §8.3, interim rule)."""
     w = world(line(4), {"A": "N0"})
     process = w.go("A", "N3")
     w.interrupt(process, 3.0)
@@ -364,14 +379,16 @@ def test_an_interrupt_during_an_arc_takes_effect_at_its_end_node() -> None:
     w.env.run()
     assert w.caught == {"A": "cancelled"}
     agv = w.agvs["A"]
-    assert agv.current_node == w.nodes["N1"]
-    assert agv.battery.level == 990.0
-    assert w.held("A") == ["N1"]
-    assert w.env.entities.node_binding(w.nodes["N1"]).reserved_by == ["A"]
+    assert agv.current_node == w.nodes["N2"]
+    assert agv.battery.level == 980.0
+    assert w.held("A") == ["N2"]
+    assert w.env.entities.node_binding(w.nodes["N2"]).reserved_by == ["A"]
+    first, second = run_of(2)
+    rest = first.duration + second.duration
     tail = [(e.type_name, e.t) for e in w.events if e.type_name != "agv.state_changed"][-3:]
-    assert tail == [("agv.move_ended", ARC), ("traffic.released", ARC), ("agv.move_interrupted", ARC)]
+    assert tail == [("agv.move_ended", rest), ("traffic.released", rest), ("agv.move_interrupted", rest)]
     (interrupted,) = w.of(AgvMoveInterrupted)
-    assert (interrupted.node, interrupted.reason, len(interrupted.deltas)) == ("N1", "cancelled", 0)
+    assert (interrupted.node, interrupted.reason, len(interrupted.deltas)) == ("N2", "cancelled", 0)
 
 
 @pytest.mark.parametrize(("cause", "reason"), [("cancelled", "cancelled"), (None, "interrupted")])
@@ -839,7 +856,9 @@ def test_an_interrupt_at_the_instant_of_a_grant_drops_the_grant() -> None:
 
 
 def test_an_interrupt_during_a_multi_leg_claim_drops_the_legs_ahead() -> None:
-    w = world(t_layout(), {"A": "STORE_OUT"})
+    """The battery affords one arc, so the run ends at rest at C1 inside the dead-end claim; there the interrupt
+    takes effect and the legs ahead go."""
+    w = world(t_layout(), {"A": "STORE_OUT"}, agv_type=vehicle(battery=15.0))
     process = w.go("A", "LINE_IN")
     w.interrupt(process, 3.0)
     w.env.run()

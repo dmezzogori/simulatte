@@ -96,6 +96,7 @@ class AGV(Entity, kind="agv"):
             "order": FieldSpec("str", nullable=True),
             "motion": FieldSpec("map", nullable=True),
             "fleet": FieldSpec("str", nullable=True),
+            "heading": FieldSpec("float", nullable=True),
         }
     )
 
@@ -119,6 +120,9 @@ class AGV(Entity, kind="agv"):
         """The order of the AGV's current mission."""
         self.motion: FrozenMap | None = None
         """The active movement segment ``{from, to, t_start, t_end, description}`` (spec §6.5), or None."""
+        self.heading: float | None = None
+        """The direction of the last arc traversed, in radians (``atan2`` of its chord, spec §9.4); None after
+        placement. An arc whose chord has length 0 has no direction and leaves it unchanged."""
 
         self.battery = Battery(
             capacity=agv_type.battery_capacity,
@@ -181,14 +185,19 @@ class AGV(Entity, kind="agv"):
             self._current_node = node
             return
         left, entered = self._relocate(node)
+        headed = self.heading is not None
+        self.heading = None  # placed, not moved: the direction is unknown
         env = self.env
         if env.wants(AgvPlaced):
+            build = self._node_deltas(node, left, entered)
+            if headed:
+                build.set(self.id, "heading", None)
             env.emit(
                 AgvPlaced(
                     agv=self.id,
                     node=None if node is None else node.id,
                     previous=None if previous is None else previous.id,
-                    deltas=self._node_deltas(node, left, entered).done(),
+                    deltas=build.done(),
                 )
             )
 
@@ -240,6 +249,7 @@ class AGV(Entity, kind="agv"):
             "order": None if order is None else order.id,
             "motion": self.motion,
             "fleet": None if fleet is None else fleet.id,
+            "heading": None if self.heading is None else wire_float(self.heading),
             "label": self.label,
         }
 

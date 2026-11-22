@@ -22,6 +22,13 @@ from tests.intralogistics.test_fleet_events import FleetReplay
 from tests.intralogistics.traffic_support import StillFleet
 
 
+def agv_heading(nodes: Any, source: str, target: str) -> float:
+    """The heading of the chord from `source` to `target` among `nodes`."""
+    by_id = {node.id: node for node in nodes}
+    a, b = by_id[source], by_id[target]
+    return math.atan2(b.y - a.y, b.x - a.x)
+
+
 def _position(description: Any, t: float) -> tuple[float, float, float]:
     """Position and speed at time `t` along a trapezoidal description, integrated phase by phase, and the time at
     which the curve stops."""
@@ -122,7 +129,12 @@ def test_move_events_carry_the_segment() -> None:
     assert isinstance(started, AgvMoveStarted) and isinstance(ended, AgvMoveEnded)
     assert (started.t, started.from_node, started.to_node, started.loaded) == (0, "C1", "OUT", False)
     assert started.t_end == 4.5
-    assert started.motion == {"curve": "trapezoidal", "v_max": 2.0, "accel": 1.0, "decel": 1.0, "distance": 5.0}
+    assert started.motion == {  # the run of one arc, rest to rest (spec §9.2, §11.3)
+        "curve": "piecewise",
+        "v0": 0.0,
+        "phases": ((2.0, 1.0), (0.5, 0.0), (2.0, -1.0)),
+        "distance": 5.0,
+    }
     assert observed[0] == {"from": "C1", "to": "OUT", "t_start": 0.0, "t_end": 4.5, "description": started.motion}
     assert (ended.t, ended.node, ended.battery) == (4.5, "OUT", 995.0)
     assert ended.deltas.ops == (
@@ -131,6 +143,7 @@ def test_move_events_carry_the_segment() -> None:
         ("insert", "OUT", "agvs", 0, agv.id),
         ("set", agv.id, "battery", 995.0),
         ("set", agv.id, "motion", None),
+        ("set", agv.id, "heading", agv_heading(nodes, "C1", "OUT")),
     )
     assert [e.loaded for e in seen if isinstance(e, AgvMoveStarted)] == [False, True, True, True]
     assert agv.motion is None and replay.events > 10
@@ -167,29 +180,19 @@ def test_move_started_after_the_claim_is_granted() -> None:
     assert started == [
         (0, blocker.id, "C1", "C2"),
         (pytest.approx(math.sqrt(2.0)), waiter.id, "OUT", "C1"),  # 1 m at acceleration 1 from rest
-        (4.5, blocker.id, "C2", "IN"),
+        (3.5, blocker.id, "C2", "IN"),  # the blocker passes C2 at speed: 2 m accelerating, then 3 m at 2 m/s
     ]
     assert (waiter.current_node, blocker.current_node) == (c1, end)
 
 
-def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> None:
-    """The description is taken when the travel time is computed, before waiting for a claim, so another AGV using
-    the same profile in between does not make the factor functions run again."""
+def test_a_shared_profile_describes_each_run_with_the_limits_sampled_at_its_start() -> None:
+    """The two AGVs share one profile whose speed scales with the battery. The blocker (full battery) runs at up to
+    2 m/s; the waiter (half battery) waits for C1 while the blocker uses the profile, then starts with its own limits,
+    1 m/s at acceleration 0.5 (spec §9.2)."""
     env = Environment(debug=True)
-    calls = {"travel_time": 0, "factor": 0}
-
-    class Counting(TrapezoidalProfile):
-        def travel_time(self, *args: Any, **kwargs: Any) -> float:
-            calls["travel_time"] += 1
-            return super().travel_time(*args, **kwargs)
-
-    def factor(level: float) -> float:
-        calls["factor"] += 1
-        return 1.0
-
     shared = AGVType(
         name="shared",
-        speed_profile=Counting(2.0, 1.0, 1.0, battery_degradation_fn=factor),
+        speed_profile=TrapezoidalProfile(2.0, 1.0, 1.0),
         battery_capacity=1000.0,
         weight_capacity=100.0,
         volume_capacity=10.0,
@@ -198,6 +201,7 @@ def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> Non
     nodes, graph = _line_graph()
     out, c1, _, end = nodes
     blocker, waiter = (AGV(env=env, agv_type=shared, initial_node=node) for node in (c1, out))
+    waiter.battery.level = 500.0
     traffic = ReservationController(graph=graph, env=env)
     coordinator = StillFleet(
         env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
@@ -209,8 +213,17 @@ def test_shared_profile_is_described_with_the_values_of_its_travel_time() -> Non
     env.process(coordinator._executor.travel(blocker, end, loaded=False))
     env.run()
 
-    assert len(started) == 3 and calls["factor"] == calls["travel_time"] == 3
-    assert all(event.motion["v_max"] == 2.0 for event in started)
+    def peak(description: Any) -> float:
+        speeds, speed = [description["v0"]], description["v0"]
+        for duration, accel in description["phases"]:
+            speed += duration * accel
+            speeds.append(speed)
+        return max(speeds)
+
+    peaks = {agv.id: [peak(event.motion) for event in started if event.agv == agv.id] for agv in (blocker, waiter)}
+    assert peaks == {blocker.id: [2.0, 2.0], waiter.id: [1.0]}
+    (waiting,) = [event for event in started if event.agv == waiter.id]
+    assert waiting.motion["phases"][0] == (2.0, 0.5)  # accelerating at 0.5 for 2 s
 
 
 @pytest.mark.parametrize("cause", ["cancelled", "breakdown", None])

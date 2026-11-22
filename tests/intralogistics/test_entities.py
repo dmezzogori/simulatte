@@ -141,6 +141,7 @@ def test_kinds_ids_and_initial_state() -> None:
         "order": None,
         "motion": None,
         "fleet": "fleet-0",
+        "heading": None,
         "label": "agv-0",
     }
     assert state["order-0"] == {

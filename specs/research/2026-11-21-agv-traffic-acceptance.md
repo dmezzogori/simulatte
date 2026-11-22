@@ -125,6 +125,16 @@ reorder point, which moves with the trajectory; the trajectory differs for the r
 Nothing was re-pinned in this task, nor in the whole-part review wave: no free-flow pin moved, the generated trace
 fixtures are not stale (`tests/core/test_trace_fixtures.py` passes) and the frozen fixtures load without change.
 
+## Pinned values that changed in part B (Tasks 1 to 3)
+
+| Value | Change | Cause and check |
+|---|---|---|
+| `tests/intralogistics/test_builders.py::test_no_layout_builder_digest_remains_compatible` | `7f761d74...` to `b62e716120b67b3b5561d4d298b6fb455cf8447abc2e5386362299563aed5c7f` | through-node motion (Task 3) and the new `heading` field of the AGV state; with every profile treated as one without limits and `heading` left out, the run's event stream and initial state are the previous ones |
+| `tests/fixtures/fleet_recovery_regression.json` (`simple-1` to `simple-3`) | re-recorded twice | first for the cancellation fix (a mission whose order was cancelled before it ran ends at once; the fixture passed on the commit before the fix), then for through-node motion (with every profile treated as one without limits the previous values return exactly) |
+| `tests/fixtures/fleet_collector_parity.json`, entries `systems.intermediate` and `systems.advanced` | re-recorded | through-node motion; with every profile treated as one without limits the previous values return exactly |
+
+The generated trace fixtures hold no AGV and did not change; the motion fixture of Task 2 is unchanged.
+
 ## The examples under both controllers
 
 Measured after the whole-part review wave, at its last commit, by running each example as the test does (each
@@ -154,6 +164,19 @@ routes of the waits concerned for the target, not for the nodes the route passes
 behind AGV-5 idle on its starting node) ends at the next review, 30 s later, with a grant. Idle AGVs made 51 make-way
 moves and 57 service-node clearances.
 
+After part B, Task 3 (kinematic vehicles move in runs, pass nodes at speed and claim one arc plus the braking distance
+ahead; the make-way fallback of §7.9; an order cancelled at the instant of its dispatch stays cancelled), measured the
+same way:
+
+| Example | Controller | Completed orders | Waits | Deadlocks by action | Stuck waits | Avg fulfillment, s |
+|---|---|---|---:|---|---:|---:|
+| simple (horizon 120) | free flow | 4 of 4 | 0 | none | 0 | - |
+| simple (horizon 120) | reservation | 4 of 4 | 4 | none | 0 | - |
+| intermediate | free flow | 8 of 8 | 0 | none | 0 | 144.6 |
+| intermediate | reservation | 8 of 8 | 15 | reroute 1, step aside 2 | 0 | 230.1 |
+| advanced | free flow | 63 outbound, 2 replenishment | 0 | none | 0 | 204.4 (outbound) |
+| advanced | reservation | 63 outbound, 2 replenishment | 94 | step aside 38 | 1 | 226.0 (outbound) |
+
 ## Changes in results
 
 - Free-flow results move for the three reasons above (the `agv.routed` event in digests, interrupts at the end of the
@@ -172,6 +195,22 @@ moves and 57 service-node clearances.
   pinned value moved.
 - The retry loop of the pending queue stops when nothing needs it, so `env.run()` without `until` returns. In free flow
   this can move the time of a `retries_exhausted` failure, because the loop restarts when it is needed again.
+
+Part B so far (Tasks 1 to 3):
+
+- A vehicle whose profile reports kinematic limits moves in runs: it passes nodes at speed, so every travel time of a
+  `TrapezoidalProfile` vehicle over more than one arc changes, under both controllers, and with it every digest and
+  recorded result of such runs. A lone AGV has the same times under `ReservationController` as under free flow, and a
+  straight line has the same free-flow time however many nodes split it. An interrupt received while moving takes
+  effect where the run comes to rest (the last node held when it arrived); the plan ends at the first node where the
+  estimated battery turns critical. A profile without limits keeps the rest-to-rest timings exactly.
+- The AGV state has a new field, `heading` (radians, the direction of the last arc traversed, None after placement),
+  carried by `agv.move_ended` and `agv.placed`.
+- An order cancelled at the instant of its dispatch to an AGV already on its origin stays cancelled: before, the
+  mission picked it, re-queued it and the retired order was dispatched again (a `KeyError` in a replay). `main` gets it
+  wrong too, worse: the cancelled order is dispatched again and completes.
+- The make-way fallback of §7.9 takes a service node or root of capacity above 1, and may arrive over a segment that a
+  pending claim names. It ends the stuck wait the simple example otherwise left open on the builder's line.
 
 ## Whole-part review
 

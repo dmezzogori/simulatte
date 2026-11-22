@@ -86,6 +86,9 @@ class FleetCoordinator(Entity, kind="fleet"):
     unless it carries cargo, which it never gives up; an order that was not picked up yet goes back to ``PENDING``
     (reason ``traffic_requeued``), at most ``max_traffic_requeues`` times per order.
 
+    A vehicle whose speed profile reports kinematic limits moves in runs (spec §9.2, §9.3): its travels keep claims one
+    arc plus its braking distance and ``lookahead_margin`` (default 0) ahead and pass nodes at speed.
+
     Idle AGVs are kept out of the way (spec §7.10): :meth:`make_way` moves an idle AGV that blocks a claim, and with
     ``clear_service_nodes`` (default true) an AGV that would become idle on a service node (a bay of a warehouse or the
     node of a charging station) first moves off it, when the traffic controller controls occupancy. A move to the node
@@ -132,6 +135,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         load_recovery_strategy: LoadRecoveryStrategy | None = None,
         clear_service_nodes: bool = True,
         max_traffic_requeues: int = 3,
+        lookahead_margin: float = 0.0,
         default_metrics: bool = True,
         ema_alpha: float = 0.01,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
@@ -140,6 +144,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         name: str | None = None,
         label: str | None = None,
     ) -> None:
+        if not (math.isfinite(lookahead_margin) and lookahead_margin >= 0):
+            raise ValueError(f"lookahead_margin must be finite and >= 0, got {lookahead_margin}")
         self.env = env
         self._graph, self._pending_graph = graph_input(env, graph)
         self.fleet = tuple(fleet)
@@ -168,6 +174,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         self.max_traffic_requeues = max_traffic_requeues
         """How many times an order that has not been picked up goes back to the pending queue because its AGV gave up
         a travel in traffic; the next give-up is refused (spec §8.2)."""
+        self.lookahead_margin = lookahead_margin
+        """Distance added to the braking distance of a kinematic vehicle when its travels claim ahead (spec §9.3)."""
         self._requeues: dict[str, int] = {}  # by order id: how many times the order was requeued for traffic
         self._withheld: tuple[TransferOrder, AGV] | None = None  # the order the pending-queue check does not offer
         self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node

@@ -375,4 +375,4 @@ def test_no_layout_builder_digest_remains_compatible():
                 )
             )
         env.run(until=120)
-        assert env.fingerprint().digest == "7f761d74b0cbe8441e56de7b181fd7cc58c39900510eab9e6671e531256870ca"
+        assert env.fingerprint().digest == "b62e716120b67b3b5561d4d298b6fb455cf8447abc2e5386362299563aed5c7f"

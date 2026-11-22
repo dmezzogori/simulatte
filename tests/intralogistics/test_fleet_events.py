@@ -28,6 +28,8 @@ order       ``_run_mission`` ``finally``: ``agv.order = None`` while it is still
             mission's order
 motion      ``travel.py`` ``_start_segment``: once the claim covering it is granted  ``agv.move_started``
 motion      ``travel.py`` ``_end_segment``                                            ``agv.move_ended``
+heading     ``travel.py`` ``_end_segment``: the chord of the arc traversed            ``agv.move_ended``
+heading     ``agv.py`` ``current_node`` setter: unknown (None) after placement       ``agv.placed``
 (none)      ``travel.py``: an interrupted travel comes to rest (no state changes)     ``agv.move_interrupted``
 fleet       ``FleetCoordinator.__init__``: ``agv.fleet = self``                        ``fleet.agv_added``
 ==========  ========================================================================  ==============================

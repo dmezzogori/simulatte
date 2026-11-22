@@ -1094,7 +1094,8 @@ LINKS = (("P", "M"), ("M", "Q"), ("Q", "R"))
 
 
 def run_twin(env: Environment, graph: Any, start: Any, nodes: Any, controller: Any) -> list[Any]:
-    """Two carts on the line: a1 from P to Q and a2 from M to R, so a1 waits for M and both pass through the zone."""
+    """Two carts on the line: a1 from P to Q and a2 from M to R, leaving at 10, so a1 comes to rest before M and waits
+    for it, and both pass through the zone."""
     from simulatte.intralogistics.agv import AGVState
 
     carts = {
@@ -1115,13 +1116,14 @@ def run_twin(env: Environment, graph: Any, start: Any, nodes: Any, controller: A
     events: list[Any] = []
     env.bus.subscribe(events.append, "*")
 
-    def mission(agv: AGV, goal: Node):
+    def mission(agv: AGV, goal: Node, at: float = 0.0):
+        yield env.timeout(at)
         agv.transition_to(AGVState.TRAVELING_EMPTY)
         yield from fleet._executor.travel(agv, goal, loaded=False, purpose="travel")
         agv.transition_to(AGVState.IDLE)
 
     env.process(mission(carts["a1"], goals["Q"]))
-    env.process(mission(carts["a2"], goals["R"]))
+    env.process(mission(carts["a2"], goals["R"], at=10.0))
     env.run()
     return [repr({entity: dict(state) for entity, state in sorted(env.initial_state.items())}), *map(repr, events)]
 
