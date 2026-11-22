@@ -65,6 +65,10 @@ _TOLERANCE = 1e-9
 """Relative slack when comparing a clear point with the odometer at the end of an arc."""
 
 
+_HEADING_TOLERANCE = 1e-9
+"""Heading changes below this many radians are taken as 0 (spec §9.4)."""
+
+
 def _reached(clear: float, odometer: float) -> bool:
     """Whether the odometer value `odometer` has reached the clear point `clear`, allowing for rounding in the summed
     lengths."""
@@ -192,7 +196,8 @@ def _heading_changes(nodes: Sequence[Node], heading: float | None) -> tuple[floa
 
     The arc that enters the first node is the one that gave the AGV `heading`; None means it is unknown, and so is the
     change at every node until an arc with a direction has been traversed. An arc whose chord has length 0 has no
-    direction: it leaves the heading unchanged, so the change at its ends is measured from the last known one.
+    direction: it leaves the heading unchanged, so the change at its ends is measured from the last known one. A change
+    below :data:`_HEADING_TOLERANCE` is 0: rounding in the coordinates of collinear nodes is not a turn.
     """
     changes: list[float | None] = []
     for source, target in zip(nodes, nodes[1:]):
@@ -204,7 +209,8 @@ def _heading_changes(nodes: Sequence[Node], heading: float | None) -> tuple[floa
             changes.append(None)
         else:
             change = abs(direction - heading)
-            changes.append(min(change, 2 * math.pi - change))
+            change = min(change, 2 * math.pi - change)
+            changes.append(0.0 if change < _HEADING_TOLERANCE else change)
         heading = direction
     return tuple(changes)
 
@@ -417,18 +423,19 @@ class _Trip:
 
             current, next_node = self.route[self.index], self.route[self.index + 1]
             plan: _ArcPlan | None = None
-            if self.speed == 0.0:  # at rest: the turn, the energy check before the next arc, then a run starts here
-                if self.turned != self.index:  # spec §8.1 step 5
-                    self.turned = self.index
-                    wait = self._turn_wait(self.index)
-                    if wait > 0.0:
-                        yield from self._turn(wait)
+            if self.speed == 0.0:  # at rest: the energy check before the next arc, the turn, then a run starts here
                 if self.kinematic:
                     energy_cost = self._estimate(self.index)
                 else:
                     plan, energy_cost = self._rest_plan(current, next_node)
                 if agv.battery.level < energy_cost:
                     return (yield from self._lacking_energy(current, energy_cost))
+                if self.turned != self.index:  # spec §8.1 step 5, after the energy check of step 4
+                    self.turned = self.index
+                    wait = self._turn_wait(self.index)
+                    if wait > 0.0:
+                        self._claim_ahead()  # the claim is asked for on arrival and stays pending during the turn
+                        yield from self._turn(wait)
                 self._start_run()
 
             self._claim_ahead()

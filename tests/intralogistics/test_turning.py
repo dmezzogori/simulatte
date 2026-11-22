@@ -17,22 +17,26 @@ from typing import Any
 
 import pytest
 
-from simulatte.intralogistics.agv import AGVType
+from simulatte.environment import Environment
+from simulatte.intralogistics.agv import AGV, AGVType
+from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import (
     AgvMoveEnded,
     AgvMoveInterrupted,
     AgvMoveStarted,
     AgvRouted,
+    AgvStranded,
     TrafficReleased,
     TrafficReserved,
     TrafficWaitEnded,
     TrafficWaitStarted,
 )
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import Disposition, Reroute
 from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics.test_travel import ARC, Plain, Scripted, World, vehicle, world
-from tests.intralogistics.traffic_support import build
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, build
 
 RIGHT = math.pi / 2
 
@@ -388,3 +392,134 @@ def test_a_reroute_after_a_turn_wait_turns_again_towards_the_new_first_arc() -> 
     (wait,) = w.of(TrafficWaitEnded, agv="A")
     assert wait.t == 22.0  # the first turn wait came before the claim wait
     assert [e.t for e in w.of(AgvMoveStarted, agv="A")][1] == 23.0
+
+
+# --- fix round 1: the tolerance of the heading change, and the order of energy check, turn and claim wait ----------
+
+
+def noisy_line() -> Any:
+    """Six collinear nodes whose coordinates carry rounding: the computed heading changes are 5.6e-17 and 1.1e-16."""
+    return build([(f"P{i}", 7.1 * i, 0.3 * 7.1 * i) for i in range(6)], [(f"P{i}", f"P{i + 1}") for i in range(5)])
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+@pytest.mark.parametrize(
+    "option", ["turn_time", "corner_speed", "positive_turn_time"], ids=["proportional", "corner", "any_angle"]
+)
+def test_rounding_in_the_coordinates_does_not_turn_a_straight_continuation(reserve: bool, option: str) -> None:
+    spy = Spy(
+        {
+            "turn_time": proportional,
+            "corner_speed": lambda angle: 0.5 if angle > 0 else math.inf,
+            "positive_turn_time": lambda angle: 1.0 if angle > 0 else 0.0,
+        }[option]
+    )
+    kind = turning(**{"corner_speed" if option == "corner_speed" else "turn_time": spy})
+    results = []
+    for agv_type in (kind, vehicle()):
+        w = world(noisy_line(), {"A": "P0"}, reserve=reserve, agv_type=agv_type)
+        w.go("A", "P5")
+        w.env.run()
+        assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+        results.append(([(e.node, e.t) for e in w.of(AgvMoveEnded)], [e.motion["v0"] for e in w.of(AgvMoveStarted)]))
+    assert results[0] == results[1]  # exactly the line without turning, passed at speed
+    assert all(v0 > 0 for v0 in results[0][1][1:])
+    assert spy.angles and set(spy.angles) == {0.0}
+
+
+def charger_world(turn: bool) -> World:
+    """The L route with a charging station on ``N1``; the vehicle holds 11 units and an arc takes 10."""
+    graph, nodes = l_shape()
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    controller = ReservationController(env=env, graph=graph)
+    agv_type = turning(turn_time=proportional if turn else None, battery_capacity=11.0)
+    agv = AGV(env=env, agv_type=agv_type, agv_id="A", initial_node=nodes["N0"])
+    station = ChargingStation(env=env, name="CS", node=nodes["N1"], n_slots=1)
+    fleet = StillFleet(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=[],
+        charging_stations=[station],
+        traffic_controller=controller,
+        default_metrics=False,
+    )
+    TrafficInvariants(env, controller)
+    env.activate()
+    return World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
+
+
+def test_the_energy_check_comes_before_the_turn_wait_and_strands_at_once() -> None:
+    """The vehicle arrives at N1 with 1 unit left. The travel to N2 turns 90 degrees (2 s) and the arc needs 10: the
+    check comes first, so ``agv.stranded`` is emitted when the travel starts, not after the turn."""
+    w = world(l_shape(), {"A": "N0"}, agv_type=turning(turn_time=proportional, battery_capacity=11.0))
+    w.go("A", "N1")
+    w.env.run()
+    assert w.agvs["A"].battery.level == 1.0
+    w.go("A", "N2", at=20.0)
+    w.env.run()
+    assert w.outcomes["A"] is TravelOutcome.BATTERY_STRANDED
+    (stranded,) = w.of(AgvStranded)
+    assert (stranded.node, stranded.t) == ("N1", 20.0)
+
+
+def test_a_charging_diversion_does_not_serve_the_turn_towards_the_abandoned_arc() -> None:
+    ends = []
+    for turn in (True, False):
+        w = charger_world(turn)
+        w.go("A", "N1")
+        w.env.run()
+        w.go("A", "N2", at=20.0)
+        w.env.run()
+        assert w.outcomes["A"] is TravelOutcome.RETRY_FROM_CURRENT_POSITION
+        assert w.agvs["A"].battery.level > 1.0  # charged
+        ends.append(w.env.now)
+    assert ends[0] == ends[1]  # the turn (2 s) was not served before the diversion
+
+
+def blocked_corner(leaves: float) -> World:
+    """The L route of :func:`l_shape` extended to ``N3``; ``A`` turns at ``N1`` from 8.54 to 10.54 while ``B`` stands on
+    ``N2`` and leaves for ``N3`` at `leaves`."""
+    graph = build(
+        [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10), ("N3", 10, 20)], [("N0", "N1"), ("N1", "N2"), ("N2", "N3")]
+    )
+    w = world(graph, {"A": "N0", "B": "N2"}, agv_type=turning(turn_time=proportional))
+    w.go("A", "N2")
+    w.go("B", "N3", at=leaves)
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    return w
+
+
+def test_a_claim_granted_during_the_turn_wait_gives_no_traffic_wait() -> None:
+    w = blocked_corner(leaves=9.0)
+    assert not w.of(TrafficWaitStarted, agv="A")
+    assert w.of(AgvMoveStarted, agv="A")[1].t == pytest.approx(ARC + 2.0, rel=1e-12)  # the turn, nothing more
+
+
+def test_a_claim_still_pending_after_the_turn_waits_from_the_end_of_the_turn() -> None:
+    w = blocked_corner(leaves=15.0)
+    (started,) = w.of(TrafficWaitStarted, agv="A")
+    assert started.t == pytest.approx(ARC + 2.0, rel=1e-12)  # not at the arrival
+    (ended,) = w.of(TrafficWaitEnded, agv="A")
+    assert ended.t == 15.0 and w.of(AgvMoveStarted, agv="A")[1].t == 15.0
+
+
+def test_the_claim_is_requested_before_the_turn_wait_at_the_start_of_a_travel() -> None:
+    """``A`` has stopped at N1 heading east and sets out for N2 at 20: a turn of 2 s. ``B`` stands on N2 and leaves at
+    21, during the turn. The claim was asked for at 20, so it is granted at 21 and the vehicle leaves at 22 with no
+    traffic wait."""
+    graph = build(
+        [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10), ("N3", 10, 20)], [("N0", "N1"), ("N1", "N2"), ("N2", "N3")]
+    )
+    w = world(graph, {"A": "N0", "B": "N2"}, agv_type=turning(turn_time=proportional))
+    w.go("A", "N1")
+    w.env.run()
+    w.go("A", "N2", at=20.0)
+    w.go("B", "N3", at=21.0)
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    assert [e.t for e in w.of(TrafficReserved, agv="A")][-1] == 21.0
+    assert w.of(AgvMoveStarted, agv="A")[1].t == 22.0
+    assert not w.of(TrafficWaitStarted, agv="A")
