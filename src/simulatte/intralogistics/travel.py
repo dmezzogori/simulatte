@@ -565,9 +565,27 @@ class _Trip:
     # Runs (spec §9.2, §9.3)
 
     def _limits(self) -> Kinematics:
-        """The limits a run that starts now would sample: the profile's at the load and the battery level now."""
+        """The limits a run that starts now would sample: the profile's at the load and the battery level now.
+
+        Raises `ValueError`, naming the profile and the values, when a value is not finite, when ``decel`` is negative,
+        or when ``decel`` is 0 for a vehicle that can move (a stop cannot be planned). A ``v_max`` or ``accel`` that is
+        not positive is a vehicle that cannot move: its run stalls (spec §9.1).
+        """
         profile = cast("KinematicProfile", self.agv.agv_type.speed_profile)
-        return profile.limits(self._load(), self.agv.battery.level_pct)
+        load_weight, battery_level = self._load(), self.agv.battery.level_pct
+        kin = profile.limits(load_weight, battery_level)
+        v_max, accel, decel = kin.v_max, kin.accel, kin.decel
+        if not (math.isfinite(v_max) and math.isfinite(accel) and math.isfinite(decel)):
+            problem = "every value must be finite"
+        elif decel < 0:
+            problem = "decel must not be negative"
+        elif decel == 0 and v_max > 0 and accel > 0:
+            problem = "decel must be positive for a vehicle that can move, else a stop cannot be planned"
+        else:
+            return kin
+        raise ValueError(
+            f"{type(profile).__name__}.limits({load_weight!r}, {battery_level!r}) returned {kin!r}: {problem}"
+        )
 
     def _estimate(self, k: int, kin: Kinematics) -> float:
         """The energy estimated for arc `k` of the route under the limits `kin` (spec §9.5): the depletion function at

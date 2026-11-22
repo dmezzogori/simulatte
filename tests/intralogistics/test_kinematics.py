@@ -305,6 +305,23 @@ def test_invalid_inputs_raise(v0: float, lengths: list[float], arc_caps: list[fl
         plan_run(v0, lengths, arc_caps, node_caps, KIN)
 
 
+NAN = float("nan")
+
+
+@pytest.mark.parametrize(
+    ("v0", "lengths", "arc_caps", "node_caps"),
+    [
+        (NAN, [1.0], [1.5], [0.0, 0.0]),
+        (0.0, [NAN], [1.5], [0.0, 0.0]),
+        (0.0, [1.0], [NAN], [0.0, 0.0]),
+        (0.0, [1.0, 1.0], [1.5, 1.5], [0.0, NAN, 0.0]),
+    ],
+)
+def test_nan_inputs_raise(v0: float, lengths: list[float], arc_caps: list[float], node_caps: list[float]) -> None:
+    with pytest.raises(ValueError, match="NaN"):
+        plan_run(v0, lengths, arc_caps, node_caps, KIN)
+
+
 def test_exit_speed_beyond_the_rounding_slack_raises() -> None:
     reach = (0.3**2 + 2 * 0.8 * 0.5) ** 0.5
     with pytest.raises(ValueError, match="cannot"):

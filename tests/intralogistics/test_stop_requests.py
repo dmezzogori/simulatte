@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import random
+import re
 from typing import Any
 
 import pytest
@@ -644,6 +645,62 @@ def test_a_vehicle_that_cannot_move_estimates_its_energy_at_speed_zero(capacity:
         assert started.t_end == math.inf
     else:
         assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED} and not w.of(AgvMoveStarted)
+
+
+class Fixed:
+    """Limits fixed at `kin`, whatever the load and the battery level."""
+
+    def __init__(self, kin: Kinematics) -> None:
+        self.kin = kin
+
+    def limits(self, load_weight: float, battery_level: float) -> Kinematics:
+        return self.kin
+
+    def travel_time(self, distance: float, *args: Any, **kwargs: Any) -> float:
+        return distance
+
+
+NAN, INF = math.nan, math.inf
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+@pytest.mark.parametrize(
+    ("kin", "problem"),
+    [
+        (Kinematics(NAN, 0.8, 0.8), "finite"),
+        (Kinematics(1.5, NAN, 0.8), "finite"),
+        (Kinematics(1.5, 0.8, NAN), "finite"),
+        (Kinematics(INF, 0.8, 0.8), "finite"),
+        (Kinematics(1.5, INF, 0.8), "finite"),
+        (Kinematics(1.5, 0.8, INF), "finite"),
+        (Kinematics(1.5, 0.8, -0.8), "negative"),
+        (Kinematics(0.0, 0.8, -0.8), "negative"),
+        (Kinematics(1.5, 0.8, 0.0), "a stop cannot be planned"),
+    ],
+)
+def test_invalid_sampled_limits_raise_naming_the_profile_and_the_values(
+    reserve: bool, kin: Kinematics, problem: str
+) -> None:
+    w = world(line(3), {"A": "N0"}, reserve=reserve, agv_type=vehicle(profile=Fixed(kin)))
+    w.go("A", "N2")
+    with pytest.raises(ValueError, match=rf"Fixed\.limits\(.*\) returned {re.escape(repr(kin))}: .*{problem}"):
+        w.env.run()
+    assert not w.of(AgvMoveStarted)
+
+
+@pytest.mark.parametrize(
+    "kin",
+    [Kinematics(0.0, 0.8, 0.8), Kinematics(1.5, 0.0, 0.8), Kinematics(1.5, -0.8, 0.8), Kinematics(0.0, 0.8, 0.0)],
+)
+def test_limits_with_a_top_speed_or_acceleration_not_positive_stall_as_before(kin: Kinematics) -> None:
+    """A non-positive ``v_max`` or ``accel`` is a vehicle that cannot move (spec §9.1): the run stalls, whatever the
+    deceleration, until an interrupt."""
+    w = world(line(3), {"A": "N0"}, agv_type=vehicle(profile=Fixed(kin)))
+    w.interrupt(w.go("A", "N2"), 5.0)
+    w.env.run()
+    assert w.caught == {"A": "cancelled"}
+    (started,) = w.of(AgvMoveStarted)
+    assert started.t_end == math.inf
 
 
 # --- fix round 1: one estimate for the check at rest, the horizon and charger reachability --------------------------

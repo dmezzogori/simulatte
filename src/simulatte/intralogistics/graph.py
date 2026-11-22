@@ -35,6 +35,11 @@ class Arc:
     passing: bool = False
 
     def __post_init__(self) -> None:
+        limit = self.speed_limit
+        if limit is not None and not (math.isfinite(limit) and limit > 0):
+            raise ValueError(
+                f"arc {self.source.id}->{self.target.id} speed_limit {limit} must be positive and finite when given"
+            )
         chord = math.hypot(self.target.x - self.source.x, self.target.y - self.source.y)
         if self.length is None:
             object.__setattr__(self, "length", chord)

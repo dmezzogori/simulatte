@@ -193,15 +193,15 @@ def plan_run(
     the horizon. ``node_caps[0]`` is ignored in favour of `v0` and ``node_caps[-1]`` must be 0. The arc caps are folded
     into the node caps, a backward pass with the deceleration bounds each node speed by what lets the AGV stop at the
     horizon, a forward pass with the acceleration bounds it by what the AGV can reach, and `arc_profile` gives each arc.
-    Raises `ValueError` on inconsistent or negative inputs and when `v0` is too high to stop within the horizon.
+    Raises `ValueError` on inconsistent, negative or NaN inputs and when `v0` is too high to stop within the horizon.
     """
     count = len(lengths)
     if len(arc_caps) != count or len(node_caps) != count + 1:
         raise ValueError("a run needs one arc cap per arc and one node cap per node")
     if node_caps[-1] != 0:
         raise ValueError(f"the cap of the last node must be 0, not {node_caps[-1]}")
-    if v0 < 0 or any(value < 0 for value in (*lengths, *arc_caps, *node_caps)):
-        raise ValueError("lengths, caps and the entry speed must not be negative")
+    if not v0 >= 0 or any(not value >= 0 for value in (*lengths, *arc_caps, *node_caps)):  # NaN fails `>= 0`
+        raise ValueError("lengths, caps and the entry speed must not be negative or NaN")
     if count == 0:
         if v0 != 0:
             raise ValueError(f"an empty run cannot stop from the speed {v0}")

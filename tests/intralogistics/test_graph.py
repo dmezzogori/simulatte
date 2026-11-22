@@ -44,6 +44,11 @@ class TestArc:
         arc = Arc(source=n1, target=n2, speed_limit=2.5)
         assert arc.speed_limit == 2.5
 
+    @pytest.mark.parametrize("limit", [0.0, -1.0, float("nan"), float("inf")])
+    def test_speed_limit_must_be_positive_and_finite(self, limit: float) -> None:
+        with pytest.raises(ValueError, match=r"A->B speed_limit .* must be positive and finite"):
+            Arc(Node("A", 0.0, 0.0), Node("B", 1.0, 0.0), speed_limit=limit)
+
 
 class TestLayoutGraph:
     def _make_line_graph(self) -> tuple[list[Node], LayoutGraph]:
