@@ -49,7 +49,8 @@ class HoldingsLedger:
 
     Holdings are kept in grant order, both per resource (with the direction of a segment or corridor holding, None
     otherwise) and per AGV. :meth:`build` attaches the entities of the network once it exists; before that the ledger
-    is empty. The read methods return copies.
+    is empty. The read methods return copies; views and test helpers use only those. The methods that change the
+    ledger belong to the controller, and nothing else may call them.
     """
 
     def __init__(self, env: Environment) -> None:

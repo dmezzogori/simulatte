@@ -101,8 +101,9 @@ class ReservationController:
     the authored ``zones`` and the derivation flags; its warnings are logged once. The same initializer attaches one
     ``segment`` entity per segment and one ``zone`` entity per zone and corridor, each group in id order. Fleets must
     register before activation and their vehicle types must have a ``length``. ``policy`` defaults to
-    :class:`~simulatte.intralogistics.traffic_policy.StandardTrafficPolicy`. ``ledger`` holds who holds what and
-    answers read-only questions about it.
+    :class:`~simulatte.intralogistics.traffic_policy.StandardTrafficPolicy`. ``ledger`` (a
+    :class:`~simulatte.intralogistics.traffic_holdings.HoldingsLedger`) holds who holds what. It is the read API of
+    the holdings for views and test helpers; only the controller changes it, and nothing outside the controller may.
     """
 
     controls_occupancy = True
