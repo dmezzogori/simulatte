@@ -946,8 +946,11 @@ class FleetCoordinator(Entity, kind="fleet"):
         (asked with purpose ``make_way``, for a target that was given) or a parking area without a free slot, and when
         the AGV's previous make-way move ended at the current time on the node it started from (so that a move that
         fails at once is not repeated without time passing). A node the AGV has made way from in the current chain of
-        moves is not a target: a given one is refused and the search skips it, which bounds a chain by the number of
-        nodes. The chain ends when the AGV starts an order mission or becomes idle where it blocks no wait. Otherwise
+        moves is not a target: a given one is refused and the search skips it. Nor does a move start from such a node:
+        a move cut short before its target (a deadlock it gives up, which a travel without an order always does) can
+        leave the AGV on a node it left, and every move started from it would add nothing to the chain. Each move of a
+        chain therefore starts from a new node, which bounds a chain by the number of nodes. The chain ends when the
+        AGV starts an order mission or becomes idle where it blocks no wait. Otherwise
         the AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
         when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
         ``on_agv_idle`` hooks and the pending-queue check run as after any mission.
@@ -958,6 +961,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         if self._returned.get(agv) == (float(self.env.now), origin):
             return False
         left = self._made_way_from.get(agv, set())
+        if origin in left:  # the chain came back to a node it left: a move cut short would start again for ever
+            return False
         if target is None:
             exclude = sorted(left, key=lambda n: n.id)
             target = standard_target(self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=exclude)

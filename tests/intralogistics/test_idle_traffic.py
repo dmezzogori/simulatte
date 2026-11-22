@@ -1200,6 +1200,50 @@ def test_a_chain_of_make_way_moves_ends_where_the_agv_blocks_no_wait() -> None:
     assert m.fleet.make_way(a, m.nodes["M"]) is True
     m.env.run()
     assert a.current_node is m.nodes["M"]
+    assert m.fleet.make_way(a, m.nodes["SIDE"]) is True  # a new chain: a move from M is allowed again
+    m.env.run()
+    assert a.current_node is m.nodes["SIDE"]
+
+
+def test_a_chain_of_make_way_moves_cut_short_by_giving_up_ends() -> None:
+    """spec §7.10, §8.4: the reduced stress seed 2241 of part B (a comb of 2 m arcs, vehicles 8 m long, a profile
+    without limits). A1 waits at N1 for N2, A3 (making way) waits at N4 for N3, and A2, idle and without an order,
+    stands between them. Each make-way move of A2 goes one arc towards the bay behind the other group, stops in a
+    deadlock and gives up, which a travel without an order always does: A2 is idle again on a node it made way from.
+    It is not asked to start another move from there in the same chain, so the moves are bounded, both waits are
+    reported stuck behind A2, and the run returns."""
+    graph, nodes = build(
+        [(f"N{i}", 2 * i, 0) for i in range(6)] + [(f"B{i}", 2 * i, 2) for i in range(6)],
+        [(f"N{i}", f"N{i + 1}") for i in range(5)] + [(f"N{i}", f"B{i}") for i in range(6)],
+    )
+    w = world(
+        (graph, nodes),
+        {"A1": "B0", "A2": "B2", "A3": "B5"},
+        make_way=True,
+        agv_type=vehicle(length=8.0, profile=Plain(), battery=1e6),
+    )
+    fleet = w.fleet
+
+    def travel(name: str, goal: str) -> Any:  # as the stress ran it: idle and told the controller afterwards
+        agv = w.agvs[name]
+        fleet._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        yield from fleet._executor.travel(agv, nodes[goal], loaded=False)
+        fleet._transition_agv(agv, AGVState.IDLE)
+        fleet.traffic_controller.idle(agv)
+
+    w.env.process(travel("A1", "N5"))
+    w.env.process(travel("A2", "B5"))
+    w.env.run()  # returns: before the rule the moves went on, one per second, for ever
+    assert w.env.now == 68.0
+    moves = [(e.agv, e.origin, e.destination) for e in w.of(AgvRouted) if e.reason == "make_way"]
+    assert len(moves) == 4
+    assert [(e.agv, dict(e.blockers)) for e in w.of(TrafficWaitStuck)] == [
+        ("A3", {"A2": "IDLE"}),
+        ("A1", {"A2": "IDLE"}),
+    ]
+    a2 = w.agvs["A2"]
+    assert a2.state is AGVState.IDLE and a2.current_node in fleet._made_way_from[a2]
+    assert fleet.make_way(a2) is False  # the chain has come back to a node it left
 
 
 def test_a_spare_agv_keeps_making_way_on_a_ring() -> None:
