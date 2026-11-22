@@ -15,7 +15,7 @@ the interpreter that runs them, so each version is installed in its own virtual 
 | `feeder.py` | Builds a 10-server LumsCor job shop with constructors present in both versions and replays a workload through `PreShopPool.add`, without the router and without any random draw. Checks the job and operation counts and fingerprints the trajectory. |
 | `run.py` | Times one mode (`none`, `default`, `default_logging`, `bare`, `kpi`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in modes `kpi` and `full` the trace size, in mode `full` also the chunk count and cold-seek latency. Writes JSON. |
 | `intralogistics.py` | Branch-only workload: `examples/intralogistics_advanced.py` scaled up (20 AGVs, an outbound order every 30 to 60 time units, 20 shifts of 28,800 time units: about 22,000 orders). Same modes and JSON as `run.py`; every mode is reported as a ratio to the branch's own `none`. |
-| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise` (`--budget` has no default and is required for such a pair), 2 when the results are not comparable. The Limit column shows the sum and its parts. |
+| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise` (`--budget` has no default and is required for such a pair), 2 when the results are not comparable (`--allow-different-trajectory` accepts different counts and hashes, reported only). The Limit column shows the sum and its parts. |
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
 | `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
 | `strip_debug.py` | Writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path; the CI gate's second baseline (D55). |
@@ -185,7 +185,10 @@ calibration across multiple runner batches. The pre-0.13 results and limitations
 `intralogistics.py` now also runs the common `none`, `default`, and `default_logging` modes on 0.12.0 through
 an API/RNG compatibility shim. It verifies both the input request hash and a lifecycle trajectory hash with
 UUIDs normalized to submission order. Use `compare.py --report-only` for these comparisons; they have no
-accepted overhead budget. The legacy version's required no-op collector callback remains part of its timing.
+accepted overhead budget. Since the AGV traffic release the branch's trajectory differs from 0.12.0's (see
+[`intralogistics-baseline.md`](intralogistics-baseline.md)), so these pairs also need
+`--allow-different-trajectory`: the row is reported with the verdict `info, trajectories differ` instead of being
+rejected with status 2. The legacy version's required no-op collector callback remains part of its timing.
 
 ## Studio local execution (SP4)
 

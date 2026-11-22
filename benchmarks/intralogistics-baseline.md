@@ -25,7 +25,7 @@ including replenishment: submission index, SKU, quantity, warehouse names, arriv
 also includes status, dispatch/pick/delivery times and assigned AGV. Submission indices replace 0.12.0's random
 UUID order ids. Zero-count statuses are omitted because SP1 adds `PENDING_ACTIVATION`. No physical inputs,
 nonzero counts, lifecycle times or assignments are normalized away. Repeats and fresh processes must agree,
-and `compare.py` rejects different counts or hashes. Workload version `intralogistics-advanced-v2` prevents
+and `compare.py` rejects different counts or hashes unless `--allow-different-trajectory` is given. Workload version `intralogistics-advanced-v2` prevents
 comparing these enriched hashes against earlier benchmark outputs.
 
 There are no injected breakdowns or cancellations in this workload. Deliberately adding them can change
@@ -42,7 +42,7 @@ for mode in none default default_logging; do
     --warmup 1 --repeat 3 --processes 2 --json "/tmp/il-base-$mode.json"
   /tmp/head/bin/python intralogistics.py --mode "$mode" --shifts 1 \
     --warmup 1 --repeat 3 --processes 2 --json "/tmp/il-head-$mode.json"
-  /tmp/head/bin/python compare.py "/tmp/il-base-$mode.json" "/tmp/il-head-$mode.json" --report-only
+  /tmp/head/bin/python compare.py "/tmp/il-base-$mode.json" "/tmp/il-head-$mode.json" --report-only --allow-different-trajectory
 done
 ```
 
@@ -98,6 +98,9 @@ input hash `1a5ad97c4bd908101086d8ba16cc592cdbb43c24d768fd85756105ff10e28583` an
 same at `9f0406f` and the same as at the end of part B: part C changes no decision under the default router, and
 neither does the fix wave. The two sides do not run the same trajectory
 (different hashes), so `compare.py` rejects the pair and the figures above are the medians of the JSON files.
+The CI step "Other modes, sampling and intralogistics" compares the branch with released 0.12.0 the same way, with
+`--report-only --allow-different-trajectory`: each row is reported as `info, trajectories differ`, and the step no
+longer exits with status 2.
 
 Why the branch is slower. The workload runs under `FreeFlowController` with a `TrapezoidalProfile` that has kinematic
 limits, so each travel is planned as runs of arcs (spec §9) where `main` evaluated one rest-to-rest profile per arc.
