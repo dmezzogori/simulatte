@@ -16,6 +16,7 @@ from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import (
+    AgvMoveInterrupted,
     AgvRouted,
     AgvStateChanged,
     AgvStranded,
@@ -636,7 +637,7 @@ def test_an_interrupted_idle_move_gives_the_slot_back_unless_it_ended_on_the_tar
 ) -> None:
     """With a rest-to-rest profile (no limits) the interrupt takes effect at the end of the arc: in the first arc (D to
     FAR) that is short of END, the parking node, so the slot goes back; in the second (FAR to END) the AGV is on the
-    parking node. (A kinematic vehicle claims through to END from D and would come to rest there either way.)"""
+    parking node. (A kinematic vehicle passes a node at speed: see the test below.)"""
     m = mission_world(
         lane(),
         {"A": "S"},
@@ -656,6 +657,39 @@ def test_an_interrupted_idle_move_gives_the_slot_back_unless_it_ended_on_the_tar
     m.env.process(interrupt())
     m.env.run()
     a = m.agvs["A"]
+    assert a.state is AGVState.IDLE
+    assert (a.current_node is m.nodes["END"]) is kept
+    assert (m.areas["P"].available_capacity == 0) is kept
+    assert [e.agv for e in m.events(ParkingLeft)] == ([] if kept else ["A"])
+
+
+@pytest.mark.parametrize(("interrupt_after", "kept"), [(0.5, False), (12.0, True)])
+def test_an_interrupted_idle_move_of_a_kinematic_vehicle_gives_the_slot_back_unless_it_ended_on_the_target(
+    interrupt_after: float, kept: bool
+) -> None:
+    """The parking node END lies beyond FAR and F2 (15 m, then 7.5 m each). Interrupted in the first arc, the vehicle
+    passes FAR at speed and rests at F2, the first node a braking distance (1.40625 m) beyond it: short of END, so the
+    slot goes back. Interrupted in the second arc it passes F2 at speed and rests at END, and keeps the slot (spec
+    §8.3)."""
+    graph_nodes = build(
+        [("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("SIDE", 10, 10), ("FAR", 35, 0), ("F2", 42.5, 0), ("END", 50, 0)],
+        [("S", "M"), ("M", "D"), ("M", "SIDE"), ("D", "FAR"), ("FAR", "F2"), ("F2", "END")],
+    )
+    m = mission_world(graph_nodes, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("END", 1)})
+    m.fleet._repositioning_policy = Always(m.nodes["END"])
+    order = m.order("WH-S", "WH-D")
+
+    def interrupt() -> Any:
+        while not m.events(ParkingEntered):
+            yield m.env.timeout(0.25)
+        yield m.env.timeout(interrupt_after)
+        m.fleet._active_missions[order.id].interrupt("breakdown")
+
+    m.env.process(interrupt())
+    m.env.run()
+    a = m.agvs["A"]
+    (interrupted,) = [e for e in m.events(AgvMoveInterrupted) if e.t >= m.events(ParkingEntered)[0].t]
+    assert interrupted.node == ("END" if kept else "F2")
     assert a.state is AGVState.IDLE
     assert (a.current_node is m.nodes["END"]) is kept
     assert (m.areas["P"].available_capacity == 0) is kept

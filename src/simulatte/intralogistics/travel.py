@@ -6,7 +6,9 @@ pending. A vehicle whose profile reports kinematic limits moves in runs: it keep
 distance ahead, plans its speeds from its node to the last node it holds and passes nodes at speed (§9.2, §9.3). A
 profile without limits traverses each arc rest to rest with its travel time and motion description. At a node the
 AGV type's ``corner_speed`` caps the speed and its ``turn_time`` makes the vehicle stop and wait at rest before it
-leaves (§9.4).
+leaves (§9.4). A stop request received while moving (an interrupt, a battery found critical at a node passed at speed)
+truncates the plan at the first node of the horizon where the vehicle can be at rest; the energy horizon cuts the plan
+at the arcs whose estimate at the arc cap the battery affords (§8.3, §9.5).
 With a controller that controls occupancy it keeps a trail of the nodes and segments behind the vehicle and
 releases each when the tail clears it (§6.6). A waiting travel answers the controller through its
 :class:`~simulatte.intralogistics.traffic.WaitHooks`: it accepts a reroute or a step aside by staging the new route.
@@ -67,6 +69,10 @@ _TOLERANCE = 1e-9
 
 _HEADING_TOLERANCE = 1e-9
 """Heading changes below this many radians are taken as 0 (spec §9.4)."""
+
+_STOP_SLACK = 1e-12
+"""Relative slack on the braking distance when a stop request looks for the first node at which the AGV can be at rest,
+the slack :func:`~simulatte.intralogistics.kinematics.plan_run` allows an entry speed."""
 
 
 def _reached(clear: float, odometer: float) -> bool:
@@ -254,9 +260,10 @@ class TravelExecutor:
         router and, for ``make_way`` and ``clear_node``, is the reason of ``agv.routed``. An AGV already at the goal
         arrives at once, without events. An interrupt while waiting for a claim takes effect at once; one received
         while moving takes effect where the AGV comes to rest: the end of the arc for a profile without limits, the
-        last node it held when the interrupt arrived for a run (spec §8.3, interim rule). Either way the AGV is at
-        rest at a node and ``agv.move_interrupted`` is emitted before the interrupt is raised again. A turn wait is a
-        wait at rest, so an interrupt received during it takes effect at once.
+        first node of the horizon at which a run can be at rest given its speed and deceleration (spec §8.3). The
+        arc being traversed keeps its profile, so the AGV passes its end at the speed planned for it. Either way the
+        AGV is at rest at a node and ``agv.move_interrupted`` is emitted before the interrupt is raised again. A turn
+        wait is a wait at rest, so an interrupt received during it takes effect at once.
         """
         if agv.current_node == goal:
             return TravelOutcome.ARRIVED
@@ -392,7 +399,8 @@ class _Trip:
         self.end = 0  # position of the node where the plan ends at rest; it never moves back within a run
         self.plan_from = 0  # position of the node the profiles start from
         self.profiles: tuple[ArcProfile, ...] = ()
-        self.stop_at: int | None = None  # the horizon held when a stop request arrived while moving
+        self.stop_at: int | None = None  # the first node where the AGV can be at rest after a stop request while moving
+        self.arrival_speed = 0.0  # the planned speed at the end of the arc being traversed
         self.hooks = WaitHooks(
             route=self._remaining,
             loaded=self._carrying,
@@ -425,7 +433,7 @@ class _Trip:
             plan: _ArcPlan | None = None
             if self.speed == 0.0:  # at rest: the energy check before the next arc, the turn, then a run starts here
                 if self.kinematic:
-                    energy_cost = self._estimate(self.index)
+                    energy_cost = self._estimate(self.index, self._limits())
                 else:
                     plan, energy_cost = self._rest_plan(current, next_node)
                 if agv.battery.level < energy_cost:
@@ -450,7 +458,7 @@ class _Trip:
             yield from self._traverse(current, next_node, plan)
             if self.speed > 0.0:  # passed at speed: a stop request takes effect where the run ends at rest
                 if agv.battery.is_critical and next_node != self.goal:
-                    self._stop()
+                    self._stop(self.index, self.speed)
                 continue
             if self.interrupt is not None:
                 self._settle()
@@ -533,26 +541,27 @@ class _Trip:
 
     # Runs (spec §9.2, §9.3)
 
-    def _estimate(self, k: int) -> float:
-        """The energy estimated for arc `k` of the route, as the executor estimated it before each arc in part A: the
-        depletion at the average speed of the profile's ``travel_time`` at the current battery level."""
-        agv = self.agv
-        distance, load_weight = self.lengths[k], self._load()
-        profile = agv.agv_type.speed_profile
-        travel_time = profile.travel_time(
-            distance, load_weight, agv.battery.level_pct, speed_limit=self.speed_limits[k]
-        )
-        avg_speed = distance / travel_time if travel_time > 0 else 0.0
-        return agv.battery.estimate_energy(distance, load_weight, avg_speed)
+    def _limits(self) -> Kinematics:
+        """The limits a run that starts now would sample: the profile's at the load and the battery level now."""
+        profile = cast("KinematicProfile", self.agv.agv_type.speed_profile)
+        return profile.limits(self._load(), self.agv.battery.level_pct)
+
+    def _estimate(self, k: int, kin: Kinematics) -> float:
+        """The energy estimated for arc `k` of the route under the limits `kin` (spec §9.5): the depletion function at
+        the arc cap ``u = min(v_max, speed_limit)``, 0 for a vehicle that cannot move."""
+        limit = self.speed_limits[k]
+        cap = kin.v_max if limit is None else min(kin.v_max, limit)
+        return self.agv.battery.estimate_energy(self.lengths[k], self._load(), max(cap, 0.0))
 
     def _affordable_end(self, limit: int) -> int:
         """The furthest node, up to position `limit`, such that the estimated energy of the arcs from the AGV's node to
         it fits the battery level, and not beyond the first node other than the goal at which the estimated level is
-        critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate`)."""
-        battery = self.agv.battery
+        critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits)."""
+        battery, kin = self.agv.battery, self.kin
+        assert kin is not None
         level, total, end = battery.level, 0.0, self.index
         while end < limit:
-            total += self._estimate(end)
+            total += self._estimate(end, kin)
             if total > level:
                 break
             end += 1
@@ -569,19 +578,18 @@ class _Trip:
         self.stop_at = None
         if not self.kinematic:
             return
-        profile = cast("KinematicProfile", self.agv.agv_type.speed_profile)
-        kin = self.kin = profile.limits(self._load(), self.agv.battery.level_pct)
+        kin = self.kin = self._limits()
         self.stalled = not (kin.v_max > 0 and kin.accel > 0)
         self.lookahead = 0.0 if self.stalled else kin.v_max**2 / (2 * kin.decel) + self.fleet.lookahead_margin
 
     def _run_plan(self) -> _ArcPlan:
         """The plan of the next arc of a run (spec §9.2).
 
-        The run is planned from the AGV's node and planned speed to the end node, which is the horizon (or, after a stop
-        request, the horizon held when it arrived) as far as the energy horizon allows, and never nearer than the end
-        of the plan in force. The plan is kept while that end does not move, so under free flow it is computed once
-        per run. Arc caps are ``min(v_max, speed_limit)``, node caps the smaller cap of the two arcs at the node. A
-        stalled run gets an arc that is never left.
+        The run is planned from the AGV's node and planned speed to the end node, which is the horizon as far as the
+        energy horizon allows, and never nearer than the end of the plan in force; after a stop request it is the node
+        where the AGV can be at rest (:meth:`_stop`), whatever the plan in force was. The plan is kept while that end
+        does not move, so under free flow it is computed once per run. Arc caps are ``min(v_max, speed_limit)``, node
+        caps the smaller cap of the two arcs at the node. A stalled run gets an arc that is never left.
         """
         index, agv = self.index, self.agv
         length, load_weight, speed_limit = self.lengths[index], self._load(), self.speed_limits[index]
@@ -591,10 +599,12 @@ class _Trip:
             profile = agv.agv_type.speed_profile
             description = describe_motion(profile, length, load_weight, agv.battery.level_pct, speed_limit)
             return _ArcPlan(length, load_weight, math.inf, description, lambda covered: math.inf)
-        limit = self.horizon if self.stop_at is None else self.stop_at
-        end = max(self.end, index + 1)
-        if end < limit:
-            end = max(end, self._affordable_end(limit))
+        if self.stop_at is not None:
+            end = self.stop_at
+        else:
+            end = max(self.end, index + 1)
+            if end < self.horizon:
+                end = max(end, self._affordable_end(self.horizon))
         if end != self.end or not self.profiles:
             caps = [kin.v_max if cap is None else min(kin.v_max, cap) for cap in self.speed_limits[index:end]]
             node_caps = [self.speed, *self._interior_caps(index + 1, caps), 0.0]
@@ -608,12 +618,26 @@ class _Trip:
         `first`: the smaller cap of the two arcs and the turn's (spec §9.2)."""
         return [min(before, after, self._node_cap(first + i)) for i, (before, after) in enumerate(zip(arcs, arcs[1:]))]
 
-    def _stop(self) -> None:
+    def _stop(self, node: int, speed: float) -> None:
         """A stop request received while moving (an interrupt, or a battery found critical at a node other than the goal
-        that the estimate did not foresee): no further claim is requested, and the run ends at rest at the horizon held
-        now (interim rule: spec §8.3 truncates the plan to the first node where the AGV can be at rest)."""
-        if self.stop_at is None:
-            self.stop_at = self.horizon
+        that the estimate did not foresee), spec §8.3. `node` is the position of the next node event, where the AGV
+        passes at the planned speed `speed`: the end of the arc being traversed, or the node it has just reached.
+
+        No further claim is requested. The plan is cut at the first node from `node` on, within the plan in force, whose
+        distance from `node` is at least the braking distance ``speed ** 2 / (2 * decel)``, or at `node` for an AGV
+        that arrives at rest. The next node event replans to it; the profile of the arc being traversed is not changed.
+        A second request keeps the first one's node.
+        """
+        if self.stop_at is not None:
+            return
+        stop = node
+        if speed > 0.0:
+            kin = self.kin
+            assert kin is not None  # a vehicle that is moving has sampled limits
+            braking = speed**2 / (2 * kin.decel) * (1 - _STOP_SLACK)
+            while stop < self.end and self.offsets[stop] - self.offsets[node] < braking:
+                stop += 1
+        self.stop_at = stop
 
     def _lacking_energy(self, current: Node, energy_cost: float) -> ProcessGenerator:
         """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor."""
@@ -890,6 +914,7 @@ class _Trip:
         if current != self.goal:  # departing from a parking node gives its slot back, unless the trip returns to it
             self.fleet._release_slots(agv, current)
         self.moving = True
+        self.arrival_speed = plan.exit_speed
         arrival = env.timeout(travel_time)
         at_departure: list[Resource] = []
         inside: dict[float, list[Resource]] = {}
@@ -950,7 +975,7 @@ class _Trip:
             except simpy.Interrupt as interrupt:
                 if self.interrupt is None:
                     self.interrupt = interrupt
-                    self._stop()
+                    self._stop(self.index + 1, self.arrival_speed)
 
     def _release(self, trail: _Trail, resources: list[Resource]) -> None:
         """Release the given trail entries that are still in the trail. A grant taken while the AGV moves may have

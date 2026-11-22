@@ -12,6 +12,9 @@ repositioning to a full area no longer happens; with slot-taking disabled the pr
 Both example entries, and the seeded simple systems below, were re-recorded when kinematic vehicles began to move in
 runs through nodes (AGV traffic part B, Task 3); with every profile treated as one without limits the previous values
 are reproduced exactly.
+The simple systems were re-recorded once more for stop requests while moving (Task 5), which move the node where a
+breakdown or cancellation takes effect; with the stop at the horizon held instead, the Task 3 values are reproduced
+exactly.
 
 The seeded simple systems include breakdowns and cancellations: their corrected outputs live in
 ``fleet_recovery_regression.json`` because #47/#49/#50/#51 intentionally change mission recovery, and because an

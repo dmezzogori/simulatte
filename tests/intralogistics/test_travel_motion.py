@@ -3,8 +3,8 @@
 A vehicle whose profile has ``limits`` keeps claims one arc plus its braking distance ahead, plans its speed from the
 current node to the last node it holds and passes nodes at speed, so a lone AGV has the same travel time under both
 controllers and however many nodes split a line. A profile without ``limits`` keeps the rest-to-rest motion of part A.
-The interim rules for stop requests and the energy horizon (until the stop requests of spec §8.3 are refined) are
-pinned here too.
+The energy horizon and the stop requests of spec §8.3 are pinned here for the simplest cases; ``test_stop_requests.py``
+holds the rest.
 
 Every world runs :class:`FullReplay`; worlds with a ``ReservationController`` also run :class:`TrafficInvariants`.
 """
@@ -403,10 +403,10 @@ def test_a_moving_agv_blocked_by_an_idle_one_stops_at_its_horizon_and_the_idle_o
     assert (moved.t, moved.reason, moved.destination) == (stop, "make_way", "S")
 
 
-# --- stop requests and the energy horizon (interim rules) ---------------------------------------------------------
+# --- stop requests and the energy horizon ------------------------------------------------------------------------
 
 
-def test_an_interrupt_while_moving_takes_effect_at_the_horizon() -> None:
+def test_an_interrupt_while_moving_takes_effect_at_the_first_node_where_the_run_can_rest() -> None:
     w = world(line(5), {"A": "N0"})
     process = w.go("A", "N4")
     w.interrupt(process, 3.0)
@@ -418,7 +418,7 @@ def test_an_interrupt_while_moving_takes_effect_at_the_horizon() -> None:
     assert w.held("A") == ["N2"]
 
 
-def test_an_interrupt_with_a_pending_claim_withdraws_it_at_the_horizon_without_a_wait() -> None:
+def test_an_interrupt_with_a_pending_claim_withdraws_it_at_rest_without_a_wait() -> None:
     w = world(line(6), {"L": "N3", "F": "N0"})
     process = w.go("F", "N4")
     w.interrupt(process, 10.0)  # on N1 -> N2, with the claim of N2 -> N3 pending
@@ -453,27 +453,6 @@ def test_the_plan_ends_where_the_estimated_battery_turns_critical(reserve: bool)
     (started,) = w.of(AgvMoveStarted)
     assert at_rest(started.motion)
     assert w.of(AgvMoveEnded)[0].t == pytest.approx(steady().travel_time(10.0), rel=1e-12)
-
-
-@pytest.mark.parametrize(
-    ("reserve", "outcome", "stop"), [(True, "RETRY_FROM_CURRENT_POSITION", "N2"), (False, "ARRIVED", "N4")]
-)
-def test_a_battery_found_critical_against_the_estimate_takes_effect_at_the_horizon(
-    reserve: bool, outcome: str, stop: str
-) -> None:
-    """Above 1.2 m/s the depletion is five times higher. The estimate uses the rest-to-rest average speed of an arc
-    (about 1.17 m/s) and foresees no critical level, but the run passes N1 faster and arrives there critical: the stop
-    takes effect at the horizon held then (N2 under reservation, the goal under free flow)."""
-    kind = critical_type(lambda distance, load, speed: distance * (5.0 if speed > 1.2 else 1.0), 0.96, 1000.0)
-    w = world(line(5), {"A": "N0"}, reserve=reserve, agv_type=kind)
-    w.go("A", "N4")
-    w.env.run()
-    assert w.outcomes == {"A": TravelOutcome[outcome]}
-    assert w.agvs["A"].current_node == w.nodes[stop]
-    ended = {e.node: e for e in w.of(AgvMoveEnded)}
-    assert ended["N1"].battery == 950.0 and ended["N1"].t == w.of(AgvMoveStarted)[1].t  # critical, passed at speed
-    if reserve:
-        assert [e.resources for e in w.of(TrafficReserved)] == [("N0~N1", "N1"), ("N1~N2", "N2")]
 
 
 @pytest.mark.parametrize("reserve", [False, True])

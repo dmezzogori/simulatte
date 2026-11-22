@@ -370,8 +370,9 @@ def test_at_the_exit_port_the_corridor_stays_and_gates_a_later_same_direction_cl
 
 
 def test_an_interrupt_during_an_arc_takes_effect_where_the_run_comes_to_rest() -> None:
-    """At 3 A holds N0 to N2 (the next arc and its braking distance); it claims no more, passes N1 at speed and comes
-    to rest at N2, where the interrupt takes effect (spec §8.3, interim rule)."""
+    """At 3 A holds N0 to N2 (the next arc and its braking distance). The arc to N1 keeps its profile, which passes N1
+    at speed, so the first node a braking distance beyond it, N2, is where A comes to rest and the interrupt takes
+    effect (spec §8.3)."""
     w = world(line(4), {"A": "N0"})
     process = w.go("A", "N3")
     w.interrupt(process, 3.0)

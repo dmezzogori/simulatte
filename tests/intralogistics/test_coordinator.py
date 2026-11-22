@@ -1536,11 +1536,11 @@ class TestTravelCorrectness:
 class TestInterruptSafety:
     """Tests for H3, M2, H4, H5: interrupt safety and resource cleanup."""
 
-    def test_cancel_during_travel_comes_to_rest_at_the_horizon(
+    def test_cancel_during_travel_comes_to_rest_at_the_first_node_it_can(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """T4: Cancelling a mission mid-arc lets the AGV run on to the end of the claims it holds then, END here: its
-        braking distance is 0.05 m, so it claimed both arcs at FAR (spec §8.3, §9.3). It then holds END only.
+        """T4: Cancelling a mission mid-arc lets the AGV pass the end of that arc at speed and rest at the first node
+        a braking distance (0.05 m) beyond it, END here (spec §8.3). It then holds END only.
 
         Graph:  FAR -- NEXT -- END (AGV starts at FAR, origin warehouse
         output bay is at END, so AGV must travel through NEXT).
@@ -2876,6 +2876,84 @@ class TestResumeDeliveryChargingRetry:
         assert order.status == OrderStatus.COMPLETED
         assert charger.total_recharges >= 1
 
+    def test_resume_delivery_charges_during_retry_for_a_kinematic_vehicle(self, env: Environment, sku_a: SKU) -> None:
+        """The kinematic counterpart of the test above, on a line of 5 m arcs ``ORIGIN, M1, M2, CHARGER, DEST`` and a
+        battery of 17. The first plan ends at CHARGER, where the estimated level (2) turns critical. Cancelled on the
+        first arc, the vehicle passes M1 at speed and rests at M2, the first node 0.05 m beyond it (spec §8.3); the
+        resumed delivery ends at CHARGER (critical), charges there inside the retry loop and completes."""
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        nodes = {
+            name: Node(id=name, x=5.0 * i, y=0.0) for i, name in enumerate(("ORIGIN", "M1", "M2", "CHARGER", "DEST"))
+        }
+        names = list(nodes)
+        graph = LayoutGraph(nodes.values(), [Arc(source=nodes[u], target=nodes[v]) for u, v in zip(names, names[1:])])
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-ORIGIN",
+            input_bays=[nodes["ORIGIN"]],
+            output_bays=[nodes["ORIGIN"]],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-DEST",
+            input_bays=[nodes["DEST"]],
+            output_bays=[nodes["DEST"]],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        charger = ChargingStation(env=env, name="CS-1", node=nodes["CHARGER"], n_slots=1)
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=speed,
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time=1.0,
+            unload_time=1.0,
+            low_battery_threshold=0.2,
+            critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=nodes["ORIGIN"])
+        agv.battery.level = 17.0
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[charger],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+
+        def interrupt_later():
+            yield env.timeout(2.3)  # the vehicle left ORIGIN at 2.0
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_resume_charge")
+
+        interrupted: list[AgvMoveInterrupted] = []
+        charging: list[ChargingStarted] = []
+        env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
+        env.bus.subscribe(charging.append, (ChargingStarted,))
+        env.process(interrupt_later())
+        env.run()
+
+        assert [e.node for e in interrupted] == ["M2"]
+        assert [e.station for e in charging] == ["CS-1"] and charging[0].t > interrupted[0].t
+        assert order.status == OrderStatus.COMPLETED
+        assert charger.total_recharges == 1
+
 
 class TestResumeDeliveryStranded:
     """ResumeDelivery path when re-travel results in STRANDED (lines 438-443)."""
@@ -2981,18 +3059,29 @@ class TestResumeDeliveryStranded:
 class TestResumeDeliveryFallbackToReturn:
     """H1: When ResumeDelivery re-travel fails but return-to-origin succeeds, cargo goes back to origin."""
 
-    def test_resume_fails_return_succeeds(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
+    @pytest.mark.parametrize("kinematic", [False, True])
+    def test_resume_fails_return_succeeds(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, kinematic: bool
+    ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        speed_profile: Any
+        if kinematic:
+            # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID, the
+            # first node 0.05 m beyond A (spec §8.3), under free flow as well.
+            node_origin, node_mid, node_dest, graph = _four_arc_line()
+            beyond_mid = next(node for node in graph.nodes if node.id == "B")
+            speed_profile = simple_speed
+        else:
+            node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+            node_mid = Node(id="MID", x=50.0, y=0.0)
+            node_dest = Node(id="DEST", x=100.0, y=0.0)
+            graph = LayoutGraph(
+                [node_origin, node_mid, node_dest],
+                [Arc(source=node_origin, target=node_mid), Arc(source=node_mid, target=node_dest)],
+            )
+            beyond_mid = node_dest
+            speed_profile = RestToRest(simple_speed)  # rest to rest: the interrupt takes effect at MID
 
         wh_origin = Warehouse(
             env=env,
@@ -3019,7 +3108,7 @@ class TestResumeDeliveryFallbackToReturn:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=RestToRest(simple_speed),  # rest to rest: the interrupt takes effect at MID
+            speed_profile=speed_profile,
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -3042,17 +3131,21 @@ class TestResumeDeliveryFallbackToReturn:
 
         def interrupt_and_sever_dest():
             # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7).
-            # Interrupt at t=4: it takes effect at the end of the arc, so the AGV comes to rest at MID.
+            # Interrupt at t=4, in the first arc: the AGV comes to rest at MID at t=7.
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
-                # Sever only MID->DEST, keep MID->ORIGIN intact
-                graph._adjacency[node_mid].pop(node_dest, None)
-                graph._adjacency[node_dest].pop(node_mid, None)
+                # Sever only the way on from MID, keep MID->ORIGIN intact
+                graph._adjacency[node_mid].pop(beyond_mid, None)
+                graph._adjacency[beyond_mid].pop(node_mid, None)
                 process.interrupt("test_sever_dest_only")
 
+        interrupted: list[AgvMoveInterrupted] = []
+        env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
         env.process(interrupt_and_sever_dest())
         env.run()
+
+        assert [e.node for e in interrupted] == ["MID"]
 
         # Re-travel to DEST fails, fallback to return-to-origin succeeds
         assert agv.current_load is None
@@ -3066,20 +3159,26 @@ class TestResumeDeliveryFallbackToReturn:
 class TestResumeDeliveryFallbackChain:
     """H1: ResumeDelivery -> ReturnToOrigin -> Drop cargo."""
 
+    @pytest.mark.parametrize("kinematic", [False, True])
     def test_resume_and_return_both_fail_drops_cargo(
-        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, kinematic: bool
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        speed_profile: Any
+        if kinematic:
+            # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID.
+            node_origin, node_mid, node_dest, graph = _four_arc_line()
+            speed_profile = simple_speed
+        else:
+            node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+            node_mid = Node(id="MID", x=50.0, y=0.0)
+            node_dest = Node(id="DEST", x=100.0, y=0.0)
+            graph = LayoutGraph(
+                [node_origin, node_mid, node_dest],
+                [Arc(source=node_origin, target=node_mid), Arc(source=node_mid, target=node_dest)],
+            )
+            speed_profile = RestToRest(simple_speed)  # rest to rest: the interrupt takes effect at MID
 
         wh_origin = Warehouse(
             env=env,
@@ -3106,7 +3205,7 @@ class TestResumeDeliveryFallbackChain:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=RestToRest(simple_speed),  # rest to rest: the interrupt takes effect at MID
+            speed_profile=speed_profile,
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -3129,7 +3228,7 @@ class TestResumeDeliveryFallbackChain:
 
         def interrupt_and_isolate():
             # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7).
-            # Interrupt at t=4: it takes effect at the end of the arc, so the AGV comes to rest at MID.
+            # Interrupt at t=4, in the first arc: the AGV comes to rest at MID at t=7.
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:

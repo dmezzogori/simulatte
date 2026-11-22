@@ -1016,7 +1016,7 @@ class FleetCoordinator(Entity, kind="fleet"):
     def _idle_travel(self, agv: AGV, target: Node, purpose: str = "travel") -> ProcessGenerator:
         """Travel `agv` unloaded to `target` and return the outcome. The parking slot that :meth:`_take_slot` took for
         `target` is given back, whatever the outcome and for an interrupt, unless the AGV stands on `target` (an
-        interrupt takes effect at the end of the arc, which may be the last one)."""
+        interrupt takes effect at the first node where the AGV can be at rest, which may be `target`)."""
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
         except simpy.Interrupt:
