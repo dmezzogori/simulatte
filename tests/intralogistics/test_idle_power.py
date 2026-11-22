@@ -145,7 +145,9 @@ def test_with_idle_power_the_levels_at_node_events_are_the_expected_ones(monkeyp
         calls: list[int] = []
         original = _Trip._affordable_end
         monkeypatch.setattr(
-            _Trip, "_affordable_end", lambda self, limit, calls=calls: (calls.append(limit), original(self, limit))[1]
+            _Trip,
+            "_affordable_end",
+            lambda self, limit, *args, calls=calls: (calls.append(limit), original(self, limit, *args))[1],
         )
         graph, nodes = build(
             [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]

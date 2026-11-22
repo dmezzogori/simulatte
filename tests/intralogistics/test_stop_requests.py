@@ -1150,7 +1150,9 @@ def test_the_energy_check_at_node_events_ignores_a_level_as_expected(monkeypatch
         calls = []
         original = _Trip._affordable_end
         monkeypatch.setattr(
-            _Trip, "_affordable_end", lambda self, limit, calls=calls: (calls.append(limit), original(self, limit))[1]
+            _Trip,
+            "_affordable_end",
+            lambda self, limit, *args, calls=calls: (calls.append(limit), original(self, limit, *args))[1],
         )
         graph, nodes = build(
             [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
