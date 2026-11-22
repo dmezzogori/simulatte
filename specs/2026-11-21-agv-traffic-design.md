@@ -772,7 +772,7 @@ same request and a view extended with reservation times; nothing here depends on
 - `ShortestDistanceRouter(algorithm="dijkstra")` (or `"astar"`): cost is `path_length`; tie-breaking by node id
   as today. Default (T17).
 - `FastestRouter()`: arc cost `length / min(v_max, speed_limit)` with `limits` for the request's load and the
-  AGV's battery, or `travel_time` for profiles without `limits`. Node cost: `turn_time` plus the time lost
+  AGV's battery level now (idle power accrued, §9.5), or `travel_time` for profiles without `limits`. Node cost: `turn_time` plus the time lost
   slowing to `corner_speed` and regaining speed. With a turning model the search state is the node and the
   incoming arc.
 - `CongestionAwareRouter(base=FastestRouter(), wait_weight=1.0, horizon=60.0)`: adds to each leg
@@ -796,8 +796,11 @@ stranded blockers. Every route assignment emits `agv.routed` with its reason.
 `DispatchStrategy.select(order, fleet, context)` receives a `DispatchContext` with `graph`, `router`, `view` and
 `cost(agv, node)`. `NearestIdleStrategy` minimises the cost to the best output bay. `RepositioningContext` gains
 `router` and `view`; `NearestParkingPolicy` uses cost. The coordinator chooses bays and chargers by cost, and the
-reachable-charger energy estimate uses the route's arc lengths. With the default router every one of these
-decisions equals today's.
+reachable-charger energy estimate uses the route's arc lengths. A ranking asks the router with the purpose and
+the load of the travel it ranks for, and keeps the tie rules of before this work: the first candidate of the
+sequence among equal costs for bays, chargers and parking areas, the AGV id for dispatch. With the default router
+every one of these decisions equals today's, except on a graph with an arc whose explicit `length` exceeds its
+chord: the old rankings summed chords there, and the route cost sums arc lengths, as the executor does.
 
 ## 11. Events, state and trace
 
@@ -909,7 +912,8 @@ New modules in `intralogistics/`: `kinematics.py`, `network.py` (resources, zone
 
 Added: `Arc.length`, `Arc.passing`, `LayoutGraph.length`, `path_length`, `subdivide`, `Zone`, `TrafficPolicy`,
 `StandardTrafficPolicy`, the reactions, `TrafficView`, `Route`, `RouteRequest`, `FastestRouter`,
-`CongestionAwareRouter`, `Kinematics`, `TrafficKPIs`, `FleetCoordinator.make_way`, and the `AGVType` fields
+`CongestionAwareRouter`, `Kinematics`, `TrafficKPIs`, `FleetCoordinator.make_way`, `FleetCoordinator.best_bay`,
+`DispatchContext`, the `RepositioningContext` fields `router` and `view` and its `cost`, and the `AGVType` fields
 `length`, `min_gap`, `corner_speed`, `turn_time`, `idle_power`.
 
 Docs to update: `docs/guides/intralogistics.md`, `docs/guides/layout.md` (the "Traffic reserves nodes only"
