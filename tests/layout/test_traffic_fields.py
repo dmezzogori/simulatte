@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import random
 from pathlib import Path
 from typing import Any
 
@@ -628,6 +629,25 @@ def test_subdivide_and_block_length_build_the_same_network_on_a_3_3_pitch(block_
         assert [twin.length(twin_node(twin, u), twin_node(twin, v)) for u, v in zip(chain, chain[1:])] == [
             parents.length(a, b) / pieces
         ] * pieces
+
+
+@pytest.mark.parametrize("offset", [1e6, 5e6])
+@pytest.mark.parametrize("block_length", [1.0, 0.5, 0.1])
+def test_subdivide_and_block_length_build_the_same_network_at_georeferenced_coordinates(offset, block_length):
+    """Far from the origin the generated points are rounded to a spacing larger than the check's relative 1e-9, so a
+    piece length could fall under the chord of its points and the build failed; the twins still make the same network
+    to the float, from the same piece counts and lengths as near the origin."""
+    rnd = random.Random(1)
+    for _ in range(40):
+        length, angle = rnd.uniform(5.0, 60.0), rnd.uniform(0.0, math.pi)
+        points = [("A", offset, offset), ("B", offset + length * math.cos(angle), offset + length * math.sin(angle))]
+        layout = resolve(
+            explicit_patch([{"source": "A", "target": "B", "direction": "both"}], points, block_length=block_length)
+        ).graph
+        a, b = (Node(name, x, y) for name, x, y in points)
+        twin = LayoutGraph([a, b], [Arc(a, b)]).subdivide(block_length)
+        assert {n.id: (n.x, n.y) for n in layout.nodes} == {n.id: (n.x, n.y) for n in twin.nodes}
+        assert arc_lengths(layout) == arc_lengths(twin)
 
 
 def twin_node(graph: LayoutGraph, name: str) -> Node:

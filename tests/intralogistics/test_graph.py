@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
@@ -152,6 +154,26 @@ class TestArcLength:
     def test_arc_length_shorter_than_chord_raises(self, length: float) -> None:
         with pytest.raises(ValueError):
             Arc(Node("A", 0.0, 0.0), Node("B", 3.0, 4.0), length=length)
+
+    @pytest.mark.parametrize("offset", [0.0, 5e6])
+    def test_arc_length_below_the_chord_by_more_than_the_tolerance_raises(self, offset: float) -> None:
+        a, b = Node("A", offset, offset), Node("B", offset + 3.0, offset + 4.0)
+        for length in (5.0 - 1e-6, 5.0 * (1.0 - 1e-7)):
+            with pytest.raises(ValueError, match="must be finite and not smaller than the chord"):
+                Arc(a, b, length=length)
+
+    def test_arc_length_tolerates_rounding_at_the_magnitude_of_large_coordinates(self) -> None:
+        """Points generated at georeferenced coordinates carry the spacing of the floats there (9.3e-10 at 5e6), so
+        a length computed along the way can fall that far under the chord of the points; near the origin the
+        tolerance stays the relative 1e-9."""
+        a, b = Node("A", 5e6, 5e6), Node("B", 5e6 + 0.09, 5e6)
+        chord = math.hypot(b.x - a.x, b.y - a.y)
+        short = chord - 2 * math.ulp(5e6)
+        assert short < chord * (1.0 - 1e-9)
+        assert Arc(a, b, length=short).length == short
+        near = Node("A", 0.0, 0.0), Node("B", 0.09, 0.0)
+        with pytest.raises(ValueError):
+            Arc(*near, length=0.09 - 2 * math.ulp(5e6))
 
     def test_length_without_arc_raises(self) -> None:
         a, b = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0)

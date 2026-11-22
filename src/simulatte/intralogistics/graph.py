@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from simulatte.environment import Environment
 
 _LENGTH_TOLERANCE = 1e-9
+_LENGTH_ULPS = 4
 
 
 def split(length: float, max_length: float, maximum: float = math.inf) -> tuple[int, float]:
@@ -60,11 +61,24 @@ class Arc:
         chord = math.hypot(self.target.x - self.source.x, self.target.y - self.source.y)
         if self.length is None:
             object.__setattr__(self, "length", chord)
-        elif not math.isfinite(self.length) or self.length < chord * (1.0 - _LENGTH_TOLERANCE):
+        elif not math.isfinite(self.length) or self.length < min(
+            chord * (1.0 - _LENGTH_TOLERANCE), chord - _LENGTH_ULPS * self._spacing()
+        ):
             raise ValueError(
                 f"arc {self.source.id}->{self.target.id} length {self.length} must be finite and not smaller "
                 f"than the chord {chord}"
             )
+
+    def _spacing(self) -> float:
+        """The floating-point spacing at the largest absolute coordinate of the two nodes.
+
+        Points generated far from the origin (georeferenced coordinates) are rounded to this spacing, so a length
+        computed along the way can fall under the chord of its points by up to about 1.3 times it (measured over
+        random edges of 5 to 60 m at offsets up to 1e8); `_LENGTH_ULPS` leaves a margin of three. Near the origin it
+        is far below the relative `_LENGTH_TOLERANCE`, which then decides alone.
+        """
+        source, target = self.source, self.target
+        return math.ulp(max(abs(source.x), abs(source.y), abs(target.x), abs(target.y)))
 
 
 def _check_pair(arc: Arc, reverse: Arc | None) -> None:
