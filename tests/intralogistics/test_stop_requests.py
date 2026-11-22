@@ -912,9 +912,7 @@ def test_an_affordable_end_that_comes_nearer_at_a_later_node_event_is_honoured(r
     w.go("A", "E012")
     w.env.run()
     assert w.agvs["A"].current_node == w.nodes["E007"]
-    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION} or w.outcomes == {
-        "A": TravelOutcome.BATTERY_STRANDED
-    }
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
 
 
 def energy_run(
