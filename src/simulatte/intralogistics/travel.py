@@ -119,7 +119,9 @@ def standard_target(
     `purpose` and `load_weight` are those of the move the search is for; the router is asked with them, so that the
     search and the move make the same request apart from the destination. Nodes in `exclude` are never
     taken (a make-way move does not go back to a node the AGV made way from). With `roomy` (the fallback of a make-way
-    move, spec §7.9) a service node or a root of capacity above 1 is a candidate too, under every other rule.
+    move, spec §7.9) the candidates are the service nodes and roots of capacity above 1, under every other rule except
+    one: the segment of the last leg may be named by a pending claim, since the AGV comes to rest on a node with room,
+    where its trail clears (§6.6).
     """
     controller = fleet.traffic_controller
     view = controller.view
@@ -139,7 +141,11 @@ def standard_target(
         if node == origin or node in full or node in exclude:
             continue
         rank = 0 if node in parking else 1
-        if rank and (node in service or (idle and view.branch_root(node))) and not (roomy and view.capacity(node) > 1):
+        excluded = bool(rank) and (node in service or (idle and view.branch_root(node)))
+        if roomy:
+            if not excluded or view.capacity(node) < 2:
+                continue  # the fallback looks only at service nodes and roots with room
+        elif excluded:
             continue
         free = view.capacity(node) - len(view.holders(node))
         if free < 1:
@@ -158,7 +164,7 @@ def standard_target(
         if idle and any(
             view.pending(resource) > 0
             for resource in view.resources(route.nodes[-2], node)
-            if not isinstance(resource, Node)
+            if not isinstance(resource, Node) and not (roomy and isinstance(resource, Segment))
         ):
             continue
         if not view.admissible(agv, controller.next_claim(agv, route.nodes, 0)):

@@ -911,6 +911,53 @@ def test_make_way_does_not_fall_back_to_a_node_whose_last_slot_a_concerned_agv_n
     assert a.current_node is m.nodes[expected or "X"]
 
 
+def bay_line() -> tuple[LayoutGraph, dict[str, Node]]:
+    """``W - X - CH - Y - BAY`` along a row: two bays at the ends; CH is the root of the dead end ``Y, BAY``."""
+    return build(
+        [("W", 0, 0), ("X", 10, 0), ("CH", 20, 0), ("Y", 30, 0), ("BAY", 40, 0)],
+        [("W", "X"), ("X", "CH"), ("CH", "Y"), ("Y", "BAY")],
+    )
+
+
+@pytest.mark.parametrize("zone", [False, True])
+def test_the_fallback_may_arrive_over_a_segment_a_pending_claim_names(zone: bool) -> None:
+    """Idle A on BAY blocks B's dead-end claim ``X -> BAY``, which names ``CH~Y``, the last segment of A's way to the
+    two-slot charger node CH. The fallback takes CH all the same (A comes to rest there and its trail clears), unless a
+    zone on that last leg is named too: a zone or corridor of the last leg still rules a node out."""
+    graph, nodes = bay_line()
+    options: dict[str, Any] = {"zones": [Zone("z", ((nodes["CH"], nodes["Y"]),))]} if zone else {}
+    m = mission_world(
+        (graph, nodes),
+        {"A": "BAY", "B": "X"},
+        bays={"WW": "W", "WB": "BAY"},
+        chargers={"CS": ("CH", 2)},
+        controller_options=options,
+    )
+    request = pending_claim(m, "B", "X", "CH", "Y", "BAY")
+    a, b = m.agvs["A"], m.agvs["B"]
+    assert m.controller.view.pending(m.controller.network.segment(nodes["CH"], nodes["Y"])) == 1
+    assert standard_target(m.fleet, a, concerned=(b,), idle=True, purpose="make_way") is None
+    assert m.fleet.make_way(a, concerned=(b,)) is not zone
+    m.env.run()
+    if zone:
+        assert a.current_node is nodes["BAY"] and not request.granted
+    else:
+        assert m.routed("A") == [("make_way", "BAY", "CH")]
+        assert a.current_node is nodes["CH"] and request.granted
+
+
+def test_the_strict_search_still_refuses_a_last_segment_a_pending_claim_names() -> None:
+    """CH is a parking node with two slots, a place the strict search may take; the last segment of the way there is
+    named by B's pending claim, so the strict search refuses it, and the fallback, which looks only at service nodes and
+    roots, does not take it either."""
+    m = mission_world(bay_line(), {"A": "BAY", "B": "X"}, bays={"WW": "W", "WB": "BAY"}, parking={"PA": ("CH", 2)})
+    pending_claim(m, "B", "X", "CH", "Y", "BAY")
+    a, b = m.agvs["A"], m.agvs["B"]
+    assert standard_target(m.fleet, a, concerned=(b,), idle=True, purpose="make_way") is None
+    assert standard_target(m.fleet, a, concerned=(b,), idle=True, purpose="make_way", roomy=True) is None
+    assert m.fleet.make_way(a, concerned=(b,)) is False
+
+
 def test_clearing_a_service_node_has_no_fallback() -> None:
     """After its delivery A stands on the bay Q. The bay P, the root X and the charger node CH are not places to idle,
     so A stays on Q: the roomy charger node is a fallback of make-way moves only."""
