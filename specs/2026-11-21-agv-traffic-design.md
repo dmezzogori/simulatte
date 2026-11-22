@@ -386,10 +386,11 @@ exceptions. A zone or corridor held ahead of entry under a hold-back rule stays;
 corridor named by the AGV's pending claim stays, because the pending claim was built on holding it; for the same
 reason the resources of a pending claim that the AGV already holds are determined when the claim is granted, not
 when it is requested. A corridor that the AGV left onto one of its ports stays for as long as the AGV holds that
-port, and is released in the same event as the port. This holds for ports of capacity 1 only. A port of
-capacity above 1 is often a parking or charging node where the vehicle that left comes to rest; an exit record
-there would keep the corridor oriented for as long as it stays and block every opposite entrant, so the corridor
-is released with its last member. Only a `release` at a clear point counts as leaving: when
+port, and is released in the same event as the port. A port of capacity above 1 is often a parking or
+charging node where the vehicle that left comes to rest; a record kept for as long as it stays would hold the
+corridor oriented and block every opposite entrant. So on such a port the record lasts while the vehicle passes
+or waits there for its next claim, and is dropped, with the corridor if the AGV holds none of its members, when
+its travel ends on the port (the `retain` of a travel that ends or changes route at rest there). Only a `release` at a clear point counts as leaving: when
 `retain` drops the last members (a travel that ends before entering), the corridor goes with them. The executor
 therefore releases what clears on arrival before it calls `retain` at the end of a travel. T8: the controller never takes a granted resource
 back. Every release emits one `traffic.released` and triggers a scan.
@@ -483,7 +484,11 @@ moves therefore schedules at most one review per wait. A wait that ends takes it
 timer is removed from the event queue (`Environment.unschedule`), so it neither fires nor advances the clock.
 
 **Stuck waits.** When a review ends in `KeepWaiting` and every blocker of the wait is idle, stranded or stalled,
-the controller emits `traffic.wait_stuck` and logs a warning, once per wait. It is a report, not a deadlock.
+or is itself waiting in a wait that is stuck by the same rule (a cycle of such waits counts), the controller
+emits `traffic.wait_stuck` and logs a warning, once per wait. It is a report, not a deadlock: deadlock detection
+(§7.8) ignores the holdings of AGVs that are not waiting, so two waiting vehicles that block each other only
+because a resting one holds a slot between them are not a deadlock, and without this rule nothing would report
+them.
 
 **Standard search.** From a node, search outwards by router cost over legs, the first claim admissible now, for
 the cheapest node that has free capacity and does not lie ahead on the remaining route of an AGV in the waits
