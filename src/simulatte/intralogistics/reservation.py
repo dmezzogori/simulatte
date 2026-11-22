@@ -344,13 +344,14 @@ class ReservationController:
 
         Resources the AGV does not hold are ignored, and so is a zone or corridor of which the AGV keeps a member. Three
         containers stay (spec §7.5): one held ahead of entry (no member held), one named by the AGV's pending claim,
-        and a corridor left onto a port of capacity 1 the AGV still holds, which then goes with that port.
+        and a corridor left onto a port the AGV still holds, which then goes with that port.
         """
         self._drop(agv, self.ledger.releasing(agv, resources, self._named(agv)))
 
     def retain(self, agv: AGV, resources: Collection[Resource]) -> None:
         """Free everything `agv` holds except `resources`, the zones and corridors containing one of them, those its
-        pending claim names, and a corridor with an exit record whose port is kept."""
+        pending claim names, and a corridor with an exit record whose port is kept, unless the AGV rests on that port
+        and its capacity is above 1: the travel ends there (spec §7.5)."""
         self._drop(agv, self.ledger.retaining(agv, resources, self._named(agv)))
 
     def _named(self, agv: AGV) -> set[Resource]:

@@ -599,22 +599,46 @@ class TestRelease:
         w.retain("B", "J1")
         assert w.held("B") == ["J1"]
 
-    def test_a_corridor_left_onto_a_port_of_capacity_two_goes_with_its_last_member(self) -> None:
-        """spec §7.5: no exit record on a port of capacity above 1. W, held back before J2 by the corridor A holds
-        forward, is granted the corridor with J2 as soon as A releases its last member, while A still stands on J2."""
+    @pytest.mark.parametrize("end", ["moves_on", "travel_ends"])
+    def test_the_exit_record_on_a_port_of_capacity_two(self, end: str) -> None:
+        """spec §7.5: A leaves the corridor onto J2 (capacity 2) by the release of its last member, which creates an
+        exit record; W, held back before J2 by the corridor A holds forward, keeps waiting while A waits on J2 for its
+        next claim. The record goes with the port when A moves on (one event), or, while A keeps J2, by the ``retain``
+        that ends A's travel there, which frees the corridor."""
         graph, nodes = two_junction_corridor()
-        w = world((graph, nodes), {"A": "J1", "W": "x2"}, capacities={nodes["J2"]: 2})
+        w = world((graph, nodes), {"A": "J1", "B": "x1", "W": "x2"}, capacities={nodes["J2"]: 2})
+        a = w.agvs["A"]
         step(w, "A", "J1 a b J2", 0)
         step(w, "A", "J1 a b J2", 1)
         waiter = w.leg("W", "x2 J2 b a J1")  # corridor, J2~x2, J2: the corridor is held forward by A
         assert not waiter.event.triggered
-        step(w, "A", "J1 a b J2", 2)  # A leaves onto J2: no exit record, the corridor goes with b
-        assert w.held("A") == ["J2"]
-        assert w.controller.ledger.exits(w.agvs["A"]) == {}
-        assert w.events()[-2:] == [
-            ("traffic.released", "A", ("corridor:a", "b", "J2~b")),
-            ("traffic.reserved", "W", ("corridor:a", "J2~x2", "J2")),
-        ]
+        step(w, "A", "J1 a b J2", 2)  # A leaves onto J2: an exit record
+        assert w.events()[-1] == ("traffic.released", "A", ("b", "J2~b"))
+        assert w.held("A") == ["corridor:a", "J2"]
+        assert w.controller.ledger.exits(a) == {w.corridor(): nodes["J2"]}
+        assert not waiter.event.triggered
+        if end == "moves_on":
+            assert w.ask("B", nodes["y2"]).granted  # y2 is taken: A waits on J2 for its next claim
+            onward = w.leg("A", "J2 y2")
+            assert not onward.event.triggered
+            assert w.controller.ledger.exits(a) == {w.corridor(): nodes["J2"]}
+            assert not waiter.event.triggered
+            w.release("B", "y2")
+            assert onward.granted
+            w.move("A", "y2")
+            w.release("A", "J2", w.seg("J2", "y2"))
+            assert w.events()[-2:] == [
+                ("traffic.released", "A", ("corridor:a", "J2", "J2~y2")),
+                ("traffic.reserved", "W", ("corridor:a", "J2~x2", "J2")),
+            ]
+        else:
+            w.retain("A", "J2")  # the travel ends on J2: the record goes, and the corridor with it
+            assert w.held("A") == ["J2"]
+            assert w.events()[-2:] == [
+                ("traffic.released", "A", ("corridor:a",)),
+                ("traffic.reserved", "W", ("corridor:a", "J2~x2", "J2")),
+            ]
+        assert w.controller.ledger.exits(a) == {}
         assert waiter.granted
 
     def test_retain_at_the_entry_port_drops_the_corridor(self) -> None:

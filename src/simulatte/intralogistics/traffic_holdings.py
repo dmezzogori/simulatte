@@ -177,14 +177,14 @@ class HoldingsLedger:
         return gone
 
     def retaining(self, agv: AGV, resources: Collection[Resource], named: Collection[Resource]) -> set[Resource]:
-        """What a ``retain`` of `resources` by `agv` frees; `named` are the resources of the AGV's pending claim.
-        Updates the exit records; frees nothing (see :meth:`drop`)."""
+        """What a ``retain`` of `resources` by `agv`, at rest on its current node, frees; `named` are the resources of
+        the AGV's pending claim. Updates the exit records; frees nothing (see :meth:`drop`)."""
         held = self._held.get(agv, {})
         wanted = set(resources)
         kept = [resource for resource in held if resource in wanted]
         containers = self._containers_held(held)
         gone = {resource for resource in held if resource not in wanted and resource not in containers}
-        self._settle(agv, held, gone, kept, named, retaining=True)
+        self._settle(agv, held, gone, kept, named, retaining=True, resting=agv.current_node)
         return gone
 
     def _settle(
@@ -196,18 +196,26 @@ class HoldingsLedger:
         named: Collection[Resource],
         *,
         retaining: bool,
+        resting: Node | None = None,
     ) -> None:
         """Add to `gone` the zones and corridors that go with it (spec §7.5); `kept` are never freed.
 
         A container stays while the AGV keeps one of its members or its pending claim names it. An exit record (a
         corridor left onto a port) lives only while the AGV holds that port: freeing the port deletes the record and
-        frees the corridor unless a member or the pending claim keeps it. Otherwise, in ``release``, a container whose
-        last held members go is freed, except a corridor whose port of capacity 1 the AGV keeps, which gets an exit
-        record; one held ahead of entry stays. ``retain`` creates no exit record and frees every container nothing
-        keeps.
+        frees the corridor unless a member or the pending claim keeps it. A ``retain`` at rest on a port of capacity
+        above 1 (`resting`) deletes that port's records in the same way: the travel ends there. Otherwise, in
+        ``release``, a container whose last held members go is freed, except a corridor whose port the AGV keeps, which
+        gets an exit record; one held ahead of entry stays. ``retain`` creates no exit record and frees every container
+        nothing keeps.
         """
+        network = self._network
+        assert network is not None
         exits = self._exits.setdefault(agv, {})
-        lost = [corridor for corridor, port in exits.items() if port in gone]
+        lost = [
+            corridor
+            for corridor, port in exits.items()
+            if port in gone or (port == resting and network.capacity(port) > 1)
+        ]
         for corridor in lost:
             del exits[corridor]
         for container in self._containers_held(held):
@@ -225,15 +233,12 @@ class HoldingsLedger:
                 else:
                     exits[container] = port  # left onto the port: goes with it
 
-    def _port_held(self, container: Container, held: Mapping[Resource, None], gone: set[Resource]) -> Node | None:
-        """The port of capacity 1 of a corridor that the AGV holds and keeps, if any; None for a zone.
-
-        A port of capacity above 1 gets no exit record (spec §7.5): an opposite entrant waits on the port itself.
-        """
+    @staticmethod
+    def _port_held(container: Container, held: Mapping[Resource, None], gone: set[Resource]) -> Node | None:
+        """The port of a corridor that the AGV holds and keeps, if any; None for a zone."""
         if isinstance(container, Corridor):
-            assert self._network is not None
             for port in (container.nodes[0], container.nodes[-1]):
-                if port in held and port not in gone and self._network.capacity(port) == 1:
+                if port in held and port not in gone:
                     return port
         return None
 

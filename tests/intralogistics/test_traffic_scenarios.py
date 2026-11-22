@@ -530,18 +530,9 @@ def stream_world() -> tuple[LayoutGraph, dict[str, Node]]:
     )
 
 
-@pytest.mark.parametrize("port", [1, 3], ids=["port-1", "port-3"])
-def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside(port: int) -> None:
-    """Forward stream A1, A2 and a later A3; W comes the other way. W waits for A1 and A2, which are inside or ahead of
-    it in the queue, but not for A3: A3 asks for the corridor while it is held in its own direction and is held
-    back by the gate until W has gone through. With a port of capacity above 1 at W's end the stream keeps no exit
-    record there (spec §7.5): W still waits before the port and the grants come in the same order; the corridor goes
-    when A2 leaves it rather than when A2 leaves the port.
-
-    Capacity 2 is not tested. With two slots, A1, which has left the corridor and still stands on the port, and A2's
-    claim ahead fill the port; W is then blocked by vehicles that no longer hold the corridor, and the gate of §7.4
-    does not apply, so A3 goes before W. This is a known weakness of dropping the exit record on ports of capacity
-    above 1; the first task of part C keeps the exit record while a vehicle passes and restores the capacity-2 case."""
+def stream(port: int, *, clear_service_nodes: bool) -> tuple[Mission, TrafficInvariants]:
+    """The fairness scenario on :func:`stream_world` with the port J2 of capacity `port`: forward stream A1 (x1 to y2)
+    and A2 (y1 to w2), W the other way (x2 to u1), and A3 (z1 to v2) at 20, after the corridor is held forward."""
     graph, nodes = stream_world()
     m, invariants = scenario(
         (graph, nodes),
@@ -549,18 +540,37 @@ def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_
         bays={name.upper(): name for name in ("x1", "y1", "z1", "u1", "x2", "y2", "w2", "v2")},
         parking={"P1": ("p1", 4), "P2": ("p2", 4)},
         controller_options={"capacities": {nodes["J2"]: port}},
+        clear_service_nodes=clear_service_nodes,
     )
-    spots = Spots(m)
     m.order("X1", "Y2")  # A1
     m.order("Y1", "W2")  # A2
     m.order("X2", "U1")  # W, the other way
     m.order("Z1", "V2", at=20.0)  # A3, later: asks while A1 and A2 hold the corridor forward
+    return m, invariants
+
+
+def corridor_grants(m: Mission) -> list[str]:
+    return [e.agv for e in m.events(TrafficReserved) if "corridor:a" in e.resources]
+
+
+@pytest.mark.parametrize("port", [1, 2, 3], ids=["port-1", "port-2", "port-3"])
+def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside(port: int) -> None:
+    """Forward stream A1, A2 and a later A3; W comes the other way. W waits for A1 and A2, which are inside or ahead of
+    it in the queue, but not for A3: A3 asks for the corridor while it is held in its own direction and is held
+    back by the gate until W has gone through. Whatever the capacity of the port at W's end, a stream vehicle that
+    passes it keeps the corridor until it leaves the port (spec §7.5), so the stream vehicles that fill the port while
+    W waits still hold the corridor, the gate of §7.4 applies, and the grants come in the same order.
+
+    The AGVs do not clear service nodes here. With clearing on, A1 leaves its delivery bay y2 for the parking area
+    through J2 while W still waits, and takes a slot of J2 without holding the corridor: a third party, for which the
+    gate does not apply (see the next test). This test is about the stream vehicles only."""
+    m, invariants = stream(port, clear_service_nodes=False)
+    spots = Spots(m)
     m.env.run()
     assert_ran(m, invariants, orders=4)
     assert not m.events(TrafficDeadlock)
 
-    grants = [e.agv for e in m.events(TrafficReserved) if "corridor:a" in e.resources]
-    assert grants == ["A1", "A2", "W", "A3"]  # A3 comes last although the corridor was held in its direction
+    assert corridor_grants(m) == ["A1", "A2", "W", "A3"]  # A3 comes last although the corridor was held its way
     held_back = next(e for e in m.events(TrafficWaitStarted) if e.agv == "A3")
     assert float(held_back.t) == 21.0 and "W" in held_back.blockers
     entered = {e.agv: float(e.t) for e in m.events(TrafficReserved) if "corridor:a" in e.resources}
@@ -570,6 +580,20 @@ def test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_
     assert entered["A3"] > float(held_back.t)  # A3 waited
     assert left["A1"] <= entered["W"] and left["A2"] <= entered["W"]  # W waited for the vehicles ahead only
     assert spots.first("W")[1] == "x2"
+
+
+def test_known_lapse_a_vehicle_outside_the_corridor_on_the_waiters_port_lets_the_stream_pass_first() -> None:
+    """The known lapse of the fairness gate (spec §7.4), pinned so that a change of it is noticed. In the scenario
+    above at port capacity 2 with service-node clearing on, A1 delivers at the bay y2 and its clearance travel to the
+    parking area p2 passes J2 at 42.731, when A2's claim ahead holds the other slot. W is then blocked on J2 by A1,
+    which holds no corridor, so the gate does not hold A3 back and A3 enters before W."""
+    m, invariants = stream(2, clear_service_nodes=True)
+    m.env.run()
+    assert_ran(m, invariants, orders=4)
+    assert corridor_grants(m) == ["A1", "A2", "A3", "W"]
+    (granted,) = [e for e in m.events(TrafficReserved) if e.agv == "A3" and "corridor:a" in e.resources]
+    assert float(granted.t) == pytest.approx(42.731, abs=1e-3)
+    assert ("clear_node", "y2", "p2") in m.routed("A1")
 
 
 def passing_place(kind: str) -> tuple[LayoutGraph, dict[str, Node]]:
