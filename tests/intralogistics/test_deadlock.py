@@ -669,6 +669,80 @@ class TestReviews:
         assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (30.0, "C", {"A": "WAITING", "X": "IDLE"})
         assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
 
+    def test_a_stuck_report_reaches_the_waits_behind_it_when_the_blocker_becomes_idle(self) -> None:
+        """C waits on B, B on A. A is serving during both first reviews, so neither is stuck and both sleep without a
+        timer. When A becomes idle where it stands (nobody moves it), B is reported, and the report reaches C at the
+        same instant, B first (spec §7.9, stuck waits)."""
+        policy = Scripted(blocked=(KeepWaiting(30.0),))
+        w = world({"A": "N2", "B": "N1", "C": "N0"}, policy=policy)
+        w.state("A", AGVState.WAITING_UNLOAD)
+        w.wait("B", "N2")
+        w.wait("C", "N1")
+        w.env.run(until=50.0)
+        assert w.replay.of(TrafficWaitStuck) == []
+        assert timers(w) == []
+        w.state("A", AGVState.IDLE)
+        w.controller.idle(w.agvs["A"])
+        assert [(e.t, e.agv, dict(e.blockers)) for e in w.replay.of(TrafficWaitStuck)] == [
+            (50.0, "B", {"A": "IDLE"}),
+            (50.0, "C", {"B": "WAITING"}),
+        ]
+        assert timers(w) == []  # no review is scheduled
+        assert len(policy.of("on_blocked")) == 4  # two openings and two first reviews: the reports are not reviews
+
+    def test_a_former_member_of_a_dissolved_deadlock_behind_a_reported_wait_is_reported(self) -> None:
+        """A and B form an unresolved deadlock, which A's stop completes: A's wait has no review and no timer. B
+        withdraws, which dissolves the set, and then waits for N3, held by X, idle: B's review reports it, and the
+        report reaches A, which waits behind B."""
+        w = world({"A": "N1", "B": "N2", "X": "N3"}, policy=Scripted(blocked=(KeepWaiting(30.0),)))
+        assert w.ask("A", (w.seg("N1", "N2"), "forward")).granted
+        swap = w.wait("B", (w.seg("N1", "N2"), "backward"), "N1")
+        w.wait("A", "N2")
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        assert timers(w) == [30.0]  # B's review only
+        w.controller.withdraw(swap)
+        w.wait("B", "N3")
+        w.env.run()
+        assert w.env.now == 30.0
+        assert [(e.t, e.agv, dict(e.blockers)) for e in w.replay.of(TrafficWaitStuck)] == [
+            (30.0, "B", {"X": "IDLE"}),
+            (30.0, "A", {"B": "WAITING"}),
+        ]
+
+    def test_a_stuck_report_does_not_reach_a_wait_with_a_moving_blocker_of_its_own(self) -> None:
+        w = world({"A": "N2", "B": "N1", "C": "N0", "M": "N4"}, policy=Scripted(blocked=(KeepWaiting(30.0),)))
+        w.state("M", AGVState.TRAVELING_LOADED)
+        w.wait("C", "N1", "N4")  # behind B and behind M, which moves
+        w.wait("B", "N2")  # behind A, idle
+        w.env.run()
+        assert [(e.agv, dict(e.blockers)) for e in w.replay.of(TrafficWaitStuck)] == [("B", {"A": "IDLE"})]
+
+    def test_two_chains_that_meet_report_the_wait_where_they_meet_once(self) -> None:
+        """D waits on B and on C; B waits on A0 and C on A4, both serving during the first reviews. A0 becomes idle:
+        B is reported, but D is not stuck while C's blocker serves. A4 becomes idle: C is reported, and the report
+        reaches D. A0 becoming idle again reports nothing more."""
+        w = world(
+            {"A0": "N0", "B": "N1", "D": "N2", "C": "N3", "A4": "N4"}, policy=Scripted(blocked=(KeepWaiting(30.0),))
+        )
+        for name in ("A0", "A4"):
+            w.state(name, AGVState.WAITING_UNLOAD)
+        w.wait("B", "N0")
+        w.wait("C", "N4")
+        w.wait("D", "N1", "N3")
+        w.env.run(until=50.0)
+        assert w.replay.of(TrafficWaitStuck) == []
+        w.state("A0", AGVState.IDLE)
+        w.controller.idle(w.agvs["A0"])
+        assert [e.agv for e in w.replay.of(TrafficWaitStuck)] == ["B"]
+        w.state("A4", AGVState.IDLE)
+        w.controller.idle(w.agvs["A4"])
+        w.controller.idle(w.agvs["A0"])
+        assert [(e.agv, dict(e.blockers)) for e in w.replay.of(TrafficWaitStuck)] == [
+            ("B", {"A0": "IDLE"}),
+            ("C", {"A4": "IDLE"}),
+            ("D", {"B": "WAITING", "C": "WAITING"}),
+        ]
+
     def test_a_review_with_keep_waiting_none_ends_the_reviews(self) -> None:
         policy = Scripted(blocked=lambda wait: (KeepWaiting(30.0),) if wait.reviews == 0 else (KeepWaiting(),))
         w = world({"A": "N1", "B": "N0", "C": "N3"}, policy=policy)

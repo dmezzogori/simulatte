@@ -550,16 +550,34 @@ class ReservationController:
         self._report_stuck(waiting, wait.blockers)
 
     def _report_stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> None:
-        """Emit ``traffic.wait_stuck`` and log a warning, once per wait, when the wait is stuck (spec §7.9).
+        """Emit ``traffic.wait_stuck`` and log a warning, once per wait, when the wait is stuck (spec §7.9); then do
+        the same, at once, for the open waits behind it.
 
         A wait whose AGV is a member of a deadlocked set left unresolved is not reported: the deadlock report stands
-        for it.
+        for it. A wait behind a reported one may be stuck now and have no review left to report it (it sleeps, or it
+        joined a deadlocked set when it stopped), so each report checks the open waits that its AGV blocks, in queue
+        order, and so on along the chain. This is not a review: ``on_blocked`` is not called, no review is counted and
+        no timer is scheduled.
         """
+        todo: list[tuple[_Pending, tuple[Blocker, ...]]] = [(waiting, blockers)]
+        while todo:
+            current, current_blockers = todo.pop(0)
+            if not self._report_one(current, current_blockers):
+                continue
+            agv = current.agv
+            for behind in self._queue:
+                if behind.stopped and not behind.stuck:
+                    found = self._blocking(behind)
+                    if any(blocker.agv is agv for blocker in found):
+                        todo.append((behind, found))
+
+    def _report_one(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> bool:
+        """Report the wait if it is stuck and not reported yet; whether it was reported now."""
         if waiting.stuck or any(waiting.agv.id in ids for ids in self._unresolved):
-            return
+            return False
         found = self._stuck(waiting, blockers)
         if found is None:
-            return
+            return False
         waiting.stuck = True
         agv = waiting.agv
         env = self._env
@@ -567,6 +585,7 @@ class ReservationController:
             env.emit(TrafficWaitStuck(agv=agv.id, blockers=cast("FrozenMap", freeze(found))))
         named = ", ".join(f"{blocker} ({state})" for blocker, state in found.items())
         env.warning(f"wait of {agv.id} is stuck: blockers {named}", component="ReservationController")
+        return True
 
     def _stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> dict[str, str] | None:
         """The disposition of each of the given blockers of `waiting` by AGV id when the wait is stuck, otherwise None.
