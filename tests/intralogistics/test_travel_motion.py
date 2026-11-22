@@ -551,6 +551,26 @@ def test_clear_points_follow_the_planned_profiles_and_a_roomy_node_passed_at_spe
     assert rest.held("A") == ["N1"]  # at rest on N1: the whole trail clears
 
 
+def test_a_grant_taken_while_moving_keeps_the_trail_entries_it_lifts_held() -> None:
+    """A, 3 m long on 1 m arcs, rests on N10 and holds its body back to N07. It reverses to N05 while B stands on N07,
+    so its claim of ``N07~N08, N07`` is pending as it departs; B leaves at 100.5 and the grant arrives while A moves.
+    The grant lifts ``N07~N08`` out of A's trail although its departure scheduled that entry's release: the entry lies
+    ahead again and stays held. At the end A holds what its body overlaps, the last 3 m of its way to N05."""
+    graph_nodes = build([(f"N{i:02d}", i, 0) for i in range(11)], [(f"N{i:02d}", f"N{i + 1:02d}") for i in range(10)])
+    w = world(graph_nodes, {"A": "N02", "B": "N00"}, agv_type=vehicle(length=3.0))
+    w.agvs["B"].agv_type = vehicle(length=0.0)
+    w.go("A", "N10")
+    w.go("B", "N07", at=50.0)
+    w.go("A", "N05", at=100.0)
+    w.go("B", "N00", at=100.5)
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    assert w.agvs["A"].current_node == w.nodes["N05"]
+    assert sorted(w.held("A")) == ["N05", "N05~N06", "N06", "N06~N07", "N07", "N07~N08"]
+    granted = [e for e in w.of(TrafficReserved, agv="A") if e.t == 100.5]
+    assert [e.resources for e in granted][:1] == [("N07~N08", "N07")]  # taken by the callback, while A moves
+
+
 # --- heading and the coordinator --------------------------------------------------------------------------------
 
 

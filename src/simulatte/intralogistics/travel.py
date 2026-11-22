@@ -845,6 +845,9 @@ class _Trip:
                     self._stop()
 
     def _release(self, trail: _Trail, resources: list[Resource]) -> None:
+        """Release the given trail entries that are still in the trail. A grant taken while the AGV moves may have
+        lifted one of them since the departure scheduled its release: it lies ahead again and stays held."""
+        resources = [resource for resource in resources if resource in trail.entries]
         if resources:
             for resource in resources:
                 del trail.entries[resource]
