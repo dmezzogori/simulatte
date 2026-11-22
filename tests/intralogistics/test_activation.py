@@ -90,15 +90,10 @@ def test_submit_then_cancel_before_run_cancels() -> None:
         (0, "fleet.pending_changed", coordinator.id, queued.id, "removed", 0),
         (0, "order.status_changed", queued.id, "CANCELLED", "PENDING", "cancelled"),
         (0, "entity.retired", queued.id, "order"),
-        # the mission starts its first segment and receives the interrupt; it takes effect at the segment's end
-        (0, "agv.routed", agv.id, "C1", "OUT", ("C1", "OUT"), 5.0, "travel"),
-        (0, "agv.move_started", agv.id, "C1", "OUT"),
-        (4.5, "agv.move_ended", agv.id, "OUT", 995.0),
-        (4.5, "agv.move_interrupted", agv.id, "OUT", "cancelled"),
-        (4.5, "order.status_changed", order.id, "CANCELLED", "CANCELLED", "cancelled"),
-        (4.5, "agv.state_changed", agv.id, "IDLE", "TRAVELING_EMPTY"),
-        (4.5, "order.unassigned", order.id, agv.id),
-        (4.5, "entity.retired", order.id, "order"),
+        # the mission was cancelled before it ran: it ends at once, without moving the AGV or touching the order
+        (0, "agv.state_changed", agv.id, "IDLE", "TRAVELING_EMPTY"),
+        (0, "order.unassigned", order.id, agv.id),
+        (0, "entity.retired", order.id, "order"),
     ]
     dispatched = seen[2]
     assert dispatched.deltas.ops == (("set", order.id, "status", "DISPATCHED"), ("set", order.id, "dispatched_at", 0.0))

@@ -609,6 +609,13 @@ class FleetCoordinator(Entity, kind="fleet"):
         notify_idle = False
         gave_up_before_pickup = False
         try:
+            if order.id in self._cancelled_missions:
+                # Cancelled before the mission ran (its interrupt is still pending and is dropped when the process
+                # ends): nothing was done, so nothing is undone, and the order is not touched again.
+                self._transition_agv(agv, AGVState.IDLE)
+                notify_idle = True
+                return
+
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
             origin_output_bay = order.origin.nearest_output_bay(self._require_current_node(agv), self.graph)

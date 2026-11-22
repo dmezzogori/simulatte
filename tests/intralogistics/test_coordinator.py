@@ -402,6 +402,38 @@ class TestCancellation:
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
 
+    def test_an_order_cancelled_at_the_instant_of_its_dispatch_stays_cancelled(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """The AGV stands on the origin, so the mission's first travel arrives without yielding. The cancellation
+        comes before the mission process has run: the mission must not pick, re-queue or dispatch the order again."""
+        from tests.intralogistics.traffic_support import FullReplay
+
+        replay = FullReplay(env)
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed, origin_inventory=20)
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        env.activate()
+
+        def submit_and_cancel():
+            yield env.timeout(1.0)
+            coordinator.submit(order)  # dispatched at once to the idle AGV on the origin
+            assert order.status is OrderStatus.DISPATCHED
+            coordinator.cancel(order)
+
+        env.process(submit_and_cancel())
+        env.run()
+
+        assert order.status is OrderStatus.CANCELLED
+        statuses = [(e.status, e.reason) for e in replay.of(OrderStatusChanged) if e.order == order.id]
+        assert statuses[-2:] == [("DISPATCHED", "dispatched"), ("CANCELLED", "cancelled")]
+        assert [status for status, _ in statuses].count("CANCELLED") == 1
+        assigned = [e for e in replay.events if e.type_name == "order.assigned" and e.order == order.id]
+        assert len(assigned) == 1
+        assert agv.state is AGVState.IDLE and agv.current_load is None and agv.order is None
+        assert wh_a.get_inventory_level(sku_a) == 20 and wh_b.get_inventory_level(sku_a) == 0
+        assert not coordinator._pending_queue and not coordinator._active_missions
+        assert not env.entities.is_live(order)
+
     def test_cancel_completed_order_is_noop(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:

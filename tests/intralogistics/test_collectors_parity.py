@@ -12,8 +12,9 @@ repositioning to a full area no longer happens; with slot-taking disabled the pr
 
 The seeded simple systems include breakdowns and cancellations: their corrected outputs live in
 ``fleet_recovery_regression.json`` because #47/#49/#50/#51 intentionally change mission recovery, and because an
-interrupt during an arc takes effect at the arc's end node since the travel executor (AGV traffic spec §8.3). The
-other entries of the original parity fixture remain unchanged.
+interrupt during an arc takes effect at the arc's end node since the travel executor (AGV traffic spec §8.3), and
+because a mission whose order was cancelled before the mission ran now ends at once. The other entries of the original
+parity fixture remain unchanged.
 
 The event mapping that reproduces the old callbacks:
 
