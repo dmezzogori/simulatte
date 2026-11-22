@@ -57,7 +57,14 @@ def test_intralogistics_transitions_are_events() -> None:
         "warehouse.slot_changed",
     }
     assert [e.status for e in seen if isinstance(e, OrderStatusChanged)][-1] == "COMPLETED"
-    for component in ("FleetCoordinator", "AGV", "Warehouse", "TrafficManager", "ChargingStation", "ParkingArea"):
+    for component in (
+        "FleetCoordinator",
+        "AGV",
+        "Warehouse",
+        "ReservationController",
+        "ChargingStation",
+        "ParkingArea",
+    ):
         assert env.log_history.query(component=component) == [], component
 
 

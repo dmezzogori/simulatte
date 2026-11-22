@@ -15,6 +15,7 @@ from .dependencies import MISSING, DependencyClosure, evaluate_query
 from .errors import LayoutError, LayoutNotReady, diagnostic_context
 from .layers import FileLayer, ResolvedValues, resolve_layers
 from .refs import GraphRef, NodeRef, PortRef, ValueRef
+from .schema import layout_version
 from .stages import BindContext, StageContext, StageSpec, ordered_stages
 
 
@@ -174,7 +175,7 @@ class PreparationCoordinator:
     def declare(self, patch: Mapping[str, Any]) -> None:
         """Copy a validated code patch and atomically check stage-owned freezes."""
         self._mutable()
-        data = FileLayer({"schema_version": "1.0", **patch}).data
+        data = FileLayer({"schema_version": layout_version(patch), **patch}).data
         paths: list[tuple[str, ...]] = [("placements", key) for key in data.get("placements", {})]
         paths.extend((key,) for key in ("grid", "network") if key in data)
         for path in paths:

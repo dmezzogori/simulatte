@@ -97,7 +97,7 @@ def apply_overrides(
             continue
         for selected, mapping, properties in (
             (selected_nodes, nodes, ("enabled", "capacity")),
-            (selected_edges, edges, ("enabled", "direction", "speed_limit")),
+            (selected_edges, edges, ("enabled", "direction", "speed_limit", "passing")),
         ):
             for name in properties:
                 leaf = values.at((*path, "properties", name), explicit=True)
@@ -109,7 +109,10 @@ def apply_overrides(
                         required_unsets[key] = (*path, "properties", name)
                     else:
                         required_unsets.pop(key, None)
-                    _replace(mapping, address, name, leaf.value)
+                    # Unsetting passing restores its default, as unsetting a speed limit clears it.
+                    _replace(
+                        mapping, address, name, False if name == "passing" and leaf.state == "unset" else leaf.value
+                    )
     for (address, name), path in required_unsets.items():
         edge = edges.get(address)
         if name == "enabled" or (

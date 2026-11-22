@@ -27,6 +27,14 @@ it("uses the shared schema for geometry, atomic addresses, typed tombstones and 
   ]) expect(() => validateLayoutPatch(value)).toThrow();
 });
 
+it("accepts the schema 1.1 traffic fields and still rejects unknown keys", () => {
+  validateLayoutPatch({ schema_version: "1.1", network: { type: "lattice", bounds: [0, 0, 2, 1], passing: true, block_length: 0.5, zones: { row: { members: [{ kind: "row", j: 0 }] } } } });
+  validateLayoutPatch({ schema_version: "1.1", overrides: [{ id: "p", target: { kind: "column", i: 1 }, properties: { passing: false } }] });
+  expect(() => validateLayoutPatch({ schema_version: "1.1", network: { type: "lattice", bounds: [0, 0, 2, 1], block_length: 0 } })).toThrow();
+  expect(() => validateLayoutPatch({ schema_version: "1.1", network: { type: "lattice", bounds: [0, 0, 2, 1], unknown_key: 1 } })).toThrow();
+  expect(() => validateLayoutPatch({ schema_version: "1.1", unknown_key: 1 })).toThrow();
+});
+
 it("bundles the canonical schema and opens layout metadata without runtime filesystem or network access", async () => {
   const result = await build({ configFile: false, logLevel: "silent", ssr: {noExternal: ["@noble/hashes"]}, build: {
     ssr: fileURLToPath(new URL("../src/index.ts", import.meta.url)), write: false, minify: false,

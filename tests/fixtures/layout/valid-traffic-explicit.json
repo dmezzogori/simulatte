@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.1",
+  "network": {
+    "type": "explicit",
+    "nodes": [
+      {
+        "id": "a",
+        "position": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "id": "b",
+        "position": [
+          3,
+          0,
+          0
+        ]
+      }
+    ],
+    "arcs": [
+      {
+        "source": "a",
+        "target": "b",
+        "direction": "both",
+        "passing": true
+      }
+    ],
+    "zones": {
+      "z": {
+        "capacity": 2,
+        "members": [
+          {
+            "kind": "explicit",
+            "id": "a"
+          }
+        ]
+      }
+    }
+  }
+}

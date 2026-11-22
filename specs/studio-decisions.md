@@ -171,6 +171,7 @@ records their detailed contracts. Approval records decisions, not implemented be
 enabled/directed/speed-limited arcs are supported, but segment reservations are outside SP2. The existing
 head-on passing limitation remains. This bounds changes to fleet traversal, cancellation and deadlock behavior.
 Amends C2.3/D6; rejected for SP2: segment locks or arc reservation attributes without enforcement.
+Superseded by `specs/2026-11-21-agv-traffic-design.md` (segment, zone and corridor reservations; 2026-11-21).
 
 **D62. Inserting a lane vertex makes removed-segment overrides stale (A2).** Inserting V between A and B
 replaces `(A,B)` with `(A,V)` and `(V,B)`; existing vertex ids and unaffected segment addresses remain stable.

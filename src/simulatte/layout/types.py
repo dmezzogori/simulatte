@@ -75,6 +75,26 @@ def _capacity(value: int | None) -> None:
         raise LayoutError("capacity must be a positive safe integer")
 
 
+def _passing(value: bool | None) -> None:
+    if value is not None and type(value) is not bool:
+        raise LayoutError("passing must be a bool")
+
+
+def _block_length(value: float | None) -> float | None:
+    return None if value is None else number(value, "block_length", positive=True)
+
+
+def _zones(value: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    """Validated, frozen authored zones; every zone of a code declaration is complete."""
+    if value is None:
+        return None
+    zones = _definition(dict(value), "zones")
+    for zone_id, zone in zones.items():
+        if "members" not in zone:
+            raise LayoutError(f"zones/{zone_id}: complete code definition requires ['members']")
+    return zones
+
+
 @dataclass(frozen=True)
 class Point:
     x: float
@@ -135,10 +155,12 @@ class Connector:
     enabled: bool = field(default=True, kw_only=True)
     direction: Direction = field(default="both", kw_only=True)
     speed_limit: float | None = field(default=None, kw_only=True)
+    passing: bool | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         if self.target is not None and not isinstance(self.target, NodeRef):
             raise LayoutError("connector target must be a NodeRef")
+        _passing(self.passing)
         object.__setattr__(self, "approach_margin", number(self.approach_margin, "approach_margin", positive=True))
         for name in ("max_distance", "speed_limit"):
             value = getattr(self, name)
@@ -173,9 +195,13 @@ class Lattice:
     enabled: bool = True
     direction: Direction = "both"
     speed_limit: float | None = None
+    passing: bool | None = None
+    block_length: float | None = None
+    zones: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _capacity(self.capacity)
+        _passing(self.passing)
         data = {
             "type": "lattice",
             "bounds": list(self.bounds),
@@ -189,12 +215,20 @@ class Lattice:
             data["capacity"] = self.capacity
         if self.speed_limit is not None:
             data["speed_limit"] = self.speed_limit
+        if self.passing is not None:
+            data["passing"] = self.passing
+        if self.block_length is not None:
+            data["block_length"] = self.block_length
+        if self.zones is not None:
+            data["zones"] = dict(self.zones)
         _definition(data, "network")
         if self.bounds[0] > self.bounds[2] or self.bounds[1] > self.bounds[3]:
             raise LayoutError("lattice bounds must be ordered")
         object.__setattr__(self, "bounds", tuple(number(x, "bounds") for x in self.bounds))
         object.__setattr__(self, "clearance", number(self.clearance, "clearance", nonnegative=True))
         object.__setattr__(self, "blocked", _definition(dict(self.blocked), "blocked"))
+        object.__setattr__(self, "block_length", _block_length(self.block_length))
+        object.__setattr__(self, "zones", _zones(self.zones))
 
 
 @dataclass(frozen=True)
@@ -203,12 +237,16 @@ class Lanes:
     clearance: float = 0
     blocked: Mapping[str, Any] = field(default_factory=dict)
     capacity: int | None = None
+    block_length: float | None = None
+    zones: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "lanes", _definition(dict(self.lanes), "lanes"))
         object.__setattr__(self, "blocked", _definition(dict(self.blocked), "blocked"))
         object.__setattr__(self, "clearance", number(self.clearance, "clearance", nonnegative=True))
         _capacity(self.capacity)
+        object.__setattr__(self, "block_length", _block_length(self.block_length))
+        object.__setattr__(self, "zones", _zones(self.zones))
 
 
 @dataclass(frozen=True)
@@ -223,6 +261,7 @@ class ExplicitArc:
     target: str
     speed_limit: float | None = None
     enabled: bool = True
+    passing: bool | None = None
 
 
 @dataclass(frozen=True, init=False)
@@ -232,6 +271,8 @@ class Explicit:
     clearance: float
     blocked: Mapping[str, Any]
     capacity: int | None
+    block_length: float | None
+    zones: Mapping[str, Any] | None
 
     def __init__(
         self,
@@ -240,6 +281,8 @@ class Explicit:
         clearance: float = 0,
         blocked: Mapping[str, Any] | None = None,
         capacity: int | None = None,
+        block_length: float | None = None,
+        zones: Mapping[str, Any] | None = None,
     ) -> None:
         nodes = tuple(graph.nodes)
         node_set = set(nodes)
@@ -260,7 +303,7 @@ class Explicit:
                         f"explicit arc {source.id!r} -> {target.id!r} is zero-length after float64 normalization"
                     )
                 speed = None if arc.speed_limit is None else number(arc.speed_limit, "speed_limit", positive=True)
-                arcs.append(ExplicitArc(source.id, target.id, speed))
+                arcs.append(ExplicitArc(source.id, target.id, speed, passing=True if arc.passing else None))
         # Observable adjacency can contain sources absent from graph.nodes as well.
         if any(source not in node_set for source, edges in graph._adjacency.items() if edges):
             raise LayoutError("explicit graph contains a foreign endpoint")
@@ -270,6 +313,8 @@ class Explicit:
         object.__setattr__(self, "clearance", number(clearance, "clearance", nonnegative=True))
         object.__setattr__(self, "blocked", _definition(dict(blocked or {}), "blocked"))
         object.__setattr__(self, "capacity", capacity)
+        object.__setattr__(self, "block_length", _block_length(block_length))
+        object.__setattr__(self, "zones", _zones(zones))
 
 
 @dataclass(frozen=True)

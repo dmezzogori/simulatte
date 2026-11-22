@@ -10,6 +10,7 @@ from typing import Any
 
 from .errors import LayoutError
 from .layers import FileLayer
+from .schema import layout_version
 from .types import LayoutLimits
 
 
@@ -75,9 +76,13 @@ def parse_layout(raw: bytes, *, limits: LayoutLimits = LayoutLimits()) -> FileLa
 
 
 def save_layout(path: str | Path, layer: FileLayer) -> None:
-    """Save only author data using shortest round-trip floats and atomic replacement."""
+    """Save only author data using shortest round-trip floats and atomic replacement.
+
+    The file is schema 1.1 when it uses a 1.1 field and schema 1.0 otherwise."""
     path = Path(path)
-    text = json.dumps(layer.to_dict(), ensure_ascii=False, allow_nan=False, sort_keys=True, indent=2) + "\n"
+    data = layer.to_dict()
+    data["schema_version"] = layout_version(data)
+    text = json.dumps(data, ensure_ascii=False, allow_nan=False, sort_keys=True, indent=2) + "\n"
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(

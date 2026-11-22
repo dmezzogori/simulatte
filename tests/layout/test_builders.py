@@ -8,7 +8,9 @@ import pytest
 from simulatte import Environment, Layout
 from simulatte.intralogistics import Arc, FleetKPIs, LayoutGraph, Node, OrderStatus, build_simple_system
 from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveStarted, OrderStatusChanged
-from simulatte.intralogistics.traffic import FreeTrafficManager
+from simulatte.intralogistics.events import TrafficReserved
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.layout import Connector, Explicit, Footprint, GraphRef, LayoutError, LayoutNotReady, Point, Port
 
 ROLES = ("WH_A_OUT", "N1", "N2", "N3", "WH_B_IN")
@@ -46,7 +48,27 @@ def test_layout_builder_defers_binding_and_preserves_five_tuple(explicit):
     assert destination.input_bays == (resolved["WH_B_IN"],)
     assert agvs[0].current_node is fleet.parking_areas[0].node is resolved["N1"]
     assert fleet.charging_stations[0].node is resolved["N2"]
-    assert isinstance(fleet._traffic_manager, FreeTrafficManager)
+    assert isinstance(fleet.traffic_controller, FreeFlowController)
+
+
+def test_layout_builder_with_a_reservation_controller():
+    """``build_simple_system`` passes the controller and the vehicle length on; the controller binds the layout's
+    graph and the order completes through claims."""
+    env = Environment()
+    layout = Layout(env)
+    controller = ReservationController(env=env, graph=layout.graph())
+    fleet, agvs, origin, destination, _ = build_simple_system(
+        env, n_agvs=1, traffic_controller=controller, agv_length=1.0
+    )
+    reserved: list[TrafficReserved] = []
+    env.bus.subscribe(reserved.append, (TrafficReserved,))
+    order = fleet.create_order(sku=next(iter(origin.inventory)), quantity=1, origin=origin, destination=destination)
+    fleet.submit(order)
+    env.run()
+    assert fleet.traffic_controller is controller and controller.graph is fleet.graph
+    assert order.status is OrderStatus.COMPLETED
+    assert reserved and reserved[0].resources == ("N1",)
+    assert controller.view.holders(agvs[0].current_node) == (agvs[0],)
 
 
 @pytest.mark.parametrize("union", [False, True])

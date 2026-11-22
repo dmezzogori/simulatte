@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import pytest
@@ -11,8 +12,10 @@ from simulatte.environment import Environment
 from simulatte.events import DomainEvent
 from simulatte.intralogistics.agv import AGV, AGVState
 from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.traffic import FreeFlowController
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system
 from tests.intralogistics.test_fleet_events import FleetReplay
@@ -87,10 +90,7 @@ def test_submit_then_cancel_before_run_cancels() -> None:
         (0, "fleet.pending_changed", coordinator.id, queued.id, "removed", 0),
         (0, "order.status_changed", queued.id, "CANCELLED", "PENDING", "cancelled"),
         (0, "entity.retired", queued.id, "order"),
-        # the mission starts its first segment, then receives the interrupt
-        (0, "agv.move_started", agv.id, "C1", "OUT"),
-        (0, "agv.move_interrupted", agv.id, "C1", "cancelled"),
-        (0, "order.status_changed", order.id, "CANCELLED", "CANCELLED", "cancelled"),
+        # the mission was cancelled before it ran: it ends at once, without moving the AGV or touching the order
         (0, "agv.state_changed", agv.id, "IDLE", "TRAVELING_EMPTY"),
         (0, "order.unassigned", order.id, agv.id),
         (0, "entity.retired", order.id, "order"),
@@ -102,13 +102,27 @@ def test_submit_then_cancel_before_run_cancels() -> None:
 def test_placement_conflict_raises_at_activation() -> None:
     env = Environment()
     nodes, graph = _line_graph()
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1]) for _ in range(2)]
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-    FleetCoordinator(env=env, graph=graph, fleet=agvs, warehouses=[], charging_stations=[], traffic_manager=traffic)
+    agv_type = dataclasses.replace(_agv_type(), length=1.0)
+    agvs = [AGV(env=env, agv_type=agv_type, initial_node=nodes[1]) for _ in range(2)]
+    traffic = ReservationController(graph=graph, env=env)
+    FleetCoordinator(env=env, graph=graph, fleet=agvs, warehouses=[], charging_stations=[], traffic_controller=traffic)
 
-    with pytest.raises(RuntimeError, match="cannot place agv-1 at node C1"):
+    with pytest.raises(RuntimeError, match="cannot place agv-1 at node C1: C1 is fully reserved"):
         env.run()
-    assert traffic._node_resources[nodes[1]].count == 1
+    assert env.entities.bind_node(nodes[1]).reserved_by == ["agv-0"]
+
+
+def test_a_fleet_built_after_activation_cannot_register_with_a_reservation_controller() -> None:
+    """The controller builds its network at once when constructed after activation, so no fleet can register."""
+    env = Environment()
+    env.activate()
+    nodes, graph = _line_graph()
+    agv = AGV(env=env, agv_type=dataclasses.replace(_agv_type(), length=1.0), initial_node=nodes[2])
+    traffic = ReservationController(graph=graph, env=env)
+    with pytest.raises(RuntimeError, match="register before activation"):
+        FleetCoordinator(
+            env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_controller=traffic
+        )
 
 
 def test_placement_after_activation_runs_at_construction() -> None:
@@ -116,7 +130,13 @@ def test_placement_after_activation_runs_at_construction() -> None:
     env.activate()
     nodes, graph = _line_graph()
     agv = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[2])
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-    FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_manager=traffic)
-    assert traffic._node_resources[nodes[2]].count == 1
-    assert env.entities.bind_node(nodes[2]).reserved_by == [agv.id]
+    placed: list[tuple[str, str]] = []
+
+    class Recording(FreeFlowController):
+        def place(self, agv: AGV, node: Node) -> None:
+            placed.append((agv.id, node.id))
+
+    FleetCoordinator(
+        env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_controller=Recording()
+    )
+    assert placed == [(agv.id, "C2")]

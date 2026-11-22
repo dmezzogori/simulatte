@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import math
+from collections.abc import Sequence
+
 import pytest
 
 from simulatte.environment import Environment
+from simulatte.intralogistics import DispatchContext, FastestRouter
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
@@ -21,9 +25,12 @@ from simulatte.intralogistics.policies import (
     RoundRobinStrategy,
     StayInPlace,
 )
+from simulatte.intralogistics.routing import Route, Router, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.traffic import TrafficView
 from simulatte.intralogistics.warehouse import Warehouse
+from tests.intralogistics.test_routing import free_view
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────
@@ -103,6 +110,131 @@ def _make_linear_graph() -> tuple[list[Node], LayoutGraph]:
     return nodes, LayoutGraph(nodes, arcs)
 
 
+def _context(graph: LayoutGraph, router: Router | None = None) -> DispatchContext:
+    """A dispatch context on `graph` without traffic, with `router` (default ``ShortestDistanceRouter``)."""
+    return DispatchContext(graph, router or ShortestDistanceRouter(), free_view(graph))
+
+
+def _repositioning(
+    graph: LayoutGraph, parking_areas: Sequence[ParkingArea], fleet: Sequence[AGV], router: Router | None = None
+) -> RepositioningContext:
+    """A repositioning context on `graph` without traffic and charging stations, with `router` (default
+    ``ShortestDistanceRouter``)."""
+    return RepositioningContext(
+        graph=graph,
+        parking_areas=parking_areas,
+        charging_stations=[],
+        fleet=fleet,
+        router=router or ShortestDistanceRouter(),
+        view=free_view(graph),
+    )
+
+
+class Spy:
+    """Answers as ``ShortestDistanceRouter`` and records every request."""
+
+    def __init__(self) -> None:
+        self.requests: list[RouteRequest] = []
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        self.requests.append(request)
+        return ShortestDistanceRouter().route(request, view)
+
+
+class Costing:
+    """Answers the shortest path with the cost given in `costs` for ``"<origin id>><destination id>"``, or no route for
+    a pair not in it."""
+
+    def __init__(self, costs: dict[str, float]) -> None:
+        self.costs = costs
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        cost = self.costs.get(f"{request.origin.id}>{request.destination.id}")
+        if cost is None:
+            return None
+        found = ShortestDistanceRouter().route(request, view)
+        assert found is not None
+        return Route(found.nodes, cost)
+
+
+def _slow_arm(env: Environment, speed_profile: TrapezoidalProfile) -> tuple[dict[str, Node], LayoutGraph]:
+    """``S`` reaches ``E`` in 20 m through ``P`` (limited to 0.5) or in 30 m through ``Q``; ``R`` reaches ``E`` in 25 m
+    without a limit."""
+    nodes = {n: Node(n, x, y) for n, x, y in [("S", 0, 0), ("P", 10, 0), ("Q", 10, 10), ("E", 20, 0), ("R", 20, 25)]}
+    s, p, q, e, r = (nodes[n] for n in "SPQER")
+    arcs = [
+        Arc(s, p, length=10.0, speed_limit=0.5),
+        Arc(p, e, length=10.0, speed_limit=0.5),
+        Arc(s, q, length=15.0),
+        Arc(q, e, length=15.0),
+        Arc(r, e),
+    ]
+    return nodes, LayoutGraph(nodes.values(), arcs)
+
+
+# ── Contexts ──────────────────────────────────────────────────────────
+
+
+class TestContexts:
+    def test_dispatch_cost_asks_the_router_for_the_travel_from_the_agvs_node(
+        self, env: Environment, speed_profile: TrapezoidalProfile
+    ) -> None:
+        nodes, graph = _make_linear_graph()
+        agv = _make_agv(env, speed_profile, "agv", nodes[1])
+        spy = Spy()
+        context = _context(graph, spy)
+        assert context.cost(agv, nodes[3]) == 20.0
+        assert context.cost(agv, nodes[0], load_weight=7.5) == 10.0
+        assert [(r.agv, r.origin, r.destination, r.load_weight, r.avoid, r.purpose) for r in spy.requests] == [
+            (agv, nodes[1], nodes[3], 0.0, frozenset(), "travel"),
+            (agv, nodes[1], nodes[0], 7.5, frozenset(), "travel"),
+        ]
+
+    def test_repositioning_cost_asks_the_router_for_an_unloaded_travel(
+        self, env: Environment, speed_profile: TrapezoidalProfile
+    ) -> None:
+        nodes, graph = _make_linear_graph()
+        agv = _make_agv(env, speed_profile, "agv", nodes[0])
+        spy = Spy()
+        context = _repositioning(graph, [], [agv], spy)
+        assert context.cost(agv, nodes[2]) == 20.0
+        assert [(r.agv, r.origin, r.destination, r.load_weight, r.purpose) for r in spy.requests] == [
+            (agv, nodes[0], nodes[2], 0.0, "travel")
+        ]
+
+    @pytest.mark.parametrize("kind", ["dispatch", "repositioning"])
+    def test_cost_is_infinite_without_a_route_or_a_node(
+        self, env: Environment, speed_profile: TrapezoidalProfile, kind: str
+    ) -> None:
+        nodes, graph = _make_linear_graph()
+        agv = _make_agv(env, speed_profile, "agv", nodes[0])
+        router = Costing({"N0>N1": 3.0})
+        context = _context(graph, router) if kind == "dispatch" else _repositioning(graph, [], [agv], router)
+        assert context.cost(agv, nodes[1]) == 3.0
+        assert context.cost(agv, nodes[2]) == math.inf
+        agv.current_node = None
+        assert context.cost(agv, nodes[1]) == math.inf
+
+    @pytest.mark.parametrize("kind", ["dispatch", "repositioning"])
+    @pytest.mark.parametrize("cost", [-1.0, math.nan, math.inf])
+    def test_invalid_route_cost_raises(
+        self, env: Environment, speed_profile: TrapezoidalProfile, kind: str, cost: float
+    ) -> None:
+        nodes, graph = _make_linear_graph()
+        agv = _make_agv(env, speed_profile, "agv", nodes[0])
+        router = Costing({"N0>N2": cost})
+        context = _context(graph, router) if kind == "dispatch" else _repositioning(graph, [], [agv], router)
+        with pytest.raises(ValueError, match=rf"Costing returned a route of cost {cost} from N0 to N2"):
+            context.cost(agv, nodes[2])
+
+    def test_contexts_are_frozen(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
+        nodes, graph = _make_linear_graph()
+        with pytest.raises(AttributeError):
+            _context(graph).router = FastestRouter()  # ty: ignore[invalid-assignment]
+        with pytest.raises(AttributeError):
+            _repositioning(graph, [], []).router = FastestRouter()  # ty: ignore[invalid-assignment]
+
+
 # ── DispatchStrategy: NearestIdleStrategy ─────────────────────────────
 
 
@@ -122,7 +254,7 @@ class TestNearestIdleStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
-        selected = strategy.select(order, [agv_far, agv_close], graph)
+        selected = strategy.select(order, [agv_far, agv_close], _context(graph))
         assert selected is agv_close
 
     def test_returns_none_when_no_idle_agv(
@@ -137,7 +269,7 @@ class TestNearestIdleStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
-        assert strategy.select(order, [agv], graph) is None
+        assert strategy.select(order, [agv], _context(graph)) is None
 
     def test_tie_break_by_agv_id(self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU) -> None:
         nodes, graph = _make_linear_graph()
@@ -151,7 +283,7 @@ class TestNearestIdleStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
-        selected = strategy.select(order, [agv_b, agv_a], graph)
+        selected = strategy.select(order, [agv_b, agv_a], _context(graph))
         assert selected is agv_a  # "a-agv" < "b-agv" lexicographically
 
     def test_uses_per_agv_nearest_output_bay(
@@ -181,7 +313,7 @@ class TestNearestIdleStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
-        selected = strategy.select(order, [agv_near_a, agv_at_far_bay], graph)
+        selected = strategy.select(order, [agv_near_a, agv_at_far_bay], _context(graph))
         assert selected is agv_at_far_bay
 
     def test_returns_none_when_no_compatible_agv(
@@ -197,7 +329,7 @@ class TestNearestIdleStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
-        assert strategy.select(order, [agv], graph) is None
+        assert strategy.select(order, [agv], _context(graph)) is None
 
     def test_unreachable_agv_gets_inf_distance(
         self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
@@ -218,7 +350,7 @@ class TestNearestIdleStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = NearestIdleStrategy()
-        selected = strategy.select(order, [agv], graph)
+        selected = strategy.select(order, [agv], _context(graph))
         # Only candidate is unreachable, so select() returns None
         assert selected is None
 
@@ -242,8 +374,60 @@ class TestNearestIdleStrategy:
         )
 
         strategy = NearestIdleStrategy()
-        result = strategy.select(order, [agv], graph)
+        result = strategy.select(order, [agv], _context(graph))
         assert result is None
+
+    def test_picks_the_lowest_router_cost_to_the_best_output_bay(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        nodes, graph = _make_linear_graph()
+        wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0], nodes[3]], [sku_a])
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh, created_at=0.0)
+        agv_a = _make_agv(env, speed_profile, "agv-a", nodes[1])
+        agv_b = _make_agv(env, speed_profile, "agv-b", nodes[2])
+        costs = {"N1>N0": 8.0, "N1>N3": 6.0, "N2>N0": 7.0}  # no route from N2 to N3
+        assert NearestIdleStrategy().select(order, [agv_b, agv_a], _context(graph, Costing(costs))) is agv_a
+        del costs["N1>N3"]
+        assert NearestIdleStrategy().select(order, [agv_b, agv_a], _context(graph, Costing(costs))) is agv_b
+        assert NearestIdleStrategy().select(order, [agv_b, agv_a], _context(graph, Costing({}))) is None
+
+    def test_the_fastest_router_picks_another_agv_than_the_default_one_past_a_slow_arm(
+        self, env: Environment, speed_profile: TrapezoidalProfile, sku_a: SKU
+    ) -> None:
+        nodes, graph = _slow_arm(env, speed_profile)
+        wh = _make_warehouse(env, "WH", [nodes["E"]], [nodes["E"]], [sku_a])
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh, created_at=0.0)
+        near = _make_agv(env, speed_profile, "agv-a", nodes["S"])  # 20 m, but 40 s through P or 15 s through Q
+        far = _make_agv(env, speed_profile, "agv-b", nodes["R"])  # 25 m, 12.5 s
+        assert NearestIdleStrategy().select(order, [near, far], _context(graph)) is near
+        assert NearestIdleStrategy().select(order, [near, far], _context(graph, FastestRouter())) is far
+
+    def test_the_fastest_router_ranks_an_agv_by_its_battery_level_now(self, env: Environment, sku_a: SKU) -> None:
+        """The drained AGV is 20 m from the bay with idle power 0.1 after 800 s idle (100 accounted, 20 now: 50 s at
+        0.4 m/s); the fresh one is 30 m away at 2 m/s (15 s). The fresh one is chosen."""
+        nodes, graph = _make_linear_graph()
+        wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh, created_at=0.0)
+        profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
+        kinds = {
+            power: AGVType(
+                name=f"p{power}",
+                speed_profile=profile,
+                battery_capacity=100.0,
+                weight_capacity=100.0,
+                volume_capacity=10.0,
+                idle_power=power,
+            )
+            for power in (0.1, 0.0)
+        }
+        drained = AGV(env=env, agv_type=kinds[0.1], agv_id="agv-a", initial_node=nodes[2])
+        fresh = AGV(env=env, agv_type=kinds[0.0], agv_id="agv-b", initial_node=nodes[3])
+        env.run(until=800.0)
+        context = _context(graph, FastestRouter())
+        assert context.cost(drained, nodes[0]) == pytest.approx(50.0, rel=1e-12)
+        assert context.cost(fresh, nodes[0]) == pytest.approx(15.0, rel=1e-12)
+        assert NearestIdleStrategy().select(order, [drained, fresh], context) is fresh
+        assert NearestIdleStrategy().select(order, [drained, fresh], _context(graph)) is drained
 
 
 # ── DispatchStrategy: RoundRobinStrategy ──────────────────────────────
@@ -263,10 +447,10 @@ class TestRoundRobinStrategy:
         fleet = [agv1, agv2, agv3]
 
         strategy = RoundRobinStrategy()
-        first = strategy.select(order, fleet, graph)
-        second = strategy.select(order, fleet, graph)
-        third = strategy.select(order, fleet, graph)
-        fourth = strategy.select(order, fleet, graph)
+        first = strategy.select(order, fleet, _context(graph))
+        second = strategy.select(order, fleet, _context(graph))
+        third = strategy.select(order, fleet, _context(graph))
+        fourth = strategy.select(order, fleet, _context(graph))
 
         assert first is agv1
         assert second is agv2
@@ -287,7 +471,7 @@ class TestRoundRobinStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = RoundRobinStrategy()
-        selected = strategy.select(order, [agv_busy, agv_weak, agv_ok], graph)
+        selected = strategy.select(order, [agv_busy, agv_weak, agv_ok], _context(graph))
         assert selected is agv_ok
 
     def test_returns_none_when_all_filtered(
@@ -302,7 +486,7 @@ class TestRoundRobinStrategy:
         order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh_dest, created_at=0.0)
 
         strategy = RoundRobinStrategy()
-        assert strategy.select(order, [agv_busy], graph) is None
+        assert strategy.select(order, [agv_busy], _context(graph)) is None
 
 
 # ── RepositioningPolicy: StayInPlace ─────────────────────────────────
@@ -312,12 +496,7 @@ class TestStayInPlace:
     def test_returns_none(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         nodes, graph = _make_linear_graph()
         agv = _make_agv(env, speed_profile, "AGV-1", nodes[0])
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [], [agv])
         policy = StayInPlace()
         assert policy.reposition(agv, context) is None
 
@@ -335,12 +514,7 @@ class TestNearestParkingPolicy:
         park_near = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
         park_far = ParkingArea(env=env, name="P2", node=nodes[3], capacity=2)
 
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[park_far, park_near],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [park_far, park_near], [agv])
 
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) == nodes[1]
@@ -354,12 +528,7 @@ class TestNearestParkingPolicy:
         # because capacity is available)
         park._resource.request()
 
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[park],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [park], [agv])
 
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
@@ -368,12 +537,7 @@ class TestNearestParkingPolicy:
         nodes, graph = _make_linear_graph()
         agv = _make_agv(env, speed_profile, "AGV-1", nodes[0])
 
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [], [agv])
 
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
@@ -385,12 +549,7 @@ class TestNearestParkingPolicy:
         agv = _make_agv(env, speed_profile, "agv-no-node", nodes[0])
         agv.current_node = None  # Force None
 
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[park],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [park], [agv])
 
         policy = NearestParkingPolicy()
         assert policy.reposition(agv, context) is None
@@ -403,17 +562,24 @@ class TestNearestParkingPolicy:
         park_1 = ParkingArea(env=env, name="P1", node=nodes[1], capacity=2)
         park_3 = ParkingArea(env=env, name="P3", node=nodes[3], capacity=2)
 
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[park_1, park_3],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [park_1, park_3], [agv])
 
         policy = NearestParkingPolicy()
         result = policy.reposition(agv, context)
-        # Both are equidistant; min picks the first with equal key
-        assert result in (nodes[1], nodes[3])
+        # Both are equidistant: the first of the context's parking areas wins
+        assert result == nodes[1]
+        assert policy.reposition(agv, _repositioning(graph, [park_3, park_1], [agv])) == nodes[3]
+
+    def test_ranks_areas_by_router_cost(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
+        nodes, graph = _slow_arm(env, speed_profile)
+        agv = _make_agv(env, speed_profile, "AGV-1", nodes["S"])
+        slow = ParkingArea(env=env, name="P-slow", node=nodes["P"], capacity=1)  # 10 m at 0.5: 20 s
+        fast = ParkingArea(env=env, name="P-fast", node=nodes["Q"], capacity=1)  # 15 m at 2: 7.5 s
+        policy = NearestParkingPolicy()
+        assert policy.reposition(agv, _repositioning(graph, [slow, fast], [agv])) == nodes["P"]
+        assert policy.reposition(agv, _repositioning(graph, [slow, fast], [agv], FastestRouter())) == nodes["Q"]
+        costs = {"S>P": 4.0, "S>Q": 3.0}
+        assert policy.reposition(agv, _repositioning(graph, [slow, fast], [agv], Costing(costs))) == nodes["Q"]
 
     def test_parking_unreachable_gets_inf_distance(self, env: Environment, speed_profile: TrapezoidalProfile) -> None:
         """Parking area on disconnected node -> inf distance, still picked if only option."""
@@ -424,12 +590,7 @@ class TestNearestParkingPolicy:
         agv = _make_agv(env, speed_profile, "AGV-1", n0)
         park = ParkingArea(env=env, name="P-ISLAND", node=n_island, capacity=2)
 
-        context = RepositioningContext(
-            graph=graph,
-            parking_areas=[park],
-            charging_stations=[],
-            fleet=[agv],
-        )
+        context = _repositioning(graph, [park], [agv])
 
         policy = NearestParkingPolicy()
         # Only option is unreachable, but min still returns it

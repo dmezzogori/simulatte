@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from simulatte.environment import Environment
@@ -8,10 +10,21 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
+from simulatte.intralogistics.policies import DispatchContext
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeTrafficManager, PathCheckResult, ResourceBasedTrafficManager
+from simulatte.intralogistics.events import (
+    AgvMoveInterrupted,
+    AgvRouted,
+    ChargingStarted,
+    OrderStatusChanged,
+    TrafficWaitStuck,
+)
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.routing import FastestRouter, Route, Router, RouteRequest, ShortestDistanceRouter
+from simulatte.intralogistics.traffic import TrafficView
 from simulatte.intralogistics.warehouse import Warehouse
+from tests.intralogistics.traffic_support import StillFleet
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +48,28 @@ def simple_speed() -> TrapezoidalProfile:
     return TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
 
-def _make_agv_type(speed: TrapezoidalProfile) -> AGVType:
+class RestToRest:
+    """A trapezoidal profile without ``limits``: every arc is driven rest to rest, as before runs (spec §9.1)."""
+
+    def __init__(self, profile: TrapezoidalProfile) -> None:
+        self._profile = profile
+
+    def travel_time(self, *args: Any, **kwargs: Any) -> float:
+        return self._profile.travel_time(*args, **kwargs)
+
+    def motion(self, *args: Any) -> Any:
+        return self._profile.motion(*args)
+
+
+def _four_arc_line() -> tuple[Node, Node, Node, LayoutGraph]:
+    """``ORIGIN -- A -- MID -- B -- DEST`` with 25 m arcs; returns ORIGIN, MID, DEST and the graph."""
+    names = ("ORIGIN", "A", "MID", "B", "DEST")
+    nodes = [Node(id=name, x=25.0 * i, y=0.0) for i, name in enumerate(names)]
+    graph = LayoutGraph(nodes, [Arc(source=u, target=v) for u, v in zip(nodes, nodes[1:])])
+    return nodes[0], nodes[2], nodes[4], graph
+
+
+def _make_agv_type(speed: TrapezoidalProfile, length: float | None = None) -> AGVType:
     return AGVType(
         name="test-type",
         speed_profile=speed,
@@ -46,6 +80,7 @@ def _make_agv_type(speed: TrapezoidalProfile) -> AGVType:
         unload_time=1.0,
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
+        length=length,
     )
 
 
@@ -396,6 +431,38 @@ class TestCancellation:
 
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
+
+    def test_an_order_cancelled_at_the_instant_of_its_dispatch_stays_cancelled(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """The AGV stands on the origin, so the mission's first travel arrives without yielding. The cancellation
+        comes before the mission process has run: the mission must not pick, re-queue or dispatch the order again."""
+        from tests.intralogistics.traffic_support import FullReplay
+
+        replay = FullReplay(env)
+        coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed, origin_inventory=20)
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_b)
+        env.activate()
+
+        def submit_and_cancel():
+            yield env.timeout(1.0)
+            coordinator.submit(order)  # dispatched at once to the idle AGV on the origin
+            assert order.status is OrderStatus.DISPATCHED
+            coordinator.cancel(order)
+
+        env.process(submit_and_cancel())
+        env.run()
+
+        assert order.status is OrderStatus.CANCELLED
+        statuses = [(e.status, e.reason) for e in replay.of(OrderStatusChanged) if e.order == order.id]
+        assert statuses[-2:] == [("DISPATCHED", "dispatched"), ("CANCELLED", "cancelled")]
+        assert [status for status, _ in statuses].count("CANCELLED") == 1
+        assigned = [e for e in replay.events if e.type_name == "order.assigned" and e.order == order.id]
+        assert len(assigned) == 1
+        assert agv.state is AGVState.IDLE and agv.current_load is None and agv.order is None
+        assert wh_a.get_inventory_level(sku_a) == 20 and wh_b.get_inventory_level(sku_a) == 0
+        assert not coordinator._pending_queue and not coordinator._active_missions
+        assert not env.entities.is_live(order)
 
     def test_cancel_completed_order_is_noop(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
@@ -806,33 +873,16 @@ class TestTravelCorrectness:
         assert wh_dest.get_inventory_level(sku_a) == 0
         assert coordinator._dropped_cargo == []
 
-    def test_infeasible_check_path_no_alternative_order_failed(
+    def test_two_agvs_on_a_line_both_complete(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """T6: When check_path finds a conflict and no alternative route exists
-        on a linear graph, the second AGV's order must be FAILED."""
-        # Linear graph: A -- B -- C.  Two AGVs both at A, trying to go to C.
-        # AGV-1 registers intent [A, B, C].  AGV-2's check_path detects
-        # conflict on {B, C}.  No alternative route exists (linear graph),
-        # so the order fails cleanly without battery-stranding the AGV.
-        # Node capacity 2 lets both AGVs start at A (placement must be granted at activation).
+        """Two AGVs dispatched at once along a line with node capacity 2 travel one behind the other under
+        ``ReservationController``: no path check fails the second order any more."""
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=5.0, y=0.0)
         node_c = Node(id="C", x=10.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_a, target=node_b),
-            Arc(source=node_b, target=node_c),
-        ]
-        graph = LayoutGraph([node_a, node_b, node_c], arcs)
-
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=2,
-            deadlock_timeout=5.0,
-        )
-
+        graph = LayoutGraph([node_a, node_b, node_c], [Arc(source=node_a, target=node_b), Arc(node_b, node_c)])
+        traffic = ReservationController(graph=graph, env=env, node_capacity=2)
         wh_a = Warehouse(
             env=env,
             name="WH-A",
@@ -855,51 +905,35 @@ class TestTravelCorrectness:
             pick_time=1.0,
             put_time=1.0,
         )
-
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
-
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_c],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
-
         order1 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_c)
         order2 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_c)
-
         coordinator.submit(order1)
         coordinator.submit(order2)
+        env.run()
 
-        env.run(until=500.0)
-
-        # First order completes; second order FAILS because H2 cannot
-        # find an alternative path on this linear topology.
         assert order1.status == OrderStatus.COMPLETED
-        assert order2.status == OrderStatus.FAILED
+        assert order2.status == OrderStatus.COMPLETED
 
-    def test_delay_until_is_honored_before_path_registration(
+    def test_a_held_claim_delays_the_mission_until_released(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        class DelayingTrafficManager(FreeTrafficManager):
-            def __init__(self, env: Environment) -> None:
-                self.env = env
-                self.calls = 0
-
-            def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
-                self.calls += 1
-                if self.calls == 1:
-                    return PathCheckResult(feasible=False, delay_until=self.env.now + 5.0)
-                return PathCheckResult(feasible=True)
-
+        """The delivery waits at A for B, held by another AGV, until that AGV leaves B at 5."""
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=10.0, y=0.0)
-        graph = LayoutGraph([node_a, node_b], [Arc(source=node_a, target=node_b)])
-        traffic = DelayingTrafficManager(env)
+        node_c = Node(id="C", x=20.0, y=0.0)
+        graph = LayoutGraph([node_a, node_b, node_c], [Arc(source=node_a, target=node_b), Arc(node_b, node_c)])
+        traffic = ReservationController(graph=graph, env=env)
 
         wh_a = Warehouse(
             env=env,
@@ -923,32 +957,37 @@ class TestTravelCorrectness:
             pick_time=1.0,
             put_time=1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_a)
-        coordinator = FleetCoordinator(
+        agv_type = _make_agv_type(simple_speed, length=0.0)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        other = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_b)
+        coordinator = StillFleet(
             env=env,
             graph=graph,
-            fleet=[agv],
+            fleet=[agv, other],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
 
+        def leave_later():
+            yield env.timeout(5.0)
+            yield from coordinator._executor.travel(other, node_c, loaded=False)
+
+        env.process(leave_later())
         order = coordinator.create_order(sku=sku_a, quantity=1, origin=wh_a, destination=wh_b)
         coordinator.submit(order)
         env.run()
 
         assert order.status == OrderStatus.COMPLETED
-        assert traffic.calls >= 2
-        assert order.dispatched_at is not None
         assert order.delivered_at is not None
-        assert order.delivered_at >= 5.0
+        assert order.delivered_at >= 5.0 + 1.0 + 1.0  # left A at 5, then the 10 m arc, the put and the unload
 
-    def test_infeasible_path_without_guidance_fails_cleanly(
+    def test_a_router_without_route_fails_the_order_cleanly(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        class NoGuidanceTrafficManager(FreeTrafficManager):
-            def check_path(self, agv: AGV, path: list[Node]) -> PathCheckResult:
-                return PathCheckResult(feasible=False)
+        class NoRoute:
+            def route(self, request: RouteRequest, view: TrafficView) -> None:
+                return None
 
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=10.0, y=0.0)
@@ -976,14 +1015,14 @@ class TestTravelCorrectness:
             pick_time=1.0,
             put_time=1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_b)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
-            traffic_manager=NoGuidanceTrafficManager(),
+            router=NoRoute(),
         )
 
         order = coordinator.create_order(sku=sku_a, quantity=1, origin=wh_a, destination=wh_b)
@@ -1090,19 +1129,14 @@ class TestTravelCorrectness:
     def test_initial_placement_acquires_traffic_resource(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """S1: After FleetCoordinator init, the AGV's starting node resource
-        should be acquired in ResourceBasedTrafficManager."""
+        """S1: at activation the AGV holds its starting node in the ``ReservationController``."""
         node_start = Node(id="START", x=0.0, y=0.0)
         node_end = Node(id="END", x=10.0, y=0.0)
 
         arcs = [Arc(source=node_start, target=node_end)]
         graph = LayoutGraph([node_start, node_end], arcs)
 
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-        )
+        traffic = ReservationController(graph=graph, env=env)
 
         wh = Warehouse(
             env=env,
@@ -1116,7 +1150,7 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=1.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_start)
 
         _coordinator = FleetCoordinator(
@@ -1125,15 +1159,13 @@ class TestTravelCorrectness:
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
 
-        # Let the initial placement process run
         env.run(until=0.001)
 
-        # The resource for the start node should now have 1 user (the placed AGV)
-        resource = traffic._node_resources[node_start]
-        assert resource.count == 1
+        assert traffic.view.holders(node_start) == (agv,)
+        assert env.entities.bind_node(node_start).reserved_by == ["AGV-1"]
 
     def test_mid_travel_charging_diversion_completes_from_charger(self, env: Environment, sku_a: SKU) -> None:
         """H6: An AGV that diverts to a charger mid-travel should re-plan
@@ -1214,16 +1246,13 @@ class TestTravelCorrectness:
         # AGV should have ended at the destination
         assert agv.current_node == node_c
 
-    def test_node_capacity_1_timeout_reroute(
+    def test_two_agvs_share_the_bays_of_a_diamond(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """T2/S2: Two AGVs competing for the same node with capacity=1.
-        Both should eventually complete or one should gracefully fail."""
+        """Two AGVs compete for the bays A and D (capacity 2 each) of a diamond; both orders complete."""
         # Diamond graph:  A -- B -- D
         #                  \       /
         #                   -- C --
-        # Two AGVs start at A and next to it (A0), both going to D.  With
-        # capacity=1 on each node, they can use different routes (A-B-D and A-C-D).
         node_a0 = Node(id="A0", x=-5.0, y=0.0)
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=5.0, y=5.0)
@@ -1239,12 +1268,7 @@ class TestTravelCorrectness:
         ]
         graph = LayoutGraph([node_a0, node_a, node_b, node_c, node_d], arcs)
 
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=5.0,
-        )
+        traffic = ReservationController(graph=graph, env=env, capacities={node_a: 2, node_d: 2})
 
         wh_a = Warehouse(
             env=env,
@@ -1269,7 +1293,7 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
         agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a0)
 
@@ -1279,7 +1303,7 @@ class TestTravelCorrectness:
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_d],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
 
         order1 = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_d)
@@ -1288,34 +1312,19 @@ class TestTravelCorrectness:
         coordinator.submit(order1)
         coordinator.submit(order2)
 
-        # Run with generous time limit — must not hang
-        env.run(until=500.0)
+        env.run()
 
-        # Both orders should have resolved (completed or failed)
-        final_statuses = {OrderStatus.COMPLETED, OrderStatus.FAILED}
-        assert order1.status in final_statuses
-        assert order2.status in final_statuses
+        assert order1.status == OrderStatus.COMPLETED
+        assert order2.status == OrderStatus.COMPLETED
 
-        # At least one should have completed
-        assert order1.status == OrderStatus.COMPLETED or order2.status == OrderStatus.COMPLETED
-
-    def test_deadlock_timeout_fires_and_retries(
+    def test_blocked_by_an_idle_agv_the_order_waits_and_the_run_ends(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """S2 focused: An AGV blocked on enter_node triggers the deadlock
-        timeout path. A stationary AGV (placed, no intent) occupies a
-        chokepoint node. The traveling AGV's check_path sees no conflict
-        (no intent from the stationary AGV), but enter_node blocks on the
-        occupied resource.
-
-        ``_enter_with_timeout`` retries the same node with exponential
-        backoff.  After exhausting retries (3 by default), the AGV is
-        STRANDED and the order FAILS gracefully — no infinite hang.
+        """An idle AGV on the only way blocks the delivery. Traffic fails no order (spec §8.4): the traveler waits
+        at its node, is reviewed once 30 after the wait started and reported stuck, and with nothing changing no
+        timer is left, so ``env.run()`` returns.
 
         Graph:  START -- CHOKE -- END
-
-        Stationary AGV is placed on CHOKE (capacity=1). Traveling AGV
-        plans START-CHOKE-END, check_path passes, enter_node blocks.
         """
         node_start = Node(id="START", x=0.0, y=0.0)
         node_choke = Node(id="CHOKE", x=5.0, y=0.0)
@@ -1326,14 +1335,7 @@ class TestTravelCorrectness:
             Arc(source=node_choke, target=node_end),
         ]
         graph = LayoutGraph([node_start, node_choke, node_end], arcs)
-
-        deadlock_timeout = 2.0
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=deadlock_timeout,
-        )
+        traffic = ReservationController(graph=graph, env=env)
 
         wh_start = Warehouse(
             env=env,
@@ -1358,11 +1360,8 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
-
-        # Stationary AGV: placed on CHOKE, never dispatched, no intent
+        agv_type = _make_agv_type(simple_speed, length=1.0)
         agv_blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
-        # Traveling AGV: starts at START, mission to END
         agv_traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
 
         coordinator = FleetCoordinator(
@@ -1371,28 +1370,21 @@ class TestTravelCorrectness:
             fleet=[agv_traveler, agv_blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
+        stuck: list[TrafficWaitStuck] = []
+        env.bus.subscribe(stuck.append, (TrafficWaitStuck,))
 
-        # Let initial placement complete so blocker occupies CHOKE resource
-        env.run(until=0.001)
-        assert traffic._node_resources[node_choke].count == 1
-
-        t_before = env.now
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_start, destination=wh_end)
         coordinator.submit(order)
+        env.run()
 
-        # Run with generous time limit — must NOT hang
-        env.run(until=500.0)
+        assert env.now == 32.0  # loaded at 2, reviewed at 32
+        assert order.status == OrderStatus.IN_TRANSIT
+        assert agv_traveler.current_node == node_start
+        assert [(event.t, event.agv) for event in stuck] == [(32.0, "traveler")]
 
-        # After exhausting retries the order must FAIL gracefully
-        assert order.status == OrderStatus.FAILED
-        assert agv_traveler.state == AGVState.IDLE
-
-        # Verify that time actually passed (timeout + backoff was applied)
-        assert env.now - t_before >= deadlock_timeout
-
-    def test_deadlock_timeout_reroutes_when_alternative_exists(
+    def test_a_review_reroutes_when_an_alternative_exists(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
         node_start = Node(id="START", x=0.0, y=0.0)
@@ -1409,12 +1401,7 @@ class TestTravelCorrectness:
                 Arc(source=node_alt, target=node_end),
             ],
         )
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=1.0,
-        )
+        traffic = ReservationController(graph=graph, env=env, derive_corridors=False)
 
         wh_start = Warehouse(
             env=env,
@@ -1438,18 +1425,21 @@ class TestTravelCorrectness:
             pick_time=1.0,
             put_time=1.0,
         )
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_blocked)
         traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
 
-        coordinator = FleetCoordinator(
+        coordinator = StillFleet(
             env=env,
             graph=graph,
             fleet=[traveler, blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
+            clear_service_nodes=False,
         )
+        routed: list[AgvRouted] = []
+        env.bus.subscribe(routed.append, (AgvRouted,))
         env.run(until=0.001)
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_start, destination=wh_end)
@@ -1459,23 +1449,31 @@ class TestTravelCorrectness:
         assert order.status == OrderStatus.COMPLETED
         assert traveler.state == AGVState.IDLE
         assert traveler.current_node == node_end
+        # The standard policy keeps waiting 30, then reroutes around BLOCKED (13.4 m against 10, within 1.5).
+        assert [(event.t, event.reason, event.nodes) for event in routed if event.agv == "traveler"][:2] == [
+            (2.001, "travel", ("START", "BLOCKED", "END")),
+            (32.001, "blocked", ("START", "ALT", "END")),
+        ]
 
-    def test_lower_priority_waits_and_then_proceeds(
+    def test_the_traveler_waits_and_then_proceeds(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
         node_start = Node(id="START", x=0.0, y=0.0)
         node_choke = Node(id="CHOKE", x=5.0, y=0.0)
         node_end = Node(id="END", x=10.0, y=0.0)
+        node_side = Node(id="SIDE", x=5.0, y=5.0)
 
         graph = LayoutGraph(
-            [node_start, node_choke, node_end],
-            [Arc(source=node_start, target=node_choke), Arc(source=node_choke, target=node_end)],
+            [node_start, node_choke, node_end, node_side],
+            [
+                Arc(source=node_start, target=node_choke),
+                Arc(source=node_choke, target=node_end),
+                Arc(source=node_choke, target=node_side),
+            ],
         )
-        traffic = ResourceBasedTrafficManager(
+        traffic = ReservationController(
             graph=graph,
             env=env,
-            node_capacity=1,
-            deadlock_timeout=1.0,
             priority_fn=lambda agv: 10.0 if agv.agv_id == "high" else 0.0,
         )
 
@@ -1502,24 +1500,24 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
         high = AGV(env=env, agv_type=agv_type, agv_id="high", initial_node=node_start)
 
-        coordinator = FleetCoordinator(
+        coordinator = StillFleet(
             env=env,
             graph=graph,
             fleet=[high, blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
+            clear_service_nodes=False,
         )
         env.run(until=0.001)
 
         def release_blocker():
             yield env.timeout(4.0)
-            traffic.leave_node(blocker, node_choke)
-            blocker.current_node = node_start
+            yield from coordinator._executor.travel(blocker, node_side, loaded=False)
 
         env.process(release_blocker())
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_start, destination=wh_end)
@@ -1539,16 +1537,14 @@ class TestTravelCorrectness:
 class TestInterruptSafety:
     """Tests for H3, M2, H4, H5: interrupt safety and resource cleanup."""
 
-    def test_cancel_during_travel_releases_next_node_resource(
+    def test_cancel_during_travel_comes_to_rest_at_the_first_node_it_can(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """T4: Cancelling a mission while the AGV is mid-travel between
-        enter_node and leave_node releases the acquired next-node resource.
+        """T4: Cancelling a mission mid-arc lets the AGV pass the end of that arc at speed and rest at the first node
+        a braking distance (0.05 m) beyond it, END here (spec §8.3). It then holds END only.
 
         Graph:  FAR -- NEXT -- END (AGV starts at FAR, origin warehouse
         output bay is at END, so AGV must travel through NEXT).
-        ResourceBasedTrafficManager with node_capacity=1.
-        Cancel during the travel timeout after entering NEXT.
         """
         node_far = Node(id="FAR", x=0.0, y=0.0)
         node_next = Node(id="NEXT", x=5.0, y=0.0)
@@ -1560,12 +1556,7 @@ class TestInterruptSafety:
         ]
         graph = LayoutGraph([node_far, node_next, node_end], arcs)
 
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=30.0,
-        )
+        traffic = ReservationController(graph=graph, env=env)
 
         # Origin warehouse is at END so the AGV must travel FAR -> NEXT -> END
         wh_origin = Warehouse(
@@ -1591,7 +1582,7 @@ class TestInterruptSafety:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
@@ -1600,19 +1591,17 @@ class TestInterruptSafety:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
 
         # Let initial placement complete
         env.run(until=0.001)
-        assert traffic._node_resources[node_far].count == 1
+        assert traffic.view.holders(node_far) == (agv,)
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
         coordinator.submit(order)
 
-        # Travel from FAR to NEXT: distance=5, speed=10 -> travel_time=0.5s
-        # enter_node happens nearly instantly, then timeout(0.5).
-        # Cancel at t=0.2 — mid-travel, after entering NEXT but before arriving.
+        # Travel from FAR to END in one run of 10 m at 10 m/s. Cancel at t=0.2, mid-arc.
         def cancel_later():
             yield env.timeout(0.2)
             coordinator.cancel(order)
@@ -1620,8 +1609,9 @@ class TestInterruptSafety:
         env.process(cancel_later())
         env.run()
 
-        # After cancellation, the next-node resource should be released (count=0).
-        assert traffic._node_resources[node_next].count == 0
+        assert agv.current_node == node_end
+        assert [resource.id for resource in traffic.ledger.held(agv)] == ["END"]
+        assert traffic.view.holders(node_far) == traffic.view.holders(node_next) == ()
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
 
@@ -1799,11 +1789,11 @@ class TestInterruptSafety:
     def test_completed_travel_keeps_destination_node_occupied(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """_travel cleanup must not release the node the AGV physically occupies."""
+        """At the end of a travel the AGV keeps the node it stands on."""
         node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
         node_dest = Node(id="DEST", x=10.0, y=0.0)
         graph = LayoutGraph([node_origin, node_dest], [Arc(source=node_origin, target=node_dest)])
-        traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
+        traffic = ReservationController(graph=graph, env=env)
 
         wh_origin = Warehouse(
             env=env,
@@ -1827,14 +1817,14 @@ class TestInterruptSafety:
             pick_time=0.0,
             put_time=0.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed, length=0.0), agv_id="AGV-1", initial_node=node_origin)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
@@ -1843,17 +1833,15 @@ class TestInterruptSafety:
 
         assert order.status == OrderStatus.COMPLETED
         assert agv.current_node == node_dest
-        assert traffic._node_resources[node_origin].count == 0
-        assert traffic._node_resources[node_dest].count == 1
+        assert traffic.view.holders(node_origin) == ()
+        assert traffic.view.holders(node_dest) == (agv,)
 
-    def test_cancel_cleans_up_all_node_requests(
+    def test_cancel_keeps_only_what_the_body_overlaps(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
-        """M2: cancel() should clean up pending/unreached requests for the AGV.
-
-        Use ResourceBasedTrafficManager. AGV starts at FAR and must travel
-        to the origin warehouse at node C. Cancel mid-travel so the
-        _travel() interrupt handler releases MID while keeping FAR occupied.
+        """M2: after a cancel the AGV has no pending request and holds what its 1 m body overlaps where it comes to
+        rest, at C (the end of the claims it held, spec §8.3): C and the segment behind it; FAR and MID were released
+        1 m past them.
 
         Graph: FAR -- MID -- C  (AGV starts at FAR, origin output bay at C).
         """
@@ -1867,12 +1855,7 @@ class TestInterruptSafety:
         ]
         graph = LayoutGraph([node_far, node_mid, node_c], arcs)
 
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=30.0,
-        )
+        traffic = ReservationController(graph=graph, env=env)
 
         wh_origin = Warehouse(
             env=env,
@@ -1897,7 +1880,7 @@ class TestInterruptSafety:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=1.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
 
         coordinator = FleetCoordinator(
@@ -1906,18 +1889,18 @@ class TestInterruptSafety:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
 
         # Let initial placement complete
         env.run(until=0.001)
         # AGV placed at FAR
-        assert traffic._node_resources[node_far].count == 1
+        assert traffic.view.holders(node_far) == (agv,)
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
         coordinator.submit(order)
 
-        # Travel FAR->MID: distance=5, speed=10 -> 0.5s. Cancel at t=0.2, mid-arc.
+        # Travel FAR->C in one run of 10 m at 10 m/s. Cancel at t=0.2, mid-arc.
         def cancel_later():
             yield env.timeout(0.2)
             coordinator.cancel(order)
@@ -1925,14 +1908,10 @@ class TestInterruptSafety:
         env.process(cancel_later())
         env.run()
 
-        # After cancellation, the unreached MID request is cleaned up, but the
-        # AGV's physical node (FAR) remains occupied.
-        agv_node_requests = [k for k in traffic._node_requests if k[0] is agv]
-        assert agv_node_requests == [(agv, node_far)]
-
-        assert traffic._node_resources[node_far].count == 1
-        assert traffic._node_resources[node_mid].count == 0
-        assert traffic._node_resources[node_c].count == 0
+        assert agv not in traffic._pending
+        assert agv.current_node == node_c
+        assert [resource.id for resource in traffic.ledger.held(agv)] == ["C~MID", "C"]
+        assert traffic.view.holders(node_far) == traffic.view.holders(node_mid) == ()
 
 
 # ===========================================================================
@@ -2020,6 +1999,134 @@ class TestCriticalBatteryInterruption:
         assert agv.state == AGVState.IDLE
         # Station should have been used for recharging
         assert charger.total_recharges >= 1
+
+    def test_critical_battery_on_the_way_to_the_origin_charges_first(self, env: Environment, sku_a: SKU) -> None:
+        """Critical on arrival at B, before the origin bay at C: the empty travel returns to the mission, which charges
+        at B and travels on. Critical on arrival at the goal itself would end the travel there (spec §8.1)."""
+        node_a, node_b, node_c, node_d = (Node(id=name, x=5.0 * i, y=0.0) for i, name in enumerate("ABCD"))
+        graph = LayoutGraph(
+            [node_a, node_b, node_c, node_d],
+            [Arc(source=node_a, target=node_b), Arc(source=node_b, target=node_c), Arc(source=node_c, target=node_d)],
+        )
+        wh_c, wh_d = (
+            Warehouse(
+                env=env,
+                name=name,
+                input_bays=[node],
+                output_bays=[node],
+                n_slots=1,
+                products=[sku_a],
+                initial_inventory={sku_a: level},
+                pick_time=1.0,
+                put_time=1.0,
+            )
+            for name, node, level in (("WH-C", node_c, 100), ("WH-D", node_d, 0))
+        )
+        charger = ChargingStation(env=env, name="CS-B", node=node_b, n_slots=1)
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0),
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv.battery.level = 7.0  # 2 left at B: critical
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv], warehouses=[wh_c, wh_d], charging_stations=[charger]
+        )
+        order = coordinator.create_order(sku=sku_a, quantity=1, origin=wh_c, destination=wh_d)
+        coordinator.submit(order)
+        env.run()
+
+        assert order.status == OrderStatus.COMPLETED
+        assert charger.total_recharges == 1
+        assert agv.current_node == node_d
+
+
+class TestCriticalBatteryAtTheGoal:
+    """A critical battery found on arrival at the goal does not end the travel early (spec §8.2, §8.3): the travel
+    arrives and the energy check before the next arc decides. Battery 100, critical at 5, 1 per metre."""
+
+    @staticmethod
+    def _run(
+        env: Environment, sku: SKU, xs: dict[str, float], arcs: str, *, origin: str, destination: str, charger: str
+    ) -> tuple[AGV, TransferOrder, ChargingStation, list[str]]:
+        """Nodes at the given x, joined by the pairs of `arcs`; the AGV starts at ``S`` with 7 units left."""
+        nodes = {name: Node(id=name, x=x, y=0.0) for name, x in xs.items()}
+        graph = LayoutGraph(nodes.values(), [Arc(nodes[pair[0]], nodes[pair[1]]) for pair in arcs.split()])
+        wh_o, wh_d = (
+            Warehouse(
+                env=env,
+                name=name,
+                input_bays=[nodes[node]],
+                output_bays=[nodes[node]],
+                n_slots=1,
+                products=[sku],
+                initial_inventory={sku: level},
+                pick_time=1.0,
+                put_time=1.0,
+            )
+            for name, node, level in (("WH-O", origin, 100), ("WH-D", destination, 0))
+        )
+        station = ChargingStation(env=env, name="CS", node=nodes[charger], n_slots=1)
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0),
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=nodes["S"])
+        agv.battery.level = 7.0
+        coordinator = FleetCoordinator(
+            env=env, graph=graph, fleet=[agv], warehouses=[wh_o, wh_d], charging_stations=[station]
+        )
+        log: list[str] = []
+        env.bus.subscribe(
+            lambda e: log.append(e.reason if isinstance(e, OrderStatusChanged) else e.type_name),
+            (ChargingStarted, OrderStatusChanged),
+        )
+        order = coordinator.create_order(sku=sku, quantity=1, origin=wh_o, destination=wh_d)
+        coordinator.submit(order)
+        env.run()
+        return agv, order, station, log
+
+    def test_critical_at_the_origin_bay_picks_first_and_charges_on_the_way(self, env: Environment, sku_a: SKU) -> None:
+        # 2 left at O: critical. The loaded arc O -> D needs 5: the energy check diverts to the charger at O.
+        agv, order, station, log = self._run(
+            env, sku_a, {"S": 0.0, "O": 5.0, "D": 10.0}, "SO OD", origin="O", destination="D", charger="O"
+        )
+        assert order.status is OrderStatus.COMPLETED and agv.current_node is not None and agv.current_node.id == "D"
+        assert log.index("picked") < log.index("charging.started")  # before the executor it charged first
+        assert station.total_recharges == 1
+
+    def test_critical_at_the_destination_delivers_then_charges(self, env: Environment, sku_a: SKU) -> None:
+        # The AGV starts on the origin bay; 2 left at D: critical, it delivers and then charges (battery low).
+        agv, order, station, log = self._run(
+            env, sku_a, {"S": 0.0, "D": 5.0}, "SD", origin="S", destination="D", charger="D"
+        )
+        assert order.status is OrderStatus.COMPLETED
+        assert log[-2:] == ["delivered", "charging.started"]
+        assert station.total_recharges == 1
+
+    def test_a_charging_diversion_arriving_critical_charges_and_completes(self, env: Environment, sku_a: SKU) -> None:
+        """S to O (10) costs more than the 7 left; the charger at X (5) is reachable and the AGV arrives there with 2.
+        Before the executor the diversion ended there without charging and the AGV was stranded."""
+        agv, order, station, log = self._run(
+            env,
+            sku_a,
+            {"X": -5.0, "S": 0.0, "O": 10.0, "D": 15.0},
+            "XS SO OD",
+            origin="O",
+            destination="D",
+            charger="X",
+        )
+        assert order.status is OrderStatus.COMPLETED
+        assert station.total_recharges == 1
+        assert agv.state is AGVState.IDLE and agv.current_node is not None and agv.current_node.id == "D"
 
 
 class TestChargingHookSignature:
@@ -2219,19 +2326,16 @@ class TestResumeDeliveryRecovery:
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
         """Interrupt a mission after pickup (during loaded travel).
-        With ResumeDelivery strategy, the order should eventually complete."""
+        With ResumeDelivery strategy, the order should eventually complete.
+
+        The line has four 25 m arcs and a reservation controller: at ORIGIN the AGV claims up to MID (the next arc and
+        its braking distance), so the interrupt takes effect at MID and the resumed leg MID -> DEST is travelled."""
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # Longer graph so loaded travel takes time: ORIGIN -- MID -- DEST
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        node_origin, node_mid, node_dest, graph = _four_arc_line()
+        traffic = ReservationController(graph=graph, env=env)
+        routed: list[AgvRouted] = []
+        env.bus.subscribe(routed.append, (AgvRouted,))
 
         wh_origin = Warehouse(
             env=env,
@@ -2256,7 +2360,7 @@ class TestResumeDeliveryRecovery:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
@@ -2265,6 +2369,7 @@ class TestResumeDeliveryRecovery:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
+            traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
         )
 
@@ -2272,8 +2377,8 @@ class TestResumeDeliveryRecovery:
         coordinator.submit(order)
 
         # AGV at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0.
-        # Loaded travel ORIGIN->MID: distance=50, speed=10 -> 5.0s.
-        # Interrupt at t=4.0 — during loaded travel (after pickup).
+        # Loaded travel ORIGIN->A->MID at 10 m/s: at A about 4.5, at MID about 7.
+        # Interrupt at t=4.0 — during loaded travel (after pickup); it takes effect at MID.
         def interrupt_later():
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
@@ -2283,7 +2388,8 @@ class TestResumeDeliveryRecovery:
         env.process(interrupt_later())
         env.run()
 
-        # The order should complete via ResumeDelivery recovery
+        # The order should complete via ResumeDelivery recovery, from MID
+        assert [(e.origin, e.destination) for e in routed][-1] == ("MID", "DEST")
         assert order.status == OrderStatus.COMPLETED
         assert order.delivered_at is not None
         assert agv.state == AGVState.IDLE
@@ -2494,11 +2600,11 @@ class TestInitialPlacementSkipsNodelessAGV:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=1.0)
         agv_no_node = AGV(env=env, agv_type=agv_type, agv_id="no-node", initial_node=None)
         agv_with_node = AGV(env=env, agv_type=agv_type, agv_id="with-node", initial_node=node)
 
-        traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+        traffic = ReservationController(graph=graph, env=env, node_capacity=2)
 
         FleetCoordinator(
             env=env,
@@ -2506,12 +2612,12 @@ class TestInitialPlacementSkipsNodelessAGV:
             fleet=[agv_no_node, agv_with_node],
             warehouses=[wh],
             charging_stations=[],
-            traffic_manager=traffic,
+            traffic_controller=traffic,
         )
         env.run(until=0.001)
 
         # Only with_node should be placed
-        assert traffic._node_resources[node].count == 1
+        assert traffic.view.holders(node) == (agv_with_node,)
 
 
 class TestRepositioningAfterDelivery:
@@ -2701,7 +2807,10 @@ class TestResumeDeliveryChargingRetry:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=speed,
+            # rest to rest: the interrupt takes effect at MID, and the resumed travel arrives critical at CHARGER, a
+            # node other than its goal (with runs the first plan ends at CHARGER, where the battery turns critical,
+            # so the interrupt would take effect there and the resumed travel would not need this retry)
+            speed_profile=RestToRest(speed),
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -2759,11 +2868,92 @@ class TestResumeDeliveryChargingRetry:
             if process is not None and process.is_alive:
                 process.interrupt("test_resume_charge")
 
+        interrupted: list[AgvMoveInterrupted] = []
+        env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
         env.process(interrupt_later())
         env.run()
 
+        assert [e.node for e in interrupted] == ["MID"]
         assert order.status == OrderStatus.COMPLETED
         assert charger.total_recharges >= 1
+
+    def test_resume_delivery_charges_during_retry_for_a_kinematic_vehicle(self, env: Environment, sku_a: SKU) -> None:
+        """The kinematic counterpart of the test above, on a line of 5 m arcs ``ORIGIN, M1, M2, CHARGER, DEST`` and a
+        battery of 17. The first plan ends at CHARGER, where the estimated level (2) turns critical. Cancelled on the
+        first arc, the vehicle passes M1 at speed and rests at M2, the first node 0.05 m beyond it (spec §8.3); the
+        resumed delivery ends at CHARGER (critical), charges there inside the retry loop and completes."""
+        from simulatte.intralogistics.policies import ResumeDelivery
+
+        nodes = {
+            name: Node(id=name, x=5.0 * i, y=0.0) for i, name in enumerate(("ORIGIN", "M1", "M2", "CHARGER", "DEST"))
+        }
+        names = list(nodes)
+        graph = LayoutGraph(nodes.values(), [Arc(source=nodes[u], target=nodes[v]) for u, v in zip(names, names[1:])])
+        wh_origin = Warehouse(
+            env=env,
+            name="WH-ORIGIN",
+            input_bays=[nodes["ORIGIN"]],
+            output_bays=[nodes["ORIGIN"]],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 100},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        wh_dest = Warehouse(
+            env=env,
+            name="WH-DEST",
+            input_bays=[nodes["DEST"]],
+            output_bays=[nodes["DEST"]],
+            n_slots=2,
+            products=[sku_a],
+            initial_inventory={sku_a: 0},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        charger = ChargingStation(env=env, name="CS-1", node=nodes["CHARGER"], n_slots=1)
+        speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
+        agv_type = AGVType(
+            name="test-type",
+            speed_profile=speed,
+            battery_capacity=100.0,
+            weight_capacity=100.0,
+            volume_capacity=10.0,
+            load_time=1.0,
+            unload_time=1.0,
+            low_battery_threshold=0.2,
+            critical_battery_threshold=0.05,
+        )
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=nodes["ORIGIN"])
+        agv.battery.level = 17.0
+        coordinator = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[wh_origin, wh_dest],
+            charging_stations=[charger],
+            load_recovery_strategy=ResumeDelivery(),
+        )
+        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
+        coordinator.submit(order)
+
+        def interrupt_later():
+            yield env.timeout(2.3)  # the vehicle left ORIGIN at 2.0
+            process = coordinator._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("test_resume_charge")
+
+        interrupted: list[AgvMoveInterrupted] = []
+        charging: list[ChargingStarted] = []
+        env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
+        env.bus.subscribe(charging.append, (ChargingStarted,))
+        env.process(interrupt_later())
+        env.run()
+
+        assert [e.node for e in interrupted] == ["M2"]
+        assert [e.station for e in charging] == ["CS-1"] and charging[0].t > interrupted[0].t
+        assert order.status == OrderStatus.COMPLETED
+        assert charger.total_recharges == 1
 
 
 class TestResumeDeliveryStranded:
@@ -2774,17 +2964,13 @@ class TestResumeDeliveryStranded:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # Graph: ORIGIN -- ISLAND (disconnected from DEST)
-        # After interrupt, AGV is on ISLAND with no path to DEST
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        # Graph: ORIGIN -- A -- MID -- B -- DEST, under reservation: at ORIGIN the AGV claims up to MID, so the
+        # interrupt takes effect at MID. The arcs out of MID are then removed: neither the resumed delivery nor the
+        # return to the origin has a route, and the cargo is dropped at MID.
+        node_origin, node_mid, node_dest, graph = _four_arc_line()
+        traffic = ReservationController(graph=graph, env=env)
+        statuses: list[OrderStatusChanged] = []
+        env.bus.subscribe(statuses.append, (OrderStatusChanged,))
 
         wh_origin = Warehouse(
             env=env,
@@ -2820,6 +3006,7 @@ class TestResumeDeliveryStranded:
             unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
+            length=0.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
@@ -2829,6 +3016,7 @@ class TestResumeDeliveryStranded:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
+            traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
         )
 
@@ -2837,7 +3025,7 @@ class TestResumeDeliveryStranded:
 
         # Interrupt after pickup (during loaded travel)
         # AGV at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0
-        # Loaded travel to MID: 50/10=5.0s. Interrupt at t=4.0.
+        # Loaded travel to MID at 10 m/s, about 5 s. Interrupt at t=4.0; it takes effect at MID.
         def interrupt_and_block():
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
@@ -2852,6 +3040,10 @@ class TestResumeDeliveryStranded:
         # After stranding on resume: cargo should be cleared, order failed
         assert agv.current_load is None
         assert agv.state == AGVState.IDLE
+        assert agv.current_node == node_mid
+        assert ("FAILED", "cargo_dropped") in [(e.status, e.reason) for e in statuses if e.order == order.id]
+        assert order.status == OrderStatus.FAILED
+        assert [node.id for _, node, _, _ in coordinator._dropped_cargo] == ["MID"]
 
         # H1 fix: inventory conservation - cargo must be somewhere.
         # The test fixture severed ALL arcs from MID, so return-to-origin also
@@ -2868,18 +3060,29 @@ class TestResumeDeliveryStranded:
 class TestResumeDeliveryFallbackToReturn:
     """H1: When ResumeDelivery re-travel fails but return-to-origin succeeds, cargo goes back to origin."""
 
-    def test_resume_fails_return_succeeds(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
+    @pytest.mark.parametrize("kinematic", [False, True])
+    def test_resume_fails_return_succeeds(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, kinematic: bool
+    ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        speed_profile: Any
+        if kinematic:
+            # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID, the
+            # first node 0.05 m beyond A (spec §8.3), under free flow as well.
+            node_origin, node_mid, node_dest, graph = _four_arc_line()
+            beyond_mid = next(node for node in graph.nodes if node.id == "B")
+            speed_profile = simple_speed
+        else:
+            node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+            node_mid = Node(id="MID", x=50.0, y=0.0)
+            node_dest = Node(id="DEST", x=100.0, y=0.0)
+            graph = LayoutGraph(
+                [node_origin, node_mid, node_dest],
+                [Arc(source=node_origin, target=node_mid), Arc(source=node_mid, target=node_dest)],
+            )
+            beyond_mid = node_dest
+            speed_profile = RestToRest(simple_speed)  # rest to rest: the interrupt takes effect at MID
 
         wh_origin = Warehouse(
             env=env,
@@ -2906,7 +3109,7 @@ class TestResumeDeliveryFallbackToReturn:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=simple_speed,
+            speed_profile=speed_profile,
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -2928,18 +3131,22 @@ class TestResumeDeliveryFallbackToReturn:
         coordinator.submit(order)
 
         def interrupt_and_sever_dest():
-            # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7)
-            # travel MID->DEST starts at t=7. Interrupt at t=8 -> AGV at MID.
-            yield env.timeout(8.0)
+            # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7).
+            # Interrupt at t=4, in the first arc: the AGV comes to rest at MID at t=7.
+            yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
-                # Sever only MID->DEST, keep MID->ORIGIN intact
-                graph._adjacency[node_mid].pop(node_dest, None)
-                graph._adjacency[node_dest].pop(node_mid, None)
+                # Sever only the way on from MID, keep MID->ORIGIN intact
+                graph._adjacency[node_mid].pop(beyond_mid, None)
+                graph._adjacency[beyond_mid].pop(node_mid, None)
                 process.interrupt("test_sever_dest_only")
 
+        interrupted: list[AgvMoveInterrupted] = []
+        env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
         env.process(interrupt_and_sever_dest())
         env.run()
+
+        assert [e.node for e in interrupted] == ["MID"]
 
         # Re-travel to DEST fails, fallback to return-to-origin succeeds
         assert agv.current_load is None
@@ -2953,20 +3160,26 @@ class TestResumeDeliveryFallbackToReturn:
 class TestResumeDeliveryFallbackChain:
     """H1: ResumeDelivery -> ReturnToOrigin -> Drop cargo."""
 
+    @pytest.mark.parametrize("kinematic", [False, True])
     def test_resume_and_return_both_fail_drops_cargo(
-        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, kinematic: bool
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        speed_profile: Any
+        if kinematic:
+            # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID.
+            node_origin, node_mid, node_dest, graph = _four_arc_line()
+            speed_profile = simple_speed
+        else:
+            node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
+            node_mid = Node(id="MID", x=50.0, y=0.0)
+            node_dest = Node(id="DEST", x=100.0, y=0.0)
+            graph = LayoutGraph(
+                [node_origin, node_mid, node_dest],
+                [Arc(source=node_origin, target=node_mid), Arc(source=node_mid, target=node_dest)],
+            )
+            speed_profile = RestToRest(simple_speed)  # rest to rest: the interrupt takes effect at MID
 
         wh_origin = Warehouse(
             env=env,
@@ -2993,7 +3206,7 @@ class TestResumeDeliveryFallbackChain:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=simple_speed,
+            speed_profile=speed_profile,
             battery_capacity=1000.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -3015,9 +3228,9 @@ class TestResumeDeliveryFallbackChain:
         coordinator.submit(order)
 
         def interrupt_and_isolate():
-            # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7)
-            # travel MID->DEST starts at t=7. Interrupt at t=8 -> AGV at MID.
-            yield env.timeout(8.0)
+            # AGV timeline: pick=1.0, load=1.0, travel ORIGIN->MID=5.0 (arrives t=7).
+            # Interrupt at t=4, in the first arc: the AGV comes to rest at MID at t=7.
+            yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
                 # Remove ALL arcs from MID - AGV is completely isolated
@@ -3054,15 +3267,12 @@ class TestResumeDeliveryWithHooksAndCollector:
         from simulatte.intralogistics.metrics import FleetTimeSeries
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        # Four 25 m arcs under reservation: the interrupt at 4 takes effect at MID, the horizon held then, so the
+        # resumed delivery travels MID -> DEST.
+        node_origin, node_mid, node_dest, graph = _four_arc_line()
+        traffic = ReservationController(graph=graph, env=env)
+        routed: list[AgvRouted] = []
+        env.bus.subscribe(routed.append, (AgvRouted,))
 
         wh_origin = Warehouse(
             env=env,
@@ -3087,7 +3297,7 @@ class TestResumeDeliveryWithHooksAndCollector:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         delivery_hooks: list[tuple[TransferOrder, AGV]] = []
@@ -3098,6 +3308,7 @@ class TestResumeDeliveryWithHooksAndCollector:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
+            traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
         )
         collector = FleetTimeSeries(coordinator).attach(env)
@@ -3116,6 +3327,7 @@ class TestResumeDeliveryWithHooksAndCollector:
         env.process(interrupt_later())
         env.run()
 
+        assert [(e.origin, e.destination) for e in routed][-1] == ("MID", "DEST")  # the resumed leg
         assert order.status == OrderStatus.COMPLETED
         assert len(delivery_hooks) >= 1
         assert delivery_hooks[-1][0] is order
@@ -3260,177 +3472,6 @@ class TestOnIdleHookAfterInterrupt:
         assert order.status == OrderStatus.CANCELLED
         assert len(idle_events) >= 1
         assert idle_events[-1] is agv
-
-
-class TestAlternativePathAlsoInfeasible:
-    """Both primary and alt paths check as infeasible (lines 535-544)."""
-
-    def test_alt_path_also_infeasible_strands(
-        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
-    ) -> None:
-        """Primary path conflicts on intermediate node B. Alt path found via C,
-        but C also conflicts with another AGV's intent -> mission failure.
-
-        Graph: A -- B -- D and A -- C -- D (diamond).
-        AGV1 intends [A, B, D] -> future {B, D}. But D is the dest, so
-        conflict is just {B}. AGV3 intends [X, C, D] -> future {C, D}.
-
-        AGV2 at A wants D.
-        Primary: A->B->D. check_path: B conflicts with AGV1 -> {B}.
-        Alt: plan(A, D, avoid=[B]) -> A->C->D.
-        check_path(A->C->D): C conflicts with AGV3 -> infeasible.
-        -> order failure without battery stranding.
-        """
-        node_a = Node(id="A", x=0.0, y=0.0)
-        node_b = Node(id="B", x=5.0, y=5.0)
-        node_c = Node(id="C", x=5.0, y=-5.0)
-        node_d = Node(id="D", x=10.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_a, target=node_b),
-            Arc(source=node_a, target=node_c),
-            Arc(source=node_b, target=node_d),
-            Arc(source=node_c, target=node_d),
-        ]
-        graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
-
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=5.0,
-        )
-
-        wh_a = Warehouse(
-            env=env,
-            name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
-            n_slots=2,
-            products=[sku_a],
-            initial_inventory={sku_a: 200},
-            pick_time=1.0,
-            put_time=1.0,
-        )
-        wh_d = Warehouse(
-            env=env,
-            name="WH-D",
-            input_bays=[node_d],
-            output_bays=[node_d],
-            n_slots=2,
-            products=[sku_a],
-            initial_inventory={sku_a: 0},
-            pick_time=1.0,
-            put_time=1.0,
-        )
-
-        agv_type = _make_agv_type(simple_speed)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
-        agv3 = AGV(env=env, agv_type=agv_type, agv_id="AGV-3", initial_node=node_a)
-
-        # AGV1 blocks path via B. Future nodes of [A, B] are {B}.
-        traffic.register_intent(agv1, [node_a, node_b])
-        # AGV3 blocks path via C. Future nodes of [A, C] are {C}.
-        traffic.register_intent(agv3, [node_a, node_c])
-
-        coordinator = FleetCoordinator(
-            env=env,
-            graph=graph,
-            fleet=[agv2],
-            warehouses=[wh_a, wh_d],
-            charging_stations=[],
-            traffic_manager=traffic,
-        )
-
-        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_d)
-        coordinator.submit(order)
-
-        env.run(until=500.0)
-
-        assert order.status == OrderStatus.FAILED
-        assert agv2.state == AGVState.IDLE
-
-
-class TestSuccessfulAlternativePath:
-    """Alt path is feasible and used (line 544)."""
-
-    def test_alt_path_used_when_primary_conflicts(
-        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
-    ) -> None:
-        """Primary path A->B->D conflicts on B. Alt path A->C->D is feasible.
-        AGV uses alt path and completes the mission.
-
-        Diamond: A --via B--> D, A --via C--> D.
-        AGV1 intends [A, B], blocking B only.
-        AGV2 primary path A->B->D has conflict on B.
-        Alt path A->C->D has no conflicts -> feasible -> used (line 544).
-        """
-        node_a = Node(id="A", x=0.0, y=0.0)
-        node_b = Node(id="B", x=5.0, y=5.0)
-        node_c = Node(id="C", x=5.0, y=-5.0)
-        node_d = Node(id="D", x=10.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_a, target=node_b),
-            Arc(source=node_a, target=node_c),
-            Arc(source=node_b, target=node_d),
-            Arc(source=node_c, target=node_d),
-        ]
-        graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
-
-        traffic = ResourceBasedTrafficManager(
-            graph=graph,
-            env=env,
-            node_capacity=1,
-            deadlock_timeout=5.0,
-        )
-
-        wh_a = Warehouse(
-            env=env,
-            name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
-            n_slots=2,
-            products=[sku_a],
-            initial_inventory={sku_a: 200},
-            pick_time=1.0,
-            put_time=1.0,
-        )
-        wh_d = Warehouse(
-            env=env,
-            name="WH-D",
-            input_bays=[node_d],
-            output_bays=[node_d],
-            n_slots=2,
-            products=[sku_a],
-            initial_inventory={sku_a: 0},
-            pick_time=1.0,
-            put_time=1.0,
-        )
-
-        agv_type = _make_agv_type(simple_speed)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_b)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
-
-        # AGV1 blocks B (but not C or D)
-        traffic.register_intent(agv1, [node_a, node_b])
-
-        coordinator = FleetCoordinator(
-            env=env,
-            graph=graph,
-            fleet=[agv2],
-            warehouses=[wh_a, wh_d],
-            charging_stations=[],
-            traffic_manager=traffic,
-        )
-
-        order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_a, destination=wh_d)
-        coordinator.submit(order)
-
-        env.run(until=500.0)
-
-        assert order.status == OrderStatus.COMPLETED
 
 
 class TestStrandedAfterCharging:
@@ -4833,14 +4874,14 @@ class TestRepositioningStranded:
 
 
 # ===========================================================================
-# M11: submit() before env.run() under ResourceBasedTrafficManager
+# M11: submit() before env.run() under ReservationController
 # ===========================================================================
 
 
 class TestSubmitBeforeRun:
-    """M11: submit() before env.run() must work under ResourceBasedTrafficManager."""
+    """M11: submit() before env.run() must work under ReservationController."""
 
-    def test_submit_before_run_with_resource_traffic_manager(
+    def test_submit_before_run_with_reservation_controller(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
         node_a = Node(id="WH_A_OUT", x=0.0, y=0.0)
@@ -4879,17 +4920,18 @@ class TestSubmitBeforeRun:
             volume_capacity=10.0,
             load_time=1.0,
             unload_time=1.0,
+            length=1.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
 
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
+        tm = ReservationController(graph=graph, env=env, node_capacity=2)
         coordinator = FleetCoordinator(
             env=env,
             graph=graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
-            traffic_manager=tm,
+            traffic_controller=tm,
         )
 
         # Submit BEFORE env.run()
@@ -5036,9 +5078,9 @@ class TestReleaseLifecycleRegressions:
         calls = []
 
         class CustomStrategy(NearestIdleStrategy):
-            def select(self, order, fleet, graph):
+            def select(self, order, fleet, context):
                 calls.append((env.now, tuple(fleet)))
-                return super().select(order, fleet, graph)
+                return super().select(order, fleet, context)
 
         coordinator._dispatch_strategy = CustomStrategy()
         for _ in range(2):
@@ -5065,75 +5107,177 @@ class TestReleaseLifecycleRegressions:
             assert coordinator.metrics is None
 
 
-@pytest.mark.parametrize("phase", ["queued", "granted"])
-@pytest.mark.parametrize("repeated", [False, True])
-def test_interrupted_timeout_entry_finishes_child_cleanup(
-    env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, phase: str, repeated: bool
-) -> None:
-    import simpy
-
-    coordinator, agv, _, _ = _build_simple_system(env, sku_a, simple_speed)
-    traffic = ResourceBasedTrafficManager(graph=coordinator.graph, env=env, deadlock_timeout=30)
-    coordinator._traffic_manager = traffic
-    target = next(node for node in coordinator.graph.nodes if node.id == "CORRIDOR")
-    holder = AGV(env=env, agv_type=agv.agv_type, initial_node=target)
-    if phase == "queued":
-        traffic.place_now(holder, target)
-    env.run()
-    start = agv.current_node
-    assert start is not None
-    causes = []
-
-    def travel():
-        try:
-            yield from coordinator._travel(agv, start, target, loaded=False)
-        except simpy.Interrupt as interruption:
-            causes.append(interruption.cause)
-
-    process = env.process(travel())
-    env.step()  # the parent creates its entry child
-    env.step()  # the child requests the target; its grant has not resumed it yet
-    process.interrupt("cancelled")
-    if repeated:
-        process.interrupt("another_interrupt")
-    env.run()
-
-    assert causes == ["cancelled"]
-    assert agv.current_node is start
-    assert not traffic._pending_requests and not traffic._waiting and not traffic._intents
-    assert (agv, target) not in traffic._node_requests
-    assert traffic._node_resources[target].count == (1 if phase == "queued" else 0)
-    assert not traffic._node_resources[target].queue
-    binding = env.entities.node_binding(target)
-    assert binding is not None
-    assert binding.reserved_by == ([holder.id] if phase == "queued" else [])
+# ===========================================================================
+# Route cost: dispatch context, bays and chargers (spec §10.4)
+# ===========================================================================
 
 
-def test_timeout_entry_consumes_custom_manager_child_interrupt(
-    env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
-) -> None:
-    import simpy
+class SpyRouter:
+    """Answers as `router` (default ``ShortestDistanceRouter``) and records every request."""
 
-    coordinator, agv, _, _ = _build_simple_system(env, sku_a, simple_speed)
+    def __init__(self, router: Router | None = None) -> None:
+        self.router = router or ShortestDistanceRouter()
+        self.requests: list[RouteRequest] = []
 
-    class InterruptibleEntry(FreeTrafficManager):
-        def enter_node(self, agv, node):
-            yield env.timeout(10)
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        self.requests.append(request)
+        return self.router.route(request, view)
 
-    coordinator._traffic_manager = InterruptibleEntry()
-    env.run()
-    target = next(node for node in coordinator.graph.nodes if node.id == "CORRIDOR")
-    causes = []
 
-    def enter():
-        try:
-            yield from coordinator._enter_with_timeout(agv, target, 30, destination=target)
-        except simpy.Interrupt as interruption:
-            causes.append(interruption.cause)
+def _slow_arm_world(
+    env: Environment,
+    sku: SKU,
+    speed: TrapezoidalProfile,
+    *,
+    router: Router | None = None,
+    extra: dict[str, tuple[float, float, str | None]] | None = None,
+) -> tuple[FleetCoordinator, AGV, dict[str, Node]]:
+    """An AGV at ``S``; ``P`` is 10 m away behind a 0.5 m/s limit (20 s), ``Q`` 15 m away (1.5 s at 10 m/s), ``E`` is
+    10 m beyond ``P`` and 25 m beyond ``Q``, and ``R`` 25 m beyond ``E``. Warehouse ``WH-O`` has output bays ``P`` and
+    ``Q`` (in that order), ``WH-D`` input bays ``E`` and ``R``; chargers ``CS-P`` and ``CS-Q`` stand on ``P`` and ``Q``.
+    `extra` adds nodes by id at ``(x, y)``, each joined to the node named, or to none."""
+    points = [("S", 0, 0), ("P", 10, 0), ("Q", 0, 15), ("E", 20, 0), ("R", 20, 25)]
+    points += [(name, x, y) for name, (x, y, _) in (extra or {}).items()]
+    nodes = {name: Node(id=name, x=x, y=y) for name, x, y in points}
+    s, p, q, e, r = (nodes[name] for name in "SPQER")
+    arcs = [Arc(s, p, speed_limit=0.5), Arc(s, q), Arc(p, e), Arc(q, e, length=25.0), Arc(e, r)]
+    arcs += [Arc(nodes[name], nodes[to]) for name, (_, _, to) in (extra or {}).items() if to is not None]
+    graph = LayoutGraph(nodes.values(), arcs)
+    origin = Warehouse(
+        env=env,
+        name="WH-O",
+        input_bays=[p],
+        output_bays=[p, q],
+        n_slots=1,
+        products=[sku],
+        initial_inventory={sku: 10},
+        pick_time=1.0,
+        put_time=1.0,
+    )
+    destination = Warehouse(
+        env=env,
+        name="WH-D",
+        input_bays=[e, r],
+        output_bays=[e],
+        n_slots=1,
+        products=[sku],
+        initial_inventory={sku: 0},
+        pick_time=1.0,
+        put_time=1.0,
+    )
+    agv = AGV(env=env, agv_type=_make_agv_type(speed), agv_id="AGV-1", initial_node=s)
+    chargers = [ChargingStation(env=env, name=name, node=nodes[name[-1]], n_slots=1) for name in ("CS-P", "CS-Q")]
+    coordinator = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=[origin, destination],
+        charging_stations=chargers,
+        router=router,
+    )
+    return coordinator, agv, nodes
 
-    process = env.process(enter())
-    env.step()
-    env.step()
-    process.interrupt("cancelled")
-    env.run()
-    assert causes == ["cancelled"]
+
+class TestRouteCostRankings:
+    def test_dispatch_context_exposes_graph(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """The strategy's context carries the graph it used to receive, the fleet's router and its traffic view, at
+        submission and at the checks of the pending queue."""
+        coordinator, _, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+        seen: list[tuple[float, Any]] = []
+
+        class Recording:
+            def select(self, order: TransferOrder, fleet: Any, context: Any) -> AGV | None:
+                seen.append((env.now, context))
+                return None
+
+        coordinator._dispatch_strategy = Recording()
+        coordinator.submit(coordinator.create_order(sku=sku_a, quantity=1, origin=origin, destination=destination))
+        env.run(until=2.5)
+        assert [t for t, _ in seen] == [0, 1, 2]
+        for _, context in seen:
+            assert isinstance(context, DispatchContext)
+            assert context.graph is coordinator.graph
+            assert context.router is coordinator.router
+            assert context.view is coordinator.traffic_controller.view
+
+    def test_best_bay_ranks_by_router_cost(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed)
+        assert coordinator.best_bay(agv, [nodes["P"], nodes["Q"]]) is nodes["P"]
+        fastest, agv, nodes = _slow_arm_world(Environment(), sku_a, simple_speed, router=FastestRouter())
+        assert fastest.best_bay(agv, [nodes["P"], nodes["Q"]]) is nodes["Q"]
+
+    def test_best_bay_asks_with_the_load_and_keeps_the_first_of_equal_or_unreachable_bays(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        spy = SpyRouter()
+        extra = {"T": (-10.0, 0.0, "S"), "IA": (50.0, 50.0, None), "IB": (60.0, 60.0, None)}
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, router=spy, extra=extra)
+        p, q, e = nodes["P"], nodes["Q"], nodes["E"]
+        agv.current_node = e  # P and E are 10 m apart; Q is 25 m away
+        assert coordinator.best_bay(agv, [q, p, nodes["S"]], load_weight=3.0) is p
+        assert [(r.origin, r.destination, r.load_weight, r.purpose) for r in spy.requests] == [
+            (e, q, 3.0, "travel"),
+            (e, p, 3.0, "travel"),
+            (e, nodes["S"], 3.0, "travel"),
+        ]
+        agv.current_node = nodes["S"]
+        tied, island_a, island_b = nodes["T"], nodes["IA"], nodes["IB"]
+        assert coordinator.best_bay(agv, [tied, p]) is tied  # both 10 m away: the first
+        assert coordinator.best_bay(agv, [p, tied]) is p
+        assert coordinator.best_bay(agv, [island_b, island_a]) is island_b  # none reachable: the first
+
+    @pytest.mark.parametrize("fast", [False, True])
+    def test_a_mission_travels_to_the_bays_best_bay_picks(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, fast: bool
+    ) -> None:
+        spy = SpyRouter(FastestRouter() if fast else None)
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, router=spy)
+        origin, destination = coordinator.warehouses
+        picked_at: list[Node | None] = []
+        coordinator.on_pickup_complete(lambda order, agv: picked_at.append(agv.current_node))
+        order = coordinator.create_order(sku=sku_a, quantity=2, origin=origin, destination=destination)
+        coordinator.submit(order)
+        env.run()
+        assert order.status == OrderStatus.COMPLETED
+        assert picked_at == [nodes["Q"] if fast else nodes["P"]]
+        assert agv.current_node is nodes["E"]
+        asked = {(r.destination.id, r.load_weight) for r in spy.requests}
+        assert {("P", 0.0), ("Q", 0.0), ("E", 10.0), ("R", 10.0)} <= asked  # the loaded bays are ranked with the load
+        assert ("R", 0.0) not in asked and ("E", 0.0) not in asked
+
+    def test_chargers_rank_by_router_cost(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
+        coordinator, agv, _ = _slow_arm_world(env, sku_a, simple_speed)
+        slow, fast = coordinator.charging_stations
+        assert coordinator._find_nearest_charger(agv) is slow
+        assert coordinator._find_reachable_charger(agv) is slow
+        coordinator, agv, _ = _slow_arm_world(Environment(), sku_a, simple_speed, router=FastestRouter())
+        slow, fast = coordinator.charging_stations
+        assert coordinator._find_nearest_charger(agv) is fast
+        assert coordinator._find_reachable_charger(agv) is fast
+
+    def test_chargers_at_equal_cost_keep_the_order_of_the_stations(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, extra={"T": (30.0, 0.0, "E")})
+        agv.current_node = nodes["E"]  # P is 10 m away, and so is the charger added on T
+        on_p, on_q = coordinator.charging_stations
+        on_t = ChargingStation(env=env, name="CS-T", node=nodes["T"], n_slots=1)
+        for stations, expected in (((on_t, on_p, on_q), on_t), ((on_q, on_p, on_t), on_p)):
+            coordinator.charging_stations = stations
+            assert coordinator._find_nearest_charger(agv) is expected
+            assert coordinator._find_reachable_charger(agv) is expected
+
+    def test_the_reachable_charger_estimate_rejects_an_invalid_route(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        class Detour:
+            def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+                return Route((request.origin, request.origin, request.destination), 1.0)
+
+        coordinator, agv, _ = _slow_arm_world(env, sku_a, simple_speed, router=Detour())
+        with pytest.raises(ValueError, match="Detour returned an invalid route from S to P: it visits a node twice"):
+            coordinator._find_reachable_charger(agv)

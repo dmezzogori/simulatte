@@ -43,6 +43,7 @@ __all__ = [
     "escape_key",
     "exact_int",
     "freeze",
+    "frozen_map",
     "new_packer",
     "pack",
     "prepared",
@@ -135,6 +136,16 @@ def freeze(value: Any) -> Wire:
     if isinstance(items, tuple):
         return tuple(freeze(item) for item in items)
     return _canonical_map({_check_key(k): freeze(v) for k, v in items})
+
+
+def frozen_map(data: dict[str, Wire]) -> FrozenMap:
+    """The canonical :class:`FrozenMap` that :func:`freeze` makes of `data`, built without its recursion.
+
+    The caller guarantees what :func:`freeze` would otherwise establish: the keys are exact ``str`` and every value is
+    already a frozen wire value (exact built-in scalars, NaN normalized, tuples, canonical maps). Nothing is checked
+    or converted; it is for hot paths that build such values themselves.
+    """
+    return _canonical_map(data)
 
 
 _NOT_SCALAR: Any = object()

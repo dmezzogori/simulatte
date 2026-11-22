@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import heapq
 import math
 import operator
 import os
@@ -607,6 +608,28 @@ class Environment(simpy.Environment):
     def volatile_metadata(self) -> VolatileMetadata:
         """Host, wall-clock start and wall-clock time spent in :meth:`run`; separate from the manifest."""
         return volatile_metadata(self._wall_clock_start, self._run_seconds)
+
+    def unschedule(self, event: simpy.Event) -> None:
+        """Remove `event`, scheduled and not yet processed, from the event queue: it never fires and never advances the
+        clock. A process waiting on the removed event never resumes.
+
+        Raises `ValueError` when the event is not in the queue (never scheduled, already processed or already
+        unscheduled). SimPy has no cancellation, so this is the one place that knows the layout of its event queue: a
+        heap of ``(time, priority, eid, event)`` entries with a unique ``eid``. The entries are totally ordered, so
+        deleting one and restoring the heap leaves the order of every other entry unchanged. An event being processed
+        was popped before its callbacks run and is no longer in the queue.
+        """
+        queue = self._queue
+        for index, entry in enumerate(queue):
+            if entry[3] is event:
+                break
+        else:
+            raise ValueError(
+                f"cannot unschedule {event!r}: it is not in the event queue "
+                "(never scheduled, already processed or already unscheduled)"
+            )
+        del queue[index]
+        heapq.heapify(queue)
 
     def step(self) -> None:
         """

@@ -399,18 +399,18 @@ def test_facade_rejects_invalid_arguments_and_foreign_object_ownership():
 
 
 def test_graph_reference_without_network_fails_before_binding():
-    from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+    from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
     layout = Layout(env)
-    ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    ReservationController(env=env, graph=layout.graph())
     with pytest.raises(LayoutError, match="declared network"):
         layout.prepare()
 
 
 def test_port_binding_aliases_share_canonical_graph_node_and_capacity():
     from simulatte.layout import Connector, Port
-    from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+    from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
     layout = line(env)
@@ -424,22 +424,22 @@ def test_port_binding_aliases_share_canonical_graph_node_and_capacity():
     )
     ref = layout.port(area, "out")
     cart = vehicle(env, ref)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     result = layout.prepare()
     assert cart.current_node is result.network.node(ref.address)
-    assert cart.current_node in manager._node_resources
+    assert cart.current_node in manager.graph.nodes
     assert result.auto.derived_positions[cart.id] == Point(-1, 0)
 
 
 def test_rejected_constructor_does_not_register_explicit_graph_use():
-    from simulatte.intralogistics.graph import LayoutGraph, Node
-    from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+    from simulatte.intralogistics.graph import Node
+    from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
     with pytest.raises(ValueError):
         vehicle(env, Node("A", 0, 0), "")
-    with pytest.raises(ValueError):
-        ResourceBasedTrafficManager(env=env, graph=LayoutGraph([], []), node_capacity=0)
+    with pytest.raises(LayoutError):
+        ReservationController(env=env, graph="not a graph")  # ty: ignore[invalid-argument-type]
     assert Layout(env).prepare() is not None
 
 

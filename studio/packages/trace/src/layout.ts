@@ -3,6 +3,9 @@ import { validateLayoutDefinition, validateLayoutPatch } from "./layout-schema";
 import type { Wire } from "./wire";
 
 export type LayoutBundle = Readonly<Record<string, Wire>> & { readonly schema_version: string };
+const VERSIONS: readonly string[] = ["1.0", "1.1"];
+/** True for the layout schema versions this reader validates and the viewer draws from the recorded bundle. */
+export const isKnownLayoutVersion = (version: unknown): boolean => typeof version === "string" && VERSIONS.includes(version);
 const FIELDS = "schema_version algorithms stages topology targets layers dependencies resolved network aliases bindings diagnostics auto leaves required_paths full_hash physical_hash layers_hash".split(" ");
 type Map = Readonly<Record<string, Wire>>;
 function map(value: unknown): Map {
@@ -26,7 +29,7 @@ function finite(value: Wire): void {
 export function layoutOf(value: unknown): LayoutBundle {
   const data = map(value);
   const version = string(data["schema_version"]);
-  if (version !== "1.0") return data as LayoutBundle;
+  if (!isKnownLayoutVersion(version)) return data as LayoutBundle;
   if (Object.keys(data).length !== FIELDS.length || FIELDS.some((key) => !(key in data))) throw new TypeError("layout-v1 has missing or unknown fields");
   const algorithms = map(data["algorithms"]);
   if (Object.keys(algorithms).length !== 3 || algorithms["auto"] !== "layered-v1" || algorithms["network"] !== "network-v1" || algorithms["hash"] !== "layout-hash-v1") throw new TypeError("unsupported layout algorithm");
@@ -34,13 +37,13 @@ export function layoutOf(value: unknown): LayoutBundle {
   for (const name of ["stages", "topology", "targets", "layers", "dependencies", "resolved", "auto", "bindings"]) map(data[name]);
   for (const name of ["aliases", "diagnostics", "leaves", "required_paths"]) array(data[name]);
   const layers = map(data["layers"]);
-  if (map(layers["file"])["schema_version"] !== "1.0") throw new TypeError("invalid saved file layer");
+  if (!isKnownLayoutVersion(map(layers["file"])["schema_version"])) throw new TypeError("invalid saved file layer");
   const code = array(layers["code"]);
   for (const item of code) {
     const pair = array(item);
     if (pair.length !== 2) throw new TypeError("invalid saved code layer");
     string(pair[0]);
-    if (map(pair[1])["schema_version"] !== "1.0") throw new TypeError("invalid saved code patch");
+    if (!isKnownLayoutVersion(map(pair[1])["schema_version"])) throw new TypeError("invalid saved code patch");
   }
   Object.values(map(data["targets"])).forEach((value) => target(value, true));
   const closure = map(data["dependencies"]);
@@ -99,6 +102,9 @@ function topology(value: Wire | undefined): void {
 }
 function nullableDefinition(value: Wire | undefined, name: "capacity" | "positive"): void {
   if (value !== null) validateLayoutDefinition(value, name);
+}
+function nullableBoolean(value: Wire | undefined): void {
+  if (value !== null && typeof value !== "boolean") throw new TypeError("invalid passing flag");
 }
 function selection(d: Map, o: Map): void {
   const predicate = string(d["predicate"]), members = array(o["members"]), selected: string[] = [], flags = map(o["flags"]);
@@ -198,10 +204,11 @@ function details(data: Map): void {
       if (node["capacity"] !== null && (typeof node["capacity"] !== "number" || !Number.isSafeInteger(node["capacity"]) || node["capacity"] < 1)) throw new TypeError("invalid node capacity");
     }
     for (const item of array(network["edges"])) {
-      const edge = keys(item, "address source target enabled direction speed_limit lineage blockers");
+      const edge = keys(item, "address source target enabled direction speed_limit lineage blockers", "passing");
       for (const name of ["address", "source", "target"]) address(edge[name]);
       array(edge["lineage"]).forEach(address); strings(edge["blockers"]);
       if (edge["enabled"] !== null && typeof edge["enabled"] !== "boolean") throw new TypeError("invalid edge enabled state");
+      if (edge["passing"] !== undefined) nullableBoolean(edge["passing"]);
       if (edge["speed_limit"] !== null && (typeof edge["speed_limit"] !== "number" || edge["speed_limit"] <= 0)) throw new TypeError("invalid edge speed");
     }
     for (const item of array(network["lineage"])) {
@@ -214,12 +221,21 @@ function details(data: Map): void {
       }
     }
     for (const key of ["weak_components", "strong_components"]) for (const group of array(network[key])) array(group).forEach(address);
-    const graph = keys(network["graph"], "nodes arcs");
+    const graph = keys(network["graph"], "nodes arcs", "zones");
     for (const item of array(graph["nodes"])) {
       const node = keys(item, "id position capacity"); validateLayoutDefinition(node["id"], "id"); point(node["position"]); nullableDefinition(node["capacity"], "capacity");
     }
     for (const item of array(graph["arcs"])) {
-      const arc = keys(item, "source target speed_limit"); validateLayoutDefinition(arc["source"], "id"); validateLayoutDefinition(arc["target"], "id"); nullableDefinition(arc["speed_limit"], "positive");
+      const arc = keys(item, "source target speed_limit", "passing"); validateLayoutDefinition(arc["source"], "id"); validateLayoutDefinition(arc["target"], "id"); nullableDefinition(arc["speed_limit"], "positive");
+      if (arc["passing"] !== undefined) nullableBoolean(arc["passing"]);
+    }
+    for (const item of array(graph["zones"] ?? [])) {
+      const zone = keys(item, "id capacity hold_back members"); validateLayoutDefinition(zone["id"], "id"); validateLayoutDefinition(zone["capacity"], "capacity");
+      if (typeof zone["hold_back"] !== "boolean") throw new TypeError("invalid zone hold_back");
+      for (const member of array(zone["members"])) {
+        if (Array.isArray(member)) { if (member.length !== 2) throw new TypeError("invalid zone member pair"); member.forEach((id) => validateLayoutDefinition(id, "id")); }
+        else validateLayoutDefinition(member, "id");
+      }
     }
   }
 }

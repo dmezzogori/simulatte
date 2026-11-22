@@ -145,14 +145,61 @@ def validate_definition(value: Any, definition: str, *, max_nesting: int = 64) -
     return result
 
 
+def _map(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _list(value: Any) -> tuple[Any, ...] | list[Any]:
+    return value if isinstance(value, (list, tuple)) else ()
+
+
+def traffic_fields(value: Mapping[str, Any]) -> list[tuple[str, ...]]:
+    """The paths of the schema 1.1 fields (spec §12) that a layout patch uses, in a fixed order.
+
+    ``passing`` on lanes, explicit arcs, connectors, the lattice network and edge overrides; ``network.block_length``
+    and ``network.zones``. An ``$unset`` marker counts as use, since it names the field. The patch must be valid
+    against the schema."""
+    network = _map(value.get("network"))
+    found: list[tuple[str, ...]] = [
+        ("network", name) for name in ("passing", "block_length", "zones") if name in network
+    ]
+    for lane_id, lane in _map(network.get("lanes")).items():
+        if "passing" in _map(lane):
+            found.append(("network", "lanes", lane_id, "passing"))
+    for index, arc in enumerate(_list(network.get("arcs"))):
+        if "passing" in _map(arc):
+            found.append(("network", "arcs", str(index), "passing"))
+    for index, record in enumerate(_list(value.get("overrides"))):
+        if "passing" in _map(_map(record).get("properties")):
+            found.append(("overrides", str(index), "properties", "passing"))
+    for entity, placement in _map(value.get("placements")).items():
+        for port, record in _map(_map(placement).get("ports")).items():
+            if "passing" in _map(_map(record).get("connector")):
+                found.append(("placements", entity, "ports", port, "connector", "passing"))
+    return found
+
+
+def layout_version(value: Mapping[str, Any]) -> str:
+    """``"1.1"`` when the patch uses a 1.1 field, else ``"1.0"``."""
+    return "1.1" if traffic_fields(value) else "1.0"
+
+
 def parse_patch(value: Mapping[str, Any], *, max_nesting: int = 64) -> dict[str, Any]:
-    """Validate and copy a file-layer patch, retaining authored leaf values."""
+    """Validate and copy a file-layer patch, retaining authored leaf values.
+
+    Versions 1.0 and 1.1 share one schema; a 1.0 patch that uses a 1.1 field is rejected here, naming the field."""
     result = _copy(value, (), 0, max_nesting)
-    if isinstance(result, dict) and result.get("schema_version", "1.0") != "1.0":
+    if isinstance(result, dict) and result.get("schema_version", "1.0") not in ("1.0", "1.1"):
         raise LayoutError(
             "unsupported layout schema_version; upgrade the layout reader",
             code="schema-error",
             path=("schema_version",),
         )
     _validate(result, _schema(), ())
+    if result.get("schema_version", "1.0") == "1.0" and (fields := traffic_fields(result)):
+        raise LayoutError(
+            f"{'/'.join(fields[0])}: layout schema 1.0 does not allow this field; set schema_version to 1.1",
+            code="schema-error",
+            path=fields[0],
+        )
     return result

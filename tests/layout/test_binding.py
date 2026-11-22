@@ -2,7 +2,7 @@ from simulatte import Environment, Layout
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.layout import Explicit, LayoutNotReady
 from simulatte import Trace, TraceRecorder
 from simulatte._wire import FrozenMap
@@ -11,7 +11,7 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.sku import SKU
-from simulatte.intralogistics.traffic import FreeTrafficManager
+from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 from simulatte.layout import Address, Grid, Lattice, LayoutError, NetworkOverride, Point
 from tests.intralogistics.test_fleet_events import FleetReplay
@@ -20,7 +20,10 @@ import pytest
 
 def vehicle(env, node, name=None):
     return AGV(
-        env=env, agv_id=name, initial_node=node, agv_type=AGVType("cart", TrapezoidalProfile(2, 1, 1), 100, 100, 100)
+        env=env,
+        agv_id=name,
+        initial_node=node,
+        agv_type=AGVType("cart", TrapezoidalProfile(2, 1, 1), 100, 100, 100, length=0.5),
     )
 
 
@@ -35,7 +38,7 @@ def test_pending_nodes_bind_in_attachment_order_and_prepare_is_pure():
     env = Environment()
     layout = line(env)
     first, second = vehicle(env, layout.node("A"), "zed"), vehicle(env, layout.node("A"), "alpha")
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph(), node_capacity=2)
+    manager = ReservationController(env=env, graph=layout.graph(), node_capacity=2)
     assert first.snapshot()["node"] is None
     with pytest.raises(LayoutNotReady):
         _ = first.current_node
@@ -82,7 +85,7 @@ def system(env, layout, *, name="fleet", manager=None, start="A"):
         warehouses=[origin, destination],
         charging_stations=[station],
         parking_areas=[parking],
-        traffic_manager=manager,
+        traffic_controller=manager,
         name=name,
     )
     return fleet, cart, origin, destination, station, parking
@@ -95,7 +98,7 @@ def test_deferred_all_components_snapshot_binding_and_recording(mode, tmp_path):
     if mode == "debug":
         FleetReplay(env)
     layout = line(env)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     fleet, cart, origin, destination, station, parking = system(env, layout, manager=manager)
     for component, field in [
         (fleet, "graph"),
@@ -128,13 +131,14 @@ def test_deferred_all_components_snapshot_binding_and_recording(mode, tmp_path):
 def test_finalized_constructors_publish_resolved_snapshots_and_reuse_resources(activated):
     env = Environment(debug=True)
     layout = line(env)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph(), node_capacity=3)
+    manager = ReservationController(env=env, graph=layout.graph(), node_capacity=3)
     original = layout.prepare()
     if activated:
         env.activate()
     events = []
     env.bus.subscribe(events.append, (EntityCreated,))
-    fleet, cart, origin, destination, station, parking = system(env, layout, manager=manager)
+    # After activation the controller's network is built and no fleet can register with it: use free flow.
+    fleet, cart, origin, destination, station, parking = system(env, layout, manager=None if activated else manager)
     assert events[0].deltas.ops[0][3]["node"] == "A"
     assert fleet.graph is manager.graph is original.network.graph
     assert cart.current_node is origin.input_bays[0] is parking.node
@@ -144,11 +148,12 @@ def test_finalized_constructors_publish_resolved_snapshots_and_reuse_resources(a
     binding = env.entities.node_binding(cart.current_node)
     assert binding is not None and binding.agvs == ["cart"]
     if not activated:
-        assert manager._node_resources[cart.current_node].count == 0
+        assert manager.view.holders(cart.current_node) == ()
         env.activate()
-    assert manager._node_resources[cart.current_node].count == 1
+        assert manager.view.holders(cart.current_node) == (cart,)
+        assert manager.network.capacity(cart.current_node) == 1  # the parking area's slot, before node_capacity
     with pytest.raises(LayoutError):
-        ResourceBasedTrafficManager(env=env, graph=layout.graph())
+        ReservationController(env=env, graph=layout.graph())
     with pytest.raises(LayoutError):
         layout.place(cart, position=Point(2, 3))
 
@@ -158,9 +163,9 @@ def test_first_resource_manager_after_finalize_rejected_and_free_allowed():
     layout = line(env)
     layout.prepare()
     with pytest.raises(LayoutError):
-        ResourceBasedTrafficManager(env=env, graph=layout.graph())
+        ReservationController(env=env, graph=layout.graph())
     fleet, *_ = system(env, layout)
-    assert isinstance(fleet._traffic_manager, FreeTrafficManager)
+    assert isinstance(fleet.traffic_controller, FreeFlowController)
 
 
 @pytest.mark.parametrize("endpoint", ["copy", "foreign"])
@@ -178,7 +183,7 @@ def test_noncanonical_movement_is_atomic_before_equality_or_motion_clear(endpoin
     for move in (
         lambda: setattr(cart, "current_node", bad),
         lambda: cart._relocate(bad),
-        lambda: fleet._end_segment(cart, bad),
+        lambda: fleet._executor._end_segment(cart, bad),
         lambda: env.entities.bind_node(bad),
     ):
         with pytest.raises(LayoutError, match="canonical"):
@@ -190,7 +195,7 @@ def test_noncanonical_movement_is_atomic_before_equality_or_motion_clear(endpoin
     cart.current_node = current
     cart.current_node = None
     cart.current_node = fleet.graph.nodes[1]
-    fleet._end_segment(cart, current)
+    fleet._executor._end_segment(cart, current)
     binding = env.entities.node_binding(current)
     assert binding is not None and binding.agvs == [cart.id]
 
@@ -198,12 +203,13 @@ def test_noncanonical_movement_is_atomic_before_equality_or_motion_clear(endpoin
 def test_static_bindings_reject_assignment_but_no_layout_keeps_mutable_api():
     env = Environment()
     layout = line(env)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     fleet, _, origin, _, station, parking = system(env, layout, manager=manager)
     layout.prepare()
+    with pytest.raises(AttributeError):
+        manager.graph = manager.graph  # ty: ignore[invalid-assignment]  # the controller's graph never changes
     for component, field in [
         (fleet, "graph"),
-        (manager, "graph"),
         (origin, "input_bays"),
         (origin, "output_bays"),
         (station, "node"),
@@ -223,10 +229,9 @@ def test_static_bindings_reject_assignment_but_no_layout_keeps_mutable_api():
     pa = ParkingArea(env=plain, name="parking", node=node, capacity=1)
     st.node = pa.node = node
     graph = LayoutGraph([node], [])
-    tm = ResourceBasedTrafficManager(env=plain, graph=graph)
     fc = FleetCoordinator(env=plain, graph=graph, fleet=[], warehouses=[wh], charging_stations=[st])
-    fc.graph = tm.graph = graph
-    assert isinstance(wh.input_bays, list) and tm.graph is graph
+    fc.graph = graph
+    assert isinstance(wh.input_bays, list) and fc.graph is graph
 
 
 @pytest.mark.parametrize("consumer", ["agv", "warehouse", "charger", "parking", "fleet", "traffic", "node_binding"])
@@ -238,7 +243,7 @@ def test_explicit_consumers_before_layout_and_direct_values_in_layout_rejected(c
             "charger": lambda: ChargingStation(env=env, name="charger", node=node, n_slots=1),
             "parking": lambda: ParkingArea(env=env, name="parking", node=node, capacity=1),
             "fleet": lambda: FleetCoordinator(env=env, graph=graph, fleet=[], warehouses=[], charging_stations=[]),
-            "traffic": lambda: ResourceBasedTrafficManager(env=env, graph=graph),
+            "traffic": lambda: ReservationController(env=env, graph=graph),
             "node_binding": lambda: env.entities.bind_node(node),
         }[consumer]()
 
@@ -262,22 +267,22 @@ def test_foreign_refs_wrong_environment_members_and_duplicate_managers_preflight
     for make in (
         lambda: vehicle(env, foreign.node("A")),
         lambda: warehouse(env, "bad", foreign.node("A")),
-        lambda: ResourceBasedTrafficManager(env=env, graph=foreign.graph()),
+        lambda: ReservationController(env=env, graph=foreign.graph()),
         lambda: vehicle(Environment(), layout.node("A")),
-        lambda: ResourceBasedTrafficManager(env=Environment(), graph=layout.graph()),
+        lambda: ReservationController(env=Environment(), graph=layout.graph()),
     ):
         with pytest.raises(LayoutError):
             make()
     assert env.entities.live() == ()
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     with pytest.raises(LayoutError, match="shared resource owner"):
-        ResourceBasedTrafficManager(env=env, graph=layout.graph())
+        ReservationController(env=env, graph=layout.graph())
     alien = vehicle(other, foreign.node("A"))
     cart = vehicle(env, layout.node("A"))
     for members, traffic in [
         ([alien], manager),
         ([cart, cart], manager),
-        ([cart], ResourceBasedTrafficManager(env=other, graph=foreign.graph())),
+        ([cart], ReservationController(env=other, graph=foreign.graph())),
     ]:
         before = env.entities.live()
         with pytest.raises(LayoutError):
@@ -287,17 +292,17 @@ def test_foreign_refs_wrong_environment_members_and_duplicate_managers_preflight
                 fleet=members,
                 warehouses=[],
                 charging_stations=[],
-                traffic_manager=traffic,
+                traffic_controller=traffic,
             )
         assert env.entities.live() == before and cart.fleet is None
     fleet = FleetCoordinator(
-        env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[], traffic_manager=manager
+        env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[], traffic_controller=manager
     )
     with pytest.raises(LayoutError, match="already belongs"):
         FleetCoordinator(env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[])
     second = vehicle(env, layout.node("B"))
     shared = FleetCoordinator(
-        env=env, graph=layout.graph(), fleet=[second], warehouses=[], charging_stations=[], traffic_manager=manager
+        env=env, graph=layout.graph(), fleet=[second], warehouses=[], charging_stations=[], traffic_controller=manager
     )
     env.activate()
     assert fleet.graph is shared.graph is manager.graph
@@ -309,24 +314,28 @@ def test_capacity_overrides_fallback_and_canonical_generated_aliases():
     layout.set_grid(Grid(1, 1))
     layout.set_network(Lattice((0, 0, 2, 0), capacity=5))
     layout.override(NetworkOverride("unset", {"kind": "lattice", "i": 0, "j": 0}, {"capacity": {"$unset": True}}))
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph(), node_capacity=2)
+    manager = ReservationController(env=env, graph=layout.graph(), node_capacity=2)
     ref = layout.node_at(Address({"kind": "lattice", "i": 0, "j": 0}))
     cart = vehicle(env, ref)
     layout.prepare()
-    assert manager._node_resources[cart.current_node].capacity == 2
-    assert sorted(resource.capacity for resource in manager._node_resources.values()) == [2, 5, 5]
+    assert manager.graph is layout.prepare().network.graph
+    env.activate()  # the controller builds its network from the resolved graph and capacities
+    network = manager.network
+    assert network.graph is manager.graph
+    assert network.capacity(cart.current_node) == 2
+    assert sorted(network.capacity(node) for node in network.graph.nodes) == [2, 5, 5]
 
 
 def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
-    class Manager(FreeTrafficManager):
-        pass
+    class Manager(FreeFlowController):
+        controls_occupancy = True
 
     env = Environment()
     layout = line(env)
     manager, other, owner = Manager(), Manager(), object()
-    with pytest.raises(LayoutError, match="custom manager"):
+    with pytest.raises(LayoutError, match="custom traffic controller requires"):
         FleetCoordinator(
-            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_manager=manager
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
         )
     layout.register_resource_owner(manager, owner=owner, graph=layout.graph(), binder="resources")
     layout.register_resource_owner(other, owner=owner, graph=layout.graph(), binder="resources")
@@ -343,7 +352,7 @@ def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
         reads=(layout.graph(),),
     )
     fleet = FleetCoordinator(
-        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_manager=manager
+        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
     )
     result = layout.prepare()
     assert seen == [(result.network.graph.nodes[0], fleet.graph)]
@@ -368,7 +377,7 @@ def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_p
             supplied_graph, supplied_a, supplied_b = layout.graph(), layout.node("A"), layout.node("B")
         else:
             supplied_graph, supplied_a, supplied_b = graph, a, b
-        manager = ResourceBasedTrafficManager(env=env, graph=supplied_graph)
+        manager = ReservationController(env=env, graph=supplied_graph)
         cart = vehicle(env, supplied_b, "cart")
         origin, destination = warehouse(env, "origin", supplied_a), warehouse(env, "destination", supplied_b)
         fleet = FleetCoordinator(
@@ -377,7 +386,7 @@ def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_p
             fleet=[cart],
             warehouses=[origin, destination],
             charging_stations=[],
-            traffic_manager=manager,
+            traffic_controller=manager,
             name="fleet",
         )
         order = fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination)
@@ -389,6 +398,56 @@ def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_p
         outcomes.append((env.initial_state, env.entities.snapshot(), env.fingerprint()))
         env.close()
     assert outcomes[0] == outcomes[1]
+
+
+def test_a_controller_without_occupancy_needs_no_registration():
+    """``_validate_fleet`` accepts any controller whose ``controls_occupancy`` is false, whatever its class."""
+
+    class Unregistered(FreeFlowController):
+        pass
+
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"), "cart")
+    controller = Unregistered()
+    fleet = FleetCoordinator(
+        env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[], traffic_controller=controller
+    )
+    layout.prepare()
+    assert fleet.traffic_controller is controller and controller.view.graph is fleet.graph
+
+
+def test_a_reservation_controller_must_be_the_registered_owner_of_its_environment():
+    env = Environment()
+    layout = line(env)
+    controller = ReservationController(env=env, graph=layout.graph())
+    layout._resource_owner = object()  # another owner took the graph's resources
+    with pytest.raises(LayoutError, match="reuse the registered traffic controller"):
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=controller
+        )
+
+
+def test_the_registered_resource_owner_is_accepted_whatever_its_class():
+    """spec §12: ``_validate_fleet`` checks the layout's record of resource owners, not the controller's class."""
+
+    class Owner(FreeFlowController):
+        controls_occupancy = True
+
+    env = Environment()
+    layout = line(env)
+    controller = Owner()
+    layout._register_manager(controller)
+    fleet = FleetCoordinator(
+        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=controller
+    )
+    assert fleet.traffic_controller is controller
+    other = Environment()
+    stranger = ReservationController(env=other, graph=line(other).graph())  # the owner of another layout
+    with pytest.raises(LayoutError, match="custom traffic controller requires"):
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=stranger
+        )
 
 
 def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication():

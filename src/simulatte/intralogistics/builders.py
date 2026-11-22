@@ -8,14 +8,14 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.parking import ParkingArea
-from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeTrafficManager
 from simulatte.intralogistics.warehouse import Warehouse
 
 if TYPE_CHECKING:
     from simulatte.environment import Environment
+    from simulatte.intralogistics.routing import Router
+    from simulatte.intralogistics.traffic import TrafficController
     from simulatte.layout import GraphRef, Layout, NodeRef, PortRef
 
 
@@ -35,6 +35,9 @@ def build_simple_system(
     prefix: str = "",
     layout: Layout,
     nodes: Mapping[str, NodeRef | PortRef] | None = None,
+    traffic_controller: TrafficController | None = None,
+    router: Router | None = None,
+    agv_length: float | None = None,
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef]: ...
 
 
@@ -54,6 +57,9 @@ def build_simple_system(
     prefix: str = "",
     layout: Layout | None = None,
     nodes: Mapping[str, NodeRef | PortRef] | None = None,
+    traffic_controller: TrafficController | None = None,
+    router: Router | None = None,
+    agv_length: float | None = None,
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph | GraphRef]: ...
 
 
@@ -72,6 +78,9 @@ def build_simple_system(
     prefix: str = "",
     layout: Layout | None = None,
     nodes: Mapping[str, NodeRef | PortRef] | None = None,
+    traffic_controller: TrafficController | None = None,
+    router: Router | None = None,
+    agv_length: float | None = None,
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph | GraphRef]:
     """Create a complete intralogistics system with sensible defaults.
 
@@ -97,7 +106,10 @@ def build_simple_system(
     ``N2``, ``N3``, ``WH_B_IN`` (unprefixed), with node/port refs from this layout.
     Declare a union network and pass distinct mappings to compose independent lines;
     the builder never replaces an existing network. Partial file network patches
-    may override the builder defaults. The traffic manager remains free-flowing.
+    may override the builder defaults.
+
+    ``traffic_controller`` and ``router`` go to the coordinator (defaults: free flow, shortest distance);
+    ``agv_length`` is the ``length`` of the AGV type, which ``ReservationController`` requires.
 
     Layout warehouses default to ``obstacle=False``. Plain bay nodes have no owner
     clearance exemption: use a port connector for an obstructing warehouse.
@@ -190,6 +202,7 @@ def build_simple_system(
         volume_capacity=agv_volume_capacity,
         load_time=1.0,
         unload_time=1.0,
+        length=agv_length,
     )
 
     # -- Fleet --
@@ -219,8 +232,8 @@ def build_simple_system(
         warehouses=[warehouse_a, warehouse_b],
         charging_stations=[charging_station],
         parking_areas=[parking_area],
-        traffic_manager=FreeTrafficManager(),
-        path_planner=DijkstraPlanner(),
+        traffic_controller=traffic_controller,
+        router=router,
         name=f"{prefix}fleet",
     )
 

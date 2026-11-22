@@ -11,7 +11,7 @@ def test_layout_guide_examples_execute(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     guide = (ROOT / "docs/guides/layout.md").read_text()
     blocks = re.findall(r"```python \{ \.run \}\n(.*?)\n```", guide, re.DOTALL)
-    assert len(blocks) == 7, "Every layout use case must remain executable"
+    assert len(blocks) == 8, "Every layout use case must remain executable"
     for index, block in enumerate(blocks):
         exec(compile(block, f"layout.md:block-{index + 1}", "exec"), {"__name__": "__main__"})
 
@@ -55,11 +55,11 @@ def test_custom_binder_cannot_escape_closure_or_read_auto():
     import pytest
     from simulatte import Environment, Layout
     from simulatte.layout import Grid, Lattice, LayoutError, Point
-    from simulatte.intralogistics.traffic import FreeTrafficManager
+    from simulatte.intralogistics.traffic import FreeFlowController
     from simulatte.server import Server
 
-    class CustomTraffic(FreeTrafficManager):
-        pass
+    class CustomTraffic(FreeFlowController):
+        controls_occupancy = True
 
     for declare_read, explicit in ((False, True), (True, False)):
         env = Environment()

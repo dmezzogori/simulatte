@@ -188,9 +188,15 @@ class Warehouse(Entity, kind="warehouse"):
             self._total_put_time += put_time
 
     def nearest_input_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
+        """The input bay nearest `from_node` by the chord length of the shortest path, the first among equals.
+
+        A chord-distance helper: the fleet coordinator chooses bays by its router's cost instead
+        (:meth:`~simulatte.intralogistics.FleetCoordinator.best_bay`), which differs on an arc longer than its chord.
+        """
         return self._nearest_bay(from_node, self.input_bays, graph)
 
     def nearest_output_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
+        """The output bay nearest `from_node`, as :meth:`nearest_input_bay` ranks the input bays."""
         return self._nearest_bay(from_node, self.output_bays, graph)
 
     @staticmethod

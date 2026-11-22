@@ -10,13 +10,13 @@ field       site                                                                
 node        ``agv.py`` ``AGV.__init__``: created at a node already bound (the node's   ``agv.placed`` (node ``agvs``)
             ``agvs`` gains the AGV; its own ``node`` is in its ``entity.created``)
 node        ``agv.py`` ``current_node`` setter: direct assignment                     ``agv.placed``
-node        ``_travel`` -> ``_end_segment``: ``agv._relocate(next_node)`` after the    ``agv.move_ended``
+node        ``travel.py`` ``_end_segment``: ``agv._relocate(next_node)`` after the     ``agv.move_ended``
             travel timeout
 state       ``agv.py`` ``AGV.transition_to``, the only writer; every                  ``agv.state_changed``
-            ``_transition_agv`` of ``_dispatch``, ``_run_mission``, ``_travel``,
-            ``_charge_agv`` and ``_return_cargo_to_origin`` goes through it
-battery     ``_travel``: ``battery.deplete`` after the segment (now after             ``agv.move_ended``
-            ``leave_node``, so position and battery change in one event)
+            ``_transition_agv`` of ``_dispatch``, ``_run_mission``, the travel
+            executor, ``_charge_agv`` and ``_return_cargo_to_origin`` goes through it
+battery     ``travel.py``: ``battery.deplete`` after the segment, so position and     ``agv.move_ended``
+            battery change in one event
 battery     ``charging.py`` ``recharge``: ``battery.recharge``; ``swap``:              ``agv.battery_changed``
             ``battery.level = capacity``
 load        ``_run_mission`` pickup: ``_set_load(agv, {sku: qty}, picked=order)``     ``agv.load_changed``
@@ -26,9 +26,11 @@ load        ``_drop_cargo`` and ``_return_cargo_to_origin``: ``_set_load(agv, No
 order       ``_dispatch``: ``agv.order = order``                                      ``order.assigned``
 order       ``_run_mission`` ``finally``: ``agv.order = None`` while it is still the   ``order.unassigned``
             mission's order
-motion      ``_travel`` -> ``_start_segment``: after ``enter_node`` admitted the AGV  ``agv.move_started``
-motion      ``_travel`` -> ``_end_segment``                                           ``agv.move_ended``
-motion      ``_travel`` ``except simpy.Interrupt`` -> ``_interrupt_segment``          ``agv.move_interrupted``
+motion      ``travel.py`` ``_start_segment``: once the claim covering it is granted  ``agv.move_started``
+motion      ``travel.py`` ``_end_segment``                                            ``agv.move_ended``
+heading     ``travel.py`` ``_end_segment``: the chord of the arc traversed            ``agv.move_ended``
+heading     ``agv.py`` ``current_node`` setter: unknown (None) after placement       ``agv.placed``
+(none)      ``travel.py``: an interrupted travel comes to rest (no state changes)     ``agv.move_interrupted``
 fleet       ``FleetCoordinator.__init__``: ``agv.fleet = self``                        ``fleet.agv_added``
 ==========  ========================================================================  ==============================
 

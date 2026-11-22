@@ -81,8 +81,8 @@ Every `@event_type` is registered in a global catalog with its payload fields, t
 | Server | `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered`, `server.work_credited` | `simulatte.server` |
 | Release policies | `policy.decision` | `simulatte.policies` |
 | Fleet and orders | `fleet.agv_added`, `fleet.pending_changed`, `order.status_changed`, `order.assigned`, `order.unassigned` | `simulatte.intralogistics.events` |
-| AGVs | `agv.state_changed`, `agv.placed`, `agv.move_started`, `agv.move_ended`, `agv.move_interrupted`, `agv.load_changed`, `agv.battery_changed`, `agv.stranded` | `simulatte.intralogistics.events` |
-| Traffic | `traffic.reserved`, `traffic.released`, `traffic.wait_started`, `traffic.wait_ended` | `simulatte.intralogistics.events` |
+| AGVs | `agv.state_changed`, `agv.placed`, `agv.move_started`, `agv.move_ended`, `agv.move_interrupted`, `agv.load_changed`, `agv.battery_changed`, `agv.stranded`, `agv.routed` | `simulatte.intralogistics.events` |
+| Traffic | `traffic.reserved`, `traffic.released`, `traffic.wait_started`, `traffic.wait_ended`, `traffic.wait_stuck`, `traffic.deadlock` | `simulatte.intralogistics.events` |
 | Facilities | `warehouse.inventory_changed`, `warehouse.slot_changed`, `charging.started`, `charging.ended`, `charging.pool_changed`, `parking.entered`, `parking.left` | `simulatte.intralogistics.events` |
 | Observer events | `log`, `kpi.sample` | `simulatte.events` |
 
@@ -215,7 +215,7 @@ The format is a documented container (MessagePack records with CRC32 checksums a
 
 A **collector** subscribes to the bus, keeps its own state and exposes results as attributes. Each is bound to an owner entity (a shop floor, a server or a fleet coordinator) and sees only that owner's events, so two systems in one environment never mix results. Scalars and samples are keyed `"<scope id>/<kpi name>"`.
 
-The built-in collectors are `EMACollector` (attached by default to every `ShopFloor` as `shopfloor.metrics`), `ShopFloorTimeSeries`, `CurrentWorkloadCollector`, `ServerTimeSeries` and `ShopFloorKPIs` in `simulatte.collectors`, and `OrderEMACollector` (default on a `FleetCoordinator`), `FleetTimeSeries` and `FleetKPIs` in `simulatte.intralogistics`. `env.collectors` lists the attached ones. Every production `build_*_system` accepts `default_metrics=False`; `FleetCoordinator(ema_alpha=0.05)` changes its default order EMA smoothing factor.
+The built-in collectors are `EMACollector` (attached by default to every `ShopFloor` as `shopfloor.metrics`), `ShopFloorTimeSeries`, `CurrentWorkloadCollector`, `ServerTimeSeries` and `ShopFloorKPIs` in `simulatte.collectors`, and `OrderEMACollector` (default on a `FleetCoordinator`), `FleetTimeSeries`, `FleetKPIs` and `TrafficKPIs` in `simulatte.intralogistics`. `env.collectors` lists the attached ones. Every production `build_*_system` accepts `default_metrics=False`; `FleetCoordinator(ema_alpha=0.05)` changes its default order EMA smoothing factor.
 
 Window-aware KPIs honour the warm-up: set it before activation with `env.configure_kpis(warmup=...)`. Job KPIs average the jobs completed after the warm-up; time-weighted KPIs (utilization, jobs in the system) integrate from the start of the window and are clipped at its end.
 

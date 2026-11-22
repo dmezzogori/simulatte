@@ -88,6 +88,21 @@ def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
     assert "Fulfillment time:" in captured.out
 
 
+def test_intralogistics_traffic_example_runs(capsys) -> None:
+    example = Path(__file__).resolve().parents[2] / "examples" / "intralogistics_traffic.py"
+    runpy.run_path(str(example), run_name="__main__")
+    output = capsys.readouterr().out
+    assert "Layout: 13 nodes; fleet: 3 AGVs" in output
+    assert "Completed orders: 12/12 at t = 1079.5 s" in output
+    assert "Blocked time:   408.7 s over 22 waits" in output
+    assert "Deadlocks:      2 resolved, 0 unresolved" in output
+    assert "Stuck waits:    0" in output
+    assert "Reroutes:       1" in output
+    assert "Make-way moves: 0" in output
+    for agv in ("AGV-1", "AGV-2", "AGV-3"):
+        assert f"{agv}: state=IDLE, node=S" in output
+
+
 def test_layout_intralogistics_example_runs(capsys) -> None:
     example = Path(__file__).resolve().parents[2] / "examples" / "layout_intralogistics.py"
     runpy.run_path(str(example), run_name="__main__")

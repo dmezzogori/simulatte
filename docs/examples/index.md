@@ -14,6 +14,6 @@ render inline beneath the text output.
 | [Release — workload control](release-workload.md) | Production | Immediate, LumsCor, SLAR, SLAR-Limit, Continuous Release |
 | [Release — WIP cap](release-wip.md) | Production | ConWIP, DRACO |
 | [Release — triggers & starvation](release-triggers.md) | Production | periodic / on-arrival / on-completion triggers, starvation avoidance |
-| [Intralogistics](intralogistics.md) | Intralogistics | AGV fleet, warehouses, charging, replenishment, plots |
+| [Intralogistics](intralogistics.md) | Intralogistics | AGV fleet, warehouses, charging, replenishment, plots, traffic control |
 
 All source scripts live in [`examples/`](https://github.com/dmezzogori/simulatte/tree/main/examples).

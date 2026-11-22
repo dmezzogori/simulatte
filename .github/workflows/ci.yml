@@ -382,11 +382,13 @@ jobs:
             /tmp/head/bin/python compare.py /tmp/out/il-none.json /tmp/out/il-$mode.json \
               --summary "$GITHUB_STEP_SUMMARY" --no-header
           done
-          # The compatibility shim reproduces the same named random streams on 0.12.0.
+          # The compatibility shim reproduces the same named random streams on 0.12.0, but the branch's traffic
+          # control, motion and routing change the order trajectory (benchmarks/intralogistics-baseline.md, "AGV
+          # traffic release"): the pair is reported with its different trajectories, never rejected or gated.
           for mode in none default default_logging; do
             /tmp/base/bin/python intralogistics.py --mode $mode $IL --json /tmp/out/il-base-$mode.json
             /tmp/head/bin/python compare.py /tmp/out/il-base-$mode.json /tmp/out/il-$mode.json \
-              --report-only --summary "$GITHUB_STEP_SUMMARY" --no-header
+              --report-only --allow-different-trajectory --summary "$GITHUB_STEP_SUMMARY" --no-header
           done
           /tmp/head/bin/python summarize.py /tmp/out/*.json >> "$GITHUB_STEP_SUMMARY"
 
