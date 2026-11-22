@@ -612,7 +612,9 @@ stop requests. A critical battery found on arrival at the goal does not change t
 `ARRIVED` and the energy check before the next arc handles it. A critical level read at a node passed at speed
 is a stop request whatever level the plan expected there. On a travel to a charger a critical level is not a
 stop request: the AGV is already doing what a critical battery asks for, and goes on for as long as the energy
-horizon allows. A stop request
+horizon allows. The same holds for the travel a mission resumes after a completed charge: if the level turns
+critical again before the goal, another charge cannot help, so the AGV goes on to the goal for as long as the
+energy horizon allows instead of going back and forth between the charger and the same node for ever. A stop request
 truncates the plan to the first node of the horizon at which the AGV can be at rest given its speed and
 deceleration. For an AGV at rest, or waiting, that is the current node and the request takes effect at once.
 When the AGV is at rest the executor withdraws its pending request, calls `retain`, and then:
