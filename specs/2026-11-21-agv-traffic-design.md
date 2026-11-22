@@ -852,7 +852,8 @@ generated fixtures. `trapezoidal` stays valid and is still what a profile's own 
 
 `TrafficKPIs(fleet)` in `intralogistics/metrics.py` subscribes to the traffic events and declares,
 per fleet: blocked time (sum of closed waits, clipped to the observation window), number of waits, stuck waits,
-deadlocks by action, reroutes, make-way moves and re-queued orders. Declarations follow SP1 §12.
+deadlocks resolved and unresolved (the action taken is in each `traffic.deadlock` event), reroutes, make-way moves
+and re-queued orders. Declarations follow SP1 §12.
 
 ### 11.5 Trace format (T20)
 
