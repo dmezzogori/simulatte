@@ -442,27 +442,15 @@ unchanged.
 - At a node passed at speed, a level that is critical, or below the estimate of the next arc, is a stop request
   whatever level the plan expected there (spec §8.3; whole-part check). With positive idle power the plan's expected
   levels include the idle drain, so before this a vehicle under free flow could pass nodes at speed while critical and
-  enter arcs with an empty battery, and the two controllers came to rest at different nodes; now they agree. With the
-  default `idle_power` of 0 no result changes: of 1,300 random runs before and after the change, the 3 that differ all
-  have positive idle power.
-- On a travel to a charger (the diversion of the low or critical battery branch and the charge after a mission, which
-  now have the purpose `charge`) a critical level is not a stop request, neither at a node nor as the end of the plan:
-  the vehicle goes on while the energy horizon allows and strands only before an arc it cannot afford (spec §8.3;
-  whole-part check). Before, and at the end of part A, a critical vehicle whose charger was more than one arc away
-  stopped at the first node of each travel to it, alternated between diversion and mission and stranded without
-  charging. A custom router now sees the purpose `charge` for such travels, where it saw `travel`.
-- The travel a mission resumes after a completed charge (a charging diversion inside the previous travel, or the
-  charge the mission ran after its retry) does not treat a critical level as a stop request either, neither at a node
-  nor as the end of the plan; it has the purpose `after_charge`, and only that travel: the next leg of the mission
-  checks the critical level as usual (spec §8.3; whole-part check). Where the charger is farther from the goal than the
-  battery holds above the critical threshold, a vehicle now charges once and goes on to its goal, or strands before an
-  arc it cannot afford, instead of going back and forth between the charger and the node where it turns critical for
-  ever (`env.run()` without `until` did not return). In the 1,800 random runs of the check one mission run changes: a
-  resumed travel strands where the old one stopped critical, tried a charge it could not afford and stranded at the
-  same node with the same order outcome.
+  enter arcs with an empty battery. On the reviewed input (a line of 40 arcs, battery 420 or 250, idle power 0.5) the
+  two controllers now come to rest at the same node; in general they can still differ when idle power drains the
+  battery during a run, because reservation re-evaluates the energy horizon at every node event and free flow only on
+  an unforeseen deficit. With the default `idle_power` of 0 no result changes: in the random runs of the check every
+  difference has positive idle power.
 - `Arc.speed_limit`, when given, must be positive and finite (`ValueError` at construction). The limits a run samples
   raise `ValueError`, naming the profile and the values, when a value is not finite, when `decel` is negative, or when
-  `decel` is 0 for a vehicle that can move; a `v_max` or `accel` that is not positive still stalls the run (§9.1).
+  `decel` is 0 while `v_max` and `accel` are positive; a `v_max` or `accel` that is 0 or negative still stalls the run
+  (§9.1).
   `plan_run` rejects NaN in the entry speed, lengths and caps. Before, a NaN speed limit was ignored, a speed limit of 0
   or below failed mid-run with an unrelated message, and a NaN deceleration made every move take zero time.
 - Free-flow run time rises by 22 to 24 % over `main` on the benchmark after the whole-part check (37 to 42 % before it,
@@ -473,9 +461,8 @@ unchanged.
 Part B was checked as a whole after its seven tasks: the plan and holdings invariants held over 8,800 random runs, and
 profiles without limits reproduce part A apart from three accounted changes. This wave changed:
 
-- Behaviour: the O(1) critical and next-arc check at a node passed at speed, a critical vehicle that keeps going to its
-  charger and, after a completed charge, to its goal, and the validation of speed limits and sampled limits (see
-  "Changes in results").
+- Behaviour: the O(1) critical and next-arc check at a node passed at speed, and the validation of speed limits and
+  sampled limits (see "Changes in results"). Charging and stranding behave as before this work (spec §8.4).
 - Run time and memory, with event streams bit-identical (the full event stream of 1,800 random runs, kinematic with
   turning, idle power, speed-dependent depletion and interrupts, without limits, and missions with chargers, cancels and
   breakdowns, under both controllers; the three examples under both controllers; the pinned digest and fixtures): the
@@ -487,8 +474,20 @@ profiles without limits reproduce part A apart from three accounted changes. Thi
   kept as a floor, so that a level not below it is not scanned again (a depletion the estimate under-predicts only on
   the arcs from and to rest no longer scans at every node: 2,000 arcs under free flow, 0.563 s to 0.015 s); the claim
   step skipped when nothing can be claimed; and the reference cycle between a finished trip and its hooks broken. The
-  reuses assume pure `depletion_fn` and `limits` functions, as their docstrings say.
+  reuses assume pure `depletion_fn` and `limits` functions: the `KinematicProfile` protocol and `AGVType.depletion_fn`
+  say so, and so do the executor's `_Trip._arc_cost` and `_Trip._start_run` where the results are reused.
 - Small items: `AGV.battery_level_now()` and its use in `agv_report`; `motion_fraction` returns None for a number
   beyond the float range; docstrings of `_turn` (the turn wait's idle drain is not in the energy check before it) and
   of `disposition_of` (`SERVING` inside an `agv.move_ended` handler at a node passed at speed); the outcome of one stop
   test pinned; `test_replenishment_triggered` asserts the drain and the replenishment orders.
+
+## Known limits
+
+Two charging defects predate this work and are unchanged by it:
+
+- A vehicle whose battery is critical and whose charger is more than one arc away stops at the first node of each
+  travel towards the charger, because the level there is critical. The mission then alternates between the charging
+  diversion and its own travel, and the vehicle strands without charging.
+- When an arc of a mission cannot be afforded with the level a full charge leaves on arrival at the node before it,
+  the vehicle diverts to the charger, charges, comes back to that node and diverts again, without end; `env.run()`
+  without `until` does not return.
