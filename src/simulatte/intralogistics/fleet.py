@@ -206,7 +206,6 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._pending_queue: deque[TransferOrder] = deque()
         self._pending_unserviceable: dict[str, TransferOrder] = {}
         self._low_battery_flags: set[AGV] = set()
-        self._charges: dict[AGV, int] = {}  # completed charges per AGV: a retry after one resumes "after_charge"
         self._dropped_cargo: list[tuple[float, Node, SKU, int]] = []
         self._hooks_on_cargo_dropped: list[Callable[[AGV, Node, SKU, int], None]] = []
 
@@ -638,10 +637,8 @@ class FleetCoordinator(Entity, kind="fleet"):
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
             origin_output_bay = order.origin.nearest_output_bay(self._require_current_node(agv), self.graph)
-            purpose = "travel"
             while True:
-                charges = self._charges.get(agv, 0)
-                outcome = yield from self._executor.travel(agv, origin_output_bay, loaded=False, purpose=purpose)
+                outcome = yield from self._executor.travel(agv, origin_output_bay, loaded=False)
                 if outcome is TravelOutcome.ARRIVED:
                     break
                 if outcome is TravelOutcome.BATTERY_STRANDED:
@@ -660,7 +657,6 @@ class FleetCoordinator(Entity, kind="fleet"):
                     self._transition_agv(agv, AGVState.IDLE)
                     notify_idle = gave_up_before_pickup = True
                     return
-                purpose = self._resumed(agv, charges)
                 self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
 
             # 2. Pick
@@ -685,10 +681,8 @@ class FleetCoordinator(Entity, kind="fleet"):
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
             dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
-            purpose = "travel"
             while True:
-                charges = self._charges.get(agv, 0)
-                outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True, purpose=purpose)
+                outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
                 self._refuse_give_up_with_cargo(agv, outcome)
                 if outcome is TravelOutcome.ARRIVED:
                     break
@@ -707,7 +701,6 @@ class FleetCoordinator(Entity, kind="fleet"):
                 # Charging diversion or critical battery — charge first if needed
                 if agv.battery.is_critical and self.charging_stations:
                     yield from self._charge_agv(agv)
-                purpose = self._resumed(agv, charges)
                 self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
             # 4. Deliver
@@ -844,10 +837,8 @@ class FleetCoordinator(Entity, kind="fleet"):
                     # S6: ResumeDelivery — re-travel to destination from current position
                     dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
                     self._transition_agv(agv, AGVState.TRAVELING_LOADED)
-                    purpose = "travel"
                     while True:
-                        charges = self._charges.get(agv, 0)
-                        outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True, purpose=purpose)
+                        outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
                         self._refuse_give_up_with_cargo(agv, outcome)
                         if outcome is TravelOutcome.ARRIVED:
                             break
@@ -860,7 +851,6 @@ class FleetCoordinator(Entity, kind="fleet"):
                             break
                         if agv.battery.is_critical and self.charging_stations:
                             yield from self._charge_agv(agv)
-                        purpose = self._resumed(agv, charges)
                         self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
                     if order.status == OrderStatus.CANCELLED:
@@ -1128,8 +1118,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         current_node = agv.current_node
         if current_node != station.node:
             self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-            # A critical level is not a stop request on the way to the charger (spec §8.3).
-            outcome = yield from self._executor.travel(agv, station.node, loaded=False, purpose="charge")
+            outcome = yield from self._executor.travel(agv, station.node, loaded=False)
             if agv.current_load is not None:  # a diversion with cargo travels unloaded but refuses to give up
                 self._refuse_give_up_with_cargo(agv, outcome)
             if outcome is not TravelOutcome.ARRIVED:
@@ -1142,19 +1131,11 @@ class FleetCoordinator(Entity, kind="fleet"):
             cb(agv, station)
 
         yield from station.recharge(agv)
-        self._charges[agv] = self._charges.get(agv, 0) + 1
 
         for cb in self._hooks_on_charging_complete:
             cb(agv, station)
 
         self._low_battery_flags.discard(agv)
-
-    def _resumed(self, agv: AGV, charges: int) -> str:
-        """The purpose of the travel a mission retries after a ``RETRY_FROM_CURRENT_POSITION``: ``after_charge`` when
-        `agv` completed a charge since its count was `charges` (a diversion inside the travel, or the charge after it),
-        else ``travel``. On a travel resumed after a charge a critical level is not a stop request (spec §8.3); the
-        next one checks it as usual."""
-        return "after_charge" if self._charges.get(agv, 0) > charges else "travel"
 
     def _drop_cargo(self, agv: AGV) -> None:
         """Record dropped cargo at AGV's current location and clear the load."""
