@@ -2,7 +2,7 @@
 
 All notable changes to Simulatte are documented here.
 
-## Unreleased
+## 0.18.0 — 2026-11-22
 
 AGV traffic control, motion and routing for the intralogistics subpackage. Travel times and semantic digests of
 intralogistics models change with this release; see "Changed" and "Migration".
