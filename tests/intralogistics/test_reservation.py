@@ -94,7 +94,7 @@ class World:
         return self.nodes[resource] if isinstance(resource, str) else resource
 
     def held(self, agv: str) -> list[str]:
-        return [resource.id for resource in self.controller._held.get(self.agvs[agv], {})]
+        return [resource.id for resource in self.controller.ledger.held(self.agvs[agv])]
 
     def holders(self, resource: Any) -> list[str]:
         return [agv.id for agv in self.controller.view.holders(self._resource(resource))]
@@ -592,10 +592,10 @@ class TestRelease:
         w.move("B", "J1")
         w.release("B", "a", w.seg("J1", "a"))
         assert w.held("B") == ["corridor:a", "J1"]
-        assert w.controller._exits[w.agvs["B"]] == {w.corridor(): w.nodes["J1"]}
+        assert w.controller.ledger.exits(w.agvs["B"]) == {w.corridor(): w.nodes["J1"]}
         # Entering again deletes the record, so a cancelled entry drops the corridor.
         assert w.leg("B", "J1 a").granted
-        assert w.controller._exits[w.agvs["B"]] == {}
+        assert w.controller.ledger.exits(w.agvs["B"]) == {}
         w.retain("B", "J1")
         assert w.held("B") == ["J1"]
 
@@ -610,7 +610,7 @@ class TestRelease:
         assert not waiter.event.triggered
         step(w, "A", "J1 a b J2", 2)  # A leaves onto J2: no exit record, the corridor goes with b
         assert w.held("A") == ["J2"]
-        assert w.controller._exits[w.agvs["A"]] == {}
+        assert w.controller.ledger.exits(w.agvs["A"]) == {}
         assert w.events()[-2:] == [
             ("traffic.released", "A", ("corridor:a", "b", "J2~b")),
             ("traffic.reserved", "W", ("corridor:a", "J2~x2", "J2")),
@@ -624,7 +624,7 @@ class TestRelease:
         w.retain("A", "J1")  # cancelled before departure: members go, the port stays, no exit record
         assert w.held("A") == ["J1"]
         assert w.events()[-1] == ("traffic.released", "A", ("corridor:a", "J1~a", "a"))
-        assert w.controller._exits[w.agvs["A"]] == {}
+        assert w.controller.ledger.exits(w.agvs["A"]) == {}
 
     @pytest.mark.parametrize("variant", ["withdrawn", "granted"])
     def test_an_exit_record_goes_with_its_port_under_a_pending_claim(self, variant: str) -> None:
@@ -643,7 +643,7 @@ class TestRelease:
         w.move("A", "L")
         w.release("A", "J2", w.seg("J2", "L"))  # the port goes with its record; the pending claim keeps the corridor
         assert w.held("A") == ["corridor:U", "corridor:L", "L"]
-        assert w.controller._exits[a] == {}
+        assert w.controller.ledger.exits(a) == {}
         if variant == "withdrawn":
             w.controller.withdraw(look_ahead)
             w.retain("A", "L")
@@ -659,7 +659,7 @@ class TestRelease:
         (corridor_u,) = [c for c in w.controller.network.corridors if c.id == "corridor:U"]
         assert w.holders(corridor_u) == []
         assert w.replay.state["corridor:U"]["orientation"] is None
-        assert w.controller._exits[a] == {}
+        assert w.controller.ledger.exits(a) == {}
         assert w.leg("W", "S2 J2 U J1").granted
 
     def test_a_claim_is_determined_when_granted(self) -> None:

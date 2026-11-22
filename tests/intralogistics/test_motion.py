@@ -170,7 +170,7 @@ def test_move_started_after_the_claim_is_granted() -> None:
     def on_started(event: AgvMoveStarted) -> None:
         agv = blocker if event.agv == blocker.id else waiter
         to_node = next(node for node in nodes if node.id == event.to_node)
-        assert to_node in traffic._held[agv]  # granted before the segment starts
+        assert to_node in traffic.ledger.held(agv)  # granted before the segment starts
         started.append((event.t, event.agv, event.from_node, event.to_node))
 
     env.bus.subscribe(on_started, (AgvMoveStarted,))

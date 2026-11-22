@@ -275,7 +275,7 @@ def test_the_claims_ahead_cover_the_next_arc_and_the_braking_distance(margin: fl
     agv = w.agvs["A"]
 
     def departure(event: AgvMoveStarted) -> None:
-        furthest = max(int(r.id[1:]) for r in w.controller._held[agv] if isinstance(r, Node))
+        furthest = max(int(r.id[1:]) for r in w.controller.ledger.held(agv) if isinstance(r, Node))
         held.append((int(event.from_node[1:]), furthest))
 
     w.env.bus.subscribe(departure, (AgvMoveStarted,))

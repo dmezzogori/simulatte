@@ -45,14 +45,14 @@ class ReservationView:
         return tuple(item.resource for item in self._controller.network.leg(u, v))
 
     def holders(self, resource: Resource) -> tuple[AGV, ...]:
-        return tuple(self._controller._holders.get(resource, ()))
+        return self._controller.ledger.holders(resource)
 
     def pending(self, resource: Resource) -> int:
         controller = self._controller
         return sum(
             1
             for waiting in controller._queue
-            if any(item.resource == resource for item in controller._needed(waiting.agv, waiting.request.claim))
+            if any(item.resource == resource for item in controller.ledger.needed(waiting.agv, waiting.request.claim))
         )
 
     def disposition(self, agv: AGV) -> Disposition:

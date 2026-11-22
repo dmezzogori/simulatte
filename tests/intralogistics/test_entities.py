@@ -263,7 +263,7 @@ def test_node_state_tracks_positions_and_reservations_during_a_run() -> None:
         for node in nodes:
             fields = env.entities.bind_node(node).snapshot()
             assert fields["agvs"] == [agv.id for agv in agvs if agv.current_node == node]
-            held = {agv.id for agv in agvs if node in traffic._held.get(agv, {})}
+            held = {agv.id for agv in agvs if node in traffic.ledger.held(agv)}
             assert set(fields["reserved_by"]) == held
             if quiescent:
                 assert held == set(fields["agvs"])

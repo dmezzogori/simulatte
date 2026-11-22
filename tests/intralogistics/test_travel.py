@@ -177,7 +177,7 @@ class World:
         return [e for e in self.events if isinstance(e, types) and (agv is None or getattr(e, "agv", None) == agv)]
 
     def held(self, agv: str) -> list[str]:
-        return [resource.id for resource in self.controller._held.get(self.agvs[agv], {})]
+        return [resource.id for resource in self.controller.ledger.held(self.agvs[agv])]
 
     def hooks(self, agv: str) -> WaitHooks:
         return self.controller._pending[self.agvs[agv]].request.hooks

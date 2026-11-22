@@ -1609,7 +1609,7 @@ class TestInterruptSafety:
         env.run()
 
         assert agv.current_node == node_end
-        assert [resource.id for resource in traffic._held[agv]] == ["END"]
+        assert [resource.id for resource in traffic.ledger.held(agv)] == ["END"]
         assert traffic.view.holders(node_far) == traffic.view.holders(node_next) == ()
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
@@ -1909,7 +1909,7 @@ class TestInterruptSafety:
 
         assert agv not in traffic._pending
         assert agv.current_node == node_c
-        assert [resource.id for resource in traffic._held[agv]] == ["C~MID", "C"]
+        assert [resource.id for resource in traffic.ledger.held(agv)] == ["C~MID", "C"]
         assert traffic.view.holders(node_far) == traffic.view.holders(node_mid) == ()
 
 

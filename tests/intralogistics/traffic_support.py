@@ -130,6 +130,7 @@ class TrafficInvariants:
         network = controller._network
         if network is None:
             return
+        ledger = controller.ledger
         for entity in self.env.entities.live():
             if isinstance(entity, NodeBinding):
                 assert len(entity.reserved_by) <= network.capacity(entity.node), (event, entity)
@@ -140,15 +141,17 @@ class TrafficInvariants:
                     capacity = entity.capacity
                     assert capacity is not None and len(entity.reserved_by) <= capacity, (event, entity.id)
                 else:
-                    holders = controller._holders.get(entity.container, {})
-                    orientations = {o for o in holders.values() if o is not None}
+                    corridor = entity.container
+                    orientations = {ledger.direction(corridor, agv) for agv in ledger.holders(corridor)} - {None}
                     assert len(orientations) <= 1, (event, entity.id)
-        for agv in controller._placed:
+        for agv in ledger.placed():
             if agv.motion is None:
-                assert agv.current_node in controller._held.get(agv, {}), (event, agv.id)
-        for agv, held in controller._held.items():
-            for container, members in controller._members.items():
-                assert container in held or not any(member in held for member in members), (event, agv.id, container)
+                assert agv.current_node in ledger.held(agv), (event, agv.id)
+        for container in (*network.zones, *network.corridors):
+            holding = ledger.holders(container)
+            for member in ledger.members(container):
+                for agv in ledger.holders(member):
+                    assert agv in holding, (event, agv.id, container)
         self.checked += 1
 
 
