@@ -446,6 +446,15 @@ class _Trip:
         self.stop_at: int | None = None  # the first node where the AGV can be at rest after a stop request while moving
         self.arrival_speed = 0.0  # the planned speed at the end of the arc being traversed
         self.expected: tuple[float, ...] = ()  # the level the estimate foresees at each node of the plan
+        # The levels the last energy-horizon scan of this plan carried, from the node at position `floor_from` on, when
+        # it found the plan affordable: a level not below them would find the same (:meth:`_energy_stop`).
+        self.floor: list[float] | None = None
+        self.floor_from = 0
+        self.load_weight = 0.0  # the load weight of the run, read when it starts from rest
+        # Per route and run: the arc caps ``min(v_max, speed_limit)`` under the run's limits, and the energy estimates
+        # of the arcs, filled when first asked for and dropped when the route or the limits change.
+        self.arc_caps: list[float] | None = None
+        self.costs: dict[int, float] = {}
         self.hooks = WaitHooks(
             route=self._remaining,
             loaded=self._carrying,
@@ -478,8 +487,11 @@ class _Trip:
             plan: _ArcPlan | None = None
             if self.speed == 0.0:  # at rest: the energy check before the next arc, the turn, then a run starts here
                 agv.accrue_idle_power()  # idle power over the waits at rest is accounted before the level is read
+                self.load_weight = self._load()
+                kin: Kinematics | None = None
                 if self.kinematic:
-                    energy_cost = self._estimate(self.index, self._limits())
+                    kin = self._limits()
+                    energy_cost = self._estimate(self.index, kin)
                 else:
                     plan, energy_cost = self._rest_plan(current, next_node)
                 if agv.battery.level < energy_cost:
@@ -491,9 +503,11 @@ class _Trip:
                         self._claim_ahead()  # the claim is asked for on arrival and stays pending during the turn
                         yield from self._turn(wait)
                         agv.accrue_idle_power()  # the limits and the plan of the run read the level after the turn
-                self._start_run()
+                        kin = None
+                self._start_run(kin)
 
-            self._claim_ahead()
+            if self.request is not None or (self.stop_at is None and self.horizon < len(self.route) - 1):
+                self._claim_ahead()  # otherwise there is nothing to take and nothing to ask for
             if self.horizon == self.index:  # at rest at the horizon with a pending request (spec §8.1 step 3)
                 outcome = yield from self._wait()
                 if outcome is not None:
@@ -520,7 +534,7 @@ class _Trip:
         agv = self.agv
         graph = self.fleet.graph
         distance = graph.length(current, next_node)
-        load_weight = self._load()
+        load_weight = self.load_weight
         arc = graph.arc_between(current, next_node)
         assert arc is not None
         speed_limit = arc.speed_limit
@@ -597,7 +611,7 @@ class _Trip:
         not positive is a vehicle that cannot move: its run stalls (spec §9.1).
         """
         profile = cast("KinematicProfile", self.agv.agv_type.speed_profile)
-        load_weight, battery_level = self._load(), self.agv.battery.level_pct
+        load_weight, battery_level = self.load_weight, self.agv.battery.level_pct
         kin = profile.limits(load_weight, battery_level)
         v_max, accel, decel = kin.v_max, kin.accel, kin.decel
         if not (math.isfinite(v_max) and math.isfinite(accel) and math.isfinite(decel)):
@@ -615,9 +629,38 @@ class _Trip:
     def _estimate(self, k: int, kin: Kinematics) -> float:
         """The energy estimated for arc `k` of the route under the limits `kin` (spec §9.5): the depletion function at
         the arc cap ``u = min(v_max, speed_limit)``, 0 for a vehicle that cannot move."""
-        return estimate_arc_energy(self.agv.battery, kin, self.lengths[k], self._load(), self.speed_limits[k])
+        return estimate_arc_energy(self.agv.battery, kin, self.lengths[k], self.load_weight, self.speed_limits[k])
 
-    def _affordable_end(self, limit: int) -> int:
+    def _arc_cost(self, k: int) -> float:
+        """:meth:`_estimate` of arc `k` under the run's limits, computed once per route and run.
+
+        The reuse assumes that the battery's depletion function is pure: the same arguments give the same estimate.
+        """
+        cost = self.costs.get(k)
+        if cost is None:
+            kin = self.kin
+            assert kin is not None
+            cost = self.costs[k] = self._estimate(k, kin)
+        return cost
+
+    def _arc_caps(self) -> list[float]:
+        """The cap ``min(v_max, speed_limit)`` of every arc of the route under the run's limits, computed once per route
+        and run (spec §9.2)."""
+        caps = self.arc_caps
+        if caps is None:
+            kin = self.kin
+            assert kin is not None
+            v_max = kin.v_max
+            caps = self.arc_caps = [v_max if limit is None else min(v_max, limit) for limit in self.speed_limits]
+        return caps
+
+    def _forget_route_costs(self) -> None:
+        """Drop the arc caps and estimates of :meth:`_arc_caps` and :meth:`_arc_cost`: the route or the limits
+        changed."""
+        self.arc_caps = None
+        self.costs = {}
+
+    def _affordable_end(self, limit: int, levels: list[float] | None = None) -> int:
         """The furthest node, up to position `limit`, such that the estimated energy of the arcs from the AGV's node to
         it fits the battery level, and not beyond the first node other than the goal at which the estimated level is
         critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits). On
@@ -628,31 +671,42 @@ class _Trip:
         exact. The estimate does not include the idle power of the time the run ahead takes (spec §9.5): the level it
         starts from is the one after the idle power accounted so far, and a battery that idle power empties during the
         run is met by the energy check at rest.
+
+        With `levels`, the level carried to each node it reaches is appended to it.
         """
-        battery, kin = self.agv.battery, self.kin
-        assert kin is not None
+        battery = self.agv.battery
         level, end = battery.level, self.index
-        lengths, speed_limits, load_weight = self.lengths, self.speed_limits, self._load()
+        costs, route, goal, charging = self.costs, self.route, self.goal, self.charging
         while end < limit:
-            cost = estimate_arc_energy(battery, kin, lengths[end], load_weight, speed_limits[end])
+            cost = costs.get(end)
+            if cost is None:
+                cost = self._arc_cost(end)
             if level < cost:
                 break
             level = max(0.0, level - cost)
             end += 1
-            if self.route[end] != self.goal and not self.charging and _critical(battery, level):
+            if levels is not None:
+                levels.append(level)
+            if route[end] != goal and not charging and _critical(battery, level):
                 break  # the AGV comes to rest where the critical-battery branch runs
         return end
 
-    def _start_run(self) -> None:
+    def _start_run(self, kin: Kinematics | None = None) -> None:
         """A run starts from rest at the AGV's node: sample the limits of a kinematic profile for the whole run, set the
         look-ahead (its braking distance plus the fleet's margin, 0 when the limits cannot move the AGV or for a
-        profile without limits) and drop the previous plan (spec §9.2, §9.3)."""
+        profile without limits) and drop the previous plan (spec §9.2, §9.3).
+
+        `kin` are limits the profile gave for the same load and battery level just before (the energy check at rest,
+        with no turn wait since): they are taken as the run's instead of asking the profile again, which assumes that
+        its ``limits`` is pure.
+        """
         self.end = self.plan_from = self.index
         self.profiles = ()
         self.stop_at = None
         if not self.kinematic:
             return
-        kin = self.kin = self._limits()
+        kin = self.kin = self._limits() if kin is None else kin
+        self._forget_route_costs()
         self.stalled = not (kin.v_max > 0 and kin.accel > 0)
         self.lookahead = 0.0 if self.stalled else kin.v_max**2 / (2 * kin.decel) + self.fleet.lookahead_margin
 
@@ -666,7 +720,7 @@ class _Trip:
         caps the smaller cap of the two arcs at the node. A stalled run gets an arc that is never left.
         """
         index, agv = self.index, self.agv
-        length, load_weight, speed_limit = self.lengths[index], self._load(), self.speed_limits[index]
+        length, load_weight, speed_limit = self.lengths[index], self.load_weight, self.speed_limits[index]
         kin = self.kin
         assert kin is not None
         if self.stalled:
@@ -680,17 +734,16 @@ class _Trip:
             if end < self.horizon:
                 end = max(end, self._affordable_end(self.horizon))
         if end != self.end or not self.profiles:
-            caps = [kin.v_max if cap is None else min(kin.v_max, cap) for cap in self.speed_limits[index:end]]
+            caps = self._arc_caps()[index:end]
             node_caps = [self.speed, *self._interior_caps(index + 1, caps), 0.0]
             self.profiles = plan_run(self.speed, self.lengths[index:end], caps, node_caps, kin)
             self.plan_from, self.end = index, end
-            battery, level = agv.battery, agv.battery.level
+            self.floor = None
+            level = agv.battery.level
             idle_power = agv.agv_type.idle_power
             expected = [level]
             for k in range(index, end):  # arc by arc, as the depletion on arrival and the fold of idle power compute it
-                level = max(
-                    0.0, level - estimate_arc_energy(battery, kin, self.lengths[k], load_weight, self.speed_limits[k])
-                )
+                level = max(0.0, level - self._arc_cost(k))  # the scan above has estimated most of these arcs
                 if idle_power:
                     level = max(0.0, level - idle_power * self.profiles[k - index].duration)
                 expected.append(level)
@@ -721,20 +774,29 @@ class _Trip:
         takes it: with a depletion that ignores the speed the actual level is the expected one bit for bit, with or
         without idle power.
         The affordable end is recomputed only when the level is below it by more than a relative slack: nothing is
-        scanned at a node where the level is as expected.
+        scanned at a node where the level is as expected. A scan that finds the plan still affordable keeps the levels
+        it carried to each node (``floor``); at a later node of the same plan a level not below the floor's is not
+        scanned again, since the scan would carry levels at least as high over the same estimates and find the same
+        end (a level and a critical test that only grow with the level). After a deficit that does not grow, as for a
+        depletion the estimate under-predicts only on the arcs from and to rest, nothing is scanned again.
         """
         battery, index = self.agv.battery, self.index
-        kin = self.kin
-        assert kin is not None  # a vehicle passing a node at speed has sampled limits
+        level = battery.level
         if self.route[index] != self.goal and (
-            (battery.is_critical and not self.charging) or battery.level < self._estimate(index, kin)
+            (battery.is_critical and not self.charging) or level < self._arc_cost(index)
         ):
             self._stop(index, self.speed)
             return
-        if self.expected[index - self.plan_from] - battery.level > _ENERGY_SLACK * battery.capacity:
-            affordable = self._affordable_end(self.end)
+        if self.expected[index - self.plan_from] - level > _ENERGY_SLACK * battery.capacity:
+            floor = self.floor
+            if floor is not None and level >= floor[index - self.floor_from]:
+                return
+            levels = [level]
+            affordable = self._affordable_end(self.end, levels)
             if affordable < self.end:
                 self._stop(index, self.speed, affordable)
+            else:
+                self.floor, self.floor_from = levels, index
 
     def _stop(self, node: int, speed: float, floor: int = 0) -> None:
         """A stop request received while moving (an interrupt, a level found critical or below the next arc's estimate
@@ -852,6 +914,7 @@ class _Trip:
             limits.append(arc.speed_limit)
             offsets.append(offsets[-1] + arc.length)
         self.lengths, self.speed_limits, self.offsets = tuple(lengths), tuple(limits), tuple(offsets)
+        self._forget_route_costs()
         # Heading changes matter only to a type that turns (spec §9.4); for any other they are never read.
         self.turns = _heading_changes(nodes, self.agv.heading) if self.turning else ()
         self.turned = -1
@@ -934,9 +997,7 @@ class _Trip:
         if kin is None or self.stalled:
             return True
         horizon = self.horizon
-        arcs = [
-            kin.v_max if limit is None else min(kin.v_max, limit) for limit in self.speed_limits[first - 1 : horizon]
-        ]
+        arcs = self._arc_caps()[first - 1 : horizon]
         caps = self._interior_caps(first, arcs) + [0.0]  # the node caps of plan_run
         bounds = backward_pass(self.lengths[first:horizon], caps, kin.decel)
         return any(bound == cap for bound, cap in zip(bounds[:-1], caps[:-1]))

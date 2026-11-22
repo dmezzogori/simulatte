@@ -1025,6 +1025,39 @@ def test_the_energy_check_at_node_events_ignores_a_level_as_expected(monkeypatch
     assert counts[800] == counts[30] <= 3
 
 
+@pytest.mark.parametrize(
+    "depletion",
+    [lambda d, load, v: d * (1.0 if v >= 1.2 else 4.0), lambda d, load, v: d * 3.0 / (0.5 + v)],
+    ids=["step", "smooth"],
+)
+def test_after_a_deficit_that_does_not_grow_the_energy_horizon_is_not_scanned_again(
+    monkeypatch: pytest.MonkeyPatch, depletion: Any
+) -> None:
+    """A depletion that falls with speed costs more than the estimate at the arc cap on the slow arcs from rest, and the
+    estimate on the arcs passed at the cap. After the first scan, which finds the plan affordable, the level never falls
+    below the levels that scan carried, so a route of 800 arcs under free flow scans no more often than one of 30."""
+    from simulatte.intralogistics.travel import _Trip
+
+    counts = {}
+    for arcs in (30, 800):
+        calls: list[int] = []
+        original = _Trip._affordable_end
+        monkeypatch.setattr(
+            _Trip, "_affordable_end", lambda self, *args, calls=calls: (calls.append(1), original(self, *args))[1]
+        )
+        graph, nodes = build(
+            [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        )
+        w = world((graph, nodes), {"A": "P0"}, reserve=False, agv_type=weak(depletion, capacity=1e9))
+        w.go("A", f"P{arcs}")
+        w.env.run()
+        assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+        assert w.of(AgvMoveEnded)[0].battery < 1e9 - 1.0  # the first arc cost more than its estimate of 1
+        counts[arcs] = len(calls)
+        monkeypatch.undo()
+    assert counts[800] == counts[30] <= 4
+
+
 def test_float_ties_in_the_energy_horizon_change_nothing_for_the_default_depletion() -> None:
     """Arcs that are not exact in binary and a battery sized for exactly k arcs, or to reach the threshold at a node:
     the two controllers end alike, and the AGV rests at an interior node only where it cannot go on (the level is
