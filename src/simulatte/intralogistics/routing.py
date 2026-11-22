@@ -202,7 +202,9 @@ class _Timing:
         self.agv_type: AGVType = agv.agv_type
         self.profile = self.agv_type.speed_profile
         self.load_weight = load_weight
-        self.level = agv.battery.level_pct
+        capacity = agv.battery.capacity
+        # the level now (the pure read, without accounting), as a share of the capacity like `Battery.level_pct`
+        self.level = agv.battery_level_now() / capacity if capacity > 0 else 0.0
         self.view = view
         self.kin = (
             checked_limits(self.profile, load_weight, self.level)

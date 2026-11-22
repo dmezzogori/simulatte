@@ -261,6 +261,9 @@ class Vehicle:
     battery: Any
     heading: float | None
 
+    def battery_level_now(self) -> float:
+        return self.battery.level
+
 
 def fastest(
     graph: LayoutGraph,
@@ -274,7 +277,7 @@ def fastest(
     router: Router | None = None,
     **fields: Any,
 ) -> Route | None:
-    agv = Vehicle("V", agv_type or cart(), SimpleNamespace(level_pct=level), heading)
+    agv = Vehicle("V", agv_type or cart(), SimpleNamespace(level=level, capacity=1.0), heading)
     request = RouteRequest(agv=agv, origin=origin, destination=destination, **fields)  # type: ignore[arg-type]
     return (router or FastestRouter()).route(request, view or free_view(graph))
 
@@ -596,6 +599,32 @@ def test_avoid_can_make_destination_unreachable() -> None:
     assert [e.nodes for e in w.of(AgvRouted)] == [("S", "P", "E")]
     assert not w.of(TrafficWaitEnded)
     assert w.agvs["A"].current_node == w.nodes["S"]
+
+
+@pytest.mark.parametrize(
+    "router", [FastestRouter(), CongestionAwareRouter(FastestRouter())], ids=["fastest", "congestion"]
+)
+def test_the_fastest_router_samples_the_limits_at_the_battery_level_now(router: Router) -> None:
+    """An AGV with idle power 0.1, idle for 800 s: 100 accounted, 20 now. Its limits scale with the level
+    (``TrapezoidalProfile`` at 2 m/s), so 20 m cost 20 / (2 * 0.2) = 50 s, not the 10 s of the level as last
+    accounted; routing accounts nothing."""
+    a, b = Node("A", 0.0, 0.0), Node("B", 20.0, 0.0)
+    graph = LayoutGraph([a, b], [Arc(a, b)])
+    env = Environment()
+    kind = AGVType(
+        name="drained",
+        speed_profile=TrapezoidalProfile(2.0, 1.0, 1.0),
+        battery_capacity=100.0,
+        weight_capacity=10.0,
+        volume_capacity=1.0,
+        idle_power=0.1,
+    )
+    agv = AGV(env=env, agv_type=kind, initial_node=a)
+    env.run(until=800.0)
+    assert (agv.battery.level, agv.battery_level_now()) == (100.0, 20.0)
+    route = router.route(RouteRequest(agv=agv, origin=a, destination=b), free_view(graph))
+    assert route is not None and route.cost == pytest.approx(50.0, rel=1e-12)
+    assert agv.battery.level == 100.0
 
 
 def test_a_travel_follows_the_fastest_route() -> None:

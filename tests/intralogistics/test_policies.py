@@ -402,6 +402,33 @@ class TestNearestIdleStrategy:
         assert NearestIdleStrategy().select(order, [near, far], _context(graph)) is near
         assert NearestIdleStrategy().select(order, [near, far], _context(graph, FastestRouter())) is far
 
+    def test_the_fastest_router_ranks_an_agv_by_its_battery_level_now(self, env: Environment, sku_a: SKU) -> None:
+        """The drained AGV is 20 m from the bay with idle power 0.1 after 800 s idle (100 accounted, 20 now: 50 s at
+        0.4 m/s); the fresh one is 30 m away at 2 m/s (15 s). The fresh one is chosen."""
+        nodes, graph = _make_linear_graph()
+        wh = _make_warehouse(env, "WH", [nodes[0]], [nodes[0]], [sku_a])
+        order = TransferOrder(sku=sku_a, quantity=1, origin=wh, destination=wh, created_at=0.0)
+        profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
+        kinds = {
+            power: AGVType(
+                name=f"p{power}",
+                speed_profile=profile,
+                battery_capacity=100.0,
+                weight_capacity=100.0,
+                volume_capacity=10.0,
+                idle_power=power,
+            )
+            for power in (0.1, 0.0)
+        }
+        drained = AGV(env=env, agv_type=kinds[0.1], agv_id="agv-a", initial_node=nodes[2])
+        fresh = AGV(env=env, agv_type=kinds[0.0], agv_id="agv-b", initial_node=nodes[3])
+        env.run(until=800.0)
+        context = _context(graph, FastestRouter())
+        assert context.cost(drained, nodes[0]) == pytest.approx(50.0, rel=1e-12)
+        assert context.cost(fresh, nodes[0]) == pytest.approx(15.0, rel=1e-12)
+        assert NearestIdleStrategy().select(order, [drained, fresh], context) is fresh
+        assert NearestIdleStrategy().select(order, [drained, fresh], _context(graph)) is drained
+
 
 # ── DispatchStrategy: RoundRobinStrategy ──────────────────────────────
 

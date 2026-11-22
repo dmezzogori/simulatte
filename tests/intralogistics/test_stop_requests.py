@@ -29,6 +29,7 @@ from simulatte.intralogistics.events import (
     AgvMoveEnded,
     AgvMoveInterrupted,
     AgvMoveStarted,
+    AgvRouted,
     AgvStranded,
     TrafficReleased,
     TrafficReserved,
@@ -674,6 +675,8 @@ def test_a_diversion_whose_first_arc_is_not_affordable_strands_without_recursing
     (stranded,) = w.of(AgvStranded)
     assert (stranded.node, stranded.reason) == ("N0", "no_reachable_charger")
     assert not w.of(AgvMoveStarted)
+    # the diversion was routed (the charger counted as reachable), so the guard, not the ranking, stranded the AGV
+    assert [e.nodes for e in w.of(AgvRouted)] == [("N0", "X", "N1", "N2"), ("N0", "X", "N1")]
 
 
 # --- fix round 1: the trail clears with the controller's on a roomy node --------------------------------------------
@@ -905,12 +908,9 @@ def test_a_lone_agv_ends_alike_under_both_controllers_for_a_depletion_that_falls
         assert free[3].agvs["A"].current_node.id == reserved[3].agvs["A"].current_node.id
 
 
-@pytest.mark.parametrize("reserve", [False, True])
-def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: bool) -> None:
-    """S to G costs 30 against a battery of 25: the AGV diverts to the charger on C, reachable on the route the router
-    first gives, which then sends the diversion over a detour: at Y the diversion again lacks the energy and diverts
-    from Y, where the route through Z is too long. The guard of the first diversion survives the second: the travel
-    returns ``BATTERY_STRANDED`` at Y."""
+def detour_world() -> tuple[LayoutGraph, dict[str, Node]]:
+    """``S`` to ``G`` is 30 m; the charger node ``C`` is 20 m from ``S`` through ``Y``, or 33.2 m through ``Y`` and
+    ``Z`` (the arc from ``Y`` to ``Z`` is 20 m long)."""
     nodes = {n: Node(n, x, y) for n, x, y in [("S", 0, 0), ("G", 30, 0), ("Y", 0, 10), ("C", 0, 20), ("Z", 3, 19)]}
     arcs = [
         Arc(nodes["S"], nodes["G"]),
@@ -919,7 +919,16 @@ def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: 
         Arc(nodes["Y"], nodes["Z"], length=20.0),
         Arc(nodes["Z"], nodes["C"]),
     ]
-    graph = LayoutGraph(nodes.values(), arcs)
+    return LayoutGraph(nodes.values(), arcs), nodes
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: bool) -> None:
+    """S to G costs 30 against a battery of 25: the AGV diverts to the charger on C, reachable on the route the router
+    first gives, which then sends the diversion over a detour: at Y the diversion again lacks the energy and diverts
+    from Y, where the route through Z is too long. The guard of the first diversion survives the second: the travel
+    returns ``BATTERY_STRANDED`` at Y."""
+    graph, nodes = detour_world()
     router = Detours(
         nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")}, first={("S", "C"), ("Y", "C")}
     )
@@ -929,6 +938,22 @@ def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: 
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
     assert w.agvs["A"].current_node == nodes["Y"]
     assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("Y", "no_reachable_charger")]
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_the_charger_estimate_is_made_on_the_routers_route(reserve: bool) -> None:
+    """The world of the nested diversion with a router that always sends the AGV to C over the detour (33.2 m): the
+    charger is out of reach of a battery of 25 on that route, though the shortest path (20 m) would reach it, so the
+    AGV strands at S without moving (spec §10.4)."""
+    graph, nodes = detour_world()
+    router = Via(nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")})
+    w = charger_world(25.0, "C", reserve=reserve, graph_nodes=(graph, nodes), router=router, start="S")
+    w.go("A", "G")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
+    assert w.agvs["A"].current_node == nodes["S"]
+    assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("S", "no_reachable_charger")]
+    assert not w.of(AgvMoveStarted)
 
 
 def test_the_energy_check_at_node_events_ignores_a_level_as_expected(monkeypatch: pytest.MonkeyPatch) -> None:
