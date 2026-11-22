@@ -12,7 +12,13 @@ from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.events import AgvRouted, ChargingStarted, OrderStatusChanged, TrafficWaitStuck
+from simulatte.intralogistics.events import (
+    AgvMoveInterrupted,
+    AgvRouted,
+    ChargingStarted,
+    OrderStatusChanged,
+    TrafficWaitStuck,
+)
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import RouteRequest
 from simulatte.intralogistics.traffic import TrafficView
@@ -52,6 +58,14 @@ class RestToRest:
 
     def motion(self, *args: Any) -> Any:
         return self._profile.motion(*args)
+
+
+def _four_arc_line() -> tuple[Node, Node, Node, LayoutGraph]:
+    """``ORIGIN -- A -- MID -- B -- DEST`` with 25 m arcs; returns ORIGIN, MID, DEST and the graph."""
+    names = ("ORIGIN", "A", "MID", "B", "DEST")
+    nodes = [Node(id=name, x=25.0 * i, y=0.0) for i, name in enumerate(names)]
+    graph = LayoutGraph(nodes, [Arc(source=u, target=v) for u, v in zip(nodes, nodes[1:])])
+    return nodes[0], nodes[2], nodes[4], graph
 
 
 def _make_agv_type(speed: TrapezoidalProfile, length: float | None = None) -> AGVType:
@@ -2311,19 +2325,16 @@ class TestResumeDeliveryRecovery:
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
     ) -> None:
         """Interrupt a mission after pickup (during loaded travel).
-        With ResumeDelivery strategy, the order should eventually complete."""
+        With ResumeDelivery strategy, the order should eventually complete.
+
+        The line has four 25 m arcs and a reservation controller: at ORIGIN the AGV claims up to MID (the next arc and
+        its braking distance), so the interrupt takes effect at MID and the resumed leg MID -> DEST is travelled."""
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # Longer graph so loaded travel takes time: ORIGIN -- MID -- DEST
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        node_origin, node_mid, node_dest, graph = _four_arc_line()
+        traffic = ReservationController(graph=graph, env=env)
+        routed: list[AgvRouted] = []
+        env.bus.subscribe(routed.append, (AgvRouted,))
 
         wh_origin = Warehouse(
             env=env,
@@ -2348,7 +2359,7 @@ class TestResumeDeliveryRecovery:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         coordinator = FleetCoordinator(
@@ -2357,6 +2368,7 @@ class TestResumeDeliveryRecovery:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
+            traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
         )
 
@@ -2364,8 +2376,8 @@ class TestResumeDeliveryRecovery:
         coordinator.submit(order)
 
         # AGV at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0.
-        # Loaded travel ORIGIN->MID: distance=50, speed=10 -> 5.0s.
-        # Interrupt at t=4.0 — during loaded travel (after pickup).
+        # Loaded travel ORIGIN->A->MID at 10 m/s: at A about 4.5, at MID about 7.
+        # Interrupt at t=4.0 — during loaded travel (after pickup); it takes effect at MID.
         def interrupt_later():
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
@@ -2375,7 +2387,8 @@ class TestResumeDeliveryRecovery:
         env.process(interrupt_later())
         env.run()
 
-        # The order should complete via ResumeDelivery recovery
+        # The order should complete via ResumeDelivery recovery, from MID
+        assert [(e.origin, e.destination) for e in routed][-1] == ("MID", "DEST")
         assert order.status == OrderStatus.COMPLETED
         assert order.delivered_at is not None
         assert agv.state == AGVState.IDLE
@@ -2793,7 +2806,10 @@ class TestResumeDeliveryChargingRetry:
 
         agv_type = AGVType(
             name="test-type",
-            speed_profile=speed,
+            # rest to rest: the interrupt takes effect at MID, and the resumed travel arrives critical at CHARGER, a
+            # node other than its goal (with runs the first plan ends at CHARGER, where the battery turns critical,
+            # so the interrupt would take effect there and the resumed travel would not need this retry)
+            speed_profile=RestToRest(speed),
             battery_capacity=100.0,
             weight_capacity=100.0,
             volume_capacity=10.0,
@@ -2851,9 +2867,12 @@ class TestResumeDeliveryChargingRetry:
             if process is not None and process.is_alive:
                 process.interrupt("test_resume_charge")
 
+        interrupted: list[AgvMoveInterrupted] = []
+        env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
         env.process(interrupt_later())
         env.run()
 
+        assert [e.node for e in interrupted] == ["MID"]
         assert order.status == OrderStatus.COMPLETED
         assert charger.total_recharges >= 1
 
@@ -2866,17 +2885,13 @@ class TestResumeDeliveryStranded:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # Graph: ORIGIN -- ISLAND (disconnected from DEST)
-        # After interrupt, AGV is on ISLAND with no path to DEST
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        # Graph: ORIGIN -- A -- MID -- B -- DEST, under reservation: at ORIGIN the AGV claims up to MID, so the
+        # interrupt takes effect at MID. The arcs out of MID are then removed: neither the resumed delivery nor the
+        # return to the origin has a route, and the cargo is dropped at MID.
+        node_origin, node_mid, node_dest, graph = _four_arc_line()
+        traffic = ReservationController(graph=graph, env=env)
+        statuses: list[OrderStatusChanged] = []
+        env.bus.subscribe(statuses.append, (OrderStatusChanged,))
 
         wh_origin = Warehouse(
             env=env,
@@ -2912,6 +2927,7 @@ class TestResumeDeliveryStranded:
             unload_time=1.0,
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
+            length=0.0,
         )
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
@@ -2921,6 +2937,7 @@ class TestResumeDeliveryStranded:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
+            traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
         )
 
@@ -2929,7 +2946,7 @@ class TestResumeDeliveryStranded:
 
         # Interrupt after pickup (during loaded travel)
         # AGV at origin. pick_time=1.0, load_time=1.0 -> pickup done at ~2.0
-        # Loaded travel to MID: 50/10=5.0s. Interrupt at t=4.0.
+        # Loaded travel to MID at 10 m/s, about 5 s. Interrupt at t=4.0; it takes effect at MID.
         def interrupt_and_block():
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
@@ -2944,6 +2961,10 @@ class TestResumeDeliveryStranded:
         # After stranding on resume: cargo should be cleared, order failed
         assert agv.current_load is None
         assert agv.state == AGVState.IDLE
+        assert agv.current_node == node_mid
+        assert ("FAILED", "cargo_dropped") in [(e.status, e.reason) for e in statuses if e.order == order.id]
+        assert order.status == OrderStatus.FAILED
+        assert [node.id for _, node, _, _ in coordinator._dropped_cargo] == ["MID"]
 
         # H1 fix: inventory conservation - cargo must be somewhere.
         # The test fixture severed ALL arcs from MID, so return-to-origin also
@@ -3146,15 +3167,12 @@ class TestResumeDeliveryWithHooksAndCollector:
         from simulatte.intralogistics.metrics import FleetTimeSeries
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
-        node_mid = Node(id="MID", x=50.0, y=0.0)
-        node_dest = Node(id="DEST", x=100.0, y=0.0)
-
-        arcs = [
-            Arc(source=node_origin, target=node_mid),
-            Arc(source=node_mid, target=node_dest),
-        ]
-        graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        # Four 25 m arcs under reservation: the interrupt at 4 takes effect at MID, the horizon held then, so the
+        # resumed delivery travels MID -> DEST.
+        node_origin, node_mid, node_dest, graph = _four_arc_line()
+        traffic = ReservationController(graph=graph, env=env)
+        routed: list[AgvRouted] = []
+        env.bus.subscribe(routed.append, (AgvRouted,))
 
         wh_origin = Warehouse(
             env=env,
@@ -3179,7 +3197,7 @@ class TestResumeDeliveryWithHooksAndCollector:
             put_time=1.0,
         )
 
-        agv_type = _make_agv_type(simple_speed)
+        agv_type = _make_agv_type(simple_speed, length=0.0)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
 
         delivery_hooks: list[tuple[TransferOrder, AGV]] = []
@@ -3190,6 +3208,7 @@ class TestResumeDeliveryWithHooksAndCollector:
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
+            traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
         )
         collector = FleetTimeSeries(coordinator).attach(env)
@@ -3208,6 +3227,7 @@ class TestResumeDeliveryWithHooksAndCollector:
         env.process(interrupt_later())
         env.run()
 
+        assert [(e.origin, e.destination) for e in routed][-1] == ("MID", "DEST")  # the resumed leg
         assert order.status == OrderStatus.COMPLETED
         assert len(delivery_hooks) >= 1
         assert delivery_hooks[-1][0] is order
