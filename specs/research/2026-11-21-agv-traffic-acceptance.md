@@ -250,7 +250,8 @@ where the vehicle can be at rest, the energy horizon, and idle power. Routing (p
 ## Result
 
 The Appendix A scenarios complete every order with through-node motion, with and without corner caps, turn waits and
-idle power; the invariants and the replay hold in every scenario and in the three examples under both controllers; the
+idle power; the replay holds in every scenario and in the three examples under both controllers, and the traffic invariants (which
+exist under `ReservationController` only) hold in every reservation run; the
 digest does not depend on observers or on `PYTHONHASHSEED`; a lone AGV has the free-flow times under reservation. The
 scenarios of this task found no defect and no source file changed. The benchmark shows a cost, reported below.
 
@@ -269,12 +270,20 @@ Tests added in this task are marked (new). The others are earlier tests of part 
 | Lone AGV: same times as free flow | `test_travel_motion.py::test_lone_agv_matches_free_flow[t_layout, builder_line, thirty_arcs]`, `::test_a_horizon_at_the_braking_distance_keeps_the_free_flow_times_exactly`, `::test_lone_agv_matches_free_flow_over_blocks_at_fractions_of_the_braking_distance`; `test_turning.py::test_a_lone_vehicle_has_the_same_times_under_both_controllers`, `::test_seeded_lone_vehicles_with_turning_match_free_flow_exactly`; `test_stop_requests.py::test_a_lone_agv_has_the_same_arrivals_under_both_controllers_with_a_falling_depletion` |
 | A cancelled order stops the AGV at the next feasible node, energy matches the arcs covered, the mission recovers as before | `test_stop_requests.py::test_a_cancelled_mission_recovers_after_a_stop_at_the_first_feasible_node[loaded, empty x both controllers]`, `::test_an_interrupt_on_a_cruising_arc_passes_its_end_at_speed_and_stops_at_the_end_of_the_next`, `::test_an_interrupt_releases_every_claim_ahead_at_the_stop`; (new) `test_motion.py::test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energy_is_that_of_the_arcs_covered[both controllers]`: the battery at the stop node is 985 after 3 arcs of 5, the cargo goes back over 3 more arcs, the end level is 970. The recovery paths are also in `test_coordinator.py` (`TestResumeDeliveryRecovery`, `TestResumeDeliveryStranded`, the cancellation regression) |
 | A critical battery during a run | `test_stop_requests.py::test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node`, `::test_a_battery_stop_and_an_interrupt_share_the_first_stop_node`, `::test_a_critical_level_found_at_the_goal_arrives`, `::test_the_energy_horizon_shortens_the_plan_at_a_node_event_under_both_controllers`, `::test_a_charger_on_the_node_where_the_estimate_turns_critical_is_not_passed_at_speed`; `test_travel_motion.py::test_the_plan_ends_where_the_estimated_battery_turns_critical` |
-| Idle power | `test_idle_power.py` (17 tests, each world with `FullReplay`), `test_agv.py::TestIdlePower`, `test_battery.py::TestDrain` |
+| Idle power | `test_idle_power.py` (19 tests, each world with `FullReplay`), `test_agv.py::TestIdlePower`, `test_battery.py::TestDrain` |
 | Replay equals live state with the new kinds | `FullReplay` in every world above (it compares every live entity after every event, from the first event and from the initial state), including `heading` and `battery`; (new) the Appendix A variant |
-| Digests identical with and without observers and across `PYTHONHASHSEED` values | `test_invariance.py`, both variants, `reservation` and `free_flow`: the advanced example, whose `TrapezoidalProfile` has `limits`, so its reservation variant runs through-node motion (`test_final_state_is_independent_of_observers`, `test_digest_report_and_shared_kpis_are_identical_across_instrumented_configurations`, `test_recorded_traces_verify`, `test_digest_is_stable_across_hash_seeds_in_fresh_processes`); (new) `test_traffic_scenarios.py::test_the_motion_scenario_is_the_same_with_and_without_observers` (replay, invariants and a full trace attached against none; same digest, same final state, a verified trace with that digest) and `::test_the_motion_scenario_digest_is_the_same_across_hash_seeds` (fresh processes with seeds 0, 1 and 123) on the Appendix A variant, which covers corner caps, turn waits and idle power. CPython and PyPy agree through the PyPy lane of CI |
+| Capacity above one and vehicle extent, with runs | `test_travel_motion.py::test_clear_points_follow_the_planned_profiles_and_a_roomy_node_passed_at_speed_keeps_them`, `::test_a_grant_taken_while_moving_keeps_the_trail_entries_it_lifts_held`; `test_stop_requests.py::test_an_agv_stopped_on_a_roomy_node_holds_only_that_node`, `::test_a_later_travel_over_the_old_trail_holds_nothing_ahead_of_it` (the `long_vehicle_line` world, with a vehicle longer than a block); the part A row above still holds |
+| Digests identical with and without observers and across `PYTHONHASHSEED` values | `test_invariance.py`, both variants, `reservation` and `free_flow`: the advanced example, whose `TrapezoidalProfile` has `limits`, so its reservation variant runs through-node motion (`test_final_state_is_independent_of_observers`, `test_digest_report_and_shared_kpis_are_identical_across_instrumented_configurations`, `test_recorded_traces_verify`, `test_digest_is_stable_across_hash_seeds_in_fresh_processes`); (new) `test_traffic_scenarios.py::test_the_motion_scenario_is_the_same_with_and_without_observers` (the digest alone against the digest with replay, invariants and a full trace attached; same digest, same final state, a verified trace with that digest; the subscriber-free case is the `none` configuration of `test_invariance.py`) and `::test_the_motion_scenario_digest_is_the_same_across_hash_seeds` (fresh processes with seeds 0, 1 and 123) on the Appendix A variant, which runs corner caps, turn waits and idle power (what it pins of them is under "Choices of the new scenarios"; the unit tests `test_turning.py` and `test_idle_power.py` pin the values). CPython and PyPy agree through the PyPy lane of CI |
 
 Choices of the new scenarios:
 
+- What the variant pins: the corner cap (1.5 m/s straight, 0.6 m/s through a right angle, with the cap removed both
+  scenarios fail); the reversal wait in scenario 1 (the `PARK` reversal of `agv-0` waits exactly 3.0 s; with `turn_time`
+  forced to 0 scenario 1 fails); idle power in both scenarios (the same world with `idle_power` 0 has the same delivery
+  times, and each AGV's level is lower by exactly `idle_power` times the time accounted to it, which is zero when
+  idle power is 0). Scenario 2 does not discriminate for the turn wait: its reversals sit on service stops and long
+  traffic waits, each longer than 3 s without any turn wait. `test_turning.py` and `test_idle_power.py` pin the wait and
+  the drain themselves.
 - The Appendix A variant (`MOTION_OPTIONS` in `test_traffic_scenarios.py`) keeps the appendix's graph, warehouses, fleet
   and orders and changes the vehicle type: the same limits (1.5 m/s, 0.8 m/s^2) without the battery slowing the
   vehicle, so that a speed through a node is the hand-computable 1.5 m/s; right-angle corners at 0.6 m/s; a 3 s wait for
@@ -341,9 +350,14 @@ done
 
 At the end of part A the same comparison gave 0.970, 0.960 and 0.990 and 41.8 MB: part B costs about 31 to 40 % of run
 time and 8 MB of peak memory over part A under `FreeFlowController`, the controller the benchmark uses. The spec leaves
-this benchmark ungated (§15). The cost was not profiled in this task. The likely sources are the planning work the
-executor now does for a kinematic vehicle (`plan_run`, the claim look-ahead and its backward pass) and the larger
-`piecewise` descriptions in the events; neither is measured. As in part A the two sides
+this benchmark ungated (§15) and the cost is known. One `cProfile` run of the workload (mode `none`, one shift,
+in-process, branch against the exported `main`; one run, not repeated) gives 0.797 s against 0.655 s. The difference
+lies in the travel executor's per-arc bookkeeping: `travel.run` is 0.499 s cumulative on the branch (11,243 calls)
+against 0.355 s for `fleet._travel` on `main`. Inside it, `plan_run` is 0.042 s (about 5 % of the run) and `arc_profile`
+0.017 s; `graph.length` and `arc_between` are called about six times per arc traversed (107,486 and 125,624 calls,
+0.073 s and 0.069 s cumulative, about 9 % of the run); route search is not the cause (`routing.shortest_path` 0.217 s
+against 0.237 s for `main`'s `pathfinding.plan`) and `_wire.freeze` is the same (0.081 s against 0.086 s). The repeated
+arc-length and `arc_between` lookups are the clearest cheap target. As in part A the two sides
 do not run the same trajectory (the inputs differ because replenishment orders depend on the trajectory), so
 `compare.py` would reject the pair; the numbers are the medians of the JSON files. `main` reproduces the documented
 hashes (input `3278fbdc...`, trajectory `b2a2ca3d...`, 1,018 orders, 1,011 completed). The branch has 1,018 submitted
@@ -353,7 +367,7 @@ orders and 1,012 completed, input hash `1a5ad97c...` and trajectory hash `633394
 
 | Check | Result |
 |---|---|
-| `uv run --all-extras pytest` | 4,547 passed, 1 skipped, 3 warnings, 346 s; branch coverage 99.16 % (gate 99 %; 4,535 passed and 99.15 % before this task) |
+| `uv run --all-extras pytest` | 4,547 passed, 1 skipped, 3 warnings, 352 s; branch coverage 99.15 % (gate 99 %; 4,535 passed and 99.15 % before this task) |
 | `uv run --all-extras ruff check src tests` | all checks passed |
 | `uv run --all-extras ruff format --check` | 520 files already formatted |
 | `uv run --all-extras ty check src` | all checks passed |
@@ -398,4 +412,11 @@ unchanged.
   wrong too: there the cancelled order is dispatched again and completes.
 - The make-way fallback of §7.9 takes a service node or root of capacity above 1 and may arrive over a segment a pending
   claim names; it ends the stuck wait the simple example left open on the builder's line.
+- At an exact float tie in the energy check (a battery sized exactly for k arcs whose lengths are not exact in binary),
+  the plan records the level it expects at each node, computed arc by arc as the depletion computes it, so the
+  affordable end and the level agree. The two controllers now end alike in all 1,500 tie shapes of the review (34
+  disagreed before). Against the commit before that change, 144 of 3,000 reviewer runs differ, all exact ties, and 87 of
+  them that ended `RETRY_FROM_CURRENT_POSITION` now end `BATTERY_STRANDED`, because the level after the k-th arc is one
+  unit in the last place below the next arc's cost, which the check at rest has always refused. A relative slack in the
+  check at rest is a possible follow-up. Results with binary-exact arc lengths are unchanged.
 - Free-flow run time rises by about a third over part A on the benchmark (see above).

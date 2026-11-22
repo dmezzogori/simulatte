@@ -326,8 +326,25 @@ def test_appendix_a_with_corner_caps_turn_waits_and_idle_power_completes_every_o
         assert straight_passes == pytest.approx([1.5] * len(straight_passes), abs=1e-9)
         assert corner_passes == pytest.approx([CORNER_CAP] * len(corner_passes), abs=1e-9)
 
-        # Idle power drains without a timer: both AGVs lost more than the arcs alone cost, and none is empty.
-        assert all(0.0 < agv.battery.level < 1000.0 for agv in m.agvs.values())
+        if number == 1:
+            # The PARK reversal of agv-0 costs exactly the turn wait. Scenario 2 does not discriminate: its reversals
+            # sit on service stops and long traffic waits, which are longer than the turn wait anyway.
+            assert any(abs(spent - TURN_WAIT) < 1e-9 for spent in reversals)
+
+        # Idle power: the same world with idle_power 0 takes the same times (the estimate ignores idle power) and each
+        # AGV ends with exactly idle_power times the time accounted so far less (lazily, up to its last event).
+        delivered = [o.delivered_at for o in m.orders]
+        levels = {agv_id: agv.battery.level for agv_id, agv in m.agvs.items()}
+        accounted = {agv_id: float(agv._accrued_at) for agv_id, agv in m.agvs.items()}
+    with Environment(debug=True) as env:
+        free, _ = appendix_a(env, **{**MOTION_OPTIONS, "idle_power": 0.0})
+        run_appendix_a(number, free)
+        assert [o.delivered_at for o in free.orders] == delivered
+        for agv_id, agv in free.agvs.items():
+            assert accounted[agv_id] > 0.0
+            assert levels[agv_id] == pytest.approx(
+                agv.battery.level - MOTION_OPTIONS["idle_power"] * accounted[agv_id], abs=1e-9
+            )
 
 
 def run_motion_world(*, observed: bool, trace: Path | None = None) -> tuple[str, dict[str, Any]]:
