@@ -33,7 +33,8 @@ from simulatte.intralogistics.policies import (
 )
 from simulatte.intralogistics.routing import RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.traffic import FreeFlowController
-from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome, standard_target
+from simulatte.intralogistics.speed import KinematicProfile
+from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome, estimate_arc_energy, standard_target
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -1184,9 +1185,20 @@ class FleetCoordinator(Entity, kind="fleet"):
                 continue
             total_dist = self.graph.path_distance(path)
             # Estimate energy cost to get there
-            est_travel_time = agv.agv_type.speed_profile.travel_time(total_dist, 0.0, agv.battery.level_pct)
-            est_avg_speed = total_dist / est_travel_time if est_travel_time > 0 else 0.0
-            energy_needed = agv.battery.estimate_energy(total_dist, 0.0, est_avg_speed)
+            profile = agv.agv_type.speed_profile
+            if isinstance(profile, KinematicProfile):
+                # the executor's estimate, arc by arc at the arc cap (spec §9.5): the check at rest and this one agree
+                kin = profile.limits(0.0, agv.battery.level_pct)
+                parts: list[float] = []
+                for u, v in zip(path, path[1:]):
+                    arc = self.graph.arc_between(u, v)
+                    assert arc is not None
+                    parts.append(estimate_arc_energy(agv.battery, kin, self.graph.length(u, v), 0.0, arc.speed_limit))
+                energy_needed = math.fsum(parts)
+            else:
+                est_travel_time = profile.travel_time(total_dist, 0.0, agv.battery.level_pct)
+                est_avg_speed = total_dist / est_travel_time if est_travel_time > 0 else 0.0
+                energy_needed = agv.battery.estimate_energy(total_dist, 0.0, est_avg_speed)
             if agv.battery.level >= energy_needed:
                 reachable.append((total_dist, cs))
 

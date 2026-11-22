@@ -43,6 +43,7 @@ from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.travel import TravelOutcome
 from simulatte.intralogistics.warehouse import Warehouse
+from tests.intralogistics.test_idle_traffic import Via
 from tests.intralogistics.test_travel import Plain, World, run_of, steady, vehicle, world
 from tests.intralogistics.test_travel_motion import arrivals, at_rest, side_line
 from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, build, line
@@ -423,13 +424,21 @@ def test_a_critical_level_found_at_the_goal_arrives(reserve: bool) -> None:
     assert w.outcomes == {"A": TravelOutcome.ARRIVED} and w.agvs["A"].battery.is_critical
 
 
-def charger_world(capacity: float, station: str | None) -> World:
-    """The line ``N0 ... N4`` of 10 m arcs with a charging station on `station` (none: no charger)."""
-    graph, nodes = line(5)
+def charger_world(
+    capacity: float,
+    station: str | None,
+    *,
+    depletion: Any = None,
+    reserve: bool = True,
+    graph_nodes: tuple[LayoutGraph, dict[str, Node]] | None = None,
+    router: Any = None,
+) -> World:
+    """The line ``N0 ... N4`` of 10 m arcs (or `graph_nodes`) with a charging station on `station` (none: no one)."""
+    graph, nodes = graph_nodes or line(5)
     env = Environment(debug=True)
     replay = FullReplay(env)
-    controller = ReservationController(env=env, graph=graph)
-    agv = AGV(env=env, agv_type=weak(capacity=capacity), agv_id="A", initial_node=nodes["N0"])
+    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
+    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=nodes["N0"])
     stations = [] if station is None else [ChargingStation(env=env, name="CS", node=nodes[station], n_slots=1)]
     fleet = StillFleet(
         env=env,
@@ -438,9 +447,11 @@ def charger_world(capacity: float, station: str | None) -> World:
         warehouses=[],
         charging_stations=stations,
         traffic_controller=controller,
+        router=router,
         default_metrics=False,
     )
-    TrafficInvariants(env, controller)
+    if reserve:
+        TrafficInvariants(env, controller)
     env.activate()
     return World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
 
@@ -535,3 +546,47 @@ def test_a_vehicle_that_cannot_move_estimates_its_energy_at_speed_zero(capacity:
         assert started.t_end == math.inf
     else:
         assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED} and not w.of(AgvMoveStarted)
+
+
+# --- fix round 1: one estimate for the check at rest, the horizon and charger reachability --------------------------
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+@pytest.mark.parametrize(("capacity", "charges"), [(14.0, False), (20.0, True)])
+def test_the_charger_is_reachable_by_the_same_estimate_as_the_check_at_rest(
+    reserve: bool, capacity: float, charges: bool
+) -> None:
+    """The depletion is the speed times the distance, so the estimate at the cap 1.5 is 15 per arc. With 14 not even the
+    arc to the charger on N1 is affordable: the AGV is stranded at once (no ``RecursionError`` from a diversion that
+    cannot leave). With 20 the plan ends at N1, where the charger takes over."""
+    w = charger_world(capacity, "N1", depletion=speed_cost, reserve=reserve)
+    w.go("A", "N4")
+    w.env.run()
+    if charges:
+        assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+        assert w.agvs["A"].current_node == w.nodes["N1"] and w.agvs["A"].battery.level == capacity  # recharged
+        assert not w.of(AgvStranded)
+    else:
+        assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED} and not w.of(AgvMoveStarted)
+        (stranded,) = w.of(AgvStranded)
+        assert (stranded.node, stranded.reason) == ("N0", "no_reachable_charger")
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_diversion_whose_first_arc_is_not_affordable_strands_without_recursing(reserve: bool) -> None:
+    """The charger on N1 is reachable by the shortest path (the arc N0 N1 has a speed limit of 0.5, so it costs 5), but
+    the router sends the diversion through X, whose first arc costs 14.1 against a battery of 13, as it sends the
+    travel to N4. The diversion cannot leave N0: it strands the AGV there, once, instead of diverting again."""
+    nodes = {n: Node(n, x, y) for n, x, y in [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("X", 5, 8)]}
+    arcs = [Arc(nodes["N0"], nodes["N1"], speed_limit=0.5), Arc(nodes["N1"], nodes["N2"])]
+    arcs += [Arc(nodes["N0"], nodes["X"]), Arc(nodes["X"], nodes["N1"])]
+    graph = LayoutGraph(nodes.values(), arcs)
+    router = Via(nodes, {("N0", "N2"): ("N0", "X", "N1", "N2"), ("N0", "N1"): ("N0", "X", "N1")})
+    w = charger_world(13.0, "N1", depletion=speed_cost, reserve=reserve, graph_nodes=(graph, nodes), router=router)
+    w.go("A", "N2")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
+    assert w.agvs["A"].current_node == nodes["N0"]
+    (stranded,) = w.of(AgvStranded)
+    assert (stranded.node, stranded.reason) == ("N0", "no_reachable_charger")
+    assert not w.of(AgvMoveStarted)

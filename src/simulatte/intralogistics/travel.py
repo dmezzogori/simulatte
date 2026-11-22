@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.speed import MotionDescription
     from simulatte.intralogistics.traffic import ClaimRequest, TrafficController
 
-__all__ = ["TravelExecutor", "TravelOutcome", "standard_target"]
+__all__ = ["TravelExecutor", "TravelOutcome", "estimate_arc_energy", "standard_target"]
 
 
 class TravelOutcome(Enum):
@@ -73,6 +73,16 @@ _HEADING_TOLERANCE = 1e-9
 _STOP_SLACK = 1e-12
 """Relative slack on the braking distance when a stop request looks for the first node at which the AGV can be at rest,
 the slack :func:`~simulatte.intralogistics.kinematics.plan_run` allows an entry speed."""
+
+
+def estimate_arc_energy(
+    battery: Battery, kin: Kinematics, length: float, load_weight: float, speed_limit: float | None
+) -> float:
+    """The energy estimated for an arc of `length` under the limits `kin` (spec §9.5): the battery's depletion function
+    at the arc cap ``u = min(v_max, speed_limit)``, at speed 0 for a vehicle that cannot move. The check at rest, the
+    energy horizon and the reachability of a charger all use it, so that they cannot disagree."""
+    cap = kin.v_max if speed_limit is None else min(kin.v_max, speed_limit)
+    return battery.estimate_energy(length, load_weight, max(cap, 0.0))
 
 
 def _reached(clear: float, odometer: float) -> bool:
@@ -252,6 +262,7 @@ class TravelExecutor:
         self.fleet = fleet
         self._trails: dict[AGV, _Trail] = {}
         self._resolutions: dict[tuple[AGV, Node], int] = {}
+        self._diverting: dict[AGV, Node] = {}  # AGVs on a charging diversion, with the node it started from
 
     def travel(self, agv: AGV, goal: Node, *, loaded: bool, purpose: str = "travel") -> ProcessGenerator:
         """Move `agv` to `goal` and return a :class:`TravelOutcome`.
@@ -549,9 +560,7 @@ class _Trip:
     def _estimate(self, k: int, kin: Kinematics) -> float:
         """The energy estimated for arc `k` of the route under the limits `kin` (spec §9.5): the depletion function at
         the arc cap ``u = min(v_max, speed_limit)``, 0 for a vehicle that cannot move."""
-        limit = self.speed_limits[k]
-        cap = kin.v_max if limit is None else min(kin.v_max, limit)
-        return self.agv.battery.estimate_energy(self.lengths[k], self._load(), max(cap, 0.0))
+        return estimate_arc_energy(self.agv.battery, kin, self.lengths[k], self._load(), self.speed_limits[k])
 
     def _affordable_end(self, limit: int) -> int:
         """The furthest node, up to position `limit`, such that the estimated energy of the arcs from the AGV's node to
@@ -640,14 +649,26 @@ class _Trip:
         self.stop_at = stop
 
     def _lacking_energy(self, current: Node, energy_cost: float) -> ProcessGenerator:
-        """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor."""
+        """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor.
+
+        A charging diversion that cannot leave the node it started from (the route it takes has a first arc the battery
+        cannot cover, though the charger counted as reachable) does not divert again: the AGV is stranded there.
+        """
         fleet, agv, env = self.fleet, self.agv, self.env
         self._settle()
-        charger = fleet._find_reachable_charger(agv)
+        diverting = self.executor._diverting
+        charger = None if diverting.get(agv) is current else fleet._find_reachable_charger(agv)
         if charger is not None:
             prior_state = agv.state
-            if (yield from fleet._charge_agv(agv, charger)) is TravelOutcome.GAVE_UP:
+            diverting[agv] = current
+            try:
+                outcome = yield from fleet._charge_agv(agv, charger)
+            finally:
+                del diverting[agv]
+            if outcome is TravelOutcome.GAVE_UP:
                 return TravelOutcome.GAVE_UP  # the diversion gave up: this travel ends where the AGV stopped
+            if agv.state is AGVState.STRANDED:
+                return TravelOutcome.BATTERY_STRANDED  # the diversion stranded the AGV where it stands
             fleet._transition_agv(agv, prior_state)
             if agv.battery.level < energy_cost:
                 fleet._transition_agv(agv, AGVState.STRANDED)
