@@ -451,6 +451,15 @@ unchanged.
   whole-part check). Before, and at the end of part A, a critical vehicle whose charger was more than one arc away
   stopped at the first node of each travel to it, alternated between diversion and mission and stranded without
   charging. A custom router now sees the purpose `charge` for such travels, where it saw `travel`.
+- The travel a mission resumes after a completed charge (a charging diversion inside the previous travel, or the
+  charge the mission ran after its retry) does not treat a critical level as a stop request either, neither at a node
+  nor as the end of the plan; it has the purpose `after_charge`, and only that travel: the next leg of the mission
+  checks the critical level as usual (spec §8.3; whole-part check). Where the charger is farther from the goal than the
+  battery holds above the critical threshold, a vehicle now charges once and goes on to its goal, or strands before an
+  arc it cannot afford, instead of going back and forth between the charger and the node where it turns critical for
+  ever (`env.run()` without `until` did not return). In the 1,800 random runs of the check one mission run changes: a
+  resumed travel strands where the old one stopped critical, tried a charge it could not afford and stranded at the
+  same node with the same order outcome.
 - `Arc.speed_limit`, when given, must be positive and finite (`ValueError` at construction). The limits a run samples
   raise `ValueError`, naming the profile and the values, when a value is not finite, when `decel` is negative, or when
   `decel` is 0 for a vehicle that can move; a `v_max` or `accel` that is not positive still stalls the run (§9.1).
@@ -465,7 +474,8 @@ Part B was checked as a whole after its seven tasks: the plan and holdings invar
 profiles without limits reproduce part A apart from three accounted changes. This wave changed:
 
 - Behaviour: the O(1) critical and next-arc check at a node passed at speed, a critical vehicle that keeps going to its
-  charger, and the validation of speed limits and sampled limits (see "Changes in results").
+  charger and, after a completed charge, to its goal, and the validation of speed limits and sampled limits (see
+  "Changes in results").
 - Run time and memory, with event streams bit-identical (the full event stream of 1,800 random runs, kinematic with
   turning, idle power, speed-dependent depletion and interrupts, without limits, and missions with chargers, cancels and
   breakdowns, under both controllers; the three examples under both controllers; the pinned digest and fixtures): the
