@@ -541,7 +541,10 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   instant, so a move that fails at once cannot repeat without time passing. An AGV does not make way to a node
   it has already made way from in the same chain of moves, which bounds a chain by the number of nodes. The
   chain ends, and the memory is cleared, when the AGV starts a mission or becomes idle on a node where it blocks
-  no wait.
+  no wait. Nor does it start a make-way move from a node it already made way from in the chain: a move that is cut
+  short before it leaves (a deadlock resolved by giving up, which a travel without an order always accepts)
+  would otherwise be started again at every review, each attempt being itself the traffic change that keeps
+  the reviews coming.
 - **Service nodes (T12).** A service node is a bay of one of the fleet's warehouses or the node of one of its
   charging stations. `FleetCoordinator(clear_service_nodes=True)`: when the controller controls occupancy, an AGV
   that would become idle on a service node, and for which the repositioning policy returned no target, first
