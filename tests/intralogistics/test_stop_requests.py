@@ -590,3 +590,59 @@ def test_a_diversion_whose_first_arc_is_not_affordable_strands_without_recursing
     (stranded,) = w.of(AgvStranded)
     assert (stranded.node, stranded.reason) == ("N0", "no_reachable_charger")
     assert not w.of(AgvMoveStarted)
+
+
+# --- fix round 1: the trail clears with the controller's on a roomy node --------------------------------------------
+
+
+def long_vehicle_line(roomy: str | None) -> World:
+    """``N0 ... N5`` of 10 m arcs with the vehicle on N3; it is 100 m long, longer than the line, so on a node of
+    capacity 1 its body overlaps everything it has driven over; `roomy` names a node of capacity 2."""
+    graph, nodes = line(6)
+    capacities = {} if roomy is None else {nodes[roomy]: 2}
+    return world((graph, nodes), {"A": "N3"}, agv_type=vehicle(length=100.0), capacities=capacities)
+
+
+def holds(w: World) -> list[str]:
+    return sorted(w.held("A"))
+
+
+def test_an_agv_stopped_on_a_roomy_node_holds_only_that_node() -> None:
+    """Driven N3 to N0, then towards N5 and cancelled 1 s in, the AGV rests at N2. On a node of capacity 1 its body,
+    100 m long, overlaps all it has driven over (control, below). On N2 of capacity 2 the trail clears (§6.6): it
+    overlaps N2 only, and the claims it held ahead (N3 and the segment) are released with the rest."""
+    results = {}
+    for roomy in (None, "N2"):
+        w = long_vehicle_line(roomy)
+        w.go("A", "N0")
+        w.env.run()
+        everything = holds(w)
+        assert everything == ["N0", "N0~N1", "N1", "N1~N2", "N2", "N2~N3", "N3"]
+        process = w.go("A", "N5", at=w.env.now)
+        w.interrupt(process, 1.0)
+        w.env.run()
+        assert w.agvs["A"].current_node == w.nodes["N2"] and w.caught == {"A": "cancelled"}
+        results[roomy] = holds(w)
+        if roomy:
+            assert not w.fleet._executor._trail(w.agvs["A"]).entries and not w.controller._pending
+    assert results[None] == everything
+    assert results["N2"] == ["N2"]
+
+
+def test_a_later_travel_over_the_old_trail_holds_nothing_ahead_of_it() -> None:
+    """After an ordinary arrival on N4 (capacity 2) the AGV holds N4 only and its trail is empty. Driving back towards
+    N0 and cancelled 1 s in, it rests at N2 and holds what its 100 m body overlaps behind it on this trip: N2 to N4.
+    Nothing lies ahead of it (N0 to N1~N2)."""
+    graph, nodes = line(8)
+    w = world((graph, nodes), {"A": "N5"}, agv_type=vehicle(length=100.0), capacities={nodes["N4"]: 2})
+    agv = w.agvs["A"]
+    w.go("A", "N0")
+    w.env.run()
+    w.go("A", "N4", at=w.env.now)
+    w.env.run()
+    assert holds(w) == ["N4"] and not w.fleet._executor._trail(agv).entries
+    process = w.go("A", "N0", at=w.env.now)
+    w.interrupt(process, 1.0)
+    w.env.run()
+    assert agv.current_node == nodes["N2"] and w.caught == {"A": "cancelled"}
+    assert holds(w) == ["N2", "N2~N3", "N3", "N3~N4", "N4"]

@@ -979,6 +979,7 @@ class _Trip:
             trail.odometer += distance
             if self.speed == 0.0 and self.controller.view.capacity(next_node) > 1:  # at rest with room: all on it
                 at_arrival = list(trail.entries)
+                self.lifted.clear()  # claims ahead are not overlapped either: nothing to put back into the trail
             self._release(trail, at_arrival)
 
     def _extent(self) -> float:
