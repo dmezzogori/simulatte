@@ -464,18 +464,37 @@ class TestFastestRouter:
         assert route.cost == 11.5  # 10.5 and one turn, at B into the arc without direction; none at Z (heading unknown)
 
     def test_a_route_is_never_a_loop(self) -> None:
-        """A turn time that is free for a reversal lets the search come back to a node; the route is cut there."""
-        nodes = {name: Node(name, x, y) for name, x, y in [("X", -10, 0), ("A", 0, 0), ("B", 10, 0), ("Y", -5, 5)]}
-        x, a, b, y = (nodes[name] for name in "XABY")
-        graph = LayoutGraph(nodes.values(), [Arc(x, a), Arc(a, b), Arc(a, y)])
-
-        def free_reversal(angle: float) -> float:
-            return 100.0 if 1.0 < angle < 3.0 else 0.0
-
-        route = fastest(graph, x, y, cart(Plain(), turn_time=free_reversal))
+        """Eight gentle turns round an octagon through ``A`` cost less than the one sharp turn at ``A`` on the way from
+        ``X`` to ``Y``: the search walks the octagon and the route is cut where it returns to ``A``."""
+        a, x, y = Node("A", 0.0, 0.0), Node("X", -10.0, 0.0), Node("Y", -7.0, -7.0)
+        ring = [a]
+        for k, degrees in enumerate((-45, 0, 45, 90, 135, 180, 225), start=1):
+            ring.append(
+                Node(
+                    f"V{k}",
+                    ring[-1].x + 10 * math.cos(math.radians(degrees)),
+                    ring[-1].y + 10 * math.sin(math.radians(degrees)),
+                )
+            )
+        arcs = [Arc(u, v) for u, v in zip(ring, [*ring[1:], a])] + [Arc(x, a), Arc(a, y)]
+        graph = LayoutGraph([a, x, y, *ring[1:]], arcs)
+        sharp = Turns(lambda angle: 100.0 if angle > 1.0 else 0.0)
+        route = fastest(graph, x, y, cart(Plain(), turn_time=sharp))
         assert route is not None
-        assert route.nodes == (x, a, y)  # not X, A, B, A, Y
-        assert route.cost == pytest.approx(5.0 + 3.5355339059327378 + 100.0, rel=1e-12)
+        assert route.nodes == (x, a, y)  # not X, A, V1 ... V7, A, Y
+        assert route.cost == pytest.approx(5.0 + math.hypot(7.0, 7.0) / 2 + 100.0, rel=1e-12)
+        assert pytest.approx(math.radians(135)) in sharp.angles  # the direct route's turn was priced
+
+    def test_a_reversal_is_never_priced(self) -> None:
+        graph, n = corner()
+
+        def at_pi(angle: float) -> float:
+            return math.nan if angle > 3.1 else 0.0
+
+        route = fastest(graph, n["A"], n["C"], cart(Plain(), turn_time=at_pi))
+        assert route is not None and route.cost == 10.0
+        route = fastest(graph, n["A"], n["C"], cart(corner_speed=lambda angle: math.nan if angle > 3.1 else math.inf))
+        assert route is not None and route.cost == pytest.approx(2 * (10.0 / 1.5), rel=1e-12)
 
     def test_invalid_values_name_the_profile_or_the_type(self) -> None:
         graph, n = corner()

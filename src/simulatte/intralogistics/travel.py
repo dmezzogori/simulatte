@@ -30,7 +30,14 @@ from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, Ag
 from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.kinematics import backward_pass, plan_run
 from simulatte.intralogistics.network import Segment
-from simulatte.intralogistics.routing import Route, RouteRequest, heading_changes
+from simulatte.intralogistics.routing import (
+    Route,
+    RouteRequest,
+    cannot_move,
+    checked_limits,
+    checked_turning,
+    heading_changes,
+)
 from simulatte.intralogistics.speed import KinematicProfile, describe_motion
 from simulatte.intralogistics.traffic import GaveUp, Granted, Rerouted, WaitHooks
 
@@ -524,11 +531,7 @@ class _Trip:
         angle = self.turns[node]
         if angle is None:
             return None
-        value = float(function(angle))
-        if math.isnan(value) or value < 0 or (name == "turn_time" and math.isinf(value)):
-            allowed = "finite and >= 0" if name == "turn_time" else "not NaN and >= 0"
-            raise ValueError(f"AGVType {agv_type.name!r}: {name}({angle}) returned {value}; it must be {allowed}")
-        return value
+        return checked_turning(agv_type, name, angle)
 
     def _turn_wait(self, node: int) -> float:
         """The time the AGV waits at rest at position `node` before it leaves: ``turn_time`` of the heading change."""
@@ -580,20 +583,7 @@ class _Trip:
         ``accel`` that is not positive (0 or negative) is a vehicle that cannot move: its run stalls (spec §9.1).
         """
         profile = cast("KinematicProfile", self.agv.agv_type.speed_profile)
-        load_weight, battery_level = self.load_weight, self.agv.battery.level_pct
-        kin = profile.limits(load_weight, battery_level)
-        v_max, accel, decel = kin.v_max, kin.accel, kin.decel
-        if not (math.isfinite(v_max) and math.isfinite(accel) and math.isfinite(decel)):
-            problem = "every value must be finite"
-        elif decel < 0:
-            problem = "decel must not be negative"
-        elif decel == 0 and v_max > 0 and accel > 0:
-            problem = "decel must be positive for a vehicle that can move, else a stop cannot be planned"
-        else:
-            return kin
-        raise ValueError(
-            f"{type(profile).__name__}.limits({load_weight!r}, {battery_level!r}) returned {kin!r}: {problem}"
-        )
+        return checked_limits(profile, self.load_weight, self.agv.battery.level_pct)
 
     def _estimate(self, k: int, kin: Kinematics) -> float:
         """The energy estimated for arc `k` of the route under the limits `kin` (spec §9.5): the depletion function at
@@ -675,7 +665,7 @@ class _Trip:
             return
         kin = self.kin = self._limits() if kin is None else kin
         self._forget_route_costs()
-        self.stalled = not (kin.v_max > 0 and kin.accel > 0)
+        self.stalled = cannot_move(kin)
         self.lookahead = 0.0 if self.stalled else kin.v_max**2 / (2 * kin.decel) + self.fleet.lookahead_margin
 
     def _run_plan(self) -> _ArcPlan:

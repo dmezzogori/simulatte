@@ -182,9 +182,11 @@ class _Timing:
         self.level = agv.battery.level_pct
         self.view = view
         self.kin = (
-            _limits(self.profile, load_weight, self.level) if isinstance(self.profile, KinematicProfile) else None
+            checked_limits(self.profile, load_weight, self.level)
+            if isinstance(self.profile, KinematicProfile)
+            else None
         )
-        self.stalled = self.kin is not None and (self.kin.v_max <= 0 or self.kin.accel <= 0)
+        self.stalled = self.kin is not None and cannot_move(self.kin)
         self.turn_time = self.agv_type.turn_time
         self.corner_speed = self.agv_type.corner_speed if self.kin is not None else None
         self.turning = self.turn_time is not None or self.corner_speed is not None
@@ -211,27 +213,19 @@ class _Timing:
             self._legs[(u, v)] = leg
         return leg
 
-    def _value(self, name: str, angle: float) -> float:
-        """What the AGV type's callable `name` says for the heading change `angle`, validated as the executor does."""
-        value = float(getattr(self.agv_type, name)(angle))
-        if math.isnan(value) or value < 0 or (name == "turn_time" and math.isinf(value)):
-            allowed = "finite and >= 0" if name == "turn_time" else "not NaN and >= 0"
-            raise ValueError(f"AGVType {self.agv_type.name!r}: {name}({angle}) returned {value}; it must be {allowed}")
-        return value
-
     def turn(self, angle: float | None, cap_in: float | None, cap_out: float) -> float:
         """The time a turn of `angle` costs between arcs of caps `cap_in` (None: at rest) and `cap_out`; an unknown
         angle turns for free."""
         if angle is None:
             return 0.0
-        wait = 0.0 if self.turn_time is None else self._value("turn_time", angle)
+        wait = 0.0 if self.turn_time is None else checked_turning(self.agv_type, "turn_time", angle)
         if self.kin is None or cap_in is None:
             return wait
         u = min(cap_in, cap_out)
         if wait > 0.0:
             c = 0.0
         else:
-            c = math.inf if self.corner_speed is None else self._value("corner_speed", angle)
+            c = math.inf if self.corner_speed is None else checked_turning(self.agv_type, "corner_speed", angle)
         if c >= u:
             return wait
         return wait + (u - c) ** 2 / (2 * u) * (1 / self.kin.accel + 1 / self.kin.decel)
@@ -291,8 +285,8 @@ class _Timing:
             else:
                 entering, cap_in = arc_direction(before, node), self.leg(before, node)[1]
             for neighbor in graph.neighbors(node):
-                if allowed is not None and not allowed(node, neighbor):
-                    continue
+                if neighbor == before or (allowed is not None and not allowed(node, neighbor)):
+                    continue  # no simple route goes back to the node it came from
                 time, _, _ = self.step(node, neighbor, entering, cap_in)
                 new_cost = cost + time
                 key: _State = (neighbor, node)
@@ -314,11 +308,11 @@ def _without_loops(path: Sequence[Node]) -> tuple[Node, ...]:
     return tuple(kept)
 
 
-def _limits(profile: KinematicProfile, load_weight: float, level: float) -> Kinematics:
-    """``profile.limits`` for the request, checked as the executor checks the limits of a run: ``ValueError`` naming the
-    profile when a value is not finite, when ``decel`` is negative, or when ``decel`` is 0 for a vehicle that can move.
-    """
-    kin = profile.limits(load_weight, level)
+def checked_limits(profile: KinematicProfile, load_weight: float, battery_level: float) -> Kinematics:
+    """``profile.limits`` for a load and a battery level, checked: ``ValueError``, naming the profile and the values,
+    when a value is not finite, when ``decel`` is negative, or when ``decel`` is 0 for a vehicle that can move (a stop
+    cannot be planned). The executor and :class:`FastestRouter` both sample limits through this function."""
+    kin = profile.limits(load_weight, battery_level)
     v_max, accel, decel = kin.v_max, kin.accel, kin.decel
     if not (math.isfinite(v_max) and math.isfinite(accel) and math.isfinite(decel)):
         problem = "every value must be finite"
@@ -328,7 +322,23 @@ def _limits(profile: KinematicProfile, load_weight: float, level: float) -> Kine
         problem = "decel must be positive for a vehicle that can move, else a stop cannot be planned"
     else:
         return kin
-    raise ValueError(f"{type(profile).__name__}.limits({load_weight!r}, {level!r}) returned {kin!r}: {problem}")
+    raise ValueError(f"{type(profile).__name__}.limits({load_weight!r}, {battery_level!r}) returned {kin!r}: {problem}")
+
+
+def cannot_move(kin: Kinematics) -> bool:
+    """Whether the limits `kin` make a vehicle that cannot move: ``v_max`` or ``accel`` is not positive (spec §9.1)."""
+    return not (kin.v_max > 0 and kin.accel > 0)
+
+
+def checked_turning(agv_type: AGVType, name: str, angle: float) -> float:
+    """What the AGV type's callable `name` (``turn_time`` or ``corner_speed``) says for the heading change `angle`:
+    ``ValueError``, naming the type, for NaN or a negative value, and for an infinite ``turn_time``. An infinite
+    ``corner_speed`` is no cap."""
+    value = float(getattr(agv_type, name)(angle))
+    if math.isnan(value) or value < 0 or (name == "turn_time" and math.isinf(value)):
+        allowed = "finite and >= 0" if name == "turn_time" else "not NaN and >= 0"
+        raise ValueError(f"AGVType {agv_type.name!r}: {name}({angle}) returned {value}; it must be {allowed}")
+    return value
 
 
 class FastestRouter:
@@ -338,10 +348,11 @@ class FastestRouter:
 
     The AGV's heading is taken as its heading at the origin: the first arc pays the turn from it, at rest. With a
     turning model (``corner_speed`` for a profile with limits, or ``turn_time``) the search state is the node and the
-    arc that entered it. The search is then over walks: a route that would return to a node is cut at the first
-    visit, and its cost is that of the cut route. An arc whose chord has length 0 has no direction: the heading
-    change into it is 0 and the heading after it is unknown here (the next turn is free), whereas the executor
-    measures the next turn from the last known heading.
+    arc that entered it, and a node is never left for the node the AGV came from. The route is the least-cost walk
+    cut to a simple path: where a turn time makes a walk that returns to a node cheaper, it is cut at the first visit
+    and its cost is that of the cut route. It is therefore not guaranteed to be the least-cost simple path. An arc
+    whose chord has length 0 has no direction: the heading change into it is 0 and the heading after it is unknown
+    here (the next turn is free), whereas the executor measures the next turn from the last known heading.
 
     A request without an AGV is routed by length, as :class:`ShortestDistanceRouter` does, and its cost is a length:
     a cost is comparable only within one router and one kind of request. A leg is excluded when it enters an avoided
