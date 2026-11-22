@@ -581,8 +581,11 @@ of the part C table).
 
 ## Gates of the release (this task)
 
-Run at the head of the branch plus the one added test, on bigboss (Apple M4 Pro, CPython 3.14.3), with each result line
-as printed.
+Run at commit `cc252ed` (the branch before the final review's fixes, with the one added test), on bigboss (Apple M4
+Pro, CPython 3.14.3), with each result line as printed. After the fixes of the final review and the release
+commit (`a23c18e`), the Python gates were run again: 4,738 passed, 1 skipped, coverage 99.18 %; lint, format, types
+and the docs build clean. The Studio, PyPy and overhead gates were not run again after `cc252ed`; the fixes changed
+no file under `studio/`.
 
 | Gate | Command | Result |
 |---|---|---|
