@@ -29,6 +29,7 @@ from simulatte.intralogistics.events import (
     AgvMoveInterrupted,
     AgvMoveStarted,
     AgvStranded,
+    ChargingStarted,
     TrafficReleased,
     TrafficReserved,
     TrafficWaitStarted,
@@ -436,13 +437,16 @@ def charger_world(
     graph_nodes: tuple[LayoutGraph, dict[str, Node]] | None = None,
     router: Any = None,
     start: str = "N0",
+    threshold: float = 0.05,
+    profile: Any = None,
 ) -> World:
     """The line ``N0 ... N4`` of 10 m arcs (or `graph_nodes`) with a charging station on `station` (none: no one)."""
     graph, nodes = graph_nodes or line(5)
     env = Environment(debug=True)
     replay = FullReplay(env)
     controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
-    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=nodes[start])
+    kind = weak(depletion, capacity=capacity, threshold=threshold, profile=profile)
+    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes[start])
     stations = [] if station is None else [ChargingStation(env=env, name="CS", node=nodes[station], n_slots=1)]
     fleet = StillFleet(
         env=env,
@@ -481,6 +485,96 @@ def test_energy_for_two_and_a_half_arcs_strands_the_agv_when_no_charger_is_reach
     (stranded,) = w.of(AgvStranded)
     assert (stranded.node, stranded.reason, stranded.t) == ("N2", "no_reachable_charger", arrivals(w)[-1][1])
     assert w.agvs["A"].battery.level == pytest.approx(5.0)
+
+
+# --- a critical AGV on its way to a charger (spec §8.3) ------------------------------------------------------------
+
+
+def critical_then_charge(w: World, goal: str) -> None:
+    """Travel the AGV to `goal` until its battery turns critical, then charge, as a mission does after that retry."""
+    agv, fleet = w.agvs["A"], w.fleet
+
+    def mission() -> Any:
+        agv.transition_to(AGVState.TRAVELING_EMPTY)
+        w.outcomes["A"] = yield from fleet._executor.travel(agv, w.nodes[goal], loaded=False)
+        assert agv.battery.is_critical
+        yield from fleet._charge_agv(agv)
+
+    w.env.process(mission())
+    w.env.run()
+
+
+def levels(w: World) -> list[tuple[str, float]]:
+    return [(e.node, e.battery) for e in w.of(AgvMoveEnded)]
+
+
+PROFILES = pytest.mark.parametrize("profile", [None, Plain()], ids=["kinematic", "without_limits"])
+
+
+@PROFILES
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_critical_agv_reaches_a_charger_three_arcs_away_and_charges(reserve: bool, profile: Any) -> None:
+    """Battery 100, critical at 50 %: the travel from N0 to N7 turns critical at N5 and retries there. The charger on N2
+    is three arcs back, 30 of the 50 left. On the way the level is critical at every node, which on a travel to a
+    charger is not a stop request (spec §8.3): the AGV goes on, arrives at N2 with 20 and charges."""
+    w = charger_world(100.0, "N2", reserve=reserve, graph_nodes=line(8), threshold=0.5, profile=profile)
+    critical_then_charge(w, "N7")
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert levels(w) == [
+        ("N1", 90.0),
+        ("N2", 80.0),
+        ("N3", 70.0),
+        ("N4", 60.0),
+        ("N5", 50.0),
+        ("N4", 40.0),
+        ("N3", 30.0),
+        ("N2", 20.0),
+    ]
+    (started,) = w.of(ChargingStarted)
+    assert (started.agv, started.station, started.t) == ("A", "CS", w.of(AgvMoveEnded)[-1].t)
+    assert w.agvs["A"].current_node == w.nodes["N2"] and w.agvs["A"].battery.level == 100.0
+    assert not w.of(AgvStranded)
+
+
+@PROFILES
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_charging_diversion_goes_on_while_critical_and_charges(reserve: bool, profile: Any) -> None:
+    """``CH - Y2 - Y1 - X`` of 10 m arcs and an 80 m arc from X to G; battery 100, critical at 50 %. The AGV goes from
+    CH to X (70 left), cannot afford the arc to G and diverts to the charger on CH, three arcs back. It is critical at
+    Y2 (50), which on a travel to a charger is not a stop request: it reaches CH with 40, charges, and the travel
+    returns a retry from there."""
+    graph_nodes = build(
+        [("CH", 0, 0), ("Y2", 10, 0), ("Y1", 20, 0), ("X", 30, 0), ("G", 110, 0)],
+        [("CH", "Y2"), ("Y2", "Y1"), ("Y1", "X"), ("X", "G")],
+    )
+    w = charger_world(100.0, "CH", reserve=reserve, graph_nodes=graph_nodes, threshold=0.5, profile=profile, start="CH")
+    w.go("A", "X")
+    w.go("A", "G", at=100.0)
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert levels(w) == [("Y2", 90.0), ("Y1", 80.0), ("X", 70.0), ("Y1", 60.0), ("Y2", 50.0), ("CH", 40.0)]
+    (started,) = w.of(ChargingStarted)
+    assert started.t == w.of(AgvMoveEnded)[-1].t
+    assert w.agvs["A"].current_node == w.nodes["CH"] and w.agvs["A"].battery.level == 100.0
+    assert not w.of(AgvStranded)
+
+
+@PROFILES
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_critical_agv_that_cannot_afford_the_way_to_the_charger_strands_at_the_first_unaffordable_arc(
+    reserve: bool, profile: Any
+) -> None:
+    """From N1 the travel to N7 turns critical at N6 with 50 left. The charger on N0 is six arcs back (60): none is
+    reachable, so the AGV heads for the nearest one. It goes on while critical, arrives at N1 with 0 and strands there,
+    before the arc into N0 that it cannot afford."""
+    w = charger_world(100.0, "N0", reserve=reserve, graph_nodes=line(8), threshold=0.5, profile=profile, start="N1")
+    critical_then_charge(w, "N7")
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert [node for node, _ in levels(w)] == ["N2", "N3", "N4", "N5", "N6", "N5", "N4", "N3", "N2", "N1"]
+    assert levels(w)[-1] == ("N1", 0.0)
+    (stranded,) = w.of(AgvStranded)
+    assert (stranded.node, stranded.reason) == ("N1", "no_reachable_charger")
+    assert w.agvs["A"].state is AGVState.STRANDED and not w.of(ChargingStarted)
 
 
 def speed_cost(distance: float, load: float, speed: float) -> float:

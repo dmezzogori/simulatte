@@ -63,6 +63,9 @@ class TravelOutcome(Enum):
 _OWN_REASONS = frozenset({"make_way", "clear_node"})
 """Purposes that ``agv.routed`` reports as its reason; every other purpose is reported as ``travel``."""
 
+_CHARGE = "charge"
+"""The purpose of a travel to a charger: on it a critical level is not a stop request (spec §8.3)."""
+
 _TOLERANCE = 1e-9
 """Relative slack when comparing a clear point with the odometer at the end of an arc."""
 
@@ -272,7 +275,9 @@ class TravelExecutor:
         """Move `agv` to `goal` and return a :class:`TravelOutcome`.
 
         `loaded` is passed to ``agv.move_started`` and selects the load weight of the arcs; `purpose` goes to the
-        router and, for ``make_way`` and ``clear_node``, is the reason of ``agv.routed``. An AGV already at the goal
+        router and, for ``make_way`` and ``clear_node``, is the reason of ``agv.routed``. A travel with purpose
+        ``charge`` goes to a charger: a critical level is not a stop request on it, neither at a node nor as the end of
+        the plan, so the AGV goes on for as long as the energy horizon allows (spec §8.3). An AGV already at the goal
         arrives at once, without events. An interrupt while waiting for a claim takes effect at once; one received
         while moving takes effect where the AGV comes to rest: the end of the arc for a profile without limits, the
         first node of the horizon at which a run can be at rest given its speed and deceleration (spec §8.3). The
@@ -383,6 +388,7 @@ class _Trip:
         self.goal = goal
         self.loaded = loaded
         self.purpose = purpose
+        self.charging = purpose == _CHARGE  # on the way to a charger a critical level is not a stop request
         self.route: tuple[Node, ...] = ()
         self.index = 0  # position of the AGV's node in the route
         self.horizon = 0  # position of the last node the granted claims cover
@@ -481,7 +487,7 @@ class _Trip:
                 self._settle()
                 self.executor._interrupted(agv, self.interrupt.cause)
                 raise self.interrupt
-            if agv.battery.is_critical and next_node != self.goal:
+            if agv.battery.is_critical and next_node != self.goal and not self.charging:
                 self._settle()
                 return TravelOutcome.RETRY_FROM_CURRENT_POSITION
 
@@ -571,7 +577,8 @@ class _Trip:
     def _affordable_end(self, limit: int) -> int:
         """The furthest node, up to position `limit`, such that the estimated energy of the arcs from the AGV's node to
         it fits the battery level, and not beyond the first node other than the goal at which the estimated level is
-        critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits).
+        critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits). On
+        a travel to a charger a critical level does not end it (spec §8.3).
 
         The level is carried arc by arc as the depletion on arrival carries it, so that the check at rest, which
         compares the actual level with an arc's estimate, agrees with this horizon to the last bit when the estimate is
@@ -588,7 +595,7 @@ class _Trip:
                 break
             level = max(0.0, level - cost)
             end += 1
-            if self.route[end] != self.goal and _critical(battery, level):
+            if self.route[end] != self.goal and not self.charging and _critical(battery, level):
                 break  # the AGV comes to rest where the critical-battery branch runs
         return end
 
@@ -655,7 +662,8 @@ class _Trip:
     def _energy_stop(self) -> None:
         """At a node passed at speed, a level that is critical, or below the estimate of the next arc, is a stop request
         whatever level the plan expected there (spec §8.3): the plan is cut at the first node where the AGV can be at
-        rest. This check is O(1) and scans nothing. (At the goal the plan ends at rest anyway.)
+        rest. This check is O(1) and scans nothing. (At the goal the plan ends at rest anyway.) On a travel to a
+        charger only the estimate counts: a critical level is not a stop request there.
 
         Otherwise the energy horizon is a stop request when it is nearer than the end of the plan in force (spec §8.3,
         §9.5): the level is lower than the estimate foresaw. The plan is cut at the later of the affordable node and the
@@ -671,7 +679,9 @@ class _Trip:
         battery, index = self.agv.battery, self.index
         kin = self.kin
         assert kin is not None  # a vehicle passing a node at speed has sampled limits
-        if self.route[index] != self.goal and (battery.is_critical or battery.level < self._estimate(index, kin)):
+        if self.route[index] != self.goal and (
+            (battery.is_critical and not self.charging) or battery.level < self._estimate(index, kin)
+        ):
             self._stop(index, self.speed)
             return
         if self.expected[index - self.plan_from] - battery.level > _ENERGY_SLACK * battery.capacity:

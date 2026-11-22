@@ -308,15 +308,15 @@ class TestReplenishmentPolicy:
         # Run long enough for drain + replenishment check + replenishment mission.
         env.run(until=200.0)
 
-        # After draining 60 units, WH_B should have gone below 50.
-        # The replenishment policy should have submitted an order restocking WH_B.
-        # Either inventory rebounded or there is an active/pending replenishment order.
-        has_replenishment = (
-            wh_b.get_inventory_level(sku) > 40
-            or len(coordinator._active_missions) > 0
-            or len(coordinator._pending_queue) > 0
-        )
-        assert has_replenishment
+        # Four drain orders are delivered and WH_B falls to 40, below the threshold; the policy then submits an order
+        # of 30 from WH_A to WH_B at each check. None is served inside the horizon: each AGV starts its last drain
+        # mission with 25 (above the low threshold, so it does not charge), reaches WH_B with 5 and runs empty at D on
+        # the way back, where the charger on C is one arc it cannot afford, and strands at 166.12.
+        assert wh_b.get_inventory_level(sku) == 40
+        assert [o.status for o in orders_to_drain].count(OrderStatus.COMPLETED) == 4
+        replenishments = list(coordinator._pending_queue)
+        assert replenishments
+        assert all((o.origin, o.destination, o.sku, o.quantity) == (wh_a, wh_b, sku, 30) for o in replenishments)
 
 
 # ===========================================================================

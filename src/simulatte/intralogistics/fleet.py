@@ -1109,7 +1109,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         current_node = agv.current_node
         if current_node != station.node:
             self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-            outcome = yield from self._executor.travel(agv, station.node, loaded=False)
+            # A critical level is not a stop request on the way to the charger (spec §8.3).
+            outcome = yield from self._executor.travel(agv, station.node, loaded=False, purpose="charge")
             if agv.current_load is not None:  # a diversion with cargo travels unloaded but refuses to give up
                 self._refuse_give_up_with_cargo(agv, outcome)
             if outcome is not TravelOutcome.ARRIVED:
