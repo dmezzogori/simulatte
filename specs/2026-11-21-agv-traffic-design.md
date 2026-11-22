@@ -203,10 +203,12 @@ class Arc:
 between the same pair of nodes must agree on `length` and `passing`, or construction raises.
 
 `LayoutGraph.subdivide(max_length)` returns a new graph in which every arc longer than `max_length` is replaced
-by `ceil(length / max_length)` equal pieces. Original `Node` instances are kept. New nodes lie at equal fractions
+by `ceil(length / max_length)` equal pieces, without the piece that float noise in the quotient would add (the
+quotient is reduced by a relative 1e-9 before the ceiling, as the layout's `block_length` does). Original `Node`
+instances are kept. New nodes lie at equal fractions
 of the chord, are shared by both directions, and get deterministic ids derived from the two endpoint ids in
 sorted order and the piece index. Pieces inherit `bidirectional`, `speed_limit` and `passing`, and split `length`
-equally. It is not available on a layout-frozen graph (§12 covers layouts).
+equally: each piece is the parent's `length` divided by the number of pieces. It is not available on a layout-frozen graph (§12 covers layouts).
 
 ### 6.2 Nodes
 
@@ -238,8 +240,10 @@ maximal chain of at least two segments such that:
 - both end nodes (the **ports**) are places where vehicles can pass each other: three or more neighbours, or
   capacity above 1.
 
-Its members are its segments and interior nodes; the ports are not members. A corridor has two orientations,
-`forward` from the port with the smaller id. Its id is deterministic from its member ids. Chains that end in a
+Its members are its segments and interior nodes; the ports are not members. A chain that leaves a port and returns
+to the same port is a corridor too, with that port at both ends. A corridor has two orientations, `forward` from the
+port with the smaller id (for a chain back to its own port, the direction whose first interior node has the smaller
+id). Its id is deterministic from its member ids. Chains that end in a
 leaf are dead-end branches (§6.5), not corridors. A cycle with no port is not derived; the controller logs it
 once at activation.
 
@@ -313,13 +317,14 @@ class TrafficController(Protocol):
 - `stopped` tells the controller that the AGV is now at rest and waiting on the request. The wait, its events,
   deadlock detection and policy calls start here. The executor calls it at once when a request made at rest is
   not granted immediately.
-- `idle` tells the controller that the AGV has just become `IDLE` where it stands. The coordinator calls it on
-  every transition to `IDLE`. `ReservationController` uses it for the waits the AGV blocks (§7.10);
-  `FreeFlowController` does nothing.
+- `idle` tells the controller that the AGV has just come to rest without a travel where it stands: it became `IDLE`
+  or `STRANDED`. The coordinator calls it on every transition to `IDLE` and to `STRANDED`. `ReservationController`
+  uses it for the waits the AGV blocks (§7.10); `FreeFlowController` does nothing.
 - `withdraw` cancels a pending request. `release` frees specific resources. `retain` frees everything the AGV
   holds except the given resources.
 - `WaitHooks` carries what the controller and the policy may ask of the waiting travel: `route` (remaining
-  nodes), `loaded`, `resolutions` (count in this travel), and the callables `try_reroute(avoid, max_cost_ratio)`,
+  nodes), `loaded`, `resolutions` (the reactions staged for the AGV since it last arrived at the goal it travels to,
+  §7.9), and the callables `try_reroute(avoid, max_cost_ratio)`,
   `try_step_aside(target)` and `give_up()`, each returning whether the action was staged.
 
 Nothing else on a controller is read by the coordinator.
@@ -456,7 +461,8 @@ class TrafficPolicy(Protocol):
 ```
 
 `Wait` holds the AGV, its claim, the start time, the blockers (each with its disposition and the resources it
-blocks), the number of reviews, the priority read when the request was made, and the fields of `WaitHooks`. `loaded` means cargo on board
+blocks), the number of reviews, the priority read when the request was made, and the values the `WaitHooks`
+callables `route`, `loaded` and `resolutions` return at the instant (not the hooks themselves). `loaded` means cargo on board
 (`agv.current_load`), not the `loaded` argument of the travel: a charging diversion travels unloaded in name
 while carrying cargo. `resolutions` counts the reactions staged for the AGV since it last arrived at the goal it
 is travelling to. Reactions are frozen values:
@@ -477,7 +483,9 @@ review. The policy never moves anything itself.
 
 **Reviews (T23).** The first review of a wait is scheduled `review_after` after the wait opens. After a review,
 the next is due `review_after` later if a grant or release happened anywhere since the previous review;
-otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. The
+otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. A
+blocker that strands also ends the sleep: the wait is reviewed at that instant (§7.10), since a stranding may release
+nothing. The
 grant or release that wakes a sleeping wait is consumed by the wake-up: the review it schedules is followed by
 another only if something changed after the wake-up, so one change gives one review. A network in which nothing
 moves therefore schedules at most one review per wait. A wait that ends takes its review timer with it: the
@@ -503,7 +511,8 @@ branch (§6.5) is not taken unless it is the node of a parking area: an idle AGV
 that must hold back for the branch, and the node where they hold back is often its only way out. Members of a
 branch stay valid targets, since on a layout made of dead ends a leaf is the natural place to rest. A
 candidate is not taken when a segment, zone or corridor of the last leg of its route is named by a pending
-claim. And a node the AGV has already made way from in the current chain of make-way moves is not taken
+claim, nor when a zone or corridor of that leg is inadmissible for the AGV now: a node inside a full zone is no free
+rest, though its own capacity has room, and the AGV would stop short of it and block the way. And a node the AGV has already made way from in the current chain of make-way moves is not taken
 (§7.10). A make-way move has one fallback: when no node satisfies these rules, a service node or a root is taken
 if its capacity is above 1 and it would still have a free slot, after the move, for each AGV in the waits
 concerned and for each pending claim that names it. For this fallback the segment of the last leg may be
@@ -511,7 +520,7 @@ named by a pending claim (zones and corridors still may not): the AGV comes to r
 1, where its trail clears (§6.6), so it does not keep that segment. On a line whose only passing place is a charging node with
 two slots, this is where an idle AGV in a bay steps out so that the next one can come in.
 
-`StandardTrafficPolicy(reroute_after=30.0, max_detour=1.5, max_resolutions=8)`:
+`StandardTrafficPolicy(*, reroute_after=30.0, max_detour=1.5, max_resolutions=8)` (keyword-only):
 
 - `on_blocked`: with a stranded blocker, `Reroute(avoid=its resources)` then `KeepWaiting(reroute_after)`. On the
   first call otherwise, `KeepWaiting(reroute_after)`. At a review, `Reroute(avoid=blocked resources,
@@ -531,7 +540,7 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
 
 - **Make way.** When a wait starts or is reviewed, or when an AGV becomes `IDLE`, each idle blocker of a wait is
   asked to move: the controller takes `make_way_target`, or the standard search, and calls
-  `blocker.fleet.make_way(blocker, target)`. The coordinator runs it as a short travel (`TRAVELING_EMPTY`, then
+  `blocker.fleet.make_way(blocker, target, concerned=...)` with the AGVs of the waits it makes way for. The coordinator runs it as a short travel (`TRAVELING_EMPTY`, then
   `IDLE`, then the pending-queue check and the `on_agv_idle` hooks). One make-way move per AGV at a time. If no
   target exists the blocker stays and the waiter's `on_blocked` reviews continue. The idle case comes through
   `idle(agv)` (§7.1): the controller asks the AGV to make way once, for the waits it blocks taken in request
@@ -555,7 +564,11 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   at once, and `area.leave(agv)` when the AGV next departs from that node or when the travel does not arrive. A
   full area is not a valid target. This applies with both controllers. AGVs placed on a parking node at
   activation take no slot.
-- **Stranded and serving blockers** are left to `on_blocked`.
+- **Stranded and serving blockers** are left to `on_blocked`. When an AGV strands, the coordinator calls `idle(agv)`
+  (§7.1) and each open wait the AGV blocks gets one review at that instant, as after a release: the policy can reroute
+  around the stranded blocker, and a wait that keeps waiting is reported stuck by the rule of §7.9. A stranded AGV is
+  not asked to make way, a review timer the wait had is replaced, and nothing else is scheduled. Charging and
+  stranding themselves do not change (§8.4).
 
 Assigning `AGV.current_node` directly after activation still bypasses traffic, as today.
 
@@ -739,10 +752,10 @@ still not granted when the turn is done, so a traffic wait counts the time lost 
 ```python
 @dataclass(frozen=True)
 class RouteRequest:
-    agv: AGV
+    agv: AGV | None  # None for a request that is not made for a vehicle
     origin: Node
     destination: Node
-    load_weight: float
+    load_weight: float = 0.0
     avoid: frozenset[Resource] = frozenset()
     purpose: str = "travel"
 
@@ -759,8 +772,8 @@ class Router(Protocol):
 
 `TrafficView` is read-only: `graph`, `length(u, v)`, `speed_limit(u, v)`, `capacity(node)`, `branch_root(node)` (whether the node is the root of a dead-end branch, §6.5; false when
 `hold_back_dead_ends` is off),
-`resources(u, v)` (what a leg needs), `holders(resource)`, `pending(resource)` (count of pending claims that name
-it), `disposition(agv)`, `route_of(agv)`, `waiting_on(agv)` (the AGVs whose waits a resource held by `agv`
+`resources(u, v)` (what a leg needs), `holders(resource)`, `pending(resource)` (count of pending claims that still
+need it, given the current holdings), `disposition(agv)`, `route_of(agv)`, `waiting_on(agv)` (the AGVs whose waits a resource held by `agv`
 blocks), `admissible(agv, claim)`, `blockers(agv, u, v)` (for each resource of the leg from `u` to `v` that the
 holders make inadmissible for `agv` now, whatever the queue and the gate say, the holders that block it, in the
 leg's resource order) and `mean_hold(resource)`. With
@@ -773,9 +786,13 @@ same request and a view extended with reservation times; nothing here depends on
   as today. Default (T17).
 - `FastestRouter()`: arc cost `length / min(v_max, speed_limit)` with `limits` for the request's load and the
   AGV's battery level now (idle power accrued, §9.5), or `travel_time` for profiles without `limits`. Node cost: `turn_time` plus the time lost
-  slowing to `corner_speed` and regaining speed. With a turning model the search state is the node and the
-  incoming arc.
-- `CongestionAwareRouter(base=FastestRouter(), wait_weight=1.0, horizon=60.0)`: adds to each leg
+  slowing to `corner_speed` and regaining speed; where `turn_time` is positive the vehicle stops, so the corner speed
+  is 0 there, and a profile without `limits` is at rest at every node, so its turns cost `turn_time` only. With a
+  turning model the search state is the node and the incoming arc. A request without an AGV is routed by path
+  length.
+- `CongestionAwareRouter(base=FastestRouter(), *, wait_weight=1.0, horizon=60.0)` (`wait_weight` and `horizon`
+  keyword-only; `base` must be exactly a `ShortestDistanceRouter` or a `FastestRouter`, any other router or a subclass
+  raises `TypeError`): adds to each leg
   `wait_weight * w * exp(-t / horizon)`, where `t` is the cost accumulated when the leg is expanded and `w` is the
   largest, over the leg's resources that are not admissible now, of `(blocking holders + pending claims) *
   mean_hold(resource)`, read from `view.blockers`, `view.pending` and `view.mean_hold`. A resource held to
@@ -812,7 +829,8 @@ chord: the old rankings summed chords there, and the route cost sums arc lengths
 | `segment` | sorted node ids joined by `~` | `source`, `target`, `length`, `forward` (agv ids, grant order), `backward` |
 | `zone` | zone id, or the derived corridor id | `rule` (`exclusive`, `same_direction`), `capacity` (null for corridors), `members` (ids), `reserved_by` (agv ids, grant order), `orientation` (`forward`, `backward` or null) |
 
-`agv` is unchanged; `motion` keeps `{from, to, t_start, t_end, description}`. `segment` and `zone` entities exist
+`agv` gains `heading` (radians, the direction of the last arc traversed, null after placement); `motion` keeps
+`{from, to, t_start, t_end, description}`. `segment` and `zone` entities exist
 only with `ReservationController`.
 
 ### 11.2 Events
@@ -832,7 +850,9 @@ only with `ReservationController`.
 | `order.status_changed` | new reason `traffic_requeued`; `travel_failed` now means no route |
 | `parking.entered`, `parking.left` | now emitted in normal operation (§7.10) |
 
-Removed wait reasons: `node_occupied`, `path_delay`, `deadlock_backoff`, `cancelled`, `elapsed`. A pending
+No `traffic.reserved` or `traffic.released` is emitted when nothing is recorded: a grant or a release whose resources
+have no entity (a node without a binding) changes no state and emits nothing. Removed wait reasons: `node_occupied`,
+`path_delay`, `deadlock_backoff`, `cancelled`, `elapsed`. A pending
 look-ahead request of a moving AGV is not a wait and emits nothing.
 
 ### 11.3 Motion curve `piecewise` (T16)
@@ -876,7 +896,10 @@ stay readable. Semantic digests of intralogistics runs change with this work.
     diagnostic, like a stale override. Members are matched against the network the overrides see, before
     splitting; a matched edge then stands for all its pieces and the generated nodes between them, so a zone
     covers the same stretch with and without `block_length`.
-- **Resolution.** `resolve_network` sets `Arc.passing`, leaves `Arc.length` unset (lanes are straight), and adds
+- **Resolution.** `resolve_network` sets `Arc.passing`, leaves `Arc.length` unset (lanes are straight) except on the
+  pieces of `block_length`, which carry the parent's length divided by the number of pieces, and counts the pieces
+  with the rule of `LayoutGraph.subdivide` (§6.1), so that a layout and the subdivided graph of the same nodes and
+  arcs are the same network to the float; it adds
   `ResolvedNetwork.zones` as concrete nodes and node pairs.
 - **Binding.** The built-in controller registers as the layout's resource owner as today and reads the graph,
   capacities and zones at bind. `_validate_fleet` accepts a controller with `controls_occupancy == False`
@@ -931,7 +954,9 @@ architecture section of `CLAUDE.md`.
 - Cost per leg is proportional to the resources of the claim. A scan pass is linear in pending claims, of which there
   is at most one per AGV, and at worst quadratic when gates apply. Detection runs only when an AGV starts
   waiting; its reduction is quadratic in waiting AGVs and its gate pass cubic at worst. Measured on a line of
-  80 waiters, the last `stopped` call takes about 11 ms and a scan 0.1 ms.
+  80 waiters, the last `stopped` call takes about 11 ms and a scan 0.1 ms. A stuck report propagates along the chain
+  of waits behind it and recomputes the blockers of every wait it reports, which is cubic in the length of the chain,
+  once per chain.
 - With `FreeFlowController` the executor makes no controller calls per arc beyond the first claim.
 - `benchmarks/intralogistics.py` is run before and after each part and reported; it stays ungated.
 
