@@ -653,9 +653,13 @@ class _Trip:
         return [min(before, after, self._node_cap(first + i)) for i, (before, after) in enumerate(zip(arcs, arcs[1:]))]
 
     def _energy_stop(self) -> None:
-        """At a node passed at speed, the energy horizon is a stop request when it is nearer than the end of the plan in
-        force (spec §8.3, §9.5): the level is lower than the estimate foresaw. The plan is cut at the later of the
-        affordable node and the first node where the AGV can be at rest, with either controller.
+        """At a node passed at speed, a level that is critical, or below the estimate of the next arc, is a stop request
+        whatever level the plan expected there (spec §8.3): the plan is cut at the first node where the AGV can be at
+        rest. This check is O(1) and scans nothing. (At the goal the plan ends at rest anyway.)
+
+        Otherwise the energy horizon is a stop request when it is nearer than the end of the plan in force (spec §8.3,
+        §9.5): the level is lower than the estimate foresaw. The plan is cut at the later of the affordable node and the
+        first node where the AGV can be at rest, with either controller.
 
         The plan keeps the level it expects at each node, computed arc by arc as the depletion on arrival computes it
         (``expected``), with the idle power of the arc's planned duration taken off as the fold at ``agv.move_ended``
@@ -663,20 +667,23 @@ class _Trip:
         without idle power.
         The affordable end is recomputed only when the level is below it by more than a relative slack: nothing is
         scanned at a node where the level is as expected.
-
-        A critical level found at a node other than the goal is the same request: the estimate then turns critical at
-        the next node, so the energy horizon ends at or before it. (At the goal the plan ends at rest anyway.)
         """
-        battery = self.agv.battery
-        if self.expected[self.index - self.plan_from] - battery.level > _ENERGY_SLACK * battery.capacity:
+        battery, index = self.agv.battery, self.index
+        kin = self.kin
+        assert kin is not None  # a vehicle passing a node at speed has sampled limits
+        if self.route[index] != self.goal and (battery.is_critical or battery.level < self._estimate(index, kin)):
+            self._stop(index, self.speed)
+            return
+        if self.expected[index - self.plan_from] - battery.level > _ENERGY_SLACK * battery.capacity:
             affordable = self._affordable_end(self.end)
             if affordable < self.end:
-                self._stop(self.index, self.speed, affordable)
+                self._stop(index, self.speed, affordable)
 
     def _stop(self, node: int, speed: float, floor: int = 0) -> None:
-        """A stop request received while moving (an interrupt, or a battery found critical at a node other than the goal
-        that the estimate did not foresee), spec §8.3. `node` is the position of the next node event, where the AGV
-        passes at the planned speed `speed`: the end of the arc being traversed, or the node it has just reached.
+        """A stop request received while moving (an interrupt, a level found critical or below the next arc's estimate
+        at a node passed at speed, or the energy horizon), spec §8.3. `node` is the position of the next node event,
+        where the AGV passes at the planned speed `speed`: the end of the arc being traversed, or the node it has just
+        reached.
 
         No further claim is requested. The plan is cut at the first node from `node` on, within the plan in force, whose
         distance from `node` is at least the braking distance ``speed ** 2 / (2 * decel)``, or at `node` for an AGV

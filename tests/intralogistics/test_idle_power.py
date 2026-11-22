@@ -176,28 +176,74 @@ def test_a_battery_that_idle_power_empties_during_a_run_floors_at_zero_and_is_me
     reserve: bool,
 ) -> None:
     """Idle power of 20 per second empties the 1000 within the run; the estimate does not foresee it. The level floors
-    at 0 and never goes below, nothing raises, and the AGV is met by the existing checks: under free flow the plan is
-    the whole route and the AGV arrives empty; under reservation the claims stop being asked for once the level is
-    empty and it comes to rest where they end, critical, with a retry. Either way the energy check of its next travel
-    finds the empty battery and, with no charger, strands it."""
+    at 0 and never goes below, nothing raises, and the AGV is met by the existing checks: the empty level found at N7,
+    passed at speed, is a stop request under both controllers (spec §8.3), so the AGV comes to rest at N8, the first
+    node where it can, with a retry. The energy check of its next travel finds the empty battery and, with no charger,
+    strands it."""
     kind = replace(weak(capacity=1000.0), idle_power=20.0)
     w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=kind)
     w.go("A", "N10")
     w.env.run()
     levels = [e.battery for e in w.of(AgvMoveEnded)]
     assert levels == sorted(levels, reverse=True) and min(levels) == 0.0
+    assert [e.node for e in w.of(AgvMoveEnded) if e.battery == 0.0] == ["N7", "N8"]
     assert w.agvs["A"].battery.level == 0.0
-    if reserve:
-        assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
-        assert w.agvs["A"].current_node != w.nodes["N10"]
-    else:
-        assert w.outcomes == {"A": TravelOutcome.ARRIVED}
-        assert w.agvs["A"].current_node == w.nodes["N10"]
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert w.agvs["A"].current_node == w.nodes["N8"]
     rest = w.agvs["A"].current_node
     w.go("A", "N0" if rest != w.nodes["N0"] else "N1", at=w.env.now + 5.0)
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
     assert w.agvs["A"].current_node == rest and w.agvs["A"].state is AGVState.IDLE
+
+
+def critical_run(reserve: bool, capacity: float, power: float) -> World:
+    """``N0 ... N40`` of 10 m arcs, depletion 1 per metre, critical at 5 %, `power` of idle power: a travel to N40."""
+    w = world(line(41), {"A": "N0"}, reserve=reserve, agv_type=powered(power, battery_capacity=capacity))
+    w.go("A", "N40")
+    w.env.run()
+    return w
+
+
+def arrivals(w: World) -> list[tuple[float, str, float]]:
+    return [(e.t, e.node, e.battery) for e in w.of(AgvMoveEnded)]
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_critical_level_at_a_node_passed_at_speed_is_a_stop_request_whatever_the_plan_expected(reserve: bool) -> None:
+    """Battery 420: the estimate, without idle power, reaches the goal N40 with no critical node before it, so the plan
+    is the whole route. Idle power of 0.5 makes the level critical (at most 21) at N30, which the AGV passes at speed.
+    That is a stop request whatever level the plan expected there (spec §8.3): the AGV rests at N31, the first node
+    where it can be at rest, and the travel returns a retry. It never enters an arc with an empty battery."""
+    w = critical_run(reserve, 420.0, 0.5)
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert w.agvs["A"].current_node == w.nodes["N31"]
+    critical = [node for _, node, battery in arrivals(w) if battery <= 0.05 * 420.0]
+    assert critical == ["N30", "N31"]
+    assert w.agvs["A"].battery.level > 0.0
+
+
+def test_with_idle_power_the_two_controllers_stop_at_the_same_node() -> None:
+    """Battery 250 with idle power 0.5: both controllers come to rest at the same node at the same time with the same
+    levels on the way (before the fix free flow rested at N24, where the estimate without idle power put the critical
+    node, and reservation at N19)."""
+    free, reserved = critical_run(False, 250.0, 0.5), critical_run(True, 250.0, 0.5)
+    assert arrivals(free) == arrivals(reserved)
+    assert free.outcomes == reserved.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert free.agvs["A"].current_node == reserved.agvs["A"].current_node == free.nodes["N19"]
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_without_idle_power_the_critical_check_at_a_node_passed_at_speed_changes_nothing(reserve: bool) -> None:
+    """With the default idle power of 0 the level at each node is the expected one: battery 420 arrives at N40 with 20
+    left (critical at the goal, which is not a stop request), battery 250 rests at N24, where the estimate turns
+    critical."""
+    w = critical_run(reserve, 420.0, 0.0)
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+    assert w.agvs["A"].battery.level == 20.0
+    w = critical_run(reserve, 250.0, 0.0)
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert w.agvs["A"].current_node == w.nodes["N24"] and w.agvs["A"].battery.level == 10.0
 
 
 # --- charging ----------------------------------------------------------------------------------------------------
