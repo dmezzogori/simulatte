@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from simulatte._wire import freeze
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.charging import ChargingStation
@@ -984,6 +985,8 @@ class TestView:
         assert view.disposition(b) is Disposition.WAITING
         w.controller.stopped(ClaimRequest(a, request.claim, request.hooks, w.env.event()))  # not pending: ignored
         a._state = AGVState.TRAVELING_EMPTY
+        assert view.disposition(a) is Disposition.SERVING  # travelling at rest between two arcs: turning
+        a.motion = freeze({"from": "N1", "to": "N2", "t_start": 0.0, "t_end": 1.0})
         assert view.disposition(a) is Disposition.MOVING
         assert not view.admissible(b, request.claim)
 

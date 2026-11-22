@@ -187,8 +187,15 @@ _DISPOSITIONS = {
 
 
 def disposition_of(agv: AGV) -> Disposition:
-    """The disposition that the AGV's state implies; a controller reports ``WAITING`` for an open wait instead."""
-    return _DISPOSITIONS[agv.state]
+    """The disposition that the AGV's state implies; a controller reports ``WAITING`` for an open wait instead.
+
+    A travelling AGV without an active motion is at rest between two arcs and not in a traffic wait: it is turning
+    (spec §9.4, the only such rest that lasts), so it is ``SERVING``.
+    """
+    disposition = _DISPOSITIONS[agv.state]
+    if disposition is Disposition.MOVING and agv.motion is None:
+        return Disposition.SERVING
+    return disposition
 
 
 class _FreeFlowView:

@@ -70,6 +70,13 @@ class AGVType:
     """Length of the vehicle; ``ReservationController`` requires it (spec §6.6)."""
     min_gap: float = 0.0
     """Distance kept to the vehicle ahead; the extent of the vehicle is ``length + min_gap``."""
+    corner_speed: Callable[[float], float] | None = None
+    """The speed cap through a node, from the heading change there in radians (``[0, pi]``, spec §9.4). 0 is a stop
+    at the node, infinity no cap; negative and NaN values raise ``ValueError``. It acts on profiles with limits."""
+    turn_time: Callable[[float], float] | None = None
+    """The time the vehicle waits at rest on a node before it leaves, from the heading change there in radians
+    (``[0, pi]``, spec §9.4). A positive value stops the vehicle at the node; negative, NaN and infinite values raise
+    ``ValueError``."""
 
     def __post_init__(self) -> None:
         if self.length is not None and not (math.isfinite(self.length) and self.length >= 0):

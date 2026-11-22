@@ -4,7 +4,9 @@
 route, emits ``agv.routed``, requests claims from the controller and waits, at rest, while the claim it needs next is
 pending. A vehicle whose profile reports kinematic limits moves in runs: it keeps claims one arc plus its braking
 distance ahead, plans its speeds from its node to the last node it holds and passes nodes at speed (§9.2, §9.3). A
-profile without limits traverses each arc rest to rest with its travel time and motion description.
+profile without limits traverses each arc rest to rest with its travel time and motion description. At a node the
+AGV type's ``corner_speed`` caps the speed and its ``turn_time`` makes the vehicle stop and wait at rest before it
+leaves (§9.4).
 With a controller that controls occupancy it keeps a trail of the nodes and segments behind the vehicle and
 releases each when the tail clears it (§6.6). A waiting travel answers the controller through its
 :class:`~simulatte.intralogistics.traffic.WaitHooks`: it accepts a reroute or a step aside by staging the new route.
@@ -184,6 +186,29 @@ def standard_target(
     return best
 
 
+def _heading_changes(nodes: Sequence[Node], heading: float | None) -> tuple[float | None, ...]:
+    """The heading change in ``[0, pi]`` at each node of `nodes` except the last, between the arc that enters it and the
+    arc that leaves it (spec §9.4).
+
+    The arc that enters the first node is the one that gave the AGV `heading`; None means it is unknown, and so is the
+    change at every node until an arc with a direction has been traversed. An arc whose chord has length 0 has no
+    direction: it leaves the heading unchanged, so the change at its ends is measured from the last known one.
+    """
+    changes: list[float | None] = []
+    for source, target in zip(nodes, nodes[1:]):
+        if source.x == target.x and source.y == target.y:
+            changes.append(None if heading is None else 0.0)
+            continue
+        direction = math.atan2(target.y - source.y, target.x - source.x)
+        if heading is None:
+            changes.append(None)
+        else:
+            change = abs(direction - heading)
+            changes.append(min(change, 2 * math.pi - change))
+        heading = direction
+    return tuple(changes)
+
+
 class _Trail:
     """The odometer of an AGV and the clear points of the nodes and segments behind it (spec §6.6).
 
@@ -224,7 +249,8 @@ class TravelExecutor:
         arrives at once, without events. An interrupt while waiting for a claim takes effect at once; one received
         while moving takes effect where the AGV comes to rest: the end of the arc for a profile without limits, the
         last node it held when the interrupt arrived for a run (spec §8.3, interim rule). Either way the AGV is at
-        rest at a node and ``agv.move_interrupted`` is emitted before the interrupt is raised again.
+        rest at a node and ``agv.move_interrupted`` is emitted before the interrupt is raised again. A turn wait is a
+        wait at rest, so an interrupt received during it takes effect at once.
         """
         if agv.current_node == goal:
             return TravelOutcome.ARRIVED
@@ -342,6 +368,13 @@ class _Trip:
         self.lengths: tuple[float, ...] = ()
         self.speed_limits: tuple[float | None, ...] = ()
         self.offsets: tuple[float, ...] = ()
+        # The heading change at each node of the route before the arc leaving it (None: the heading is unknown, which
+        # turns for free), the position of the node whose turn was served already, and the values the type's turning
+        # callables gave for the nodes of this route (spec §9.4).
+        self.turns: tuple[float | None, ...] = ()
+        self.turned = -1
+        self.corner_caps: dict[int, float] = {}
+        self.turn_waits: dict[int, float] = {}
         # The run (spec §9.2, §9.3). A profile with limits moves in runs that start and end at rest; one without them
         # moves rest to rest, arc by arc, with a look-ahead of 0.
         self.kinematic = isinstance(agv.agv_type.speed_profile, KinematicProfile)
@@ -384,7 +417,12 @@ class _Trip:
 
             current, next_node = self.route[self.index], self.route[self.index + 1]
             plan: _ArcPlan | None = None
-            if self.speed == 0.0:  # at rest: the energy check before the next arc, then a run starts here
+            if self.speed == 0.0:  # at rest: the turn, the energy check before the next arc, then a run starts here
+                if self.turned != self.index:  # spec §8.1 step 5
+                    self.turned = self.index
+                    wait = self._turn_wait(self.index)
+                    if wait > 0.0:
+                        yield from self._turn(wait)
                 if self.kinematic:
                     energy_cost = self._estimate(self.index)
                 else:
@@ -433,6 +471,58 @@ class _Trip:
         avg_speed = distance / travel_time if travel_time > 0 else 0.0
         energy_cost = agv.battery.estimate_energy(distance, load_weight, avg_speed)
         return _ArcPlan(distance, load_weight, travel_time, description, lambda covered: travel_time), energy_cost
+
+    # Turning (spec §9.4)
+
+    def _turning(self, name: str, node: int) -> float | None:
+        """What the AGV type's callable `name` says for the heading change at position `node` of the route, validated;
+        None when the type has none or the heading is unknown."""
+        agv_type = self.agv.agv_type
+        function = getattr(agv_type, name)
+        angle = self.turns[node]
+        if function is None or angle is None:
+            return None
+        value = float(function(angle))
+        if math.isnan(value) or value < 0 or (name == "turn_time" and math.isinf(value)):
+            allowed = "finite and >= 0" if name == "turn_time" else "not NaN and >= 0"
+            raise ValueError(f"AGVType {agv_type.name!r}: {name}({angle}) returned {value}; it must be {allowed}")
+        return value
+
+    def _turn_wait(self, node: int) -> float:
+        """The time the AGV waits at rest at position `node` before it leaves: ``turn_time`` of the heading change."""
+        wait = self.turn_waits.get(node)
+        if wait is None:
+            wait = self.turn_waits[node] = self._turning("turn_time", node) or 0.0
+        return wait
+
+    def _node_cap(self, node: int) -> float:
+        """The cap on the speed through the interior position `node` of the route that the turn imposes: 0 where the AGV
+        waits to turn, else ``corner_speed`` of the heading change (infinity for none)."""
+        cap = self.corner_caps.get(node)
+        if cap is None:
+            if self._turn_wait(node) > 0.0:
+                cap = 0.0
+            else:
+                cap = self._turning("corner_speed", node)
+                cap = math.inf if cap is None else cap
+            self.corner_caps[node] = cap
+        return cap
+
+    def _turn(self, wait: float) -> ProcessGenerator:
+        """Wait `wait` at rest on the AGV's node. It is not a traffic wait: the controller is not told, and the AGV
+        holds what its body overlaps and the claims it holds ahead. An interrupt takes effect at once.
+
+        A turn is served once per node and route. A reroute or a step aside gives a new route: its first arc is a new
+        direction, so the AGV turns again towards it, measured from the heading it still has (a wait does not change
+        it), even if it had turned already towards the first arc of the route it left.
+        """
+        agv = self.agv
+        try:
+            yield self.env.timeout(wait)
+        except simpy.Interrupt as interrupt:
+            self._settle()
+            self.executor._interrupted(agv, interrupt.cause)
+            raise
 
     # Runs (spec §9.2, §9.3)
 
@@ -500,11 +590,16 @@ class _Trip:
             end = max(end, self._affordable_end(limit))
         if end != self.end or not self.profiles:
             caps = [kin.v_max if cap is None else min(kin.v_max, cap) for cap in self.speed_limits[index:end]]
-            node_caps = [self.speed, *(min(a, b) for a, b in zip(caps, caps[1:])), 0.0]
+            node_caps = [self.speed, *self._interior_caps(index + 1, caps), 0.0]
             self.profiles = plan_run(self.speed, self.lengths[index:end], caps, node_caps, kin)
             self.plan_from, self.end = index, end
         profile = self.profiles[index - self.plan_from]
         return _ArcPlan(length, load_weight, profile.duration, profile.description(), profile.time_at, profile.v_out)
+
+    def _interior_caps(self, first: int, arcs: Sequence[float]) -> list[float]:
+        """The caps of the nodes between consecutive arcs of `arcs`, which starts with the arc that enters position
+        `first`: the smaller cap of the two arcs and the turn's (spec §9.2)."""
+        return [min(before, after, self._node_cap(first + i)) for i, (before, after) in enumerate(zip(arcs, arcs[1:]))]
 
     def _stop(self) -> None:
         """A stop request received while moving (an interrupt, or a battery found critical at a node other than the goal
@@ -590,6 +685,9 @@ class _Trip:
             limits.append(arc.speed_limit)
             offsets.append(offsets[-1] + lengths[-1])
         self.lengths, self.speed_limits, self.offsets = tuple(lengths), tuple(limits), tuple(offsets)
+        self.turns = _heading_changes(nodes, self.agv.heading)
+        self.turned = -1
+        self.corner_caps, self.turn_waits = {}, {}
         env = self.env
         if env.wants(AgvRouted):
             nodes = route.nodes
@@ -671,7 +769,7 @@ class _Trip:
         arcs = [
             kin.v_max if limit is None else min(kin.v_max, limit) for limit in self.speed_limits[first - 1 : horizon]
         ]
-        caps = [min(before, after) for before, after in zip(arcs, arcs[1:])] + [0.0]  # the node caps of plan_run
+        caps = self._interior_caps(first, arcs) + [0.0]  # the node caps of plan_run
         bounds = backward_pass(self.lengths[first:horizon], caps, kin.decel)
         return any(bound == cap for bound, cap in zip(bounds[:-1], caps[:-1]))
 

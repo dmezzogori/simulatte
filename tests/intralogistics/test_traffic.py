@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 import simpy
 
+from simulatte._wire import freeze
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
@@ -186,18 +187,22 @@ class TestFreeFlowController:
         assert controller.view.speed_limit(a, b) == 1.5
 
     @pytest.mark.parametrize(
-        ("state", "expected"),
+        ("state", "moving", "expected"),
         [
-            (AGVState.IDLE, Disposition.IDLE),
-            (AGVState.STRANDED, Disposition.STRANDED),
-            (AGVState.WAITING_LOAD, Disposition.SERVING),
-            (AGVState.WAITING_UNLOAD, Disposition.SERVING),
-            (AGVState.CHARGING, Disposition.SERVING),
-            (AGVState.TRAVELING_EMPTY, Disposition.MOVING),
-            (AGVState.TRAVELING_LOADED, Disposition.MOVING),
+            (AGVState.IDLE, False, Disposition.IDLE),
+            (AGVState.STRANDED, False, Disposition.STRANDED),
+            (AGVState.WAITING_LOAD, False, Disposition.SERVING),
+            (AGVState.WAITING_UNLOAD, False, Disposition.SERVING),
+            (AGVState.CHARGING, False, Disposition.SERVING),
+            (AGVState.TRAVELING_EMPTY, True, Disposition.MOVING),
+            (AGVState.TRAVELING_LOADED, True, Disposition.MOVING),
+            # travelling at rest between two arcs and not in a traffic wait: turning (spec §9.4)
+            (AGVState.TRAVELING_EMPTY, False, Disposition.SERVING),
+            (AGVState.TRAVELING_LOADED, False, Disposition.SERVING),
         ],
     )
-    def test_view_disposition(self, state: AGVState, expected: Disposition) -> None:
+    def test_view_disposition(self, state: AGVState, moving: bool, expected: Disposition) -> None:
         controller, _, agv, _ = self._controller()
         agv._state = state
+        agv.motion = freeze({"from": "N0", "to": "N1", "t_start": 0.0, "t_end": 1.0}) if moving else None
         assert controller.view.disposition(agv) is expected
