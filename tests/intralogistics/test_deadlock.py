@@ -612,6 +612,63 @@ class TestReviews:
         assert w.env.now == 5.0
         assert w.replay.of(TrafficWaitStuck) == []
 
+    def test_a_chain_of_waits_ending_at_a_moving_agv_is_not_stuck(self) -> None:
+        """Every wait of the chain C, B, A is blocked by a waiting AGV or by M, which moves: none is stuck, however
+        long the chain."""
+        w = world({"M": "N4", "A": "N3", "B": "N2", "C": "N1"}, policy=Scripted(blocked=(KeepWaiting(5.0),)))
+        w.state("M", AGVState.TRAVELING_LOADED)
+        w.wait("A", "N4")
+        w.wait("B", "N3")
+        w.wait("C", "N2")
+        w.env.run()
+        assert w.env.now == 5.0
+        assert w.replay.of(TrafficWaitStuck) == []
+
+    def test_a_chain_of_three_waits_behind_one_idle_agv_reports_all_three(self) -> None:
+        """A rests idle and nobody moves it; B waits on A, C on B, D on C (spec §7.9, stuck waits). Each review
+        reports its wait, once, with its blocker's disposition: ``WAITING`` for a waiting one."""
+        w = world({"A": "N4", "B": "N3", "C": "N2", "D": "N1"}, policy=Scripted(blocked=(KeepWaiting(30.0),)))
+        w.wait("B", "N4")
+        w.wait("C", "N3")
+        w.wait("D", "N2")
+        w.env.run()
+        assert w.env.now == 30.0
+        assert [(e.t, e.agv, dict(e.blockers)) for e in w.replay.of(TrafficWaitStuck)] == [
+            (30.0, "B", {"A": "IDLE"}),
+            (30.0, "C", {"B": "WAITING"}),
+            (30.0, "D", {"C": "WAITING"}),
+        ]
+        assert w.logged("WARNING") == [
+            ("wait of B is stuck: blockers A (IDLE)", "ReservationController"),
+            ("wait of C is stuck: blockers B (WAITING)", "ReservationController"),
+            ("wait of D is stuck: blockers C (WAITING)", "ReservationController"),
+        ]
+        assert w.deadlocks() == []
+
+    def test_a_wait_behind_a_member_of_an_unresolved_deadlock_is_reported_stuck_once(self) -> None:
+        """A (holding ``N1~N2`` forward) and B block each other: an unresolved deadlock. C waits for a slot of ``N1``
+        (capacity 2), held by A and by X, which is idle: C is not in the deadlocked set, and its wait is stuck. It is
+        reported once, at its review, and not again when X becomes idle; the members of the set are never reported
+        stuck, and the deadlock is reported as before, once."""
+        graph, nodes = line(5)
+        w = world(
+            {"A": "N1", "X": "N1", "B": "N2", "C": "N0"},
+            graph_nodes=(graph, nodes),
+            capacities={nodes["N1"]: 2},
+            policy=Scripted(blocked=(KeepWaiting(30.0),)),
+        )
+        assert w.ask("A", (w.seg("N1", "N2"), "forward")).granted
+        w.wait("A", "N2")
+        w.wait("B", (w.seg("N1", "N2"), "backward"), "N1")
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        w.wait("C", "N1")
+        w.env.run()
+        assert w.env.now == 30.0
+        w.controller.idle(w.agvs["X"])  # X blocks B and C: neither is reported again
+        (stuck,) = w.replay.of(TrafficWaitStuck)
+        assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (30.0, "C", {"A": "WAITING", "X": "IDLE"})
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+
     def test_a_review_with_keep_waiting_none_ends_the_reviews(self) -> None:
         policy = Scripted(blocked=lambda wait: (KeepWaiting(30.0),) if wait.reviews == 0 else (KeepWaiting(),))
         w = world({"A": "N1", "B": "N0", "C": "N3"}, policy=policy)

@@ -663,6 +663,33 @@ def test_an_agv_parked_on_a_roomy_port_is_dispatched_through_the_empty_corridor_
     assert not m.events(TrafficWaitStarted)
 
 
+def test_a_standstill_behind_waiting_blockers_on_a_roomy_port_is_reported_stuck() -> None:
+    """The part A review's third plug: I1 and I2 rest on the port J2 (capacity 2), whose other neighbours are bays.
+    S2 carries from x1 through the corridor towards y2 when I1 is dispatched from J2 back through it: I1 waits on J2
+    for the corridor, S2 waits before J2 for a slot held by I1 and by I2, which has nowhere to go. It is not a deadlock
+    (I2 is not waiting), but both waits are stuck (spec §7.9): each is reported once, the run returns and no order
+    fails."""
+    graph, nodes = two_junction_corridor()
+    m, invariants = scenario(
+        (graph, nodes),
+        {"I1": "J2", "I2": "J2", "S2": "x1"},
+        bays={"WA": "x1", "WB": "x2", "WC": "y2", "WD": "y1"},
+        controller_options={"capacities": {nodes["J2"]: 2}},
+    )
+    m.order("WA", "WC", at=1.0)  # S2: x1 to y2 through the corridor
+    m.order("WD", "WA", at=3.0)  # I1: J2 to y1 through the corridor
+    m.env.run()
+    assert invariants.checked > 0
+    assert m.env.peek() == float("inf")
+    assert not m.events(TrafficDeadlock)
+    assert [(e.agv, e.blockers) for e in m.events(TrafficWaitStarted)] == [("I1", ("S2",)), ("S2", ("I1", "I2"))]
+    assert [(e.agv, dict(e.blockers)) for e in m.events(TrafficWaitStuck)] == [
+        ("I1", {"S2": "WAITING"}),
+        ("S2", {"I1": "WAITING", "I2": "IDLE"}),
+    ]
+    assert [o.status for o in m.orders] == [OrderStatus.IN_TRANSIT, OrderStatus.DISPATCHED]
+
+
 def long_corridor() -> tuple[LayoutGraph, dict[str, Node]]:
     """A corridor ``J1, a, b, c, J2`` with three leaves on each junction and a parking leaf on each."""
     return build(

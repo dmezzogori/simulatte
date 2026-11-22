@@ -303,8 +303,8 @@ class ReservationController:
         The waits are taken in request order. If there are none, nothing happens. Otherwise the AGV's fleet is asked
         once, with the policy's ``make_way_target`` for the first wait and the AGVs of all of them as the concerned
         ones. When the AGV does not move (it has no fleet, or the fleet refused) each of those waits is checked for the
-        stuck condition now, with its blockers recomputed, since a sleeping wait has no review left to report it. This
-        is not a review: ``on_blocked`` is not called, no review is counted and no timer is scheduled.
+        stuck condition (spec §7.9) now, with its blockers recomputed, since a sleeping wait has no review left to
+        report it. This is not a review: ``on_blocked`` is not called, no review is counted and no timer is scheduled.
         """
         waits = self._waits_blocked_by(agv)
         if not waits:
@@ -548,19 +548,16 @@ class ReservationController:
         self._report_stuck(waiting, wait.blockers)
 
     def _report_stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> None:
-        """Emit ``traffic.wait_stuck`` and log a warning, once per wait, when every blocker is idle, stranded or
-        stalled."""
-        if waiting.stuck:
+        """Emit ``traffic.wait_stuck`` and log a warning, once per wait, when the wait is stuck (spec §7.9).
+
+        A wait whose AGV is a member of a deadlocked set left unresolved is not reported: the deadlock report stands
+        for it.
+        """
+        if waiting.stuck or any(waiting.agv.id in ids for ids in self._unresolved):
             return
-        found: dict[str, str] = {}
-        for blocker in blockers:
-            motion = blocker.agv.motion
-            if motion is not None and motion.get("stalled"):
-                found[blocker.agv.id] = "STALLED"
-            elif blocker.disposition in (Disposition.IDLE, Disposition.STRANDED):
-                found[blocker.agv.id] = blocker.disposition.name
-            else:
-                return
+        found = self._stuck(waiting, blockers)
+        if found is None:
+            return
         waiting.stuck = True
         agv = waiting.agv
         env = self._env
@@ -568,6 +565,36 @@ class ReservationController:
             env.emit(TrafficWaitStuck(agv=agv.id, blockers=cast("FrozenMap", freeze(found))))
         named = ", ".join(f"{blocker} ({state})" for blocker, state in found.items())
         env.warning(f"wait of {agv.id} is stuck: blockers {named}", component="ReservationController")
+
+    def _stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> dict[str, str] | None:
+        """The disposition of each of the given blockers of `waiting` by AGV id when the wait is stuck, otherwise None.
+
+        A wait is stuck when every blocker is stalled, idle or stranded, or is waiting in a wait that is stuck by the
+        same rule; a cycle of such waits is stuck. The waits reached through waiting blockers are taken as they stand
+        now, with their blockers recomputed: one blocker among them that is none of these (moving, serving, charging)
+        makes every wait that reaches it not stuck, so the wait is stuck exactly when no wait it reaches has one.
+        """
+        found: dict[str, str] = {}
+        reached = {waiting}
+        todo = [(waiting, blockers)]
+        while todo:
+            current, current_blockers = todo.pop()
+            for blocker in current_blockers:
+                motion = blocker.agv.motion
+                if motion is not None and motion.get("stalled"):
+                    state = "STALLED"
+                elif blocker.disposition in (Disposition.IDLE, Disposition.STRANDED, Disposition.WAITING):
+                    state = blocker.disposition.name
+                else:
+                    return None
+                if current is waiting:
+                    found[blocker.agv.id] = state
+                if state == "WAITING":
+                    behind = self._pending[blocker.agv]
+                    if behind not in reached:
+                        reached.add(behind)
+                        todo.append((behind, self._blocking(behind)))
+        return found
 
     def _end_wait(self, waiting: _Pending, reason: str) -> None:
         """Close the open wait of a claim that left the queue: drop its review and emit ``traffic.wait_ended``."""

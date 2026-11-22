@@ -418,6 +418,7 @@ def test_traffic_kpis_on_a_scripted_scenario() -> None:
             (15.0, _routed(second, "make_way")),
             (16.0, _routed(second, "travel")),
             (17.0, TrafficWaitStuck(agv=first, blockers=FrozenMap({second: "IDLE"}))),
+            (17.0, TrafficWaitStuck(agv=second, blockers=FrozenMap({first: "WAITING"}))),
             (18.0, TrafficDeadlock(agvs=(first, second), victim=None, action="unresolved")),
             (19.0, TrafficDeadlock(agvs=(first, second), victim=first, action="reroute")),
             (19.0, _routed(first, "deadlock")),
@@ -432,7 +433,7 @@ def test_traffic_kpis_on_a_scripted_scenario() -> None:
     assert kpis.scalars() == {
         key + "blocked_time": 12.5,
         key + "waits": 1.0,
-        key + "stuck_waits": 1.0,
+        key + "stuck_waits": 2.0,
         key + "deadlocks_resolved": 1.0,
         key + "deadlocks_unresolved": 1.0,
         key + "reroutes": 2.0,
