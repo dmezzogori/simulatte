@@ -501,7 +501,9 @@ candidate is not taken when a segment, zone or corridor of the last leg of its r
 claim. And a node the AGV has already made way from in the current chain of make-way moves is not taken
 (§7.10). A make-way move has one fallback: when no node satisfies these rules, a service node or a root is taken
 if its capacity is above 1 and it would still have a free slot, after the move, for each AGV in the waits
-concerned and for each pending claim that names it. On a line whose only passing place is a charging node with
+concerned and for each pending claim that names it. For this fallback the segment of the last leg may be
+named by a pending claim (zones and corridors still may not): the AGV comes to rest on a node of capacity above
+1, where its trail clears (§6.6), so it does not keep that segment. On a line whose only passing place is a charging node with
 two slots, this is where an idle AGV in a bay steps out so that the next one can come in.
 
 `StandardTrafficPolicy(reroute_after=30.0, max_detour=1.5, max_resolutions=8)`:
