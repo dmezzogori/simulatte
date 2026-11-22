@@ -7,6 +7,7 @@ every event. Tests drive the controller directly: an AGV "moves" by setting ``cu
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
@@ -1027,6 +1028,160 @@ class TestView:
         assert not w.controller.view.admissible(w.agvs["F"], claim)
         priorities["F"] = 1.0  # ahead of W: W is not an earlier claim
         assert w.controller.view.admissible(w.agvs["F"], claim)
+
+
+class TestBlockers:
+    def test_blockers_name_the_holders_that_make_a_resource_of_the_leg_inadmissible(self) -> None:
+        w = world(line(3), {"A": "N1", "B": "N0"}, derive_corridors=False, hold_back_dead_ends=False)
+        view = w.controller.view
+        a, b = w.agvs["A"], w.agvs["B"]
+        n0, n1, n2 = (w.nodes[name] for name in ("N0", "N1", "N2"))
+        assert view.blockers(b, n0, n1) == ((n1, (a,)),)  # the segment is free, the node is not
+        assert view.blockers(a, n1, n2) == ()
+        assert view.blockers(a, n0, n1) == ()  # A holds the node itself
+        assert w.leg("A", "N1 N2").granted
+        assert view.blockers(b, n2, n1) == ((w.seg("N1", "N2"), (a,)), (n1, (a,)))  # in the leg's resource order
+
+    def test_blockers_ignore_the_queue(self) -> None:
+        w = world(line(3), {"A": "N1", "W": "N0", "F": "N2"}, derive_corridors=False, hold_back_dead_ends=False)
+        n1, n2 = w.nodes["N1"], w.nodes["N2"]
+        assert not w.ask("W", n1).event.triggered  # W queues for N1, which A holds: it is not a holder
+        assert w.controller.view.blockers(w.agvs["F"], n2, n1) == ((n1, (w.agvs["A"],)),)
+
+
+class TestMeanHold:
+    def test_an_exponential_average_of_the_durations_of_the_holds(self) -> None:
+        w = world(line(3), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
+        view, n1 = w.controller.view, w.nodes["N1"]
+        assert view.mean_hold(n1) == 0.0
+        for until, expected in ((10.0, 10.0), (30.0, 11.0), (60.0, 12.9)):  # holds of 10, 20 and 30
+            assert w.ask("A", n1).granted
+            w.env.run(until=until)
+            w.release("A", n1)
+            assert view.mean_hold(n1) == expected
+
+    def test_an_unobserved_resource_reports_the_average_of_its_kind(self) -> None:
+        w = world(line(4), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
+        view = w.controller.view
+        n0, n1, n2, n3 = (w.nodes[name] for name in ("N0", "N1", "N2", "N3"))
+        for node, duration in ((n0, 4.0), (n1, 9.0)):
+            assert w.ask("A", node).granted
+            w.env.run(until=w.env.now + duration)
+            w.release("A", node)
+        assert (view.mean_hold(n0), view.mean_hold(n1)) == (4.0, 9.0)
+        assert view.mean_hold(n2) == view.mean_hold(n3) == 6.5
+        assert view.mean_hold(w.seg("N0", "N1")) == 0.0  # no segment has an observation: 0.0, not the nodes' value
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        w.env.run(until=w.env.now + 3.0)
+        w.release("A", segment)
+        assert view.mean_hold(segment) == 3.0
+        assert view.mean_hold(w.seg("N2", "N3")) == 3.0
+        assert view.mean_hold(n2) == 6.5  # the kinds do not mix
+
+    def test_zones_and_corridors_are_kinds_of_their_own(self) -> None:
+        graph, nodes = two_junction_corridor()
+        w = world((graph, nodes), {"A": "a"}, place=False)
+        view = w.controller.view
+        corridor, a = w.corridor(), nodes["a"]
+        assert w.ask("A", (corridor, "forward")).granted
+        w.env.run(until=7.0)
+        w.release("A", corridor)
+        assert view.mean_hold(corridor) == 7.0
+        assert view.mean_hold(a) == 0.0
+        zone = Zone("Z", (nodes["x1"], nodes["y1"]), capacity=1)
+        z = world((graph, nodes), {"A": "a"}, place=False, zones=[zone])
+        assert z.ask("A", zone).granted
+        z.env.run(until=5.0)
+        z.release("A", zone)
+        assert z.controller.view.mean_hold(zone) == 5.0
+        assert z.controller.view.mean_hold(z.corridor()) == 0.0
+
+    def test_a_claim_in_a_new_direction_is_not_a_new_hold(self) -> None:
+        w = world(line(3), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
+        segment = w.seg("N0", "N1")
+        assert w.ask("A", (segment, "forward")).granted
+        w.env.run(until=5.0)
+        assert w.ask("A", (segment, "backward")).granted  # held the other way: claimed again
+        w.env.run(until=12.0)
+        w.release("A", segment)
+        assert w.controller.view.mean_hold(segment) == 12.0
+
+    def test_a_node_without_an_entity_is_still_observed(self) -> None:
+        w = world(line(2), {"A": "N0"}, place=False, bind=False, derive_corridors=False, hold_back_dead_ends=False)
+        n1 = w.nodes["N1"]
+        assert w.ask("A", n1).granted
+        w.env.run(until=8.0)
+        w.release("A", n1)
+        assert w.controller.view.mean_hold(n1) == 8.0
+
+    def test_values_do_not_depend_on_what_observes_the_run(self) -> None:
+        def run(subscribed: bool) -> list[float]:
+            env = Environment()
+            if subscribed:
+                env.bus.subscribe(lambda event: None, "*")
+            graph, nodes = line(3)
+            controller = ReservationController(env=env, graph=graph, derive_corridors=False, hold_back_dead_ends=False)
+            agv = AGV(env=env, agv_type=cart(), agv_id="A", initial_node=nodes["N0"])
+            controller.register_fleet(
+                SimpleNamespace(fleet=(agv,), parking_areas=(), charging_stations=(), graph=graph)
+            )  # type: ignore[arg-type]
+            env.activate()
+            seen = []
+            for node, duration in ((nodes["N1"], 10.0), (nodes["N2"], 4.0), (nodes["N1"], 20.0), (nodes["N1"], 30.0)):
+                controller.request(agv, Claim((ClaimItem(node),), 1), fake_hooks())
+                env.run(until=env.now + duration)
+                controller.release(agv, [node])
+                seen += [controller.view.mean_hold(n) for n in nodes.values()]
+            return seen
+
+        bare = run(subscribed=False)
+        assert run(subscribed=True) == bare
+        assert bare[-2:] == pytest.approx([12.9, 4.0], rel=1e-12)  # N1 after holds of 10, 20 and 30; N2 after one of 4
+
+
+class TestPendingIndex:
+    def test_the_count_equals_the_scan_through_requests_grants_releases_and_withdrawals(self) -> None:
+        """A randomized sequence over five AGVs and a line of five nodes: after every step ``pending`` is what the scan
+        of the queue says, for every node and segment."""
+        rng = random.Random(20261121)
+        names = ["A", "B", "C", "D", "E"]
+        w = world(line(5), dict.fromkeys(names, "N0"), place=False, derive_corridors=False, hold_back_dead_ends=False)
+        controller, view = w.controller, w.controller.view
+        nodes = list(w.nodes.values())
+        segments = [w.seg(f"N{i}", f"N{i + 1}") for i in range(4)]
+        resources: list[Any] = [*nodes, *segments]
+        requests: dict[str, ClaimRequest] = {}
+
+        def scan(resource: Any) -> int:
+            return sum(
+                1
+                for waiting in controller._queue
+                if any(
+                    item.resource == resource for item in controller.ledger.needed(waiting.agv, waiting.request.claim)
+                )
+            )
+
+        queued = 0
+        for _ in range(400):
+            name = rng.choice(names)
+            vehicle = w.agvs[name]
+            held = controller.ledger.held(vehicle)
+            action = rng.choice(["ask", "ask", "release", "withdraw"])
+            if action == "ask" and vehicle not in controller._pending:
+                items = tuple(
+                    ClaimItem(r, rng.choice(["forward", "backward"]) if isinstance(r, Segment) else None)
+                    for r in rng.sample(resources, rng.randint(1, 3))
+                )
+                requests[name] = controller.request(vehicle, Claim(items, 1), fake_hooks())
+            elif action == "release" and held:
+                controller.release(vehicle, rng.sample(held, rng.randint(1, len(held))))
+            elif action == "withdraw" and vehicle in controller._pending:
+                controller.withdraw(requests[name])
+            queued += bool(controller._queue)
+            for resource in resources:
+                assert view.pending(resource) == scan(resource), (name, action, resource)
+        assert queued > 50  # the sequence did queue claims
 
 
 def test_route_claims_end_to_end_on_a_line() -> None:

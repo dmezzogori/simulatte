@@ -145,6 +145,7 @@ class TrafficView(Protocol):
     def route_of(self, agv: AGV) -> tuple[Node, ...]: ...
     def waiting_on(self, agv: AGV) -> tuple[AGV, ...]: ...
     def admissible(self, agv: AGV, claim: Claim) -> bool: ...
+    def blockers(self, agv: AGV, u: Node, v: Node) -> tuple[tuple[Resource, tuple[AGV, ...]], ...]: ...
     def mean_hold(self, resource: Resource) -> float: ...
 
 
@@ -248,6 +249,9 @@ class _FreeFlowView:
 
     def admissible(self, agv: AGV, claim: Claim) -> bool:
         return True
+
+    def blockers(self, agv: AGV, u: Node, v: Node) -> tuple[tuple[Resource, tuple[AGV, ...]], ...]:
+        return ()
 
     def mean_hold(self, resource: Resource) -> float:
         return 0.0

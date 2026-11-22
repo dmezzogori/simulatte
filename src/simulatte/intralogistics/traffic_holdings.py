@@ -30,6 +30,11 @@ __all__ = ["HoldingsLedger"]
 
 _MISSING: Any = object()
 
+_HOLD_FACTOR = 0.1
+"""The weight of the latest hold in the exponential average of the hold durations of a resource."""
+
+_KINDS = (Node, Segment, Zone, Corridor)
+
 
 def no_length(agv_type: AGVType) -> str:
     """The message of the error raised for a vehicle type without a length."""
@@ -63,6 +68,9 @@ class HoldingsLedger:
         self._held: dict[AGV, dict[Resource, None]] = {}
         self._placed: dict[AGV, None] = {}
         self._exits: dict[AGV, dict[Container, Node]] = {}  # corridors left onto a port, kept until the port goes
+        self._since: dict[Resource, dict[AGV, float]] = {}  # when each holder's hold of a resource began
+        self._mean_hold: dict[Resource, float] = {}  # the average hold duration of each resource released so far
+        self._kind_mean: dict[type, float] = {}  # the average of those averages by kind, until the next release
 
     def build(self, network: TrafficNetwork) -> None:
         """Attach one ``segment`` entity per segment, then one ``zone`` entity per zone and corridor in id order."""
@@ -114,6 +122,21 @@ class HoldingsLedger:
     def placed(self) -> tuple[AGV, ...]:
         """The AGVs placed at activation, in placement order."""
         return tuple(self._placed)
+
+    def mean_hold(self, resource: Resource) -> float:
+        """The exponential average (factor 0.1) of the durations for which `resource` was held, one per release (a
+        segment or corridor claimed again in a new direction is the same hold); the first release sets it. A resource
+        never released reports the average of those of its kind (node, segment, zone or corridor) that were, and 0.0
+        when there are none. Kept whatever observes the run."""
+        known = self._mean_hold.get(resource)
+        if known is not None:
+            return known
+        kind = next(kind for kind in _KINDS if isinstance(resource, kind))
+        average = self._kind_mean.get(kind)
+        if average is None:
+            values = [value for other, value in self._mean_hold.items() if isinstance(other, kind)]
+            average = self._kind_mean[kind] = math.fsum(values) / len(values) if values else 0.0
+        return average
 
     def members(self, container: Container) -> tuple[Node | Segment, ...]:
         """The members of a zone or corridor: a zone's in authored order, a corridor's along the chain."""
@@ -259,11 +282,18 @@ class HoldingsLedger:
             binding.orientation = orientation
             build.set(binding.id, "orientation", orientation)
 
+    def _observe(self, resource: Resource, duration: float) -> None:
+        """Fold a hold of `duration` into the average of `resource`."""
+        mean = self._mean_hold.get(resource)
+        self._mean_hold[resource] = duration if mean is None else mean + _HOLD_FACTOR * (duration - mean)
+        self._kind_mean.clear()
+
     def take(self, agv: AGV, items: Sequence[ClaimItem]) -> None:
         """Record `items` as held by `agv` and emit one ``traffic.reserved``."""
         held = self._held.setdefault(agv, {})
         build = Deltas.build()
         ids: list[str] = []
+        now = float(self._env.now)
         for item in items:
             resource = item.resource
             holders = self._holders.setdefault(resource, {})
@@ -271,6 +301,8 @@ class HoldingsLedger:
             renewed = previous is not _MISSING
             holders[agv] = item.direction
             held[resource] = None
+            if not renewed:
+                self._since.setdefault(resource, {})[agv] = now
             if isinstance(resource, Node):
                 binding = self._env.entities.node_binding(resource)
                 if binding is None:
@@ -311,10 +343,12 @@ class HoldingsLedger:
         build = Deltas.build()
         ids: list[str] = []
         exits = self._exits.get(agv, {})
+        now = float(self._env.now)
         for resource in [resource for resource in held if resource in gone]:
             del held[resource]
             exits.pop(resource, None)
             direction = self._holders[resource].pop(agv)
+            self._observe(resource, now - self._since[resource].pop(agv))
             if isinstance(resource, Node):
                 binding = self._env.entities.node_binding(resource)
                 if binding is None:

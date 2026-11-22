@@ -4,7 +4,9 @@ import math
 import os
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -12,19 +14,19 @@ from typing import Any
 import pytest
 
 from simulatte.environment import Environment
-from simulatte.intralogistics import FastestRouter
-from simulatte.intralogistics.agv import AGVType
+from simulatte.intralogistics import CongestionAwareRouter, FastestRouter
+from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.events import AgvRouted, TrafficWaitEnded
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.kinematics import Kinematics
-from simulatte.intralogistics.network import Corridor, Segment, Zone
+from simulatte.intralogistics.network import Claim, ClaimItem, Corridor, Segment, Zone
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import Route, Router, RouteRequest, ShortestDistanceRouter, shortest_path
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeFlowController, Reroute, TrafficView
+from simulatte.intralogistics.traffic import Disposition, FreeFlowController, Reroute, TrafficView
 from simulatte.intralogistics.travel import TravelOutcome
-from tests.intralogistics.test_travel import Scripted, diamond, world
-from tests.intralogistics.traffic_support import build, line, two_junction_corridor
+from tests.intralogistics.test_travel import Scripted, World, diamond, vehicle, world
+from tests.intralogistics.traffic_support import StillFleet, build, fake_hooks, line, two_junction_corridor
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -250,6 +252,16 @@ def cart(profile: Any = None, **options: Any) -> AGVType:
     )
 
 
+@dataclass(eq=False)
+class Vehicle:
+    """The parts of an AGV that the routers read; hashable, as the view's ledger needs."""
+
+    id: str
+    agv_type: AGVType
+    battery: Any
+    heading: float | None
+
+
 def fastest(
     graph: LayoutGraph,
     origin: Node,
@@ -259,11 +271,12 @@ def fastest(
     level: float = 1.0,
     heading: float | None = None,
     view: TrafficView | None = None,
+    router: Router | None = None,
     **fields: Any,
 ) -> Route | None:
-    agv = SimpleNamespace(agv_type=agv_type or cart(), battery=SimpleNamespace(level_pct=level), heading=heading)
+    agv = Vehicle("V", agv_type or cart(), SimpleNamespace(level_pct=level), heading)
     request = RouteRequest(agv=agv, origin=origin, destination=destination, **fields)  # type: ignore[arg-type]
-    return FastestRouter().route(request, view or free_view(graph))
+    return (router or FastestRouter()).route(request, view or free_view(graph))
 
 
 def arms() -> tuple[LayoutGraph, dict[str, Node]]:
@@ -285,6 +298,23 @@ def corner(direct: float | None = None) -> tuple[LayoutGraph, dict[str, Node]]:
     a, b, c = nodes["A"], nodes["B"], nodes["C"]
     arcs = [Arc(a, b), Arc(b, c)] + ([] if direct is None else [Arc(a, c, length=direct)])
     return LayoutGraph(nodes.values(), arcs), nodes
+
+
+def octagon() -> tuple[LayoutGraph, tuple[Node, Node, Node]]:
+    """The graph of ``test_a_route_is_never_a_loop`` and its nodes ``A``, ``X`` and ``Y``: a ring of eight gentle turns
+    through ``A``, and ``X``, ``A``, ``Y`` at a sharp angle."""
+    a, x, y = Node("A", 0.0, 0.0), Node("X", -10.0, 0.0), Node("Y", -7.0, -7.0)
+    ring = [a]
+    for k, degrees in enumerate((-45, 0, 45, 90, 135, 180, 225), start=1):
+        ring.append(
+            Node(
+                f"V{k}",
+                ring[-1].x + 10 * math.cos(math.radians(degrees)),
+                ring[-1].y + 10 * math.sin(math.radians(degrees)),
+            )
+        )
+    arcs = [Arc(u, v) for u, v in zip(ring, [*ring[1:], a])] + [Arc(x, a), Arc(a, y)]
+    return LayoutGraph([a, x, y, *ring[1:]], arcs), (a, x, y)
 
 
 class TestFastestRouter:
@@ -466,18 +496,7 @@ class TestFastestRouter:
     def test_a_route_is_never_a_loop(self) -> None:
         """Eight gentle turns round an octagon through ``A`` cost less than the one sharp turn at ``A`` on the way from
         ``X`` to ``Y``: the search walks the octagon and the route is cut where it returns to ``A``."""
-        a, x, y = Node("A", 0.0, 0.0), Node("X", -10.0, 0.0), Node("Y", -7.0, -7.0)
-        ring = [a]
-        for k, degrees in enumerate((-45, 0, 45, 90, 135, 180, 225), start=1):
-            ring.append(
-                Node(
-                    f"V{k}",
-                    ring[-1].x + 10 * math.cos(math.radians(degrees)),
-                    ring[-1].y + 10 * math.sin(math.radians(degrees)),
-                )
-            )
-        arcs = [Arc(u, v) for u, v in zip(ring, [*ring[1:], a])] + [Arc(x, a), Arc(a, y)]
-        graph = LayoutGraph([a, x, y, *ring[1:]], arcs)
+        graph, (a, x, y) = octagon()
         sharp = Turns(lambda angle: 100.0 if angle > 1.0 else 0.0)
         route = fastest(graph, x, y, cart(Plain(), turn_time=sharp))
         assert route is not None
@@ -606,3 +625,364 @@ def test_executor_rejects_invalid_routes(name: str, ids: tuple[str, ...], proble
     w.go("A", "N2")
     with pytest.raises(ValueError, match=f"{name} returned an invalid route from N0 to N2: {problem}"):
         w.env.run()
+
+
+# --- CongestionAwareRouter ---------------------------------------------------------------------------------------
+
+
+class Crowd:
+    """The view of a graph with a scripted crowd: what ``blockers`` returns for a leg, the pending claims and the mean
+    hold of a resource, and which holders are stranded. It counts the reads of the congestion state."""
+
+    def __init__(
+        self,
+        graph: LayoutGraph,
+        blocked: dict[tuple[str, str], tuple[tuple[Node, tuple[Any, ...]], ...]] | None = None,
+        pending: dict[Node, int] | None = None,
+        holds: dict[Node, float] | None = None,
+        stranded: tuple[Any, ...] = (),
+    ) -> None:
+        self.free = free_view(graph)
+        self.blocked = blocked or {}
+        self.pending_claims = pending or {}
+        self.holds = holds or {}
+        self.stranded = stranded
+        self.blockers_reads: Counter[tuple[str, str]] = Counter()
+        self.pending_reads: Counter[Node] = Counter()
+        self.mean_hold_reads: Counter[Node] = Counter()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.free, name)
+
+    def blockers(self, agv: Any, u: Node, v: Node) -> tuple[tuple[Node, tuple[Any, ...]], ...]:
+        self.blockers_reads[(u.id, v.id)] += 1
+        return self.blocked.get((u.id, v.id), ())
+
+    def pending(self, resource: Node) -> int:
+        self.pending_reads[resource] += 1
+        return self.pending_claims.get(resource, 0)
+
+    def mean_hold(self, resource: Node) -> float:
+        self.mean_hold_reads[resource] += 1
+        return self.holds.get(resource, 0.0)
+
+    def disposition(self, agv: Any) -> Disposition:
+        return Disposition.STRANDED if agv in self.stranded else Disposition.MOVING
+
+
+def congested(
+    graph: LayoutGraph,
+    origin: Node,
+    destination: Node,
+    view: Any,
+    agv_type: AGVType | None = None,
+    *,
+    wait_weight: float = 1.0,
+    horizon: float = 60.0,
+    **fields: Any,
+) -> Route | None:
+    router = CongestionAwareRouter(wait_weight=wait_weight, horizon=horizon)
+    return fastest(graph, origin, destination, agv_type, view=view, router=router, **fields)
+
+
+def chain(*lengths: float) -> tuple[LayoutGraph, list[Node]]:
+    """Nodes ``C0, C1, ...`` joined in a row by arcs of the given lengths (at 1.5 m/s, 1.5 times a length)."""
+    nodes = [Node(f"C{i}", float(i), 0.0) for i in range(len(lengths) + 1)]
+    arcs = [Arc(u, v, length=length) for u, v, length in zip(nodes, nodes[1:], lengths)]
+    return LayoutGraph(nodes, arcs), nodes
+
+
+def two_arms(q_arm: float) -> tuple[LayoutGraph, dict[str, Node]]:
+    """``S`` to ``E`` through ``P`` (two 10 m arcs) or through ``Q`` (two arcs of `q_arm`), with ``K`` off ``S`` and an
+    isolated ``Z``."""
+    n = {name: Node(name, x, y) for name, x, y in [("S", 0, 0), ("P", 10, 0), ("Q", 10, 10), ("E", 20, 0)]}
+    n |= {"K": Node("K", -10, 0), "Z": Node("Z", 50, 50)}
+    arcs = [Arc(n["S"], n["P"]), Arc(n["P"], n["E"]), Arc(n["S"], n["K"])]
+    arcs += [Arc(n["S"], n["Q"], length=q_arm), Arc(n["Q"], n["E"], length=q_arm)]
+    return LayoutGraph(n.values(), arcs), n
+
+
+def occupied_arm(q_arm: float, state: AGVState) -> tuple[World, Route | None]:
+    """``V`` at ``S`` asks for a route to ``E`` while ``B`` is in `state` on ``P``, where a hold of 40 s was seen."""
+    w = world(two_arms(q_arm), {"V": "S", "T": "K", "B": "Z"}, derive_corridors=False, hold_back_dead_ends=False)
+    p = w.nodes["P"]
+    w.controller.request(w.agvs["T"], Claim((ClaimItem(p),), 1), fake_hooks())
+    w.env.run(until=40.0)
+    w.controller.release(w.agvs["T"], [p])  # P was held for 40 s
+    assert w.controller.request(w.agvs["B"], Claim((ClaimItem(p),), 1), fake_hooks()).granted
+    w.agvs["B"]._state = state
+    request = RouteRequest(w.agvs["V"], w.nodes["S"], w.nodes["E"])
+    return w, CongestionAwareRouter().route(request, w.controller.view)
+
+
+H1, H2 = SimpleNamespace(id="H1"), SimpleNamespace(id="H2")
+
+
+class TestCongestionAwareRouter:
+    def test_router_protocol_export_and_defaults(self) -> None:
+        router = CongestionAwareRouter()
+        assert isinstance(router, Router)
+        assert isinstance(router.base, FastestRouter)
+        assert (router.wait_weight, router.horizon) == (1.0, 60.0)
+        base = ShortestDistanceRouter("astar")
+        assert CongestionAwareRouter(base, wait_weight=0.5, horizon=10.0).base is base
+
+    def test_arguments_are_validated(self) -> None:
+        for horizon in (0.0, -1.0, math.nan):
+            with pytest.raises(ValueError, match="horizon must be positive"):
+                CongestionAwareRouter(horizon=horizon)
+        for wait_weight in (-0.1, math.nan, math.inf):
+            with pytest.raises(ValueError, match="wait_weight must be finite and >= 0"):
+                CongestionAwareRouter(wait_weight=wait_weight)
+        assert CongestionAwareRouter(horizon=math.inf).horizon == math.inf
+        with pytest.raises(TypeError, match="base must be .*FastestRouter.*Scripted"):
+            CongestionAwareRouter(Scripted())  # type: ignore[arg-type]
+
+    def test_a_blocked_leg_costs_its_penalty_on_top_of_the_base_cost(self) -> None:
+        graph, nodes = chain(10.0, 10.0)
+        crowd = Crowd(graph, {("C0", "C1"): ((nodes[1], (H1,)),)}, {nodes[1]: 2}, {nodes[1]: 5.0})
+        base = fastest(graph, nodes[0], nodes[2])
+        route = congested(graph, nodes[0], nodes[2], crowd, wait_weight=2.0)
+        assert base is not None and route is not None
+        assert route.nodes == base.nodes
+        assert route.cost == pytest.approx(base.cost + 2.0 * (1 + 2) * 5.0, rel=1e-12)  # (holders + pending) * hold
+
+    def test_the_penalty_of_a_leg_falls_with_the_cost_at_which_it_is_reached(self) -> None:
+        """A leg expanded at ``t = horizon`` costs ``1 / e`` of what it costs at ``t = 0``."""
+        graph, nodes = chain(90.0, 10.0)  # 60 s to the second node at 1.5 m/s
+        base = fastest(graph, nodes[0], nodes[2])
+        assert base is not None
+        penalties = []
+        for blocked in (("C0", "C1"), ("C1", "C2")):
+            crowd = Crowd(graph, {blocked: ((nodes[1], (H1,)),)}, holds={nodes[1]: 7.0})
+            route = congested(graph, nodes[0], nodes[2], crowd, horizon=60.0)
+            assert route is not None
+            penalties.append(route.cost - base.cost)
+        assert penalties[0] == pytest.approx(7.0, rel=1e-12)
+        assert penalties[1] == pytest.approx(7.0 / math.e, rel=1e-12)
+        assert penalties[1] == pytest.approx(penalties[0] / math.e, rel=1e-12)
+
+    def test_the_largest_penalty_of_the_resources_of_the_leg_applies(self) -> None:
+        graph, nodes = chain(10.0, 10.0, 10.0)
+        pair = ((nodes[1], (H1,)), (nodes[2], (H1, H2)), (nodes[3], (H2,)))
+        crowd = Crowd(
+            graph,
+            {("C0", "C1"): pair},
+            {nodes[1]: 0, nodes[2]: 1, nodes[3]: 0},
+            {nodes[1]: 10.0, nodes[2]: 4.0, nodes[3]: 8.0},
+        )
+        base = fastest(graph, nodes[0], nodes[3])
+        route = congested(graph, nodes[0], nodes[3], crowd)
+        assert base is not None and route is not None
+        assert route.cost == pytest.approx(base.cost + 12.0, rel=1e-12)  # 1 * 10, (2 + 1) * 4, 1 * 8: the 12
+
+    def test_a_penalty_makes_the_search_take_the_slower_arm(self) -> None:
+        graph, n = arms()  # the fastest arm is S, Q, E (20 s); S, P, E takes 40 s
+        legs = {("S", "Q"): ((n["Q"], (H1,)),)}
+        for hold, arm, cost in ((30.0, "Q", 20.0 + 15.0), (50.0, "P", 40.0)):  # half the hold: 15 s or 25 s on Q's 20 s
+            route = congested(graph, n["S"], n["E"], Crowd(graph, legs, holds={n["Q"]: hold}), wait_weight=0.5)
+            assert route is not None and route.nodes[1] is n[arm]
+            assert route.cost == pytest.approx(cost, rel=1e-12)
+
+    def test_a_leg_held_to_capacity_by_stranded_agvs_is_excluded(self) -> None:
+        graph, n = arms()
+        legs = {("S", "Q"): ((n["Q"], (H1,)),)}
+        crowd = Crowd(graph, legs, stranded=(H1,))
+        route = congested(graph, n["S"], n["E"], crowd)
+        assert route is not None and route.nodes[1] is n["P"] and route.cost == 40.0  # the base cost of that arm
+        only = Crowd(graph, {**legs, ("S", "P"): ((n["P"], (H2,)),)}, stranded=(H1, H2))
+        assert congested(graph, n["S"], n["E"], only) is None
+
+    def test_a_resource_with_a_blocking_holder_that_is_not_stranded_is_penalised_only(self) -> None:
+        graph, n = arms()
+        legs = {("S", "Q"): ((n["Q"], (H1, H2)),)}
+        crowd = Crowd(graph, legs, holds={n["Q"]: 1.0}, stranded=(H1,))
+        route = congested(graph, n["S"], n["E"], crowd)
+        assert route is not None and route.nodes[1] is n["Q"] and route.cost == pytest.approx(20.0 + 2.0, rel=1e-12)
+
+    def test_a_stranded_leg_is_excluded_by_the_turning_search_too(self) -> None:
+        graph, n = corner(direct=26.0)
+        turns = cart(turn_time=lambda angle: 4.0)
+        stranded = Crowd(graph, {("A", "C"): ((n["C"], (H1,)),)}, stranded=(H1,))
+        route = congested(graph, n["A"], n["C"], stranded, agv_type=turns)
+        assert route is not None and route.nodes == (n["A"], n["B"], n["C"])
+        only, ids = corner()
+        cut = Crowd(only, {("B", "C"): ((ids["C"], (H1,)),)}, stranded=(H1,))
+        assert congested(only, ids["A"], ids["C"], cut, agv_type=turns) is None
+
+    def test_the_turning_search_adds_the_penalty_to_the_cost(self) -> None:
+        graph, n = corner(direct=26.0)
+        turns = cart(turn_time=lambda angle: 4.0)  # the corner: 19.2 s; the direct arc: 26 / 1.5 = 17.3 s
+        around = fastest(*corner()[:1], n["A"], n["C"], turns)
+        assert around is not None and around.nodes == (n["A"], n["B"], n["C"])
+        crowd = Crowd(graph, {("A", "C"): ((n["C"], (H1,)),)}, holds={n["C"]: 1.5})
+        route = congested(graph, n["A"], n["C"], crowd, agv_type=turns)
+        assert route is not None and route.nodes == (n["A"], n["C"])
+        assert route.cost == pytest.approx(26.0 / 1.5 + 1.5, rel=1e-12)  # 18.8 s, still below the corner
+        crowd = Crowd(graph, {("A", "C"): ((n["C"], (H1,)),)}, holds={n["C"]: 4.0})
+        assert congested(graph, n["A"], n["C"], crowd, agv_type=turns) == around  # 21.3 s: the corner, unpenalised
+
+    def test_a_route_cut_to_a_simple_path_keeps_the_penalties_of_its_legs(self) -> None:
+        graph, (a, x, y) = octagon()
+        turns = cart(Plain(), turn_time=lambda angle: 100.0 if angle > 1.0 else 0.0)
+        base = fastest(graph, x, y, turns)
+        crowd = Crowd(graph, {("X", "A"): ((a, (H1,)),)}, holds={a: 3.0})
+        route = congested(graph, x, y, crowd, agv_type=turns)
+        assert base is not None and route is not None
+        assert route.nodes == base.nodes == (x, a, y)
+        assert route.cost == pytest.approx(base.cost + 3.0, rel=1e-12)
+
+    def test_the_congestion_state_is_read_once_per_leg(self) -> None:
+        """On a lattice full of equal paths, with a turning model that visits every leg from several states."""
+        nodes = {f"{i}{j}": Node(f"{i}{j}", 10.0 * i, 10.0 * j) for i in range(4) for j in range(4)}
+        arcs = [Arc(nodes[f"{i}{j}"], nodes[f"{i + 1}{j}"]) for i in range(3) for j in range(4)]
+        arcs += [Arc(nodes[f"{i}{j}"], nodes[f"{i}{j + 1}"]) for i in range(4) for j in range(3)]
+        graph = LayoutGraph(nodes.values(), arcs)
+        blocked = {(u.id, v.id): ((v, (H1,)),) for u, v in [(nodes["00"], nodes["10"]), (nodes["01"], nodes["02"])]} | {
+            ("11", "12"): ((nodes["12"], (H1, H2)), (nodes["11"], (H2,)))
+        }
+        crowd = Crowd(graph, blocked, {nodes["12"]: 1}, {nodes["10"]: 3.0, nodes["02"]: 2.0, nodes["12"]: 1.0})
+        turns = cart(Plain(), turn_time=lambda angle: 1.0 if angle > 0.1 else 0.0)
+        route = congested(graph, nodes["00"], nodes["33"], crowd, agv_type=turns)
+        assert route is not None
+        assert set(crowd.blockers_reads.values()) == {1}  # every leg once, though it is expanded from several states
+        assert sum(crowd.blockers_reads.values()) > len(blocked)  # and legs that are free were asked too
+        pairs = sum(len(blocked[leg]) for leg in crowd.blockers_reads if leg in blocked)
+        assert pairs >= 3  # the blocked legs were expanded
+        assert sum(crowd.pending_reads.values()) == sum(crowd.mean_hold_reads.values()) == pairs
+
+    def test_no_penalty_without_an_agv_or_with_a_zero_weight(self) -> None:
+        graph, n = arms()
+        legs = {("S", "Q"): ((n["Q"], (H1,)),), ("Q", "E"): ((n["E"], (H2,)),)}
+        crowd = Crowd(graph, legs, holds={n["Q"]: 100.0, n["E"]: 100.0}, stranded=(H1,))
+        base = fastest(graph, n["S"], n["E"])
+        assert base is not None and base.nodes[1] is n["Q"]
+        assert congested(graph, n["S"], n["E"], crowd, wait_weight=0.0) == base  # not even the stranded exclusion
+        request = RouteRequest(None, n["S"], n["E"])
+        assert CongestionAwareRouter().route(request, crowd) == FastestRouter().route(request, crowd)  # type: ignore[arg-type]
+        assert not crowd.blockers_reads
+
+    @pytest.mark.parametrize(
+        "base",
+        [FastestRouter(), ShortestDistanceRouter(), ShortestDistanceRouter("astar")],
+        ids=["fastest", "dijkstra", "astar"],
+    )
+    @pytest.mark.parametrize("turning", [False, True])
+    def test_congestion_router_equals_base_without_traffic(self, base: Router, turning: bool) -> None:
+        """Whatever the view reports, as long as nothing is inadmissible the route and its cost are the base's."""
+        nodes, graph = grid()
+        agv_type = cart(turn_time=lambda angle: 2.0 if angle > 0.1 else 0.0) if turning else cart()
+        views = [free_view(graph), reservation_view(graph), Crowd(graph)]
+        for view in views:
+            plain = fastest(graph, nodes["A"], nodes["D"], agv_type, view=view, router=base)
+            wrapped = fastest(graph, nodes["A"], nodes["D"], agv_type, view=view, router=CongestionAwareRouter(base))
+            assert plain is not None and wrapped == plain
+        octa, (a, x, y) = octagon()
+        sharp = cart(Plain(), turn_time=lambda angle: 100.0 if angle > 1.0 else 0.0)
+        assert fastest(octa, x, y, sharp, router=CongestionAwareRouter(base)) == fastest(octa, x, y, sharp, router=base)
+        assert a in fastest(octa, x, y, sharp, router=base).nodes  # type: ignore[union-attr]
+
+    @pytest.mark.parametrize("algorithm", ALGORITHMS)
+    def test_a_shortest_distance_base_costs_lengths_and_penalties(self, algorithm: str) -> None:
+        graph, n = arms()
+        crowd = Crowd(graph, {("S", "P"): ((n["P"], (H1,)),)}, holds={n["P"]: 3.0})
+        router = CongestionAwareRouter(ShortestDistanceRouter(algorithm), horizon=1000.0)
+        route = fastest(graph, n["S"], n["E"], view=crowd, router=router)
+        assert route is not None and route.nodes == (n["S"], n["P"], n["E"])
+        assert route.cost == pytest.approx(20.0 + 3.0, rel=1e-12)
+        heavy = Crowd(graph, {("S", "P"): ((n["P"], (H1,)),)}, holds={n["P"]: 30.0})
+        route = fastest(graph, n["S"], n["E"], view=heavy, router=router)
+        assert route is not None and route.nodes == (n["S"], n["Q"], n["E"])
+        assert route.cost == graph.path_length(route.nodes)
+
+    def test_avoid_still_excludes_legs(self) -> None:
+        graph, n = arms()
+        route = congested(graph, n["S"], n["E"], Crowd(graph), avoid=frozenset({n["Q"]}))
+        assert route is not None and route.nodes[1] is n["P"]
+
+    def test_the_arm_with_a_serving_agv_is_taken_only_when_the_other_costs_more_than_the_wait(self) -> None:
+        """``P`` was held 40 s and a serving AGV holds it: the leg into ``P`` costs 40 at ``t = 0``."""
+        w, route = occupied_arm(15.0, AGVState.WAITING_LOAD)  # the other arm takes 6.7 s longer
+        nodes = w.nodes
+        assert route is not None and route.nodes == (nodes["S"], nodes["Q"], nodes["E"])
+        assert route.cost == pytest.approx(2 * 15.0 / 1.5, rel=1e-12)
+        w, route = occupied_arm(50.0, AGVState.WAITING_LOAD)  # the other arm takes 53.3 s longer
+        assert route is not None and route.nodes == (nodes["S"], nodes["P"], nodes["E"])
+        assert route.cost == pytest.approx(2 * 10.0 / 1.5 + 40.0, rel=1e-12)
+        assert w.controller.view.mean_hold(w.nodes["P"]) == 40.0
+
+    def test_a_node_filled_by_a_stranded_agv_is_avoided_and_may_be_the_only_way(self) -> None:
+        w, route = occupied_arm(50.0, AGVState.STRANDED)
+        assert route is not None and route.nodes == (w.nodes["S"], w.nodes["Q"], w.nodes["E"])
+        assert route.cost == pytest.approx(2 * 50.0 / 1.5, rel=1e-12)
+        w = world(line(3), {"V": "N0", "B": "N1"}, derive_corridors=False, hold_back_dead_ends=False)
+        request = RouteRequest(w.agvs["V"], w.nodes["N0"], w.nodes["N2"])
+        assert CongestionAwareRouter().route(request, w.controller.view) is not None  # B is not stranded
+        w.agvs["B"]._state = AGVState.STRANDED
+        assert CongestionAwareRouter().route(request, w.controller.view) is None
+        assert FastestRouter().route(request, w.controller.view) is not None
+
+
+def congested_run(*, probe: bool = False, router: Router | None = None) -> str:
+    """The digest of a small run in which the congestion router meets traffic: three AGVs on the two-arm world."""
+    graph, nodes = two_arms(15.0)
+    env = Environment(debug=True)
+    env.enable_digest()
+    controller = ReservationController(env=env, graph=graph, derive_corridors=False, hold_back_dead_ends=False)
+    vehicles = {
+        name: AGV(env=env, agv_type=vehicle(), agv_id=name, initial_node=nodes[start])
+        for name, start in {"A": "S", "B": "K", "C": "Q"}.items()
+    }
+    fleet = StillFleet(
+        env=env,
+        graph=graph,
+        fleet=list(vehicles.values()),
+        warehouses=[],
+        charging_stations=[],
+        traffic_controller=controller,
+        router=router or CongestionAwareRouter(),
+        default_metrics=False,
+    )
+    env.activate()
+    if probe:
+        view = controller.view
+
+        def read(event: Any) -> None:
+            for u in graph.nodes:
+                for v in graph.neighbors(u):
+                    for resource, holders in view.blockers(vehicles["A"], u, v):
+                        view.pending(resource), view.mean_hold(resource), [view.disposition(h) for h in holders]
+
+        env.bus.subscribe(read, "*")
+    w = World(env, fleet, nodes, vehicles, None, 0)  # type: ignore[arg-type]
+    w.go("A", "E")
+    w.go("B", "P", at=20.0)
+    w.go("C", "K", at=20.0)
+    env.run()
+    assert set(w.outcomes) == {"A", "B", "C"}
+    digest = env.fingerprint().digest
+    assert digest is not None
+    return digest
+
+
+def test_a_run_with_the_congestion_router_has_the_same_digest_across_hash_seeds() -> None:
+    expected = congested_run()
+    script = "from tests.intralogistics.test_routing import congested_run;print('DIGEST', congested_run())"
+    for hash_seed in ("0", "1", "123"):
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            env={**os.environ, "PYTHONHASHSEED": hash_seed},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stdout.splitlines()[-1] == f"DIGEST {expected}", hash_seed
+
+
+@pytest.mark.parametrize("router", [ShortestDistanceRouter(), FastestRouter()], ids=["shortest", "fastest"])
+def test_reading_the_traffic_view_changes_no_result(router: Router) -> None:
+    """``mean_hold`` and the other reads of the view are bookkeeping only: a run in which every event is followed by
+    reads of the whole view has the digest of a run that never reads it."""
+    assert congested_run(probe=True, router=router) == congested_run(router=router)

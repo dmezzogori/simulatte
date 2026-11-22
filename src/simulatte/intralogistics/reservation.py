@@ -141,6 +141,7 @@ class ReservationController:
         self._pending: dict[AGV, _Pending] = {}
         self._counter = 0
         self._changes = 0  # grants and releases so far: a review is due again only after one (T23)
+        self._revision = 0  # changes of the queue and of the holdings: the view's count of pending claims lives by it
         self._unresolved: list[tuple[str, ...]] = []  # deadlocked sets reported unresolved that still stand
         self.view = ReservationView(self)
         env.on_activate(self._finalize)
@@ -255,6 +256,7 @@ class ReservationController:
             return request
         waiting = _Pending(request, (-self._priority_fn(agv), self._counter))
         self._counter += 1
+        self._revision += 1
         insort(self._queue, waiting, key=lambda claim: claim.key)
         self._pending[agv] = waiting
         self._scan()
@@ -335,8 +337,7 @@ class ReservationController:
         waiting = self._pending.get(request.agv)
         if waiting is None or waiting.request is not request:
             return
-        self._queue.remove(waiting)
-        del self._pending[request.agv]
+        self._dequeue(waiting)
         self._end_wait(waiting, "interrupted")
         self._scan()
 
@@ -428,8 +429,7 @@ class ReservationController:
                 if any(self.ledger.blockers(agv, item) for item in items) or self._gated(agv, items, earlier):
                     earlier.append(waiting)
                     continue
-                self._queue.remove(waiting)
-                del self._pending[agv]
+                self._dequeue(waiting)
                 self._end_wait(waiting, "granted")
                 self._take(agv, items)
                 waiting.request.event.succeed(Granted())
@@ -510,8 +510,7 @@ class ReservationController:
             action, reason, outcome = "step_aside", "stepped_aside", SteppedAside()
         if not staged:
             return None
-        self._queue.remove(waiting)
-        del self._pending[waiting.agv]
+        self._dequeue(waiting)
         self._end_wait(waiting, reason)
         waiting.request.event.succeed(outcome)
         return action
@@ -707,9 +706,16 @@ class ReservationController:
 
     # Holdings
 
+    def _dequeue(self, waiting: _Pending) -> None:
+        """Take the pending claim `waiting` out of the queue."""
+        self._revision += 1
+        self._queue.remove(waiting)
+        del self._pending[waiting.agv]
+
     def _take(self, agv: AGV, items: Sequence[ClaimItem]) -> None:
         """Record `items` as held by `agv` (one ``traffic.reserved``)."""
         self._changes += 1
+        self._revision += 1
         self.ledger.take(agv, items)
 
     def _drop(self, agv: AGV, gone: Collection[Resource]) -> None:
@@ -717,5 +723,6 @@ class ReservationController:
         if not gone:
             return
         self._changes += 1
+        self._revision += 1
         self.ledger.drop(agv, gone)
         self._scan()

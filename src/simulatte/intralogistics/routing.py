@@ -1,4 +1,4 @@
-"""Routing: the router protocol (spec §10.1) and the shortest-distance and fastest routers (§10.2)."""
+"""Routing: the router protocol (spec §10.1) and the shortest-distance, fastest and congestion-aware routers (§10.2)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from simulatte.intralogistics.speed import KinematicProfile
+from simulatte.intralogistics.traffic import Disposition
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -86,13 +87,16 @@ def shortest_path(
     allowed: Callable[[Node, Node], bool] | None = None,
     heuristic: bool = False,
     weight: Callable[[Node, Node], float] | None = None,
+    penalty: Callable[[Node, Node, float], float] | None = None,
 ) -> tuple[tuple[Node, ...], float] | None:
     """The path of least summed arc length, or ``None``; ties break by node id.
 
     ``allowed(u, v)`` returning false excludes the leg from ``u`` to ``v``. With ``heuristic`` the search is A* with
     the chord distance to the destination, which never overestimates because an arc is never shorter than its chord.
     ``weight(u, v)``, non-negative, replaces the arc length as the cost of a leg; it is not meant for ``heuristic``,
-    whose estimate is a length.
+    whose estimate is a length. ``penalty(u, v, t)``, non-negative, is added to the cost of the leg from ``u`` to ``v``
+    when it is expanded at the accumulated cost ``t``; infinite excludes the leg. A penalty makes the answer a
+    heuristic: a leg costs differently at different ``t``, which a shortest-path search does not account for.
     """
     if origin == destination:
         return (origin,), 0.0
@@ -116,7 +120,10 @@ def shortest_path(
         for neighbor in graph.neighbors(node):
             if allowed is not None and not allowed(node, neighbor):
                 continue
-            new_cost = cost + (graph.length(node, neighbor) if weight is None else weight(node, neighbor))
+            extra = 0.0 if penalty is None else penalty(node, neighbor, cost)
+            if extra == math.inf:
+                continue
+            new_cost = cost + (graph.length(node, neighbor) if weight is None else weight(node, neighbor)) + extra
             if new_cost < best.get(neighbor, math.inf):
                 best[neighbor] = new_cost
                 previous[neighbor] = node
@@ -134,17 +141,33 @@ class ShortestDistanceRouter:
         self.algorithm = algorithm
 
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        return self._route(request, view, None)
+
+    def _route(
+        self, request: RouteRequest, view: TrafficView, penalty: Callable[[Node, Node, float], float] | None
+    ) -> Route | None:
+        """The route with `penalty` added to the cost of each leg (see :func:`shortest_path`), for
+        :class:`CongestionAwareRouter`; its cost is the path length plus the penalties of its legs."""
+        graph = view.graph
         found = shortest_path(
-            view.graph,
+            graph,
             request.origin,
             request.destination,
             allowed=_leg_filter(request.avoid, view),
             heuristic=self.algorithm == "astar",
+            penalty=penalty,
         )
         if found is None:
             return None
         path = found[0]
-        return Route(path, view.graph.path_length(path))  # an fsum, as every other user of route cost computes it
+        cost = graph.path_length(path)  # an fsum, as every other user of route cost computes it
+        if penalty is not None:
+            extras, reached = [], 0.0
+            for u, v in zip(path, path[1:]):
+                extras.append(extra := penalty(u, v, reached))
+                reached = reached + graph.length(u, v) + extra  # as the search accumulated it
+            cost += math.fsum(extras)
+        return Route(path, cost)
 
 
 def _leg_filter(avoid: frozenset[Resource], view: TrafficView) -> Callable[[Node, Node], bool] | None:
@@ -244,11 +267,20 @@ class _Timing:
             angle = heading_change(heading, direction)
         return self.turn(angle, cap_in, cap) + time, direction, cap
 
-    def path_cost(self, nodes: Sequence[Node], heading: float | None) -> float:
+    def path_cost(
+        self,
+        nodes: Sequence[Node],
+        heading: float | None,
+        penalty: Callable[[Node, Node, float], float] | None = None,
+    ) -> float:
+        """The cost of the walk `nodes`, as the search accumulates it: each leg's time, then its `penalty`."""
         cost, cap_in = 0.0, None
         for u, v in zip(nodes, nodes[1:]):
+            before = cost
             time, heading, cap_in = self.step(u, v, heading, cap_in)
             cost += time
+            if penalty is not None:
+                cost += penalty(u, v, before)
         return cost
 
     def search(
@@ -258,9 +290,11 @@ class _Timing:
         destination: Node,
         heading: float | None,
         allowed: Callable[[Node, Node], bool] | None,
+        penalty: Callable[[Node, Node, float], float] | None = None,
     ) -> tuple[tuple[Node, ...], float] | None:
         """Dijkstra over the states (node, node the entering arc came from), for a turn costs by the arc that enters the
-        node. Ties break by cost, then node id, then the id of the node the entering arc came from."""
+        node. Ties break by cost, then node id, then the id of the node the entering arc came from. `penalty` is as for
+        :func:`shortest_path`; an excluded leg is not costed at all."""
         start: _State = (origin, None)
         best: dict[_State, float] = {start: 0.0}
         previous: dict[_State, _State] = {}
@@ -276,7 +310,7 @@ class _Timing:
                 nodes = tuple(reversed(path))
                 if len(set(nodes)) != len(nodes):  # a perverse turn time made a loop pay: cut it, as a route is simple
                     nodes = _without_loops(nodes)
-                    cost = self.path_cost(nodes, heading)
+                    cost = self.path_cost(nodes, heading, penalty)
                 return nodes, cost
             if cost > best[state]:
                 continue
@@ -287,8 +321,11 @@ class _Timing:
             for neighbor in graph.neighbors(node):
                 if neighbor == before or (allowed is not None and not allowed(node, neighbor)):
                     continue  # no simple route goes back to the node it came from
+                extra = 0.0 if penalty is None else penalty(node, neighbor, cost)
+                if extra == math.inf:
+                    continue
                 time, _, _ = self.step(node, neighbor, entering, cap_in)
-                new_cost = cost + time
+                new_cost = cost + time + extra
                 key: _State = (neighbor, node)
                 if new_cost < best.get(key, math.inf):
                     best[key] = new_cost
@@ -360,6 +397,13 @@ class FastestRouter:
     """
 
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        return self._route(request, view, None)
+
+    def _route(
+        self, request: RouteRequest, view: TrafficView, penalty: Callable[[Node, Node, float], float] | None
+    ) -> Route | None:
+        """The route with `penalty` added to the cost of each leg (see :func:`shortest_path`), for
+        :class:`CongestionAwareRouter`; its cost is the time plus the penalties of its legs."""
         agv, origin, destination = request.agv, request.origin, request.destination
         if agv is None or origin == destination:
             return _BY_LENGTH.route(request, view)
@@ -368,12 +412,93 @@ class FastestRouter:
             return None
         allowed = _leg_filter(request.avoid, view)
         if timing.turning:
-            found = timing.search(view.graph, origin, destination, agv.heading, allowed)
+            found = timing.search(view.graph, origin, destination, agv.heading, allowed, penalty)
         else:
             found = shortest_path(
-                view.graph, origin, destination, allowed=allowed, weight=lambda u, v: timing.leg(u, v)[0]
+                view.graph,
+                origin,
+                destination,
+                allowed=allowed,
+                weight=lambda u, v: timing.leg(u, v)[0],
+                penalty=penalty,
             )
         return None if found is None else Route(*found)
 
 
 _BY_LENGTH = ShortestDistanceRouter()
+
+
+class _Congestion:
+    """The penalty of the legs for one request of :class:`CongestionAwareRouter`:
+    ``wait_weight * w * exp(-t / horizon)``, with `w` of a leg read from the view once, however many times the search
+    expands it, and infinite where the leg is excluded."""
+
+    def __init__(self, agv: AGV, view: TrafficView, wait_weight: float, horizon: float) -> None:
+        self.agv = agv
+        self.view = view
+        self.wait_weight = wait_weight
+        self.horizon = horizon
+        self._weights: dict[tuple[Node, Node], float] = {}
+
+    def weight(self, u: Node, v: Node) -> float:
+        """The largest, over the resources of the leg from `u` to `v` that are inadmissible for the AGV now, of
+        ``(blocking holders + pending claims) * mean_hold``; 0.0 when there are none, infinity when every blocking
+        holder of one of them is stranded."""
+        weight = self._weights.get((u, v))
+        if weight is None:
+            view = self.view
+            weight = 0.0
+            for resource, holders in view.blockers(self.agv, u, v):
+                if all(view.disposition(holder) is Disposition.STRANDED for holder in holders):
+                    weight = math.inf
+                    break
+                weight = max(weight, (len(holders) + view.pending(resource)) * view.mean_hold(resource))
+            self._weights[(u, v)] = weight
+        return weight
+
+    def __call__(self, u: Node, v: Node, reached: float) -> float:
+        weight = self.weight(u, v)
+        return weight if weight == math.inf else self.wait_weight * weight * math.exp(-reached / self.horizon)
+
+
+class CongestionAwareRouter:
+    """A heuristic that steers a route away from legs that are busy now (spec §10.2); it does not claim an optimum.
+
+    The cost is that of `base` (:class:`FastestRouter`, the default, or :class:`ShortestDistanceRouter`; any other base
+    raises ``TypeError``) plus, for each leg, ``wait_weight * w * exp(-t / horizon)``. `t` is the cost accumulated when
+    the search expands the leg, in the unit of `base`, so a leg far ahead counts less: it will have changed by the time
+    the AGV gets there. `w` is the largest, over the resources of the leg that the holders make inadmissible for the
+    requesting AGV now (``view.blockers``, which ignores the queue and the gate), of ``(blocking holders + pending
+    claims) * mean_hold``. A leg with such a resource whose blocking holders are all stranded is excluded: no wait for
+    it ends. ``Route.cost`` includes the penalties.
+
+    The penalty depends on the cost at which a leg is reached, which a shortest-path search does not model, and `w` is
+    a snapshot of the traffic now: the route is a good one, not the best one. Without an AGV in the request no penalty
+    applies, and with ``wait_weight`` 0 the result is the base router's (a leg held by stranded AGVs is then not
+    excluded). Where no penalty applies the route and its cost equal the base router's exactly.
+    """
+
+    def __init__(
+        self,
+        base: ShortestDistanceRouter | FastestRouter | None = None,
+        *,
+        wait_weight: float = 1.0,
+        horizon: float = 60.0,
+    ) -> None:
+        if base is None:
+            base = FastestRouter()
+        if type(base) not in (ShortestDistanceRouter, FastestRouter):
+            raise TypeError(f"base must be a ShortestDistanceRouter or a FastestRouter, not {type(base).__name__}")
+        if not (math.isfinite(wait_weight) and wait_weight >= 0):
+            raise ValueError(f"wait_weight must be finite and >= 0, not {wait_weight!r}")
+        if not horizon > 0:
+            raise ValueError(f"horizon must be positive, not {horizon!r}")
+        self.base = base
+        self.wait_weight = wait_weight
+        self.horizon = horizon
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        agv = request.agv
+        if agv is None or self.wait_weight == 0.0:
+            return self.base.route(request, view)
+        return self.base._route(request, view, _Congestion(agv, view, self.wait_weight, self.horizon))
