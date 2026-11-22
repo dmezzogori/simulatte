@@ -380,7 +380,8 @@ def test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node(re
     arrives at N1 critical, passes it at speed and rests at N2, a braking distance on, where the travel returns
     (spec §8.3), under both controllers."""
     kind = weak(lambda distance, load, speed: distance * (1.0 if speed >= 1.4 else 5.0), threshold=0.96)
-    w = world(line(6), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    # Under reservation the claims reach N4, where the estimate turns critical: only a stop request ends the plan at N2.
+    w = world(line(6), {"A": "N0"}, reserve=reserve, agv_type=kind, lookahead_margin=25.0)
     w.go("A", "N5")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
@@ -393,6 +394,8 @@ def test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node(re
     assert not w.of(AgvMoveInterrupted)
     if reserve:
         assert w.held("A") == ["N2"] and not w.controller._pending
+        assert {r for e in w.of(TrafficReserved) for r in e.resources} >= {"N4"}  # claims reached past the stop node
+        assert not [e for e in w.of(TrafficReserved) if e.t > ended["N1"].t]  # none asked for after the stop request
 
 
 @pytest.mark.parametrize("reserve", [False, True])
@@ -404,7 +407,7 @@ def test_a_battery_stop_and_an_interrupt_share_the_first_stop_node(
     before (3.0, on the first arc) or after (10.0, on the second) that finds the stop already fixed at N2: the first
     request keeps its node, and at rest the interrupt, not the retry, reaches the mission."""
     kind = weak(lambda distance, load, speed: distance * (1.0 if speed >= 1.4 else 5.0), threshold=0.96)
-    w = world(line(6), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    w = world(line(6), {"A": "N0"}, reserve=reserve, agv_type=kind, lookahead_margin=25.0)
     process = w.go("A", "N5")
     w.interrupt(process, interrupt_at, cause)
     w.env.run()
@@ -646,3 +649,46 @@ def test_a_later_travel_over_the_old_trail_holds_nothing_ahead_of_it() -> None:
     w.env.run()
     assert agv.current_node == nodes["N2"] and w.caught == {"A": "cancelled"}
     assert holds(w) == ["N2", "N2~N3", "N3", "N3~N4", "N4"]
+
+
+# --- fix round 1: the energy horizon at node events -----------------------------------------------------------------
+
+
+def falls_with_speed(distance: float, load: float, speed: float) -> float:
+    """5 per metre below 1.4 m/s, 1 above: the estimate at the cap 1.5 (10 per arc) under-predicts the first arc."""
+    return distance * (1.0 if speed >= 1.4 else 5.0)
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_the_energy_horizon_shortens_the_plan_at_a_node_event_under_both_controllers(reserve: bool) -> None:
+    """N0 to N10 with a battery of 100. The first arc costs 50, not 10: from N1 the estimate affords five arcs and turns
+    critical at N6. Free flow and reservation alike come to rest at N6, never passing it at speed."""
+    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+    w.go("A", "N10")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert w.agvs["A"].current_node == w.nodes["N6"]
+    started = {e.from_node: e for e in w.of(AgvMoveStarted)}
+    assert at_rest(started["N5"].motion) and "N6" in {e.node for e in w.of(AgvMoveEnded)}
+    assert not [e for e in w.of(AgvMoveStarted) if e.from_node == "N6"]
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_charger_on_the_node_where_the_estimate_turns_critical_is_not_passed_at_speed(reserve: bool) -> None:
+    graph_nodes = line(11)
+    w = charger_world(100.0, "N6", depletion=falls_with_speed, reserve=reserve, graph_nodes=graph_nodes)
+    w.go("A", "N10")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
+    assert w.agvs["A"].current_node == w.nodes["N6"] and w.agvs["A"].battery.level == 0.0
+    assert at_rest({e.from_node: e for e in w.of(AgvMoveStarted)}["N5"].motion)
+
+
+def test_a_lone_agv_has_the_same_arrivals_under_both_controllers_with_a_falling_depletion() -> None:
+    runs = []
+    for reserve in (False, True):
+        w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+        w.go("A", "N10")
+        w.env.run()
+        runs.append(arrivals(w))
+    assert runs[0] == runs[1] and runs[0][-1][0] == "N6"

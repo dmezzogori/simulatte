@@ -468,8 +468,7 @@ class _Trip:
                 plan = self._run_plan()
             yield from self._traverse(current, next_node, plan)
             if self.speed > 0.0:  # passed at speed: a stop request takes effect where the run ends at rest
-                if agv.battery.is_critical and next_node != self.goal:
-                    self._stop(self.index, self.speed)
+                self._energy_stop()
                 continue
             if self.interrupt is not None:
                 self._settle()
@@ -627,15 +626,28 @@ class _Trip:
         `first`: the smaller cap of the two arcs and the turn's (spec §9.2)."""
         return [min(before, after, self._node_cap(first + i)) for i, (before, after) in enumerate(zip(arcs, arcs[1:]))]
 
-    def _stop(self, node: int, speed: float) -> None:
+    def _energy_stop(self) -> None:
+        """At a node passed at speed, the energy horizon is a stop request when it is nearer than the end of the plan in
+        force (spec §8.3, §9.5): the level is lower than the estimate foresaw. The plan is cut at the later of the
+        affordable node and the first node where the AGV can be at rest, with either controller.
+
+        A critical level found at a node other than the goal is the same request: the estimate then turns critical at
+        the next node, so the energy horizon ends at or before it. (At the goal the plan ends at rest anyway.)
+        """
+        if self.stop_at is None:
+            affordable = self._affordable_end(self.end)
+            if affordable < self.end:
+                self._stop(self.index, self.speed, affordable)
+
+    def _stop(self, node: int, speed: float, floor: int = 0) -> None:
         """A stop request received while moving (an interrupt, or a battery found critical at a node other than the goal
         that the estimate did not foresee), spec §8.3. `node` is the position of the next node event, where the AGV
         passes at the planned speed `speed`: the end of the arc being traversed, or the node it has just reached.
 
         No further claim is requested. The plan is cut at the first node from `node` on, within the plan in force, whose
         distance from `node` is at least the braking distance ``speed ** 2 / (2 * decel)``, or at `node` for an AGV
-        that arrives at rest. The next node event replans to it; the profile of the arc being traversed is not changed.
-        A second request keeps the first one's node.
+        that arrives at rest, and not before position `floor`. The next node event replans to it; the profile of the arc
+        being traversed is not changed. A second request keeps the first one's node.
         """
         if self.stop_at is not None:
             return
@@ -646,7 +658,7 @@ class _Trip:
             braking = speed**2 / (2 * kin.decel) * (1 - _STOP_SLACK)
             while stop < self.end and self.offsets[stop] - self.offsets[node] < braking:
                 stop += 1
-        self.stop_at = stop
+        self.stop_at = max(stop, floor)
 
     def _lacking_energy(self, current: Node, energy_cost: float) -> ProcessGenerator:
         """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor.
