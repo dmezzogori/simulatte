@@ -592,6 +592,10 @@ class _Trip:
         A turn is served once per node and route. A reroute or a step aside gives a new route: its first arc is a new
         direction, so the AGV turns again towards it, measured from the heading it still has (a wait does not change
         it), even if it had turned already towards the first arc of the route it left.
+
+        The idle power drained during the wait is accounted after it, so it is not in the energy check before the next
+        arc, which precedes the turn (spec §9.4): the AGV can leave with a level below that arc's estimate, at most one
+        arc per turn node, and the depletion floors at 0.
         """
         agv = self.agv
         try:

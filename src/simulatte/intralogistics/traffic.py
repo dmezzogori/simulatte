@@ -190,7 +190,9 @@ def disposition_of(agv: AGV) -> Disposition:
     """The disposition that the AGV's state implies; a controller reports ``WAITING`` for an open wait instead.
 
     A travelling AGV without an active motion is at rest between two arcs and not in a traffic wait: it is turning
-    (spec §9.4, the only such rest that lasts), so it is ``SERVING``.
+    (spec §9.4, the only such rest that lasts), so it is ``SERVING``. Inside an ``agv.move_ended`` handler at a node the
+    AGV passes at speed it also reads ``SERVING``: its motion is cleared at that event and set again for the next arc
+    at the same instant.
     """
     disposition = _DISPOSITIONS[agv.state]
     if disposition is Disposition.MOVING and agv.motion is None:
