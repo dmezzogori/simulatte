@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, cast
 
 import simpy
 
-from simulatte._wire import FrozenMap, freeze, wire_float
+from simulatte._wire import FrozenMap, freeze, frozen_map, wire_float
 from simulatte.events import Deltas
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, AgvMoveStarted, AgvRouted
@@ -124,6 +124,22 @@ def _check_route(fleet: FleetCoordinator, route: Route, origin: Node, destinatio
 def _critical(battery: Battery, level: float) -> bool:
     """Whether `level` is critical for `battery`, as :attr:`Battery.is_critical` judges its current level."""
     return (level / battery.capacity if battery.capacity > 0 else 0.0) <= battery.critical_threshold
+
+
+def _described(profile: ArcProfile) -> MotionDescription:
+    """:meth:`ArcProfile.description` as the canonical map :func:`~simulatte._wire.freeze` makes of it.
+
+    When the entry speed, the length and every phase value are exact floats, which ``freeze`` keeps as they are, the
+    map is built directly with the phases as they are (tuples), without ``freeze``'s recursion over them; otherwise
+    (a profile without phases, or numbers of another type) it is the plain description, which ``freeze`` converts.
+    """
+    phases, v_in, length = profile.phases, profile.v_in, profile.length
+    if not phases or type(v_in) is not float or type(length) is not float:
+        return profile.description()
+    for duration, accel in phases:
+        if type(duration) is not float or type(accel) is not float:
+            return profile.description()
+    return frozen_map({"curve": "piecewise", "distance": length, "phases": phases, "v0": v_in})
 
 
 def _load_weight(agv: AGV) -> float:
@@ -249,7 +265,7 @@ class _Trail:
         self.entries: dict[Resource, float] = {}
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True)
 class _ArcPlan:
     """How one arc is traversed: its length and load, the duration (``inf`` when stalled), the motion description,
     the elapsed time at which the front has covered a distance into the arc, and the planned speed at its end node."""
@@ -288,7 +304,12 @@ class TravelExecutor:
         if agv.current_node == goal:
             return TravelOutcome.ARRIVED
         trip = _Trip(self, agv, goal, loaded, purpose)
-        return (yield from trip.run())
+        try:
+            return (yield from trip.run())
+        finally:
+            # The hooks' bound methods hold the trip: without this the finished trip, its plans and its profiles are
+            # cyclic garbage that only a full collection frees.
+            del trip.hooks
 
     def _trail(self, agv: AGV) -> _Trail:
         trail = self._trails.get(agv)
@@ -406,6 +427,8 @@ class _Trip:
         # turns for free), the position of the node whose turn was served already, and the values the type's turning
         # callables gave for the nodes of this route (spec §9.4).
         self.turns: tuple[float | None, ...] = ()
+        agv_type = agv.agv_type
+        self.turning = agv_type.corner_speed is not None or agv_type.turn_time is not None
         self.turned = -1
         self.corner_caps: dict[int, float] = {}
         self.turn_waits: dict[int, float] = {}
@@ -517,8 +540,10 @@ class _Trip:
         None when the type has none or the heading is unknown."""
         agv_type = self.agv.agv_type
         function = getattr(agv_type, name)
+        if function is None:
+            return None
         angle = self.turns[node]
-        if function is None or angle is None:
+        if angle is None:
             return None
         value = float(function(angle))
         if math.isnan(value) or value < 0 or (name == "turn_time" and math.isinf(value)):
@@ -607,8 +632,9 @@ class _Trip:
         battery, kin = self.agv.battery, self.kin
         assert kin is not None
         level, end = battery.level, self.index
+        lengths, speed_limits, load_weight = self.lengths, self.speed_limits, self._load()
         while end < limit:
-            cost = self._estimate(end, kin)
+            cost = estimate_arc_energy(battery, kin, lengths[end], load_weight, speed_limits[end])
             if level < cost:
                 break
             level = max(0.0, level - cost)
@@ -670,11 +696,14 @@ class _Trip:
                 expected.append(level)
             self.expected = tuple(expected)
         profile = self.profiles[index - self.plan_from]
-        return _ArcPlan(length, load_weight, profile.duration, profile.description(), profile.time_at, profile.v_out)
+        return _ArcPlan(length, load_weight, profile.duration, _described(profile), profile.time_at, profile.v_out)
 
     def _interior_caps(self, first: int, arcs: Sequence[float]) -> list[float]:
         """The caps of the nodes between consecutive arcs of `arcs`, which starts with the arc that enters position
-        `first`: the smaller cap of the two arcs and the turn's (spec §9.2)."""
+        `first`: the smaller cap of the two arcs and the turn's (spec §9.2). A type that does not turn has no turn cap
+        (it would be infinity)."""
+        if not self.turning:
+            return [min(before, after) for before, after in zip(arcs, arcs[1:])]
         return [min(before, after, self._node_cap(first + i)) for i, (before, after) in enumerate(zip(arcs, arcs[1:]))]
 
     def _energy_stop(self) -> None:
@@ -818,12 +847,13 @@ class _Trip:
         offsets = [0.0]
         for u, v in zip(nodes, nodes[1:]):
             arc = graph.arc_between(u, v)
-            assert arc is not None
-            lengths.append(graph.length(u, v))
+            assert arc is not None and arc.length is not None
+            lengths.append(arc.length)
             limits.append(arc.speed_limit)
-            offsets.append(offsets[-1] + lengths[-1])
+            offsets.append(offsets[-1] + arc.length)
         self.lengths, self.speed_limits, self.offsets = tuple(lengths), tuple(limits), tuple(offsets)
-        self.turns = _heading_changes(nodes, self.agv.heading)
+        # Heading changes matter only to a type that turns (spec §9.4); for any other they are never read.
+        self.turns = _heading_changes(nodes, self.agv.heading) if self.turning else ()
         self.turned = -1
         self.corner_caps, self.turn_waits = {}, {}
         env = self.env

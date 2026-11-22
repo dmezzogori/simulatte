@@ -150,6 +150,10 @@ def arc_profile(v_in: float, v_out: float, cap: float, length: float, kin: Kinem
     ) * (1 + _FEASIBILITY_SLACK):
         raise ValueError(f"speed {v_out} cannot be reached from {v_in} within {length}")
     peak_squared = (2 * accel * decel * length + decel * v_in * v_in + accel * v_out * v_out) / (accel + decel)
+    if v_in == cap and v_out == cap and peak_squared > cap * cap:
+        # Entered and left at the cap: the one cruise phase the general case below gives, without building the others.
+        cruise_time = length / cap
+        return ArcProfile(v_in, ((cruise_time, 0.0),) if cruise_time > 0 else (), length, v_out)
     cruise = 0.0
     if peak_squared > cap * cap:
         peak = cap
@@ -200,7 +204,12 @@ def plan_run(
         raise ValueError("a run needs one arc cap per arc and one node cap per node")
     if node_caps[-1] != 0:
         raise ValueError(f"the cap of the last node must be 0, not {node_caps[-1]}")
-    if not v0 >= 0 or any(not value >= 0 for value in (*lengths, *arc_caps, *node_caps)):  # NaN fails `>= 0`
+    valid = v0 >= 0  # NaN fails `>= 0`
+    for values in (lengths, arc_caps, node_caps):
+        for value in values:
+            if not value >= 0:
+                valid = False
+    if not valid:
         raise ValueError("lengths, caps and the entry speed must not be negative or NaN")
     if count == 0:
         if v0 != 0:
