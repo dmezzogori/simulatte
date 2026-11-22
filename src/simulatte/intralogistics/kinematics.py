@@ -47,13 +47,13 @@ class ArcProfile:
 
     @property
     def duration(self) -> float:
-        return sum(duration for duration, _ in self.phases)
+        return math.fsum(duration for duration, _ in self.phases)  # the same float on every interpreter
 
     @property
     def v_out(self) -> float:
         if self.exit_speed is not None:
             return self.exit_speed
-        return max(0.0, self.v_in + sum(duration * accel for duration, accel in self.phases))
+        return max(0.0, self.v_in + math.fsum(duration * accel for duration, accel in self.phases))
 
     def position(self, t: float) -> float:
         """Distance covered at elapsed time `t`, which must lie in ``[0, duration]``."""

@@ -403,3 +403,12 @@ def test_backward_pass_bounds_each_node_by_the_stop_at_the_last() -> None:
     # arc carries the bound unchanged.
     bounds = backward_pass([2.0, 0.0, 2.0, 2.0], [9.0, 2.5, 9.0, 9.0, 0.0], 1.0)
     assert bounds == [min(9.0, math.sqrt(2.5**2 + 4.0)), 2.5, math.sqrt(8.0), 2.0, 0.0]
+
+
+def test_duration_and_exit_speed_are_the_same_floats_on_every_interpreter() -> None:
+    """The builtin ``sum`` is compensated from CPython 3.12 only: on 3.11 and PyPy 0.1 + 0.2 + 0.3 is
+    0.6000000000000001. Durations reach the move end times and exit speeds the plans, so both are correctly rounded
+    sums (``math.fsum``), the same on every interpreter."""
+    profile = ArcProfile(0.0, ((0.1, 1.0), (0.2, 1.0), (0.3, 1.0)), 1.0)
+    assert profile.duration == 0.6
+    assert profile.v_out == 0.6
