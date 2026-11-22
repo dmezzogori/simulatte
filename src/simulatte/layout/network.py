@@ -43,6 +43,7 @@ class EdgeDefinition:
     lineage: tuple[Address, ...] = ()
     blockers: tuple[str, ...] = ()
     passing: bool = False
+    length: float | None = None  # a piece of a split edge: the parent's length over the number of pieces
 
 
 @dataclass(frozen=True)
@@ -421,18 +422,14 @@ GENERATED_KINDS = ("block_node", "block_edge")
 """Address kinds of the elements that ``block_length`` generates (spec §12); overrides cannot target them."""
 
 
-def _piece_count(length: float, block_length: float, maximum: int) -> int:
-    """``ceil(length / block_length)``, without the piece that float noise in the quotient would add (0.3 / 0.1)."""
-    quotient = length / block_length * (1 - 1e-9)
-    return math.ceil(min(quotient, maximum + 1.0))
-
-
 def split_blocks(
     definitions: NetworkDefinitions, block_length: float, *, capacity: int | None, limits: LayoutLimits
 ) -> NetworkDefinitions:
     """Split every enabled edge longer than ``block_length`` into ``ceil(length / block_length)`` equal pieces.
 
-    Runs after the overrides, so the pieces inherit the parent's effective properties. The generated nodes lie on
+    The count and the length of the pieces follow ``simulatte.intralogistics.graph.split``, the rule of
+    ``LayoutGraph.subdivide``: each piece carries the parent's chord over the number of pieces as its length. Runs
+    after the overrides, so the pieces inherit the parent's effective properties. The generated nodes lie on
     the chord, carry the network default ``capacity`` and are shared by the edges between the same two nodes (the
     two directions of a pair). Their id is ``"<a>~<b>#<k>"`` with ``a`` and ``b`` the ids of the ends in sorted order
     and ``k`` counted from ``a``, as in ``LayoutGraph.subdivide``; their address is ``block_node`` over the address
@@ -440,6 +437,8 @@ def split_blocks(
     replaced by its pieces and ``lineage`` maps it to them. ``max_nodes`` and ``max_directed_arcs`` apply to the
     result.
     """
+    from simulatte.intralogistics.graph import split
+
     nodes = definitions.nodes
     groups: dict[tuple[Address, Address], list[EdgeDefinition]] = {}
     arc_count = 0
@@ -450,7 +449,7 @@ def split_blocks(
         arc_count += 2 if edge.direction == "both" else 1
         low, high = sorted((source, target), key=lambda definition: definition.id)
         length = math.hypot(high.position.x - low.position.x, high.position.y - low.position.y)
-        if _piece_count(length, block_length, limits.max_nodes) > 1:
+        if split(length, block_length, limits.max_nodes)[0] > 1:
             groups.setdefault((low.address, high.address), []).append(edge)
     if not groups:
         return definitions
@@ -461,7 +460,7 @@ def split_blocks(
         low, high = nodes[low_address], nodes[high_address]
         members = groups[low_address, high_address]
         length = math.hypot(high.position.x - low.position.x, high.position.y - low.position.y)
-        count = _piece_count(length, block_length, limits.max_nodes)
+        count, piece = split(length, block_length, limits.max_nodes)
         _limit(len(new_nodes) + count - 1, limits.max_nodes, "max_nodes")
         arc_count += sum((2 if edge.direction == "both" else 1) * (count - 1) for edge in members)
         _limit(arc_count, limits.max_directed_arcs, "max_directed_arcs")
@@ -492,7 +491,7 @@ def split_blocks(
                 made.append(
                     EdgeDefinition(
                         address, source, target, edge.enabled, edge.direction, edge.speed_limit, edge.lineage,
-                        blocked, edge.passing,
+                        blocked, edge.passing, piece,
                     )
                 )  # fmt: skip
             pieces[edge.address] = tuple(made)
@@ -817,7 +816,7 @@ def resolve_network(
         if edge.direction in ("both", "backward"):
             pairs.append((edge.target, edge.source))
         for source, target in pairs:
-            arc = Arc(nodes[source], nodes[target], False, edge.speed_limit, passing=edge.passing)
+            arc = Arc(nodes[source], nodes[target], False, edge.speed_limit, edge.length, edge.passing)
             reverse = arcs.get((target, source))
             if reverse is not None and reverse.passing != arc.passing:
                 raise LayoutError(

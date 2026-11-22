@@ -18,6 +18,18 @@ if TYPE_CHECKING:
 _LENGTH_TOLERANCE = 1e-9
 
 
+def split(length: float, max_length: float, maximum: float = math.inf) -> tuple[int, float]:
+    """The number of equal pieces into which an arc of `length` is split for `max_length`, and their length.
+
+    The count is ``ceil(length / max_length)`` without the piece that float noise in the quotient would add (0.3 / 0.1,
+    or a chord of 3.3000000000000007 for 3.3), and at most ``maximum + 1``; each piece is ``length / count`` long.
+    ``LayoutGraph.subdivide`` and the layout's ``block_length`` both use it, so that the two build the same network
+    to the float (spec §6.1, §12).
+    """
+    count = math.ceil(min(length / max_length * (1 - 1e-9), maximum + 1.0))
+    return count, length / max(count, 1)
+
+
 @dataclass(frozen=True)
 class Node:
     id: str
@@ -177,7 +189,8 @@ class LayoutGraph:
     def subdivide(self, max_length: float) -> LayoutGraph:
         """A new graph in which every arc longer than ``max_length`` is split into equal pieces.
 
-        Each arc of length ``L`` becomes ``ceil(L / max_length)`` pieces of equal length that inherit
+        Each arc of length ``L`` becomes ``ceil(L / max_length)`` pieces (without the piece that float noise in the
+        quotient would add) of length ``L`` divided by their number, that inherit
         ``bidirectional``, ``speed_limit`` and ``passing``. The generated nodes are named ``"<a>~<b>#<k>"`` with
         ``a`` and ``b`` the node ids in sorted order and ``k`` counted from ``a``, placed on the chord; both
         directions of a node pair share them. Original nodes are kept as the same instances, followed by the
@@ -200,7 +213,7 @@ class LayoutGraph:
         pieces: list[Arc] = []
         for arc in arcs:
             assert arc.length is not None
-            count = math.ceil(arc.length / max_length)
+            count, piece = split(arc.length, max_length)
             if count <= 1:
                 pieces.append(arc)
                 continue
@@ -220,7 +233,7 @@ class LayoutGraph:
             if arc.source is not low:
                 chain.reverse()
             for a, b in zip(chain, chain[1:]):
-                pieces.append(Arc(a, b, arc.bidirectional, arc.speed_limit, arc.length / count, arc.passing))
+                pieces.append(Arc(a, b, arc.bidirectional, arc.speed_limit, piece, arc.passing))
         return LayoutGraph(nodes, pieces)
 
     @staticmethod

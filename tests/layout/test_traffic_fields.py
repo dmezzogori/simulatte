@@ -593,6 +593,123 @@ def test_piece_count_is_the_ceiling_without_float_noise(length, block, pieces):
     assert len(result.graph.nodes) == pieces + 1
 
 
+PITCH = [(f"P{i}", 3.3 * i, 0.0) for i in range(8)]
+"""Eight nodes 3.3 m apart along a row: in floats the chords are 3.299999999999997 to 3.3000000000000007."""
+
+
+def pitch_graph() -> LayoutGraph:
+    nodes = [Node(name, x, y) for name, x, y in PITCH]
+    return LayoutGraph(nodes, [Arc(a, b) for a, b in zip(nodes, nodes[1:])])
+
+
+def pitch_patch(block_length: float) -> dict[str, Any]:
+    arcs = [{"source": f"P{i}", "target": f"P{i + 1}", "direction": "both"} for i in range(len(PITCH) - 1)]
+    return explicit_patch(arcs, PITCH, block_length=block_length)
+
+
+def arc_lengths(graph: LayoutGraph) -> dict[tuple[str, str], float]:
+    return {(a.id, b.id): graph.length(a, b) for a in graph.nodes for b in graph.neighbors(a)}
+
+
+@pytest.mark.parametrize(("block_length", "pieces"), [(3.3, 1), (1.1, 3)])
+def test_subdivide_and_block_length_build_the_same_network_on_a_3_3_pitch(block_length, pieces):
+    """spec §6.1, §12, §17: one rule for the number of pieces and one for their lengths. With 3.3 neither splits an arc
+    whose chord float noise makes 3.3000000000000007 (a bare ceiling made two pieces of it); with 1.1 every arc becomes
+    three pieces of the parent's length over three, to the float, in both twins (before, the layout's pieces had the
+    chords of their generated points)."""
+    twin = pitch_graph().subdivide(block_length)
+    layout = resolve(pitch_patch(block_length)).graph
+    assert len(twin.nodes) == len(PITCH) + (pieces - 1) * (len(PITCH) - 1)
+    assert {n.id: (n.x, n.y) for n in layout.nodes} == {n.id: (n.x, n.y) for n in twin.nodes}
+    assert arc_lengths(layout) == arc_lengths(twin)
+    parents = pitch_graph()
+    for a, b in zip(parents.nodes, parents.nodes[1:]):
+        chain = [a.id, *(f"{a.id}~{b.id}#{k}" for k in range(1, pieces)), b.id]
+        assert [twin.length(twin_node(twin, u), twin_node(twin, v)) for u, v in zip(chain, chain[1:])] == [
+            parents.length(a, b) / pieces
+        ] * pieces
+
+
+def twin_node(graph: LayoutGraph, name: str) -> Node:
+    return next(node for node in graph.nodes if node.id == name)
+
+
+def test_a_mission_runs_the_same_on_the_subdivided_graph_and_on_its_layout_twin():
+    """spec §17 (Layout): two AGVs 2 m long carry orders both ways around a one-way ring of two rows on the 3.3 m
+    pitch, split by 1.1, under ``ReservationController``; the twins give the same initial state and the same event
+    stream."""
+    ring = [*PITCH, *((f"Q{i}", x, 3.3) for i, (_, x, _) in enumerate(PITCH))]
+    links = [(f"P{i}", f"P{i + 1}") for i in range(7)] + [(f"Q{i + 1}", f"Q{i}") for i in range(7)]
+    links += [("P7", "Q7"), ("Q0", "P0")]
+    from simulatte.intralogistics.fleet import FleetCoordinator
+    from simulatte.intralogistics.order import OrderStatus
+    from simulatte.intralogistics.sku import SKU
+    from simulatte.intralogistics.warehouse import Warehouse
+
+    def run(layout: bool) -> tuple[list[str], list[OrderStatus]]:
+        env = Environment()
+        if layout:
+            arcs = [{"source": a, "target": b, "direction": "forward"} for a, b in links]
+            built = Layout.from_dict(env, {"schema_version": "1.1", **explicit_patch(arcs, ring, block_length=1.1)})
+            graph, at = built.graph(), built.node
+        else:
+            by_id = {name: Node(name, x, y) for name, x, y in ring}
+            graph = LayoutGraph(by_id.values(), [Arc(by_id[a], by_id[b], bidirectional=False) for a, b in links])
+            graph, at = graph.subdivide(1.1), by_id.__getitem__
+        sku = SKU("stock", 1, 0.1)
+        sites = [
+            Warehouse(
+                env=env,
+                name=name,
+                input_bays=[at(node)],
+                output_bays=[at(node)],
+                n_slots=2,
+                products=[sku],
+                initial_inventory={sku: 50},
+                pick_time=1.0,
+                put_time=1.0,
+            )
+            for name, node in (("west", "P0"), ("east", "P7"))
+        ]
+        kind = AGVType(
+            name="t",
+            speed_profile=TrapezoidalProfile(max_speed=1.5, acceleration=0.8, deceleration=0.8),
+            battery_capacity=1e9,
+            weight_capacity=10.0,
+            volume_capacity=1.0,
+            length=2.0,
+        )
+        fleet = FleetCoordinator(
+            env=env,
+            graph=graph,
+            fleet=[
+                AGV(env=env, agv_type=kind, agv_id=name, initial_node=at(node))
+                for name, node in (("a", "P1"), ("b", "P6"))
+            ],
+            warehouses=sites,
+            charging_stations=[],
+            traffic_controller=ReservationController(env=env, graph=graph),
+            default_metrics=False,
+        )
+        orders = [
+            fleet.create_order(sku=sku, quantity=1, origin=sites[k % 2], destination=sites[1 - k % 2]) for k in range(6)
+        ]
+        for order in orders:
+            fleet.submit(order)
+        env.activate()
+        events: list[Any] = []
+        env.bus.subscribe(events.append, "*")
+        env.run()
+        initial = {entity: dict(state) for entity, state in sorted(env.initial_state.items())}
+        return [repr(initial), *map(repr, events)], [order.status for order in orders]
+
+    explicit, explicit_orders = run(layout=False)
+    twin, twin_orders = run(layout=True)
+    assert explicit_orders == twin_orders == [OrderStatus.COMPLETED] * 6
+    assert len(explicit) > 100
+    assert explicit == twin
+
+
 def test_limits_apply_after_splitting():
     patch = lane_patch(block_length=4)
     resolve(patch, limits=LayoutLimits(max_nodes=4, max_directed_arcs=6))
