@@ -571,7 +571,7 @@ above name the tests in full.
 | Stop requests | `test_stop_requests.py::test_a_cancelled_mission_recovers_after_a_stop_at_the_first_feasible_node[loaded, empty x both controllers]`, `::test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node`; `test_motion.py::test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energy_is_that_of_the_arcs_covered[both controllers]` | existing |
 | Routing | the table "§17 items of part C" above | existing, with one test added |
 | Replay and purity | `FullReplay` in every world; `test_invariance.py::test_final_state_is_independent_of_observers`, `::test_digest_report_and_shared_kpis_are_identical_across_instrumented_configurations`, `::test_digest_is_stable_across_hash_seeds_in_fresh_processes`; `test_traffic_scenarios.py::test_the_motion_scenario_is_the_same_with_and_without_observers`, `::test_the_motion_scenario_digest_is_the_same_across_hash_seeds`; `test_routing.py` (the part C table); CPython and PyPy agree through the PyPy lane | existing, with one test added |
-| Layout | `tests/layout/test_traffic_fields.py::test_1_0_file_loads_unchanged_and_keeps_its_hashes`, `::test_1_1_file_round_trips_through_save_and_load`, `::test_passing_changes_the_physical_hash`, `::test_zones_enter_the_physical_hash_and_the_bundle`, `::test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream` | existing |
+| Layout | `tests/layout/test_traffic_fields.py::test_1_0_file_loads_unchanged_and_keeps_its_hashes`, `::test_1_1_file_round_trips_through_save_and_load`, `::test_passing_changes_the_physical_hash`, `::test_presentation_only_edits_keep_the_physical_hash` (its last assertion: `block_length` changes the physical hash), `::test_zones_enter_the_physical_hash_and_the_bundle`, `::test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream`; twins on a 3.3 m pitch, where float noise used to make them differ, `::test_subdivide_and_block_length_build_the_same_network_on_a_3_3_pitch[3.3-1, 1.1-3]` and `::test_a_mission_runs_the_same_on_the_subdivided_graph_and_on_its_layout_twin` | existing; the twins on a 3.3 m pitch added by the final review wave |
 | Free flow | `test_traffic_scenarios.py::test_free_flow_creates_no_segment_or_zone_entity_and_emits_no_traffic_event`; `test_travel.py::test_free_flow_arrivals_and_events` | existing |
 | Pinned digest and golden traces regenerated in parts A and B | `test_builders.py::test_no_layout_builder_digest_remains_compatible` (`b62e7161...`, unchanged by part C); `tests/core/test_trace_fixtures.py::test_generated_fixtures_canonically_up_to_date`; the causes are under "Pinned values" in the sections of parts A and B | existing |
 
@@ -606,11 +606,13 @@ and the `execution-native` lane lists files of the execution and Studio tests th
 
 Branch against `main`, `benchmarks/intralogistics.py`, five alternating rounds per mode, `--warmup 1 --repeat 5
 --processes 3`; the full table, the spread, the reason, and the comparison with the commit before part C are in
-`benchmarks/intralogistics-baseline.md`. Branch / `main`: none 1.274 (1.267 to 1.282 over the rounds), default 1.247
-(1.240 to 1.258), default_logging 1.273 (1.252 to 1.298); peak memory 38.9 to 39.0 MB on `main`, 40.3 to 40.4 MB on the
-branch. Against the commit before part C: 1.027, 1.019 and 1.024. The free-flow ratio against `main` is therefore about
-1.25 to 1.27 on this workload, as the spec foresaw (§15, ungated); it was 0.96 to 0.99 at the end of part A and 1.22 to
-1.24 after the whole-part check of part B.
+`benchmarks/intralogistics-baseline.md`. Branch / `main` at `9f0406f`: none 1.274 (1.267 to 1.282 over the rounds),
+default 1.247 (1.240 to 1.258), default_logging 1.273 (1.252 to 1.298); peak memory 38.9 to 39.0 MB on `main`, 40.3 to
+40.4 MB on the branch. Against the commit before part C: 1.027, 1.019 and 1.024. After the fix wave of the final review
+(at `5939714`, the node hash): 1.197 (1.173 to 1.208), 1.186 (1.183 to 1.202) and 1.196 (1.194 to 1.207), peak memory
+40.4 to 40.5 MB, the same trajectory. The free-flow ratio against `main` is therefore about 1.19 to 1.20 on this
+workload, as the spec foresaw (§15, ungated); it was 0.96 to 0.99 at the end of part A and 1.22 to 1.24 after the
+whole-part check of part B.
 
 ## Known limits
 
@@ -639,7 +641,70 @@ From spec §18 and the ledgers of the three parts, as the release leaves them.
   optimum is claimed), and it is opt-in. The detour bound of a reroute under it compares penalised costs.
 - **Look-ahead holds resources.** A fast AGV reserves its braking distance, which lowers density; `lookahead_margin`
   tunes it.
-- **Free-flow cost.** About 25 to 27 % more run time than `main` on the scaled advanced example, from planning runs of
-  arcs (part B) and ranking by router cost (part C).
+- **Free-flow cost.** About 19 to 20 % more run time than `main` on the scaled advanced example after the node hash of
+  the final review wave (25 to 27 % before it), from planning runs of arcs (part B) and ranking by router cost (part C).
 - **Tie at the energy check.** At an exact float tie in the energy check some missions end `BATTERY_STRANDED` where they
   used to retry (part B, "Changes in results"); a relative slack at the check at rest is a possible follow-up.
+- **Late grants** (spec §9.3, T15, T22). A claim granted late, after the AGV entered an arc whose profile already brakes
+  for the end of its holdings, does not change that arc's profile: the AGV finishes the arc as planned, at worst
+  stopping at the node, and plans again there. The cost is at most one deceleration and acceleration per such node,
+  and it shrinks with the block length.
+- **The standard search on large layouts.** It asks the router once per candidate node: about 0.6 s per search on a
+  30 by 30 grid with the default router (0.85 s before the node hash of the final review wave). Under
+  `ReservationController` it runs when an AGV clears a service node, makes way or steps aside;
+  `clear_service_nodes=False` removes the first. A single-source search is a follow-up.
+
+# Final whole-branch review: the fix wave
+
+Two reviewers reviewed the branch at `cc252ed`; five items changed code, one documentation. The measurements use the
+control reviewer's random mission worlds (`world.py`, `env.run()` without `until`, an independent monitor of every
+event, 90 s of wall time per run): seeds 0 to 1,499 under five routers (1,452 runs each, 48 worlds cannot place
+their AGVs), seeds 0 to 499 with two fleets on one controller under three routers (472 runs each), and seeds 0 to
+204 on CPython 3.11 and PyPy (198 runs each), 9,270 runs in all.
+
+1. **Endless make-way loop among idle AGVs.** On world 206 every order completed by 588 s, then three idle AGVs made
+   way around a ring for ever (4,650 make-way moves in 20,000 s; `env.run()` did not return). The idle search counted
+   a node as free from its own capacity: `c02`, of capacity 2, lay in the zone `Z0` of capacity 1 with hold-back, held
+   by the AGV resting there, so the mover stopped at the hold-back leg and the resting AGV was asked to make way, and
+   so on. Fix: the search for an AGV that will be idle on arrival skips a node whose last leg needs a zone or corridor
+   that the holders make inadmissible for the AGV now (spec §7.9); nothing else in the idle rules changed. Tests:
+   `test_idle_traffic.py::test_the_idle_search_does_not_take_a_node_inside_a_full_zone[1-True-P, 1-False-P, 2-True-Q]`
+   and `::test_make_way_moves_into_a_full_zone_do_not_go_on_for_ever` (world 206 written out: the run returns before
+   600 s with 23 make-way moves, every order completed, no wait open). Default router, 1,452 worlds:
+
+   | | Runs that return | Open waits at the end | Orders completed | Make-way moves (without world 206) |
+   |---|---:|---:|---:|---:|
+   | Before | 1,451 (206 does not) | 722 | 17,924 of 27,722 | 28,710 (5,187) |
+   | After | 1,452 | 731 | 17,883 of 27,722 | 5,105 (5,082) |
+
+   168 of the 1,452 runs changed: 23 completed more orders (69 in all) and 30 fewer (110). Under the other routers
+   every run returns as well (world 206 did not return under `astar` and `fastest` either); completed orders moved by
+   -82 (`astar`), -13 (`fastest`), +13 and +8 (the congestion routers), -6, -21 and -23 (two fleets). A blocker that
+   used to start towards a node inside a full zone, and so cleared the way it stood in, now stays when nothing else
+   qualifies; that is the cost of the rule.
+2. **A wait behind a blocker that strands was never reviewed.** A sleeping wait woke only on a grant or release, and a
+   stranding that frees nothing is neither: the waiting travel was not rerouted around the stranded blocker and not
+   reported stuck. Fix: the coordinator calls `controller.idle(agv)` on the transition to `STRANDED` as well as to
+   `IDLE`; `ReservationController` reviews each open wait the stranded AGV blocks at that instant (spec §7.1, §7.9,
+   §7.10). Tests: `test_idle_traffic.py::test_a_wait_behind_a_blocker_that_strands_is_reviewed_at_once` (both
+   reproductions, with and without a detour) and `::test_a_stranding_before_the_first_review_takes_its_timer`. Runs
+   ending with an open wait that no stuck or deadlock report explains: 6 of 9,270 before (worlds 155 and 1163), 5
+   after item 1, 0 after item 2. Item 2 changed only those runs, which now end with the stuck reports; no order
+   changed.
+3. **`subdivide` and `block_length` did not build the same network.** `subdivide` counted pieces with a bare ceiling
+   (a chord of 3.3000000000000007 split by 3.3 gave two pieces, the layout one) and gave pieces the parent's length over
+   the count, where the layout's pieces had the chords of their generated points. 91 of 240 random twins had different
+   segment lengths and 76 different event streams. Fix: one rule, `graph.split`, for both the count and the length; the
+   layout carries the piece length into `Arc.length` (spec §6.1, §12). After it the 240 twins agree event for event.
+   Tests in `tests/layout/test_traffic_fields.py`: the twins on a 3.3 m pitch (see the §17 walk). No pinned value moved.
+4. **Traces depended on the Python version.** `ArcProfile.duration` used the builtin `sum`, compensated from CPython
+   3.12 only, so move end times differed in the last place between 3.11 or PyPy and 3.12+ (25 of 349 kinematic runs).
+   Fix: `math.fsum` there and in the fallback of `ArcProfile.v_out`; the other sums of `kinematics.py`, `travel.py` and
+   `speed.py` reach no event or decision or are already exact. The 25 runs now have the same streams on 3.11 and
+   3.14; on 3.14, 4 of them changed. `tests/intralogistics` and `tests/layout` pass on CPython 3.11 and 3.14 with the
+   same pinned values; nothing was re-pinned. Test: `test_kinematics.py::test_duration_and_exit_speed_are_the_same_floats_on_every_interpreter`
+   (fails on 3.11 before the fix).
+5. **`Node.__hash__`.** A node hashed `(id, x, y)` on every dict access; it now hashes its id. `shortest_path` corner
+   to corner on a 30 by 30 grid: 1.85 ms before, 1.23 ms after. The full event streams are bit-identical before and
+   after on the intralogistics examples (free flow and reservation), Appendix A, and 1,782 random worlds (600 under
+   free flow, 600 under reservation of the part C task review, 582 of the control reviewer's under reservation).

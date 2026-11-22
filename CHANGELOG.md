@@ -20,7 +20,12 @@ intralogistics models change with this release; see "Changed" and "Migration".
   (`FleetCoordinator(max_traffic_requeues=3)`, reason `traffic_requeued`).
 - Idle AGVs make way for waiting ones (`FleetCoordinator.make_way`, `TrafficController.idle`), move off bays and
   charger nodes (`FleetCoordinator(clear_service_nodes=True)`) and take parking slots when they are sent to a parking
-  area.
+  area. The search for a place to rest skips a node inside a zone or corridor that is closed to the AGV now, so idle
+  AGVs do not make way to such a node and around a loop without end. The coordinator also calls
+  `TrafficController.idle` when an AGV strands, and the waits it blocks are reviewed at once: the standard policy
+  reroutes around it, and a wait that stays is reported stuck even when the stranding released nothing.
+- `ChargingStation.n_slots`, `ParkingArea.capacity` and `FleetCoordinator.service_nodes` (the bays of the fleet's
+  warehouses and the nodes of its charging stations).
 - `Zone(id, members, capacity=1, hold_back=False)` for authored zones; the protocol values `Claim`, `ClaimItem`,
   `ClaimRequest`, `Segment`, `Corridor`, `WaitHooks`, `Wait`, `Blocker`, `Disposition`, `Granted`, `Rerouted`,
   `SteppedAside` and `GaveUp`; `TrafficView` with `branch_root`, `blockers` and `mean_hold` (an exponential average
@@ -38,7 +43,10 @@ intralogistics models change with this release; see "Changed" and "Migration".
 - `DispatchContext` (`graph`, `router`, `view`, `cost`), the `RepositioningContext` fields `router` and `view` and its
   `cost`, and `FleetCoordinator.best_bay`.
 - `Arc.length` (the travelled length, never shorter than the chord) and `Arc.passing` (opposite traffic may pass);
-  `LayoutGraph.length`, `path_length` and `subdivide(max_length)`.
+  `LayoutGraph.length`, `path_length` and `subdivide(max_length)`. `subdivide` and the layout's `block_length` split
+  an arc into the same number of pieces (without the piece that float noise in the quotient would add) of the same
+  length (the parent's length over the number of pieces), so a subdivided graph and its layout twin are the same
+  network to the float.
 - `TrafficKPIs`: blocked time, waits, stuck waits, resolved and unresolved deadlocks, reroutes, make-way moves and
   re-queued orders of a fleet.
 - Layout schema 1.1: `passing`, `network.block_length` (with the address kinds `block_node` and `block_edge`) and
@@ -52,27 +60,37 @@ intralogistics models change with this release; see "Changed" and "Migration".
 - **Travel times and digests of intralogistics models change.** A vehicle whose profile reports kinematic limits
   (every `TrapezoidalProfile`) passes intermediate nodes at speed instead of stopping at each, so travel times over
   more than one arc are shorter under both controllers. A profile without `limits` keeps its rest-to-rest timings.
+  The durations of a run's arcs are correctly rounded sums (`math.fsum`), so event times are the same floats on
+  CPython 3.11, PyPy and CPython 3.12 and later.
   The new `agv.routed` event and the `heading` field enter semantic digests. Recorded results of intralogistics runs
   are not comparable with earlier releases.
 - An interrupt received while an AGV moves takes effect at the first node where it can come to rest, with the energy
   of the arcs covered charged; one received while it waits for a claim takes effect at once.
 - A critical battery found on arrival at the goal no longer interrupts the travel: it returns `ARRIVED`, and the
-  energy check before the next arc handles the battery.
+  energy check before the next arc handles the battery. An AGV that arrives at its charger with a critical battery
+  therefore charges; before, the travel returned a retry and the charge was skipped.
+- `agv.move_interrupted` names the node where the AGV came to rest (before, the node it had left), carries no deltas
+  (`agv.move_ended` already cleared the motion), and is also emitted for an interrupt received while the AGV waits for
+  a claim.
 - A run is planned only over arcs whose estimated energy fits the battery and ends at the first node, other than the
   goal, where the estimated level turns critical, so an AGV does not pass a charger at speed with a battery it knows
   will be critical.
 - Dispatch, bays, chargers and parking areas are ranked by the fleet's router's cost of the travel that follows. With
-  the default router the decisions are the earlier ones, except on a graph with an arc whose explicit `length`
-  exceeds its chord: the rankings now sum arc lengths where they summed chords. The reachable-charger estimate uses
+  the default router a ranking gives the earlier decision for the same fleet state, except on a graph with an arc
+  whose explicit `length` exceeds its chord: the rankings now sum arc lengths where they summed chords. A run as a
+  whole can still differ, because the fleet states differ (see the parking slots below). The reachable-charger estimate uses
   the route the router gives and the battery level now. `Warehouse.nearest_input_bay` and `nearest_output_bay` keep
   the chord ranking and are no longer used by the coordinator.
 - `DispatchStrategy.select(order, fleet, graph)` is now `select(order, fleet, context)`, and
-  the context of `RepositioningPolicy.reposition(agv, context)` gains `router`, `view` and `cost`. Custom dispatch
+  the context of `RepositioningPolicy.reposition(agv, context)` gains `router`, `view` and `cost`; `RepositioningContext`
+  is frozen. Custom dispatch
   strategies must be updated (see "Migration"). A custom dispatch strategy receives the whole fleet,
   including AGVs that are making way.
 - The coordinator takes a parking slot when it sends an AGV to a parking area and gives it back when the AGV leaves,
   under both controllers: `parking.entered`, `parking.left` and the areas' `parked` state now appear in free-flow
-  traces and digests. A custom repositioning policy that names a full area gets no move.
+  traces and digests. Under free flow `NearestParkingPolicy` therefore sees areas fill and sends AGVs elsewhere, or
+  nowhere, so repositioning targets and the dispatches after them change. A custom repositioning policy that names a
+  full area gets no move.
 - `order.status_changed` with reason `travel_failed` now means that the router found no route.
 - `traffic.reserved` and `traffic.released` carry `resources` (entity ids) instead of `node`; `traffic.wait_started`
   carries `resources`, `blockers` and the reason `occupied`; `traffic.wait_ended` has the reasons `granted`,
@@ -93,7 +111,8 @@ intralogistics models change with this release; see "Changed" and "Migration".
   time); no timer is left at infinity.
 - A run with a serviceable backlog and no AGV that can become idle now ends: the retry loop of the pending queue
   ticks only while a pending order is unserviceable with the built-in dispatch strategies. A run whose last event
-  was a retry tick ends earlier.
+  was a retry tick ends earlier, and the time of a `retries_exhausted` failure can move by up to
+  `pending_retry_delay`, because the loop restarts when it is needed again.
 - An order cancelled at the instant of its dispatch to an AGV already on its origin stays cancelled.
 
 ### Removed
@@ -108,8 +127,9 @@ intralogistics models change with this release; see "Changed" and "Migration".
 |---|---|
 | `TrafficManager`, `PathCheckResult` | `TrafficController`, `Claim`, `ClaimRequest` |
 | `FreeTrafficManager` | `FreeFlowController` |
-| `ResourceBasedTrafficManager(graph=, env=, node_capacity=, deadlock_timeout=, priority_fn=)` | `ReservationController(...)`; `deadlock_timeout` has no equivalent, see `StandardTrafficPolicy.reroute_after` |
-| `PathPlanner`, `DijkstraPlanner`, `AStarPlanner` | `Router`, `ShortestDistanceRouter(algorithm=...)` |
+| `ResourceBasedTrafficManager(graph=, env=, node_capacity=, deadlock_timeout=, priority_fn=)` | `ReservationController(graph=, env=, node_capacity=, priority_fn=)` (keyword-only; these four carry over); `deadlock_timeout` has no equivalent, see `StandardTrafficPolicy.reroute_after` |
+| `PathPlanner` | `Router` |
+| `DijkstraPlanner`, `AStarPlanner` | `ShortestDistanceRouter(algorithm="dijkstra")` (the default), `ShortestDistanceRouter(algorithm="astar")` |
 | `FleetCoordinator(traffic_manager=, path_planner=)` | `FleetCoordinator(traffic_controller=, router=, clear_service_nodes=, lookahead_margin=)` |
 | `DispatchStrategy.select(order, fleet, graph)` | `select(order, fleet, context)` |
 
@@ -117,7 +137,8 @@ intralogistics models change with this release; see "Changed" and "Migration".
   type without one. `FreeFlowController`, the default, does not need it. With a length of 0 (and no `min_gap`) a node is
   released the instant the AGV leaves it.
 - A custom dispatch strategy reads the graph from `context.graph` and can rank AGVs with `context.cost(agv, node)`. A
-  custom repositioning policy can use `context.router`, `context.view` and `context.cost(agv, node)`.
+  custom repositioning policy can use `context.router`, `context.view` and `context.cost(agv, node)`. Code that
+  constructs a `RepositioningContext` must pass `router` and `view`; the context is frozen.
 - Code that read `agv.battery.level` with idle power should read `agv.battery_level_now()` for the level now.
 - Results, digests and recorded fixtures of intralogistics models change (see "Changed"); re-record them. Layout
   files of schema 1.0 load unchanged, and old traces stay readable.

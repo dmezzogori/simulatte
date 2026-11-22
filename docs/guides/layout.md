@@ -322,8 +322,11 @@ closure and the physical hash.
   generated node has the address kind `block_node` (the parent edge's address and the piece index `k`, counted
   from the end with the smaller id), the id `"<a>~<b>#<k>"` (`a` and `b` the ids of the edge's ends in sorted
   order) and the network's default capacity; a piece has the address kind `block_edge`. Pieces inherit the parent
-  edge's effective properties. Overrides cannot target a piece or a generated node. `max_nodes` and
-  `max_directed_arcs` apply after splitting.
+  edge's effective properties, and each piece's `Arc.length` is the parent's length divided by the number of
+  pieces. The count leaves out the piece that float noise in the quotient would add (a 3.3 m edge with
+  `block_length` 3.3 stays whole even when its chord is 3.3000000000000007), the same rule as
+  `LayoutGraph.subdivide`, so a layout and the subdivided graph of the same nodes and arcs are the same network.
+  Overrides cannot target a piece or a generated node. `max_nodes` and `max_directed_arcs` apply after splitting.
 - `network.zones`: a map of zone id to `{capacity, hold_back, members}`, where `members` lists element addresses
   and selectors as overrides accept them. Members are matched against the network before splitting, and a matched
   edge stands for all its pieces and the generated nodes between them, so a zone covers the same stretch with and

@@ -76,23 +76,27 @@ Both versions also passed a separate-process memory-probe smoke run.
 The branch `feature/agv-traffic` (traffic control, motion and routing, parts A to C) against `main` at `ea1292c`
 (0.17.0), on Apple M4 Pro (12 cores), CPython 3.14.3, the same interpreter and dependency versions for both sides
 (each tree synced with `uv sync --all-extras` in its own directory; `main` in a temporary `git worktree` outside the
-repository, removed afterwards). The branch ran at `9f0406f`, the workload source unchanged since part B. The workload
-is the one above: 20 AGVs, one shift, intervals 30 to 60, seed 42, `--warmup 1 --repeat 5 --processes 3`. The two sides
-ran alternately (main, branch) in five rounds for each mode, one after the other, on an otherwise idle machine
-(load average 1.8 before the first run). `--json` files were kept for every run; each round's median below is that of
-the 15 timed runs of one invocation.
+repository, removed afterwards). The branch ran at `5939714`, after the fix wave of the final review, whose node hash
+(a `Node` hashes its id only) changed the timings; the workload source is unchanged since part B. The workload is the one
+above: 20 AGVs, one shift, intervals 30 to 60, seed 42, `--warmup 1 --repeat 5 --processes 3`. The two sides ran
+alternately (main, branch) in five rounds for each mode, one after the other. The machine was not otherwise idle: the
+one-minute load average was 2.15 before the first run and 1.7 to 4.1 between the rounds (`uptime` after each round).
+`--json` files were kept for every run; each round's median below is that of the 15 timed runs of one invocation.
 
 | Mode | `main` median, s (range over 5 rounds) | Branch median, s (range over 5 rounds) | Branch / `main`, median (range over rounds) | Peak memory `main` / branch, MB |
 |---|---:|---:|---:|---:|
-| none | 0.18973 (0.18843 to 0.19062) | 0.24144 (0.24069 to 0.24180) | 1.274 (1.267 to 1.282) | 38.9 / 40.3 |
-| default | 0.20912 (0.20764 to 0.20986) | 0.26028 (0.25938 to 0.26210) | 1.247 (1.240 to 1.258) | 38.9 / 40.4 |
-| default_logging | 0.18963 (0.18890 to 0.19268) | 0.24171 (0.23998 to 0.24594) | 1.273 (1.252 to 1.298) | 39.0 / 40.3 |
+| none | 0.18415 (0.18084 to 0.18923) | 0.22042 (0.21753 to 0.22352) | 1.197 (1.173 to 1.208) | 39.0 / 40.5 |
+| default | 0.20429 (0.20359 to 0.20571) | 0.24211 (0.24161 to 0.24728) | 1.186 (1.183 to 1.202) | 39.0 / 40.4 |
+| default_logging | 0.18834 (0.18658 to 0.18914) | 0.22511 (0.22506 to 0.22586) | 1.196 (1.194 to 1.207) | 39.0 / 40.5 |
 
-The IQR inside a round is 0.001 to 0.002 s on both sides (about 1 %). `main` reproduces the hashes above (input
+The IQR inside a round is 0.001 to 0.005 s on both sides (up to about 2.5 %). The same comparison at `9f0406f`, before
+the fix wave, gave 1.274 (1.267 to 1.282), 1.247 (1.240 to 1.258) and 1.273 (1.252 to 1.298), with the branch at
+0.24144, 0.26028 and 0.24171 s. `main` reproduces the hashes above (input
 `3278fbdc...`, trajectory `b2a2ca3d...`, 1,018 orders, 1,011 completed). The branch has 1,018 orders, 1,012 completed,
 input hash `1a5ad97c4bd908101086d8ba16cc592cdbb43c24d768fd85756105ff10e28583` and trajectory hash
-`633394be9d9f5b5e07a76a224c14050235a80d5a31a0348488b48a679db95767`, the same in all 15 branch runs and the same as at
-the end of part B: part C changes no decision under the default router. The two sides do not run the same trajectory
+`633394be9d9f5b5e07a76a224c14050235a80d5a31a0348488b48a679db95767`, the same in all 15 branch runs of each mode, the
+same at `9f0406f` and the same as at the end of part B: part C changes no decision under the default router, and
+neither does the fix wave. The two sides do not run the same trajectory
 (different hashes), so `compare.py` rejects the pair and the figures above are the medians of the JSON files.
 
 Why the branch is slower. The workload runs under `FreeFlowController` with a `TrapezoidalProfile` that has kinematic
@@ -101,8 +105,8 @@ Part A alone cost nothing measurable on this workload (branch / `main` 0.96 to 0
 the planning of a run per travel (the speed plan, the affordable-end and battery scans, the larger `piecewise` motion
 descriptions, the route state kept per node) and, after its own optimisation pass, cost 22 to 24 % of run time. Part C
 adds the router protocol and one router call per ranking (dispatch, bays, chargers, parking). The commit before part C
-(`ad4a823`) was run against the branch in the same way (five alternating rounds, the same settings, the same trajectory
-and hashes in both):
+(`ad4a823`) was run against the branch at `9f0406f` in the same way (five alternating rounds, the same settings, the
+same trajectory and hashes in both):
 
 | Mode | `ad4a823` median, s (range) | Branch median, s (range) | Branch / `ad4a823`, median (range) | `ad4a823` / `main` |
 |---|---:|---:|---:|---:|
@@ -110,7 +114,8 @@ and hashes in both):
 | default | 0.25582 (0.25385 to 0.25652) | 0.25959 (0.25860 to 0.26321) | 1.019 (1.008 to 1.027) | 1.223 |
 | default_logging | 0.23640 (0.23445 to 0.23738) | 0.24155 (0.24107 to 0.24321) | 1.024 (1.016 to 1.030) | 1.247 |
 
-So part C costs 2 to 3 % and part B (with a little of part A) the rest of the 25 to 27 %. Peak memory is 1.4 MB higher
+So part C costs 2 to 3 % and part B (with a little of part A) the rest of the 25 to 27 % measured at `9f0406f`; the
+node hash of the fix wave brought the total down to 19 to 20 %. Peak memory is 1.4 MB higher
 than `main` (peak at `ad4a823`: 40.2 MB). The spec leaves this benchmark ungated (§15). The difference in trajectory
 (the 1,012th completed order, the input hash) comes from parking slots being taken (part A) and through-node motion
 (part B), recorded in `specs/research/2026-11-21-agv-traffic-acceptance.md`.

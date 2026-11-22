@@ -137,7 +137,12 @@ Reaction = KeepWaiting | Reroute | StepAside | GiveUp
 
 @runtime_checkable
 class TrafficView(Protocol):
-    """Read-only view of the network and its traffic (spec §10.1)."""
+    """Read-only view of the network and its traffic (spec §10.1).
+
+    On Python 3.11 an ``isinstance`` check against this ``runtime_checkable`` protocol reads every member of the object,
+    so for the built-in view of a ``ReservationController`` that is not activated yet (its ``graph`` needs the network)
+    it raises; the library itself makes no such check.
+    """
 
     @property
     def graph(self) -> LayoutGraph: ...
@@ -192,7 +197,12 @@ class TrafficView(Protocol):
 
 @runtime_checkable
 class TrafficPolicy(Protocol):
-    """Decides how a waiting AGV reacts (spec §7.9)."""
+    """Decides how a waiting AGV reacts (spec §7.9).
+
+    On Python 3.11 an ``isinstance`` check against a ``runtime_checkable`` protocol of this module reads every member of
+    the object, so a check of the built-in view of a ``ReservationController`` that is not activated yet against
+    :class:`TrafficView` raises (its ``graph`` needs the network); the library itself makes no such check.
+    """
 
     def on_blocked(self, wait: Wait, view: TrafficView) -> Sequence[Reaction]: ...
     def on_deadlock(self, waits: Sequence[Wait], view: TrafficView) -> Sequence[tuple[AGV, Reaction]]: ...
@@ -207,7 +217,12 @@ class TrafficPolicy(Protocol):
 
 @runtime_checkable
 class TrafficController(Protocol):
-    """Grants claims to AGVs (spec §7.1)."""
+    """Grants claims to AGVs (spec §7.1).
+
+    On Python 3.11 an ``isinstance`` check against a ``runtime_checkable`` protocol of this module reads every member of
+    the object, so a check of the built-in view of a ``ReservationController`` that is not activated yet against
+    :class:`TrafficView` raises (its ``graph`` needs the network); the library itself makes no such check.
+    """
 
     controls_occupancy: bool
     view: TrafficView
