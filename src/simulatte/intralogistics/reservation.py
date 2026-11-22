@@ -301,16 +301,28 @@ class ReservationController:
             self._schedule(waiting, kept.review_after)
 
     def idle(self, agv: AGV) -> None:
-        """`agv` has just become ``IDLE`` where it stands (spec §7.10): ask it to make way for the open waits it blocks.
+        """`agv` has just come to rest without a travel where it stands, ``IDLE`` or ``STRANDED`` (spec §7.10): ask it
+        to make way for the open waits it blocks, or, when it is stranded, review those waits now.
 
-        The waits are taken in request order. If there are none, nothing happens. Otherwise the AGV's fleet is asked
-        once, with the policy's ``make_way_target`` for the first wait and the AGVs of all of them as the concerned
-        ones. When the AGV does not move (it has no fleet, or the fleet refused) each of those waits is checked for the
-        stuck condition (spec §7.9) now, with its blockers recomputed, since a sleeping wait has no review left to
-        report it. This is not a review: ``on_blocked`` is not called, no review is counted and no timer is scheduled.
+        The waits are taken in request order. If there are none, nothing happens. A stranded AGV is not asked to move:
+        each of those waits that is still open gets one review at once, as after a release, so that the policy can
+        reroute around the stranded blocker and a wait that stays is reported stuck (spec §7.9). A review timer the
+        wait had is dropped; the review schedules the next one by the usual rule (T23). Otherwise the AGV's fleet is
+        asked once, with the policy's ``make_way_target`` for the first wait and the AGVs of all of them as the
+        concerned ones. When the AGV does not move (it has no fleet, or the fleet refused) each of those waits is
+        checked for the stuck condition (spec §7.9) now, with its blockers recomputed, since a sleeping wait has no
+        review left to report it. This is not a review: ``on_blocked`` is not called, no review is counted and no timer
+        is scheduled.
         """
         waits = self._waits_blocked_by(agv)
         if not waits:
+            return
+        if self.view.disposition(agv) is Disposition.STRANDED:
+            for waiting in waits:  # a wait that an earlier review ended has no timer, and its review returns at once
+                timer, waiting.timer, waiting.dormant = waiting.timer, None, None
+                if timer is not None:
+                    self._env.unschedule(timer)
+                self._review(waiting)
             return
         fleet = agv.fleet
         first = waits[0]

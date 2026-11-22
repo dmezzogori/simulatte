@@ -8,7 +8,7 @@ nodes, orders submitted by :meth:`Mission.order`); worlds that only drive travel
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -1857,3 +1857,127 @@ def test_make_way_moves_into_a_full_zone_do_not_go_on_for_ever() -> None:
     assert [order.status for order in orders] == [OrderStatus.COMPLETED] * len(plan)
     assert len([e for e in replay.of(AgvRouted) if e.reason == "make_way"]) == 23
     assert controller._queue == []  # no wait is left open
+
+
+# --- final review: a blocker that strands wakes the waits it blocks (spec §7.1, §7.10) -------------------------------
+
+
+class Slow:
+    """A speed profile with only ``travel_time``: 0.2 m/s."""
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        return distance / 0.2
+
+
+@dataclass
+class Stranding:
+    env: Environment
+    replay: FullReplay
+    nodes: dict[str, Node]
+    x: AGV
+    w: AGV
+    carried: TransferOrder
+    later: TransferOrder
+
+
+def stranding_world(*, moving: bool, detour: bool, policy: StandardTrafficPolicy | None = None) -> Stranding:
+    """The control reviewer's reproductions: ``N0 - N1 - N2 - N3`` along a row, with `detour` also ``N0 - D1 - D2 -
+    N3``. X carries an order from its bay N1 to N3 with a battery that lasts for one arc; W's order, submitted at 5 s,
+    sends it from N0 to N3, the short way through N1 and N2, and back to N0. Either X, 12 m long on arcs of 10 m, leaves
+    N1 and strands at N2 at 51 s, or X, without length, strands on N1 at 40 s before it moves; in both it releases
+    nothing then. The world is built and not run."""
+    points = [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("N3", 30, 0), ("D1", 0, 10), ("D2", 30, 10)]
+    links = [("N0", "N1"), ("N1", "N2"), ("N2", "N3")] + ([("N0", "D1"), ("D1", "D2"), ("D2", "N3")] if detour else [])
+    graph, nodes = build(points if detour else points[:4], links)
+    env = Environment(debug=True)
+    site = {
+        name: Warehouse(
+            env=env,
+            name=name,
+            input_bays=[nodes[node]],
+            output_bays=[nodes[node]],
+            n_slots=2,
+            products=[SKU_A],
+            initial_inventory={SKU_A: 100},
+            pick_time=1.0 if moving else 40.0,
+            put_time=1.0,
+        )
+        for name, node in (("WA", "N1"), ("WB", "N3"), ("WC", "N0"))
+    }
+    slow = AGVType(
+        name="slow",
+        speed_profile=Slow(),
+        battery_capacity=15.0 if moving else 5.0,
+        weight_capacity=50.0,
+        volume_capacity=2.0,
+        length=12.0 if moving else 0.0,
+    )
+    x = AGV(env=env, agv_type=slow, agv_id="X", initial_node=nodes["N1"])
+    w = AGV(env=env, agv_type=vehicle(battery=1e9), agv_id="W", initial_node=nodes["N0"])
+    controller = ReservationController(env=env, graph=graph, policy=policy)
+    fleet = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[x, w],
+        warehouses=list(site.values()),
+        charging_stations=[],
+        traffic_controller=controller,
+        default_metrics=False,
+        clear_service_nodes=False,
+    )
+    replay = FullReplay(env, from_snapshot=True)
+    TrafficInvariants(env, controller)
+    carried = fleet.create_order(sku=SKU_A, quantity=1, origin=site["WA"], destination=site["WB"])
+    fleet.submit(carried)
+    later = fleet.create_order(sku=SKU_A, quantity=1, origin=site["WB"], destination=site["WC"])
+
+    def submit() -> Any:
+        yield env.timeout(5.0)
+        fleet.submit(later)
+
+    env.process(submit())
+    return Stranding(env, replay, nodes, x, w, carried, later)
+
+
+@pytest.mark.parametrize("detour", [True, False])
+@pytest.mark.parametrize("moving", [True, False], ids=["strands-on-its-way", "strands-on-its-bay"])
+def test_a_wait_behind_a_blocker_that_strands_is_reviewed_at_once(moving: bool, detour: bool) -> None:
+    """In both reproductions W's wait is asleep after its first review at 35 s (no grant or release since), so before
+    the fix nothing woke it: W stayed at N0 with its order dispatched and nothing reported the wait. Now the stranding
+    reviews it at once: W reroutes around X and completes its order when the detour exists, and its wait is reported
+    stuck at that instant when it does not."""
+    s = stranding_world(moving=moving, detour=detour)
+    s.env.run()
+    stranded_at = 51.0 if moving else 40.0
+    (stranded, *_) = [e for e in s.replay.of(AgvStranded) if e.agv == "X"]
+    assert (stranded.t, stranded.node, s.x.state) == (stranded_at, "N2" if moving else "N1", AGVState.STRANDED)
+    assert s.carried.status is OrderStatus.FAILED
+    (started, *_) = [e for e in s.replay.of(TrafficWaitStarted) if e.agv == "W"]
+    assert started.t == 5.0  # W stopped at N0 behind X
+    routed = [(e.t, e.reason) for e in s.replay.of(AgvRouted) if e.agv == "W"]
+    if detour:
+        assert routed[:2] == [(5.0, "travel"), (stranded_at, "blocked")]  # rerouted around X when X stranded
+        assert s.later.status is OrderStatus.COMPLETED
+        assert s.replay.of(TrafficWaitStuck) == []
+    else:
+        assert routed == [(5.0, "travel")]
+        assert [(e.t, e.agv, dict(e.blockers)) for e in s.replay.of(TrafficWaitStuck)] == [
+            (stranded_at, "W", {"X": "STRANDED"})
+        ]
+        assert (s.w.current_node, s.later.status) == (s.nodes["N0"], OrderStatus.DISPATCHED)
+    assert s.env.peek() == float("inf")
+
+
+def test_a_stranding_before_the_first_review_takes_its_timer() -> None:
+    """With reviews 100 s apart, W's first review is due at 105 s when X strands on N1 at 40 s. The stranding reviews
+    the wait at once and drops the timer: the wait is reported stuck at 40 s, it has had one review, and the run
+    returns at 41 s (X's failed order ends then), so nothing fired at 105 s."""
+    s = stranding_world(moving=False, detour=False, policy=StandardTrafficPolicy(reroute_after=100.0))
+    s.env.run()
+    assert [(e.t, e.agv) for e in s.replay.of(TrafficWaitStuck)] == [(40.0, "W")]
+    controller = cast(ReservationController, s.w.fleet.traffic_controller)  # type: ignore[union-attr]
+    waiting = controller._pending[s.w]
+    assert (waiting.reviews, waiting.timer, waiting.dormant) == (1, None, 100.0)
+    assert s.env.now == 41.0

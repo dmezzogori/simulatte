@@ -218,10 +218,11 @@ class TrafficController(Protocol):
     def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest: ...
     def stopped(self, request: ClaimRequest) -> None: ...
     def idle(self, agv: AGV) -> None:
-        """`agv` has just become ``IDLE`` where it stands; the coordinator calls it on every transition to ``IDLE``.
+        """`agv` has just come to rest without a travel where it stands: idle or stranded. The coordinator calls it on
+        every transition to ``IDLE`` and to ``STRANDED``.
 
-        ``ReservationController`` asks the AGV to make way for the waits it blocks (spec §7.10);
-        ``FreeFlowController`` does nothing.
+        ``ReservationController`` asks an idle AGV to make way for the waits it blocks, and reviews at once the waits a
+        stranded AGV blocks (spec §7.10); ``FreeFlowController`` does nothing.
         """
         ...
 

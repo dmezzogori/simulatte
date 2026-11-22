@@ -462,8 +462,16 @@ class FleetCoordinator(Entity, kind="fleet"):
     # ------------------------------------------------------------------
 
     def _transition_agv(self, agv: AGV, new_state: AGVState) -> None:
-        """Transition an AGV to *new_state* (``AGV.transition_to`` emits ``agv.state_changed``)."""
+        """Transition an AGV to *new_state* (``AGV.transition_to`` emits ``agv.state_changed``).
+
+        On a transition to ``STRANDED`` the traffic controller is told that the AGV has come to rest without a travel
+        (``idle``, spec §7.1), so that the waits it blocks are reviewed: a stranding may release nothing, and without
+        it a sleeping wait behind the AGV would never be reviewed again (§7.9).
+        """
+        stranding = new_state is AGVState.STRANDED and agv.state is not AGVState.STRANDED
         agv.transition_to(new_state)
+        if stranding:
+            self.traffic_controller.idle(agv)
 
     def _set_status(self, order: TransferOrder, status: OrderStatus, reason: str) -> None:
         """Assign `status` to `order` and emit ``order.status_changed``."""
