@@ -25,16 +25,25 @@ from simulatte.intralogistics.events import (
 from simulatte.intralogistics.metrics import OrderEMACollector
 from simulatte.intralogistics.order import TERMINAL_STATUSES, OrderStatus, TransferOrder
 from simulatte.intralogistics.policies import (
+    DispatchContext,
     NearestIdleStrategy,
     RepositioningContext,
     ReturnToOrigin,
     RoundRobinStrategy,
     StayInPlace,
+    ranking_route,
 )
 from simulatte.intralogistics.routing import RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.speed import KinematicProfile
-from simulatte.intralogistics.travel import TravelExecutor, TravelOutcome, estimate_arc_energy, standard_target
+from simulatte.intralogistics.travel import (
+    TravelExecutor,
+    TravelOutcome,
+    _check_route,
+    _load_weight,
+    estimate_arc_energy,
+    standard_target,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -101,7 +110,9 @@ class FleetCoordinator(Entity, kind="fleet"):
     :class:`~simulatte.intralogistics.traffic.FreeFlowController`) and registers an activation initializer that places
     the AGVs on their starting nodes with it (``place``). Travels run through a
     :class:`~simulatte.intralogistics.travel.TravelExecutor`, on routes of ``router`` (default
-    :class:`~simulatte.intralogistics.routing.ShortestDistanceRouter`). Orders are attached by :meth:`create_order`
+    :class:`~simulatte.intralogistics.routing.ShortestDistanceRouter`), whose cost also ranks the AGVs of a dispatch
+    (through the strategy's :class:`~simulatte.intralogistics.policies.DispatchContext`), the bays (:meth:`best_bay`),
+    the chargers and the parking areas (spec §10.4). Orders are attached by :meth:`create_order`
     (or by :meth:`submit` for orders constructed directly) and retire at a terminal status, once the hooks of that
     transition ran and the mission bookkeeping was cleaned up. :meth:`submit` and :meth:`cancel` are deferrable: before
     activation they are queued and run at activation (spec §10).
@@ -313,7 +324,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         for cb in self._hooks_on_order_submitted:
             cb(order)
 
-        agv = self._dispatch_strategy.select(order, self.fleet, self.graph)
+        agv = self._dispatch_strategy.select(order, self.fleet, self._dispatch_context())
         if agv is not None:
             self._dispatch(order, agv)
         else:
@@ -636,7 +647,7 @@ class FleetCoordinator(Entity, kind="fleet"):
 
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
-            origin_output_bay = order.origin.nearest_output_bay(self._require_current_node(agv), self.graph)
+            origin_output_bay = self.best_bay(agv, order.origin.output_bays)
             while True:
                 outcome = yield from self._executor.travel(agv, origin_output_bay, loaded=False)
                 if outcome is TravelOutcome.ARRIVED:
@@ -680,7 +691,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             self._trigger_event_driven_replenishment(order.origin)
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
-            dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
+            dest_input_bay = self.best_bay(agv, order.destination.input_bays, load_weight=_load_weight(agv))
             while True:
                 outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
                 self._refuse_give_up_with_cargo(agv, outcome)
@@ -729,6 +740,8 @@ class FleetCoordinator(Entity, kind="fleet"):
                     parking_areas=self.parking_areas,
                     charging_stations=self.charging_stations,
                     fleet=self.fleet,
+                    router=self.router,
+                    view=self.traffic_controller.view,
                 )
                 target = self._repositioning_policy.reposition(agv, repo_ctx)
                 if target is not None and target != agv.current_node:
@@ -835,7 +848,7 @@ class FleetCoordinator(Entity, kind="fleet"):
 
                 if order.status == OrderStatus.IN_TRANSIT and agv.current_load is not None:
                     # S6: ResumeDelivery — re-travel to destination from current position
-                    dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
+                    dest_input_bay = self.best_bay(agv, order.destination.input_bays, load_weight=_load_weight(agv))
                     self._transition_agv(agv, AGVState.TRAVELING_LOADED)
                     while True:
                         outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
@@ -1157,7 +1170,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             return
 
         current_node = self._require_current_node(agv)
-        origin_bay = order.origin.nearest_input_bay(current_node, self.graph)
+        origin_bay = self.best_bay(agv, order.origin.input_bays, load_weight=_load_weight(agv))
         if current_node != origin_bay:
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
             outcome = yield from self._executor.travel(agv, origin_bay, loaded=True)
@@ -1171,51 +1184,81 @@ class FleetCoordinator(Entity, kind="fleet"):
             yield from order.origin.put(sku, qty)
         self._set_load(agv, None)
 
+    def best_bay(self, agv: AGV, bays: Sequence[Node], *, load_weight: float = 0.0) -> Node:
+        """The bay of `bays` that `agv` reaches from its current node at the least router cost (spec §10.4).
+
+        The router is asked as for the travel to the bay, with `load_weight` and the purpose ``"travel"``
+        (:func:`~simulatte.intralogistics.policies.ranking_route`). Among bays of equal cost the first in `bays` wins;
+        when none is reachable, the first bay is returned. An AGV without a node raises `RuntimeError`.
+        :meth:`Warehouse.nearest_input_bay` and :meth:`Warehouse.nearest_output_bay` rank by chord distance instead
+        and are not used here.
+        """
+        self._require_current_node(agv)
+        router, view = self.router, self.traffic_controller.view
+
+        def cost(bay: Node) -> float:
+            route = ranking_route(router, view, agv, bay, load_weight)
+            return math.inf if route is None else route.cost
+
+        return min(bays, key=cost)
+
+    def _dispatch_context(self) -> DispatchContext:
+        """The context of the dispatch strategy's decisions: the fleet's graph, router and traffic view."""
+        return DispatchContext(self.graph, self.router, self.traffic_controller.view)
+
     def _find_nearest_charger(self, agv: AGV) -> ChargingStation | None:
-        """Find the nearest charging station by graph distance."""
+        """The charging station `agv` reaches at the least router cost of the unloaded travel to it, the first of
+        ``charging_stations`` among equal costs; None when none is reachable."""
         if not self.charging_stations or agv.current_node is None:
             return None
-
-        def _distance(cs: ChargingStation) -> float:
-            assert agv.current_node is not None
-            path = self.graph.shortest_path(agv.current_node, cs.node)
-            if path is None:
-                return float("inf")
-            return self.graph.path_distance(path)
-
-        best = min(self.charging_stations, key=_distance)
-        d = _distance(best)
-        return best if d < float("inf") else None
+        router, view = self.router, self.traffic_controller.view
+        best: tuple[float, ChargingStation] | None = None
+        for cs in self.charging_stations:
+            route = ranking_route(router, view, agv, cs.node)
+            if route is not None and (best is None or route.cost < best[0]):
+                best = (route.cost, cs)
+        return None if best is None else best[1]
 
     def _find_reachable_charger(self, agv: AGV) -> ChargingStation | None:
-        """Find a charger the AGV can reach with its current battery."""
+        """The charging station `agv` can reach with its battery level now at the least router cost, the first of
+        ``charging_stations`` among equal costs; None when none is reachable.
+
+        The energy is estimated on the route the router gives for the unloaded travel to the station, the route the
+        executor will travel, from the arc lengths: arc by arc at the arc cap for a profile with limits (the
+        executor's estimate, spec §9.5), else from the route's length at the profile's average speed.
+        """
         if not self.charging_stations or agv.current_node is None:
             return None
 
+        router, view, graph = self.router, self.traffic_controller.view, self.graph
+        level = agv.battery_level_now()
+        capacity = agv.battery.capacity
+        level_pct = level / capacity if capacity > 0 else 0.0
         reachable: list[tuple[float, ChargingStation]] = []
         for cs in self.charging_stations:
-            assert agv.current_node is not None
-            path = self.graph.shortest_path(agv.current_node, cs.node)
-            if path is None:
+            route = ranking_route(router, view, agv, cs.node)
+            if route is None:
                 continue
-            total_dist = self.graph.path_distance(path)
+            _check_route(self, route, agv.current_node, cs.node)
+            path = route.nodes
             # Estimate energy cost to get there
             profile = agv.agv_type.speed_profile
             if isinstance(profile, KinematicProfile):
                 # the executor's estimate, arc by arc at the arc cap (spec §9.5): the check at rest and this one agree
-                kin = profile.limits(0.0, agv.battery.level_pct)
+                kin = profile.limits(0.0, level_pct)
                 parts: list[float] = []
                 for u, v in zip(path, path[1:]):
-                    arc = self.graph.arc_between(u, v)
+                    arc = graph.arc_between(u, v)
                     assert arc is not None
-                    parts.append(estimate_arc_energy(agv.battery, kin, self.graph.length(u, v), 0.0, arc.speed_limit))
+                    parts.append(estimate_arc_energy(agv.battery, kin, graph.length(u, v), 0.0, arc.speed_limit))
                 energy_needed = math.fsum(parts)
             else:
-                est_travel_time = profile.travel_time(total_dist, 0.0, agv.battery.level_pct)
-                est_avg_speed = total_dist / est_travel_time if est_travel_time > 0 else 0.0
-                energy_needed = agv.battery.estimate_energy(total_dist, 0.0, est_avg_speed)
-            if agv.battery.level >= energy_needed:
-                reachable.append((total_dist, cs))
+                total_length = graph.path_length(path)
+                est_travel_time = profile.travel_time(total_length, 0.0, level_pct)
+                est_avg_speed = total_length / est_travel_time if est_travel_time > 0 else 0.0
+                energy_needed = agv.battery.estimate_energy(total_length, 0.0, est_avg_speed)
+            if level >= energy_needed:
+                reachable.append((route.cost, cs))
 
         if not reachable:
             return None
@@ -1247,6 +1290,7 @@ class FleetCoordinator(Entity, kind="fleet"):
 
         dispatched: list[TransferOrder] = []
         failed: list[TransferOrder] = []
+        context = self._dispatch_context()
         for order in orders:
             if builtin and not idle and order.id not in self._pending_unserviceable:
                 break
@@ -1254,7 +1298,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             withheld = self._withheld
             if withheld is not None and withheld[0] is order:  # not offered to the AGV that just gave it up
                 candidates = [a for a in candidates if a is not withheld[1]]
-            agv = self._dispatch_strategy.select(order, candidates, self.graph)
+            agv = self._dispatch_strategy.select(order, candidates, context)
             if agv is not None:
                 dispatched.append(order)
                 self._dispatch_retries.pop(order.id, None)

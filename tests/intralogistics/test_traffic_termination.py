@@ -179,7 +179,7 @@ def test_a_give_up_through_the_standard_machinery_requeues_and_the_run_returns()
 class _OnlyA:
     """A custom dispatch strategy that sends every order to the AGV ``A`` when it is idle."""
 
-    def select(self, order: TransferOrder, fleet: Any, graph: Any) -> AGV | None:
+    def select(self, order: TransferOrder, fleet: Any, context: Any) -> AGV | None:
         return next((agv for agv in fleet if agv.id == "A" and agv.state is AGVState.IDLE), None)
 
 
@@ -463,7 +463,7 @@ def test_an_order_an_idle_agv_cannot_reach_still_exhausts_its_retries() -> None:
 class _Never:
     """A custom dispatch strategy that never selects an AGV."""
 
-    def select(self, order: TransferOrder, fleet: Any, graph: Any) -> AGV | None:
+    def select(self, order: TransferOrder, fleet: Any, context: Any) -> AGV | None:
         return None
 
 

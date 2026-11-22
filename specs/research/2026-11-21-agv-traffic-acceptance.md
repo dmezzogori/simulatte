@@ -491,3 +491,30 @@ Two charging defects predate this work and are unchanged by it:
 - When an arc of a mission cannot be afforded with the level a full charge leaves on arrival at the node before it,
   the vehicle diverts to the charger, charges, comes back to that node and diverts again, without end; `env.run()`
   without `until` does not return.
+
+# Part C (routing), notes recorded per task
+
+The release gate (Task 5) records part C as a whole; these notes are kept by the tasks that change results.
+
+## Changes in results (Task 3, route cost for dispatch, bays, chargers and parking)
+
+- `NearestIdleStrategy`, the bays of a mission (`FleetCoordinator.best_bay`), the nearest and the reachable charger and
+  `NearestParkingPolicy` rank by the fleet's router's cost (spec §10.4); ties keep the rules of part B (the first of the
+  sequence, the AGV id for dispatch). With `ShortestDistanceRouter` the cost is the path length, the sum of the arc
+  lengths, where part B ranked by the sum of the chords of the shortest path: on a graph where no arc has an explicit
+  `length` they are the same floats and every decision is unchanged. The full event streams of the four intralogistics
+  examples (under both controllers where they run), the four Appendix A runs (scenarios 1 and 2, with and without the
+  part B motion options) and 60 random worlds (grids with one-way and speed-limited arcs, several bays per warehouse,
+  chargers, parking areas, `NearestParkingPolicy`, idle power, both controllers, profiles with and without limits) are
+  identical before and after the change, and `test_with_the_default_router_dispatch_bays_chargers_and_parking_decide_as_path_length_did`
+  compares the examples and Appendix A against the part B rankings.
+- On a graph with an arc longer than its chord (an explicit `Arc.length`) the rankings now see the length the AGV
+  travels: a bay, charger or parking area behind such an arc can lose to one that is farther by chord but nearer along
+  the arcs (`test_an_arc_longer_than_its_chord_changes_the_charger_and_the_bay`).
+  `Warehouse.nearest_input_bay` and `nearest_output_bay` keep the chord ranking and are no longer used by the coordinator.
+- The reachable-charger estimate is computed on the route the router gives for the travel to the charger, the route the
+  executor travels, from its arc lengths, with the battery level now (`AGV.battery_level_now()`). Before, it used the
+  chords of the shortest path and the level as last accounted, so with a custom router that routes the diversion over
+  a detour, or with idle power not yet accounted, a charger could count as reachable that the travel could not reach.
+- `DispatchStrategy.select(order, fleet, graph)` is now `select(order, fleet, context)` with a `DispatchContext`
+  (`graph`, `router`, `view`, `cost`); `RepositioningContext` gains `router`, `view` and `cost` and is frozen.

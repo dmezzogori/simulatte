@@ -12,6 +12,7 @@ each item of §17.
 from __future__ import annotations
 
 import contextlib
+import inspect
 import math
 import os
 import re
@@ -24,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 
+import simulatte.environment
 import simulatte.intralogistics as intralogistics
 import simulatte.intralogistics.builders as builders
 from simulatte import Layout
@@ -47,6 +49,7 @@ from simulatte.intralogistics.events import (
     AgvMoveEnded,
     AgvMoveStarted,
     AgvRouted,
+    OrderAssigned,
     OrderStatusChanged,
     TrafficDeadlock,
     TrafficReleased,
@@ -1104,3 +1107,148 @@ def test_the_examples_hold_the_traffic_invariants_under_a_reservation_controller
             assert match is not None, text
             counts.append(int(match.group(1)))
         assert counts[0] == counts[1] > 0
+
+
+# --- spec §10.4: with the default router, route cost decides as path length did -----------------------------------
+
+
+def path_length_rankings(patch: pytest.MonkeyPatch) -> None:
+    """Put back, through `patch`, the rankings of the end of part B: the dispatch of ``NearestIdleStrategy``, the
+    choice of ``NearestParkingPolicy``, the bays and both charger searches rank by ``graph.path_distance`` of
+    ``graph.shortest_path`` (the chords), the bays through the warehouse's chord helper."""
+    from simulatte.intralogistics.policies import NearestIdleStrategy, NearestParkingPolicy
+    from simulatte.intralogistics.speed import KinematicProfile
+    from simulatte.intralogistics.travel import estimate_arc_energy
+
+    def distance(graph: LayoutGraph, origin: Node, destination: Node) -> float:
+        path = graph.shortest_path(origin, destination)
+        return math.inf if path is None else graph.path_distance(path)
+
+    def select(self: Any, order: Any, fleet: Any, context: Any) -> AGV | None:
+        graph = context.graph
+        candidates = [
+            agv
+            for agv in fleet
+            if agv.state.name == "IDLE" and agv.current_node is not None and agv.can_carry(order.sku, order.quantity)
+        ]
+        if not candidates:
+            return None
+
+        def key(agv: AGV) -> tuple[float, str]:
+            assert agv.current_node is not None
+            bay = order.origin.nearest_output_bay(agv.current_node, graph)
+            return (distance(graph, agv.current_node, bay), agv.agv_id)
+
+        best = min(candidates, key=key)
+        return None if key(best)[0] == math.inf else best
+
+    def reposition(self: Any, agv: AGV, context: Any) -> Node | None:
+        available = [area for area in context.parking_areas if area.available_capacity > 0]
+        if not available or agv.current_node is None:
+            return None
+        current = agv.current_node
+        return min(available, key=lambda area: distance(context.graph, current, area.node)).node
+
+    def best_bay(self: FleetCoordinator, agv: AGV, bays: Any, *, load_weight: float = 0.0) -> Node:
+        assert agv.current_node is not None
+        return Warehouse._nearest_bay(agv.current_node, bays, self.graph)
+
+    def nearest_charger(self: FleetCoordinator, agv: AGV) -> Any:
+        if not self.charging_stations or agv.current_node is None:
+            return None
+        current = agv.current_node
+        best = min(self.charging_stations, key=lambda cs: distance(self.graph, current, cs.node))
+        return best if distance(self.graph, current, best.node) < math.inf else None
+
+    def reachable_charger(self: FleetCoordinator, agv: AGV) -> Any:
+        if not self.charging_stations or agv.current_node is None:
+            return None
+        reachable = []
+        for cs in self.charging_stations:
+            path = self.graph.shortest_path(agv.current_node, cs.node)
+            if path is None:
+                continue
+            total = self.graph.path_distance(path)
+            profile = agv.agv_type.speed_profile
+            if isinstance(profile, KinematicProfile):
+                kin = profile.limits(0.0, agv.battery.level_pct)
+                needed = math.fsum(
+                    estimate_arc_energy(
+                        agv.battery,
+                        kin,
+                        self.graph.length(u, v),
+                        0.0,
+                        cast(Arc, self.graph.arc_between(u, v)).speed_limit,
+                    )
+                    for u, v in zip(path, path[1:])
+                )
+            else:
+                time = profile.travel_time(total, 0.0, agv.battery.level_pct)
+                needed = agv.battery.estimate_energy(total, 0.0, total / time if time > 0 else 0.0)
+            if agv.battery.level >= needed:
+                reachable.append((total, cs))
+        return min(reachable, key=lambda item: item[0])[1] if reachable else None
+
+    patch.setattr(NearestIdleStrategy, "select", select)
+    patch.setattr(NearestParkingPolicy, "reposition", reposition)
+    patch.setattr(FleetCoordinator, "best_bay", best_bay)
+    patch.setattr(FleetCoordinator, "_find_nearest_charger", nearest_charger)
+    patch.setattr(FleetCoordinator, "_find_reachable_charger", reachable_charger)
+
+
+def decisions(name: str, capsys: pytest.CaptureFixture[str]) -> list[tuple[Any, ...]]:
+    """The ``order.assigned`` and ``agv.routed`` events of the example or Appendix A scenario `name`, in order."""
+    seen: list[tuple[Any, ...]] = []
+
+    def record(env: Environment) -> None:
+        def handler(event: Any) -> None:
+            if isinstance(event, OrderAssigned):
+                seen.append((float(env.now), "assigned", event.order, event.agv))
+            else:
+                seen.append((float(env.now), "routed", event.agv, event.nodes, event.cost, event.reason))
+
+        env.bus.subscribe(handler, (OrderAssigned, AgvRouted))
+
+    if name.startswith("appendix_a_"):
+        with Environment() as env:
+            record(env)
+            m, _ = appendix_a(env, observed=False)
+            run_appendix_a(int(name[-1]), m)
+        return seen
+
+    class Recorded(Environment):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            record(self)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(simulatte.environment, "Environment", Recorded)
+        main = runpy.run_path(str(ROOT / "examples" / f"{name}.py"), run_name="__headless__")["main"]
+        main(**({"plot": False} if "plot" in inspect.signature(main).parameters else {}))
+    capsys.readouterr()
+    return seen
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "intralogistics_simple",
+        "intralogistics_intermediate",
+        "intralogistics_advanced",
+        "building_an_agv_system",
+        "appendix_a_1",
+        "appendix_a_2",
+    ],
+)
+def test_with_the_default_router_dispatch_bays_chargers_and_parking_decide_as_path_length_did(
+    name: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """spec §10.4 and §17 (routing): the examples and Appendix A assign the same orders to the same AGVs at the same
+    times, and route the same travels, as a run whose rankings are those of the end of part B."""
+    ranked = decisions(name, capsys)
+    with pytest.MonkeyPatch.context() as patch:
+        path_length_rankings(patch)
+        reference = decisions(name, capsys)
+    assigned = [item for item in ranked if item[1] == "assigned"]
+    assert assigned and assigned == [item for item in reference if item[1] == "assigned"]
+    assert ranked == reference

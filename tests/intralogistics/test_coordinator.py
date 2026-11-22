@@ -10,6 +10,7 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
+from simulatte.intralogistics.policies import DispatchContext
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.events import (
@@ -20,7 +21,7 @@ from simulatte.intralogistics.events import (
     TrafficWaitStuck,
 )
 from simulatte.intralogistics.reservation import ReservationController
-from simulatte.intralogistics.routing import RouteRequest
+from simulatte.intralogistics.routing import FastestRouter, Route, Router, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.traffic import TrafficView
 from simulatte.intralogistics.warehouse import Warehouse
 from tests.intralogistics.traffic_support import StillFleet
@@ -5077,9 +5078,9 @@ class TestReleaseLifecycleRegressions:
         calls = []
 
         class CustomStrategy(NearestIdleStrategy):
-            def select(self, order, fleet, graph):
+            def select(self, order, fleet, context):
                 calls.append((env.now, tuple(fleet)))
-                return super().select(order, fleet, graph)
+                return super().select(order, fleet, context)
 
         coordinator._dispatch_strategy = CustomStrategy()
         for _ in range(2):
@@ -5104,3 +5105,179 @@ class TestReleaseLifecycleRegressions:
             assert coordinator.metrics is not None and coordinator.metrics.alpha == 0.2
         else:
             assert coordinator.metrics is None
+
+
+# ===========================================================================
+# Route cost: dispatch context, bays and chargers (spec §10.4)
+# ===========================================================================
+
+
+class SpyRouter:
+    """Answers as `router` (default ``ShortestDistanceRouter``) and records every request."""
+
+    def __init__(self, router: Router | None = None) -> None:
+        self.router = router or ShortestDistanceRouter()
+        self.requests: list[RouteRequest] = []
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        self.requests.append(request)
+        return self.router.route(request, view)
+
+
+def _slow_arm_world(
+    env: Environment,
+    sku: SKU,
+    speed: TrapezoidalProfile,
+    *,
+    router: Router | None = None,
+    extra: dict[str, tuple[float, float, str | None]] | None = None,
+) -> tuple[FleetCoordinator, AGV, dict[str, Node]]:
+    """An AGV at ``S``; ``P`` is 10 m away behind a 0.5 m/s limit (20 s), ``Q`` 15 m away (1.5 s at 10 m/s), ``E`` is
+    10 m beyond ``P`` and 25 m beyond ``Q``, and ``R`` 25 m beyond ``E``. Warehouse ``WH-O`` has output bays ``P`` and
+    ``Q`` (in that order), ``WH-D`` input bays ``E`` and ``R``; chargers ``CS-P`` and ``CS-Q`` stand on ``P`` and ``Q``.
+    `extra` adds nodes by id at ``(x, y)``, each joined to the node named, or to none."""
+    points = [("S", 0, 0), ("P", 10, 0), ("Q", 0, 15), ("E", 20, 0), ("R", 20, 25)]
+    points += [(name, x, y) for name, (x, y, _) in (extra or {}).items()]
+    nodes = {name: Node(id=name, x=x, y=y) for name, x, y in points}
+    s, p, q, e, r = (nodes[name] for name in "SPQER")
+    arcs = [Arc(s, p, speed_limit=0.5), Arc(s, q), Arc(p, e), Arc(q, e, length=25.0), Arc(e, r)]
+    arcs += [Arc(nodes[name], nodes[to]) for name, (_, _, to) in (extra or {}).items() if to is not None]
+    graph = LayoutGraph(nodes.values(), arcs)
+    origin = Warehouse(
+        env=env,
+        name="WH-O",
+        input_bays=[p],
+        output_bays=[p, q],
+        n_slots=1,
+        products=[sku],
+        initial_inventory={sku: 10},
+        pick_time=1.0,
+        put_time=1.0,
+    )
+    destination = Warehouse(
+        env=env,
+        name="WH-D",
+        input_bays=[e, r],
+        output_bays=[e],
+        n_slots=1,
+        products=[sku],
+        initial_inventory={sku: 0},
+        pick_time=1.0,
+        put_time=1.0,
+    )
+    agv = AGV(env=env, agv_type=_make_agv_type(speed), agv_id="AGV-1", initial_node=s)
+    chargers = [ChargingStation(env=env, name=name, node=nodes[name[-1]], n_slots=1) for name in ("CS-P", "CS-Q")]
+    coordinator = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=[origin, destination],
+        charging_stations=chargers,
+        router=router,
+    )
+    return coordinator, agv, nodes
+
+
+class TestRouteCostRankings:
+    def test_dispatch_context_exposes_graph(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        """The strategy's context carries the graph it used to receive, the fleet's router and its traffic view, at
+        submission and at the checks of the pending queue."""
+        coordinator, _, origin, destination = _build_simple_system(env, sku_a, simple_speed)
+        seen: list[tuple[float, Any]] = []
+
+        class Recording:
+            def select(self, order: TransferOrder, fleet: Any, context: Any) -> AGV | None:
+                seen.append((env.now, context))
+                return None
+
+        coordinator._dispatch_strategy = Recording()
+        coordinator.submit(coordinator.create_order(sku=sku_a, quantity=1, origin=origin, destination=destination))
+        env.run(until=2.5)
+        assert [t for t, _ in seen] == [0, 1, 2]
+        for _, context in seen:
+            assert isinstance(context, DispatchContext)
+            assert context.graph is coordinator.graph
+            assert context.router is coordinator.router
+            assert context.view is coordinator.traffic_controller.view
+
+    def test_best_bay_ranks_by_router_cost(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed)
+        assert coordinator.best_bay(agv, [nodes["P"], nodes["Q"]]) is nodes["P"]
+        fastest, agv, nodes = _slow_arm_world(Environment(), sku_a, simple_speed, router=FastestRouter())
+        assert fastest.best_bay(agv, [nodes["P"], nodes["Q"]]) is nodes["Q"]
+
+    def test_best_bay_asks_with_the_load_and_keeps_the_first_of_equal_or_unreachable_bays(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        spy = SpyRouter()
+        extra = {"T": (-10.0, 0.0, "S"), "IA": (50.0, 50.0, None), "IB": (60.0, 60.0, None)}
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, router=spy, extra=extra)
+        p, q, e = nodes["P"], nodes["Q"], nodes["E"]
+        agv.current_node = e  # P and E are 10 m apart; Q is 25 m away
+        assert coordinator.best_bay(agv, [q, p, nodes["S"]], load_weight=3.0) is p
+        assert [(r.origin, r.destination, r.load_weight, r.purpose) for r in spy.requests] == [
+            (e, q, 3.0, "travel"),
+            (e, p, 3.0, "travel"),
+            (e, nodes["S"], 3.0, "travel"),
+        ]
+        agv.current_node = nodes["S"]
+        tied, island_a, island_b = nodes["T"], nodes["IA"], nodes["IB"]
+        assert coordinator.best_bay(agv, [tied, p]) is tied  # both 10 m away: the first
+        assert coordinator.best_bay(agv, [p, tied]) is p
+        assert coordinator.best_bay(agv, [island_b, island_a]) is island_b  # none reachable: the first
+
+    @pytest.mark.parametrize("fast", [False, True])
+    def test_a_mission_travels_to_the_bays_best_bay_picks(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile, fast: bool
+    ) -> None:
+        spy = SpyRouter(FastestRouter() if fast else None)
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, router=spy)
+        origin, destination = coordinator.warehouses
+        picked_at: list[Node | None] = []
+        coordinator.on_pickup_complete(lambda order, agv: picked_at.append(agv.current_node))
+        order = coordinator.create_order(sku=sku_a, quantity=2, origin=origin, destination=destination)
+        coordinator.submit(order)
+        env.run()
+        assert order.status == OrderStatus.COMPLETED
+        assert picked_at == [nodes["Q"] if fast else nodes["P"]]
+        assert agv.current_node is nodes["E"]
+        asked = {(r.destination.id, r.load_weight) for r in spy.requests}
+        assert {("P", 0.0), ("Q", 0.0), ("E", 10.0), ("R", 10.0)} <= asked  # the loaded bays are ranked with the load
+        assert ("R", 0.0) not in asked and ("E", 0.0) not in asked
+
+    def test_chargers_rank_by_router_cost(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
+        coordinator, agv, _ = _slow_arm_world(env, sku_a, simple_speed)
+        slow, fast = coordinator.charging_stations
+        assert coordinator._find_nearest_charger(agv) is slow
+        assert coordinator._find_reachable_charger(agv) is slow
+        coordinator, agv, _ = _slow_arm_world(Environment(), sku_a, simple_speed, router=FastestRouter())
+        slow, fast = coordinator.charging_stations
+        assert coordinator._find_nearest_charger(agv) is fast
+        assert coordinator._find_reachable_charger(agv) is fast
+
+    def test_chargers_at_equal_cost_keep_the_order_of_the_stations(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, extra={"T": (30.0, 0.0, "E")})
+        agv.current_node = nodes["E"]  # P is 10 m away, and so is the charger added on T
+        on_p, on_q = coordinator.charging_stations
+        on_t = ChargingStation(env=env, name="CS-T", node=nodes["T"], n_slots=1)
+        for stations, expected in (((on_t, on_p, on_q), on_t), ((on_q, on_p, on_t), on_p)):
+            coordinator.charging_stations = stations
+            assert coordinator._find_nearest_charger(agv) is expected
+            assert coordinator._find_reachable_charger(agv) is expected
+
+    def test_the_reachable_charger_estimate_rejects_an_invalid_route(
+        self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
+    ) -> None:
+        class Detour:
+            def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+                return Route((request.origin, request.origin, request.destination), 1.0)
+
+        coordinator, agv, _ = _slow_arm_world(env, sku_a, simple_speed, router=Detour())
+        with pytest.raises(ValueError, match="Detour returned an invalid route from S to P: it visits a node twice"):
+            coordinator._find_reachable_charger(agv)

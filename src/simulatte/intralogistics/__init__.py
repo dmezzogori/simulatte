@@ -12,6 +12,7 @@ from simulatte.intralogistics.network import Claim, ClaimItem, Corridor, Segment
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import (
+    DispatchContext,
     DispatchStrategy,
     LoadRecoveryStrategy,
     NearestIdleStrategy,
@@ -118,6 +119,7 @@ __all__ = [
     "OrderStatus",
     "TransferOrder",
     # policies
+    "DispatchContext",
     "DispatchStrategy",
     "NearestIdleStrategy",
     "RoundRobinStrategy",

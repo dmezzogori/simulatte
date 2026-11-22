@@ -39,9 +39,10 @@ from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.kinematics import Kinematics
 from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.routing import Route, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeFlowController
+from simulatte.intralogistics.traffic import FreeFlowController, TrafficView
 from simulatte.intralogistics.travel import TravelOutcome
 from simulatte.intralogistics.warehouse import Warehouse
 from tests.intralogistics.test_idle_traffic import Via
@@ -633,16 +634,38 @@ def test_the_charger_is_reachable_by_the_same_estimate_as_the_check_at_rest(
         assert (stranded.node, stranded.reason) == ("N0", "no_reachable_charger")
 
 
+class Detours(Via):
+    """:class:`Via`, except that the first request of each pair in `first` gets the shortest path: the route a charger
+    ranking estimates is not the one its diversion then travels, as with a router whose answer changes between the
+    two requests."""
+
+    def __init__(
+        self, nodes: dict[str, Node], fixed: dict[tuple[str, str], tuple[str, ...]], first: set[tuple[str, str]]
+    ) -> None:
+        super().__init__(nodes, fixed)
+        self.first = first
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        key = (request.origin.id, request.destination.id)
+        if key in self.first:
+            self.first.discard(key)
+            return ShortestDistanceRouter.route(self, request, view)
+        return super().route(request, view)
+
+
 @pytest.mark.parametrize("reserve", [False, True])
 def test_a_diversion_whose_first_arc_is_not_affordable_strands_without_recursing(reserve: bool) -> None:
-    """The charger on N1 is reachable by the shortest path (the arc N0 N1 has a speed limit of 0.5, so it costs 5), but
-    the router sends the diversion through X, whose first arc costs 14.1 against a battery of 13, as it sends the
-    travel to N4. The diversion cannot leave N0: it strands the AGV there, once, instead of diverting again."""
+    """The charger on N1 is reachable on the route the router first gives (the arc N0 N1 has a speed limit of 0.5, so
+    it costs 5), but the router then sends the diversion through X, whose first arc costs 14.1 against a battery of 13,
+    as it sends the travel to N4. The diversion cannot leave N0: it strands the AGV there, once, instead of diverting
+    again."""
     nodes = {n: Node(n, x, y) for n, x, y in [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("X", 5, 8)]}
     arcs = [Arc(nodes["N0"], nodes["N1"], speed_limit=0.5), Arc(nodes["N1"], nodes["N2"])]
     arcs += [Arc(nodes["N0"], nodes["X"]), Arc(nodes["X"], nodes["N1"])]
     graph = LayoutGraph(nodes.values(), arcs)
-    router = Via(nodes, {("N0", "N2"): ("N0", "X", "N1", "N2"), ("N0", "N1"): ("N0", "X", "N1")})
+    router = Detours(
+        nodes, {("N0", "N2"): ("N0", "X", "N1", "N2"), ("N0", "N1"): ("N0", "X", "N1")}, first={("N0", "N1")}
+    )
     w = charger_world(13.0, "N1", depletion=speed_cost, reserve=reserve, graph_nodes=(graph, nodes), router=router)
     w.go("A", "N2")
     w.env.run()
@@ -884,9 +907,10 @@ def test_a_lone_agv_ends_alike_under_both_controllers_for_a_depletion_that_falls
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: bool) -> None:
-    """S to G costs 30 against a battery of 25: the AGV diverts to the charger on C, whose route the router sends over a
-    detour: at Y the diversion again lacks the energy and diverts from Y, where the route through Z is too long. The
-    guard of the first diversion survives the second: the travel returns ``BATTERY_STRANDED`` at Y."""
+    """S to G costs 30 against a battery of 25: the AGV diverts to the charger on C, reachable on the route the router
+    first gives, which then sends the diversion over a detour: at Y the diversion again lacks the energy and diverts
+    from Y, where the route through Z is too long. The guard of the first diversion survives the second: the travel
+    returns ``BATTERY_STRANDED`` at Y."""
     nodes = {n: Node(n, x, y) for n, x, y in [("S", 0, 0), ("G", 30, 0), ("Y", 0, 10), ("C", 0, 20), ("Z", 3, 19)]}
     arcs = [
         Arc(nodes["S"], nodes["G"]),
@@ -896,7 +920,9 @@ def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: 
         Arc(nodes["Z"], nodes["C"]),
     ]
     graph = LayoutGraph(nodes.values(), arcs)
-    router = Via(nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")})
+    router = Detours(
+        nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")}, first={("S", "C"), ("Y", "C")}
+    )
     w = charger_world(25.0, "C", reserve=reserve, graph_nodes=(graph, nodes), router=router, start="S")
     w.go("A", "G")
     w.env.run()

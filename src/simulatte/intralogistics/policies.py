@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
@@ -11,17 +12,65 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.charging import ChargingStation
     from simulatte.intralogistics.graph import LayoutGraph, Node
     from simulatte.intralogistics.parking import ParkingArea
+    from simulatte.intralogistics.routing import Route, Router
     from simulatte.intralogistics.sku import SKU
+    from simulatte.intralogistics.traffic import TrafficView
     from simulatte.intralogistics.warehouse import Warehouse
 
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
+from simulatte.intralogistics.routing import RouteRequest
 
 if TYPE_CHECKING:
     from simulatte.intralogistics.fleet import FleetCoordinator
 
 
+# ── Route cost ────────────────────────────────────────────────────────
+
+
+def ranking_route(router: Router, view: TrafficView, agv: AGV, node: Node, load_weight: float = 0.0) -> Route | None:
+    """The route `router` gives `agv` from its current node to `node` for a ranking (spec §10.4), or None when there
+    is none or the AGV has no node.
+
+    The router is asked as for the travel the ranking is for: ``RouteRequest(agv, agv.current_node, node, load_weight)``
+    with the purpose ``"travel"``. A route whose cost is negative, NaN or infinite raises `ValueError` naming the
+    router's class. Costs are comparable only within one router.
+    """
+    origin = agv.current_node
+    if origin is None:
+        return None
+    route = router.route(RouteRequest(agv, origin, node, load_weight), view)
+    if route is not None and not (math.isfinite(route.cost) and route.cost >= 0):
+        raise ValueError(
+            f"{type(router).__name__} returned a route of cost {route.cost} from {origin.id} to {node.id}; a route "
+            "cost must be finite and >= 0"
+        )
+    return route
+
+
+def _cost(router: Router, view: TrafficView, agv: AGV, node: Node, load_weight: float) -> float:
+    route = ranking_route(router, view, agv, node, load_weight)
+    return math.inf if route is None else route.cost
+
+
 # ── DispatchStrategy ──────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class DispatchContext:
+    """What a :class:`DispatchStrategy` decides with (spec §10.4): the fleet's graph, router and traffic view.
+
+    The view is live: what the router reads from it is the traffic at the instant of the decision.
+    """
+
+    graph: LayoutGraph
+    router: Router
+    view: TrafficView
+
+    def cost(self, agv: AGV, node: Node, *, load_weight: float = 0.0) -> float:
+        """The router's cost of the travel of `agv` from its current node to `node` with `load_weight`; ``inf`` when
+        the router finds no route or the AGV has no node (see :func:`ranking_route`)."""
+        return _cost(self.router, self.view, agv, node, load_weight)
 
 
 @runtime_checkable
@@ -36,23 +85,24 @@ class DispatchStrategy(Protocol):
         self,
         order: TransferOrder,
         fleet: Sequence[AGV],
-        graph: LayoutGraph,
+        context: DispatchContext,
     ) -> AGV | None: ...
 
 
 class NearestIdleStrategy:
-    """Select the closest idle AGV that can carry the order's SKU and quantity.
+    """Select the idle AGV that can carry the order's SKU and quantity and reaches the origin warehouse at the least
+    cost.
 
-    Distance is measured as the sum of Euclidean segment lengths along the
-    shortest graph path from the AGV's current node to the origin warehouse's
-    nearest output bay.  Ties are broken by ``agv_id`` (lexicographic).
+    An AGV's cost is the least ``context.cost`` (the router's cost of the unloaded travel) over the origin warehouse's
+    output bays, its best output bay. Ties are broken by ``agv_id`` (lexicographic). None when no such AGV can reach
+    an output bay.
     """
 
     def select(
         self,
         order: TransferOrder,
         fleet: Sequence[AGV],
-        graph: LayoutGraph,
+        context: DispatchContext,
     ) -> AGV | None:
         candidates = [
             agv
@@ -62,17 +112,10 @@ class NearestIdleStrategy:
         if not candidates:
             return None
 
-        def _distance(agv: AGV) -> tuple[float, str]:
-            assert agv.current_node is not None
-            output_bay = order.origin.nearest_output_bay(agv.current_node, graph)
-            path = graph.shortest_path(agv.current_node, output_bay)
-            if path is None:
-                return (float("inf"), agv.agv_id)
-            d = graph.path_distance(path)
-            return (d, agv.agv_id)
-
-        best = min(candidates, key=_distance)
-        if _distance(best)[0] == float("inf"):
+        bays = order.origin.output_bays
+        costs = {agv: min(context.cost(agv, bay) for bay in bays) for agv in candidates}
+        best = min(candidates, key=lambda agv: (costs[agv], agv.agv_id))
+        if costs[best] == math.inf:
             return None
         return best
 
@@ -94,7 +137,7 @@ class RoundRobinStrategy:
         self,
         order: TransferOrder,
         fleet: Sequence[AGV],
-        graph: LayoutGraph,
+        context: DispatchContext,
     ) -> AGV | None:
         candidates = [agv for agv in fleet if agv.state == AGVState.IDLE and agv.can_carry(order.sku, order.quantity)]
         if not candidates:
@@ -108,12 +151,23 @@ class RoundRobinStrategy:
 # ── RepositioningPolicy ──────────────────────────────────────────────
 
 
-@dataclass
+@dataclass(frozen=True)
 class RepositioningContext:
+    """What a :class:`RepositioningPolicy` decides with: the fleet's graph, parking areas, charging stations, AGVs,
+    router and traffic view (spec §10.4)."""
+
     graph: LayoutGraph
     parking_areas: Sequence[ParkingArea]
     charging_stations: Sequence[ChargingStation]
     fleet: Sequence[AGV]
+    router: Router
+    view: TrafficView
+
+    def cost(self, agv: AGV, node: Node) -> float:
+        """The router's cost of the unloaded travel of `agv` from its current node to `node`, the travel a
+        repositioning makes; ``inf`` when the router finds no route or the AGV has no node (see
+        :func:`ranking_route`)."""
+        return _cost(self.router, self.view, agv, node, 0.0)
 
 
 @runtime_checkable
@@ -129,7 +183,11 @@ class StayInPlace:
 
 
 class NearestParkingPolicy:
-    """Send the AGV to the nearest parking area that has available capacity."""
+    """Send the AGV to the parking area with available capacity that it reaches at the least ``context.cost``.
+
+    Among areas of equal cost the first in ``context.parking_areas`` wins; when none is reachable, the first area with
+    available capacity is named.
+    """
 
     def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
         available = [pa for pa in context.parking_areas if pa.available_capacity > 0]
@@ -139,15 +197,7 @@ class NearestParkingPolicy:
         if agv.current_node is None:
             return None
 
-        current = agv.current_node
-
-        def _distance(pa: ParkingArea) -> float:
-            path = context.graph.shortest_path(current, pa.node)
-            if path is None:
-                return float("inf")
-            return context.graph.path_distance(path)
-
-        nearest = min(available, key=_distance)
+        nearest = min(available, key=lambda pa: context.cost(agv, pa.node))
         return nearest.node
 
 

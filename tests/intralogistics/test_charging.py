@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 import simpy
 from simpy.events import ProcessGenerator
@@ -7,8 +9,11 @@ from simpy.events import ProcessGenerator
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.charging import ChargingStation
-from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.warehouse import Warehouse
 
 
 @pytest.fixture
@@ -417,3 +422,87 @@ def test_interrupted_swap_preserves_pool(env: Environment, charging_node: Node, 
     assert station._slots.count == 0
     assert agv.battery.level == 20.0
     assert station.total_swaps == 0
+
+
+# ── Charger choice by route cost (spec §10.4) ─────────────────────────
+
+
+class Plain:
+    """A profile without limits: 2 m/s."""
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        return distance / 2.0
+
+
+def _charger_fleet(
+    env: Environment, nodes: list[Node], arcs: list[Arc], stations: list[str], profile: object, **options: Any
+) -> tuple[FleetCoordinator, AGV, list[ChargingStation]]:
+    """A fleet of one AGV on the first of `nodes` (battery 100, one unit of energy per metre) with a charger on each
+    node named in `stations`, in that order; `options` go to the ``AGVType``."""
+    graph = LayoutGraph(nodes, arcs)
+    by_id = {node.id: node for node in nodes}
+    kind = AGVType(
+        name="t",
+        speed_profile=profile,  # ty: ignore[invalid-argument-type]
+        battery_capacity=100.0,
+        weight_capacity=10.0,
+        volume_capacity=1.0,
+        **options,
+    )
+    agv = AGV(env=env, agv_type=kind, initial_node=nodes[0])
+    sku = SKU(id="A", weight=1.0, volume=0.1)
+    warehouse = Warehouse(
+        env=env,
+        name="W",
+        input_bays=[nodes[0]],
+        output_bays=[nodes[0]],
+        n_slots=1,
+        products=[sku],
+        pick_time=1.0,
+        put_time=1.0,
+    )
+    chargers = [ChargingStation(env=env, name=f"CS-{name}", node=by_id[name], n_slots=1) for name in stations]
+    fleet = FleetCoordinator(
+        env=env, graph=graph, fleet=[agv], warehouses=[warehouse], charging_stations=chargers, default_metrics=False
+    )
+    return fleet, agv, chargers
+
+
+@pytest.mark.parametrize("profile", [Plain(), TrapezoidalProfile(2.0, 1.0, 1.0)], ids=["no-limits", "limits"])
+def test_the_reachable_charger_estimate_sums_the_route_arc_lengths(env: Environment, profile: object) -> None:
+    """``A -- B`` has an explicit length of 12 m over a 10 m chord, ``B -- C`` its 10 m chord: the estimate is 22, not
+    the 20 of the chords."""
+    a, b, c = Node("A", 0.0, 0.0), Node("B", 10.0, 0.0), Node("C", 20.0, 0.0)
+    fleet, agv, (station,) = _charger_fleet(env, [a, b, c], [Arc(a, b, length=12.0), Arc(b, c)], ["C"], profile)
+    agv.battery.level = 21.9
+    assert fleet._find_reachable_charger(agv) is None
+    agv.battery.level = 22.0
+    assert fleet._find_reachable_charger(agv) is station
+
+
+def test_the_reachable_charger_estimate_reads_the_level_now(env: Environment) -> None:
+    """After 100 s idle at 0.1 the level now is 20, though 30 was last accounted: a charger 25 m away is out of
+    reach."""
+    a, c = Node("A", 0.0, 0.0), Node("C", 25.0, 0.0)
+    fleet, agv, (station,) = _charger_fleet(env, [a, c], [Arc(a, c)], ["C"], Plain(), idle_power=0.1)
+    agv.battery.level = 30.0
+    assert fleet._find_reachable_charger(agv) is station
+    env.run(until=100.0)
+    assert agv.battery.level == 30.0 and agv.battery_level_now() == 20.0
+    assert fleet._find_reachable_charger(agv) is None
+
+
+def test_an_arc_longer_than_its_chord_changes_the_charger_and_the_bay(env: Environment) -> None:
+    """``N`` is 10 m away by its chord but 30 m along its arc; ``F`` is 20 m away. The chord ranking of the warehouse's
+    helpers picks ``N``; the coordinator ranks by the default router's cost, the arc lengths, and picks ``F``."""
+    a, near, far = Node("A", 0.0, 0.0), Node("N", 10.0, 0.0), Node("F", 0.0, 20.0)
+    fleet, agv, (on_near, on_far) = _charger_fleet(
+        env, [a, near, far], [Arc(a, near, length=30.0), Arc(a, far)], ["N", "F"], Plain()
+    )
+    assert fleet._find_nearest_charger(agv) is on_far
+    assert fleet._find_reachable_charger(agv) is on_far
+    assert fleet.best_bay(agv, [near, far]) is far
+    (warehouse,) = fleet.warehouses
+    assert warehouse._nearest_bay(a, [near, far], fleet.graph) is near

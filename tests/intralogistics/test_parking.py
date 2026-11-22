@@ -7,9 +7,15 @@ from simpy.events import ProcessGenerator
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.events import ParkingEntered, ParkingLeft
-from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.parking import ParkingArea
+from simulatte.intralogistics.policies import NearestParkingPolicy, RepositioningContext
+from simulatte.intralogistics.routing import FastestRouter, Router
+from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_resource_events import FullReplay
 
@@ -306,3 +312,66 @@ def test_duplicate_waiters_cancel_independently(
     assert area.available_capacity == int(cancel_both)
     assert not area._resource.queue
     assert len([event for event in replay.of(ParkingEntered) if event.agv == agv.id]) == int(not cancel_both)
+
+
+# ── Parking choice by route cost (spec §10.4) ─────────────────────────
+
+
+def _parking_after_a_mission(agv_type: AGVType, router: Router | None, policy: object) -> tuple[FleetCoordinator, AGV]:
+    """Run one order between two warehouses on ``S`` and return the fleet and its AGV: area ``P-slow`` is 10 m away
+    behind a 0.5 m/s limit (20 s), ``P-fast`` 15 m away (7.5 s at 2 m/s)."""
+    env = Environment()
+    s, p, q = Node("S", 0.0, 0.0), Node("P", 10.0, 0.0), Node("Q", 0.0, 15.0)
+    graph = LayoutGraph([s, p, q], [Arc(s, p, speed_limit=0.5), Arc(s, q)])
+    sku = SKU(id="A", weight=1.0, volume=0.1)
+    origin, destination = (
+        Warehouse(
+            env=env,
+            name=name,
+            input_bays=[s],
+            output_bays=[s],
+            n_slots=1,
+            products=[sku],
+            initial_inventory={sku: 5},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        for name in ("O", "D")
+    )
+    agv = AGV(env=env, agv_type=agv_type, initial_node=s)
+    areas = [ParkingArea(env=env, name=name, node=node, capacity=1) for name, node in (("P-slow", p), ("P-fast", q))]
+    fleet = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=[origin, destination],
+        charging_stations=[],
+        parking_areas=areas,
+        router=router,
+        repositioning_policy=policy,  # ty: ignore[invalid-argument-type]
+    )
+    order = fleet.create_order(sku=sku, quantity=1, origin=origin, destination=destination)
+    fleet.submit(order)
+    env.run()
+    assert order.status is OrderStatus.COMPLETED
+    return fleet, agv
+
+
+@pytest.mark.parametrize("fast", [False, True])
+def test_nearest_parking_ranks_areas_by_the_fleets_router(agv_type: AGVType, fast: bool) -> None:
+    _, agv = _parking_after_a_mission(agv_type, FastestRouter() if fast else None, NearestParkingPolicy())
+    assert agv.current_node is not None and agv.current_node.id == ("Q" if fast else "P")
+
+
+def test_the_repositioning_context_carries_the_fleets_router_and_view(agv_type: AGVType) -> None:
+    seen: list[RepositioningContext] = []
+
+    class Recording:
+        def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
+            seen.append(context)
+            return None
+
+    fleet, _ = _parking_after_a_mission(agv_type, FastestRouter(), Recording())
+    (context,) = seen
+    assert context.router is fleet.router and context.view is fleet.traffic_controller.view
+    assert context.graph is fleet.graph and list(context.parking_areas) == list(fleet.parking_areas)

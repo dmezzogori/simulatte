@@ -140,6 +140,28 @@ class TestWarehouse:
         nearest = wh.nearest_output_bay(agv_pos, graph)
         assert nearest == out1  # graph distance: AGV→OUT1 = 8.0, AGV→D→OUT2 ≈ 5+5.1 = 10.1
 
+    def test_nearest_input_bay_ranks_by_chords_and_names_the_first_bay_when_none_is_reachable(
+        self, env: Environment
+    ) -> None:
+        """``N`` is 10 m away by its chord though its arc is 30 m long; ``F`` is 20 m away; ``I`` is unreachable. The
+        helper ranks by the chords of the shortest path (the coordinator ranks by its router's cost instead)."""
+        a, near, far, island = Node("A", 0.0, 0.0), Node("N", 10.0, 0.0), Node("F", 0.0, 20.0), Node("I", 50.0, 50.0)
+        graph = LayoutGraph([a, near, far, island], [Arc(a, near, length=30.0), Arc(a, far)])
+        steel = SKU(id="S", weight=1.0, volume=0.1)
+        wh = Warehouse(
+            env=env,
+            name="WH",
+            input_bays=[island, far, near],
+            output_bays=[],
+            n_slots=1,
+            products=[steel],
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        assert wh.nearest_input_bay(a, graph) == near
+        wh.input_bays = [island]
+        assert wh.nearest_input_bay(a, graph) == island
+
     def test_metrics(self, env: Environment) -> None:
         wh, _ = self._make_warehouse(env)
         steel = SKU(id="STEEL", weight=10.0, volume=0.5)
