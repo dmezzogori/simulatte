@@ -56,6 +56,9 @@ class AGVType:
     volume_capacity: float
     compatibility_fn: Callable[[Any], bool] = field(default=lambda sku: True)
     depletion_fn: Callable[[float, float, float], float] | None = None
+    """Energy for ``(distance, load_weight, speed)``; None for one unit per unit of distance. It must be pure (the same
+    arguments give the same energy): the travel executor may call it fewer times than once per arc and reuse the result
+    within a run."""
     recharge_fn: Callable[[float, float], float] | None = None
     low_battery_threshold: float = 0.2
     critical_battery_threshold: float = 0.05
