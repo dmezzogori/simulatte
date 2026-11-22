@@ -703,6 +703,11 @@ with the block length.
 from the chords of the incoming and outgoing arcs. `corner_speed` caps the speed through the node. A positive
 `turn_time` forces a stop at the node and adds that wait before departure. An AGV's heading is that of the last
 arc it traversed and is unknown after placement; an unknown heading turns for free. Both default to no effect.
+A heading change below 1e-9 rad is taken as 0, so that rounding in the coordinates of collinear nodes does not
+turn a straight continuation into a turn. At rest at a node the order is: the energy check for the next arc
+(§8.1), then the turn wait, then the kinematic limits of the new run. The claim for the next arc is requested on
+arrival and stays pending during the turn wait; the AGV reports a traffic wait (`stopped`) only if the claim is
+still not granted when the turn is done, so a traffic wait counts the time lost beyond the turn.
 
 ### 9.5 Energy
 
