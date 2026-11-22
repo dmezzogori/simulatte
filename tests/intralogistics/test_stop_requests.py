@@ -435,13 +435,14 @@ def charger_world(
     reserve: bool = True,
     graph_nodes: tuple[LayoutGraph, dict[str, Node]] | None = None,
     router: Any = None,
+    start: str = "N0",
 ) -> World:
     """The line ``N0 ... N4`` of 10 m arcs (or `graph_nodes`) with a charging station on `station` (none: no one)."""
     graph, nodes = graph_nodes or line(5)
     env = Environment(debug=True)
     replay = FullReplay(env)
     controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
-    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=nodes["N0"])
+    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=nodes[start])
     stations = [] if station is None else [ChargingStation(env=env, name="CS", node=nodes[station], n_slots=1)]
     fleet = StillFleet(
         env=env,
@@ -692,3 +693,135 @@ def test_a_lone_agv_has_the_same_arrivals_under_both_controllers_with_a_falling_
         w.env.run()
         runs.append(arrivals(w))
     assert runs[0] == runs[1] and runs[0][-1][0] == "N6"
+
+
+# --- fix round 2: stop requests combine, nested diversions, the cost of the node-event check ------------------------
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+@pytest.mark.parametrize(("at", "stop", "when"), [(10.0, "N3", 21.875), (20.0, "N4", 28.5416666666666)])
+def test_an_interrupt_after_an_energy_stop_request_takes_effect_at_its_own_first_feasible_node(
+    reserve: bool, at: float, stop: str, when: float
+) -> None:
+    """The falling depletion makes the AGV ask, at N1, to stop at the affordable end N6. An interrupt received later,
+    on N1 -> N2 (10.0) or N2 -> N3 (20.0), moves the stop nearer: the first node a braking distance beyond the end
+    of the arc being traversed, as without the energy request, and the same under both controllers."""
+    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+    process = w.go("A", "N10")
+    w.interrupt(process, at)
+    w.env.run()
+    (interrupted,) = w.of(AgvMoveInterrupted)
+    assert (interrupted.node, interrupted.t) == (stop, pytest.approx(when, rel=1e-12))
+    assert w.held("A") == [stop] if reserve else True
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_an_energy_request_after_an_interrupt_never_moves_the_stop_farther(reserve: bool) -> None:
+    """Cancelled at 3.0 on the first arc, the AGV is to rest at N2. At N1 the energy horizon asks for N6, which is
+    farther: the stop stays at N2."""
+    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+    process = w.go("A", "N10")
+    w.interrupt(process, 3.0)
+    w.env.run()
+    (interrupted,) = w.of(AgvMoveInterrupted)
+    assert interrupted.node == "N2" and [node for node, _ in arrivals(w)] == ["N1", "N2"]
+
+
+def trace_336_world(reserve: bool) -> World:
+    """Twelve arcs of 1, 10, 1, 10, 1, 2, 10, 1, 2, 2, 1, 2 m (a limit of 1.794 on the fifth), limits (2.98, 0.8,
+    1.275), depletion ``3 d / (0.5 + v)`` that falls with speed, battery 34.4, threshold 0: after each arc the level
+    is lower than the estimate foresaw and the affordable end comes nearer."""
+    lengths = [1.0, 10.0, 1.0, 10.0, 1.0, 2.0, 10.0, 1.0, 2.0, 2.0, 1.0, 2.0]
+    limits: list[float | None] = [None] * len(lengths)
+    limits[4] = 1.794
+    nodes: dict[str, Node] = {}
+    x = 0.0
+    for i in range(len(lengths) + 1):
+        nodes[f"E{i:03d}"] = Node(f"E{i:03d}", x, 0.0)
+        x += lengths[i] if i < len(lengths) else 0.0
+    names = list(nodes)
+    arcs = [
+        Arc(nodes[names[i]], nodes[names[i + 1]], length=lengths[i], speed_limit=limits[i]) for i in range(len(lengths))
+    ]
+    profile = TrapezoidalProfile(2.9815443942111157, 0.8, 1.2749757037707088, battery_degradation_fn=lambda level: 1.0)
+    kind = weak(lambda d, load, speed: d * 3.0 / (0.5 + speed), capacity=34.4, threshold=0.0, profile=profile)
+    return world(
+        (LayoutGraph(nodes.values(), arcs), nodes),
+        {"A": "E000"},
+        reserve=reserve,
+        agv_type=kind,
+        lookahead_margin=5.0 if reserve else 0.0,
+    )
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_an_affordable_end_that_comes_nearer_at_a_later_node_event_is_honoured(reserve: bool) -> None:
+    """The affordable end moves from E008 to E007 while the AGV runs. Free flow rests at E007, as reservation does."""
+    w = trace_336_world(reserve)
+    w.go("A", "E012")
+    w.env.run()
+    assert w.agvs["A"].current_node == w.nodes["E007"]
+    assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION} or w.outcomes == {
+        "A": TravelOutcome.BATTERY_STRANDED
+    }
+
+
+def energy_run(
+    lengths: list[float],
+    limits: list[float | None],
+    kin: tuple[float, float, float],
+    kind_kw: dict[str, Any],
+    reserve: bool,
+    margin: float,
+) -> tuple[Any, ...]:
+    nodes: dict[str, Node] = {}
+    x = 0.0
+    for i in range(len(lengths) + 1):
+        nodes[f"E{i:03d}"] = Node(f"E{i:03d}", x, 0.0)
+        x += lengths[i] if i < len(lengths) else 0.0
+    names = list(nodes)
+    arcs = [
+        Arc(nodes[names[i]], nodes[names[i + 1]], length=lengths[i], speed_limit=limits[i]) for i in range(len(lengths))
+    ]
+    profile = TrapezoidalProfile(*kin, battery_degradation_fn=lambda level: 1.0)
+    w = world(
+        (LayoutGraph(nodes.values(), arcs), nodes),
+        {"A": names[0]},
+        reserve=reserve,
+        agv_type=weak(profile=profile, **kind_kw),
+        lookahead_margin=margin,
+    )
+    w.go("A", names[-1])
+    w.env.run()
+    ended = [(e.node, e.t, e.battery) for e in w.of(AgvMoveEnded)]
+    return ended, [(e.node, e.reason) for e in w.of(AgvStranded)], dict(w.outcomes), w
+
+
+FALLING = {
+    "steps": lambda d, load, v: d * (1.0 if v >= 1.2 else 4.0),
+    "smooth": lambda d, load, v: d * 3.0 / (0.5 + v),
+    "default": None,
+}
+
+
+def test_a_lone_agv_ends_alike_under_both_controllers_for_a_depletion_that_falls_with_speed() -> None:
+    """Seeded sweep of random lines, limits and batteries: the arrivals, levels, outcome and rest node are the same
+    under free flow and reservation."""
+    rng = random.Random(2)  # seed 2 differs under free flow from trial 52 when an energy request is not renewed
+    for trial in range(260):
+        kin = (
+            rng.choice([1.5, 2.0, rng.uniform(0.6, 3.0)]),
+            rng.choice([0.8, rng.uniform(0.3, 2.0)]),
+            rng.choice([0.8, rng.uniform(0.3, 2.0)]),
+        )
+        count = rng.randint(3, 14)
+        lengths = [rng.choice([10.0, 2.0, 1.0, rng.uniform(0.5, 12.0)]) for _ in range(count)]
+        limits = [rng.choice([None, None, None, rng.uniform(0.3, 2 * kin[0])]) for _ in range(count)]
+        name = rng.choice(list(FALLING))
+        capacity = rng.choice([0.4, 0.8, 1.5, 3.0]) * sum(lengths) * (2.0 if name != "default" else 1.0)
+        kind_kw = {"depletion": FALLING[name], "capacity": capacity, "threshold": rng.choice([0.05, 0.05, 0.3, 0.0])}
+        margin = rng.choice([0.0, 0.0, 5.0])
+        free = energy_run(lengths, limits, kin, kind_kw, False, margin)
+        reserved = energy_run(lengths, limits, kin, kind_kw, True, margin)
+        assert free[:3] == reserved[:3], (trial, name)
+        assert free[3].agvs["A"].current_node.id == reserved[3].agvs["A"].current_node.id

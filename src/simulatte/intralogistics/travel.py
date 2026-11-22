@@ -564,7 +564,8 @@ class _Trip:
     def _affordable_end(self, limit: int) -> int:
         """The furthest node, up to position `limit`, such that the estimated energy of the arcs from the AGV's node to
         it fits the battery level, and not beyond the first node other than the goal at which the estimated level is
-        critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits)."""
+        critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits).
+        """
         battery, kin = self.agv.battery, self.kin
         assert kin is not None
         level, total, end = battery.level, 0.0, self.index
@@ -634,10 +635,9 @@ class _Trip:
         A critical level found at a node other than the goal is the same request: the estimate then turns critical at
         the next node, so the energy horizon ends at or before it. (At the goal the plan ends at rest anyway.)
         """
-        if self.stop_at is None:
-            affordable = self._affordable_end(self.end)
-            if affordable < self.end:
-                self._stop(self.index, self.speed, affordable)
+        affordable = self._affordable_end(self.end)
+        if affordable < self.end:
+            self._stop(self.index, self.speed, affordable)
 
     def _stop(self, node: int, speed: float, floor: int = 0) -> None:
         """A stop request received while moving (an interrupt, or a battery found critical at a node other than the goal
@@ -647,10 +647,9 @@ class _Trip:
         No further claim is requested. The plan is cut at the first node from `node` on, within the plan in force, whose
         distance from `node` is at least the braking distance ``speed ** 2 / (2 * decel)``, or at `node` for an AGV
         that arrives at rest, and not before position `floor`. The next node event replans to it; the profile of the arc
-        being traversed is not changed. A second request keeps the first one's node.
+        being traversed is not changed. Requests combine: the stop node is the nearest of the nodes they ask for, each
+        taken no nearer than the first node where the AGV can be at rest when it is made, and it never moves farther.
         """
-        if self.stop_at is not None:
-            return
         stop = node
         if speed > 0.0:
             kin = self.kin
@@ -658,7 +657,9 @@ class _Trip:
             braking = speed**2 / (2 * kin.decel) * (1 - _STOP_SLACK)
             while stop < self.end and self.offsets[stop] - self.offsets[node] < braking:
                 stop += 1
-        self.stop_at = max(stop, floor)
+        stop = max(stop, floor)
+        if self.stop_at is None or stop < self.stop_at:
+            self.stop_at = stop
 
     def _lacking_energy(self, current: Node, energy_cost: float) -> ProcessGenerator:
         """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor.
