@@ -615,8 +615,8 @@ class _Trip:
         """The limits a run that starts now would sample: the profile's at the load and the battery level now.
 
         Raises `ValueError`, naming the profile and the values, when a value is not finite, when ``decel`` is negative,
-        or when ``decel`` is 0 for a vehicle that can move (a stop cannot be planned). A ``v_max`` or ``accel`` that is
-        not positive is a vehicle that cannot move: its run stalls (spec §9.1).
+        or when ``decel`` is 0 while ``v_max`` and ``accel`` are positive (a stop cannot be planned). A ``v_max`` or
+        ``accel`` that is not positive (0 or negative) is a vehicle that cannot move: its run stalls (spec §9.1).
         """
         profile = cast("KinematicProfile", self.agv.agv_type.speed_profile)
         load_weight, battery_level = self.load_weight, self.agv.battery.level_pct
