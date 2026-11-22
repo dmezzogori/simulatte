@@ -348,20 +348,39 @@ done
 | default | 0.20360 (0.00251) | 0.26618 (0.00330) | 1.307 | 38.9 / 49.9 |
 | default_logging | 0.17877 (0.00109) | 0.24542 (0.00244) | 1.373 | 39.0 / 49.9 |
 
-At the end of part A the same comparison gave 0.970, 0.960 and 0.990 and 41.8 MB: part B costs about 31 to 40 % of run
-time and 8 MB of peak memory over part A under `FreeFlowController`, the controller the benchmark uses. The spec leaves
-this benchmark ungated (§15) and the cost is known. One `cProfile` run of the workload (mode `none`, one shift,
-in-process, branch against the exported `main`; one run, not repeated) gives 0.797 s against 0.655 s. The difference
-lies in the travel executor's per-arc bookkeeping: `travel.run` is 0.499 s cumulative on the branch (11,243 calls)
-against 0.355 s for `fleet._travel` on `main`. Inside it, `plan_run` is 0.042 s (about 5 % of the run) and `arc_profile`
-0.017 s; `graph.length` and `arc_between` are called about six times per arc traversed (107,486 and 125,624 calls,
-0.073 s and 0.069 s cumulative, about 9 % of the run); route search is not the cause (`routing.shortest_path` 0.217 s
-against 0.237 s for `main`'s `pathfinding.plan`) and `_wire.freeze` is the same (0.081 s against 0.086 s). The repeated
-arc-length and `arc_between` lookups are the clearest cheap target. As in part A the two sides
-do not run the same trajectory (the inputs differ because replenishment orders depend on the trajectory), so
-`compare.py` would reject the pair; the numbers are the medians of the JSON files. `main` reproduces the documented
-hashes (input `3278fbdc...`, trajectory `b2a2ca3d...`, 1,018 orders, 1,011 completed). The branch has 1,018 submitted
-orders and 1,012 completed, input hash `1a5ad97c...` and trajectory hash `633394be...`.
+At the end of part A the same comparison gave 0.970, 0.960 and 0.990 and 41.8 MB: at `d5d22f0` part B cost about 31 to
+40 % of run time and 8 MB of peak memory over part A under `FreeFlowController`, the controller the benchmark uses. The
+spec leaves this benchmark ungated (§15). As in part A the two sides do not run the same trajectory (the inputs differ
+because replenishment orders depend on the trajectory), so `compare.py` would reject the pair; the numbers are the
+medians of the JSON files. `main` reproduces the documented hashes (input `3278fbdc...`, trajectory `b2a2ca3d...`, 1,018
+orders, 1,011 completed). The branch has 1,018 submitted orders and 1,012 completed, input hash `1a5ad97c...` and
+trajectory hash `633394be...`, before and after the whole-part check.
+
+Where the cost lies, from the whole-part check (part A at `822803a` against the branch at `bb81f30`, mode `none`, one
+shift, in-process; the two trajectories do the same amount of work, 9,160 against 8,961 arcs). The lookups of
+`graph.length` and `arc_between` are not part B's cost: they are called as often at the end of part A, and most of them
+come from route search (89,348 of the 107,486 `length` calls). Measured with low-overhead wrappers, the 72 ms difference
+is the planning of a run (`_run_plan`, 48 ms, of which `plan_run` 24 ms, the affordable-end scan 5 ms and the interior
+node caps 4 ms, against about 12 ms for part A's travel time and description per arc), the freezing of the larger motion
+descriptions in `_start_segment` (7 ms more), the new route state in `_follow` (8 ms more), the claim step at every node
+event (6 ms), the two `limits` calls of a run (4 ms), the larger trip (3 ms more), the arrival (2 ms more) and the
+per-node energy hooks (2 ms). About half of it was bookkeeping that the whole-part check removed without
+changing any result (see "Whole-part check" below); the rest is what runs require. Peak memory was one reference cycle:
+a finished trip, which keeps its profiles, expected levels and plans, was freed only by a full collection. Route search
+remains the largest single cost on both sides, about a quarter of the run.
+
+After the whole-part check, run one after the other in the same way: `main` (`ea1292c`) and the branch before the
+performance changes (`8903fdc`), each exported with `git archive` and synced in its own directory, and the branch after
+them (`fbf3dd3`) in this checkout:
+
+| Mode | `main` median, s | Before, s | After, s | Before / `main` | After / `main` | Peak memory `main` / before / after, MB |
+|---|---:|---:|---:|---:|---:|---|
+| none | 0.18071 | 0.25693 | 0.22442 | 1.422 | 1.242 | 39.0 / 49.9 / 40.3 |
+| default | 0.19948 | 0.27406 | 0.24366 | 1.374 | 1.221 | 38.9 / 50.0 / 40.2 |
+| default_logging | 0.18112 | 0.25617 | 0.22517 | 1.414 | 1.243 | 38.9 / 50.0 / 40.2 |
+
+The traced peak of one run (`tracemalloc`, mode `none`) falls from 9.85 MB to 0.71 MB (`main` 0.65 MB), and the maximum
+RSS after one run from 47.6 MB to 37.1 MB (`main` 37.3 MB).
 
 ## Verification
 
@@ -405,8 +424,9 @@ unchanged.
 - The plan ends at the last affordable node and at the first node where the estimated battery turns critical, so a
   vehicle does not pass a charger at speed with a battery it knows will be critical. The estimate uses the arc cap and
   excludes idle power.
-- Idle power drains lazily at the events that read or change the battery, with no timer. Reports and collectors see the
-  level as last accounted, not the level now (Task 6).
+- Idle power drains lazily at the events that read or change the battery, with no timer. Collectors see the level as
+  last accounted, not the level now (Task 6); `FleetCoordinator.agv_report()` shows the level now, which
+  `AGV.battery_level_now()` reads without accounting it (whole-part check).
 - The `heading` field is part of the AGV state, carried by `agv.move_ended` and `agv.placed`.
 - An order cancelled at the instant of its dispatch to an AGV already on its origin stays cancelled. `main` gets it
   wrong too: there the cancelled order is dispatched again and completes.
@@ -419,4 +439,46 @@ unchanged.
   them that ended `RETRY_FROM_CURRENT_POSITION` now end `BATTERY_STRANDED`, because the level after the k-th arc is one
   unit in the last place below the next arc's cost, which the check at rest has always refused. A relative slack in the
   check at rest is a possible follow-up. Results with binary-exact arc lengths are unchanged.
-- Free-flow run time rises by about a third over part A on the benchmark (see above).
+- At a node passed at speed, a level that is critical, or below the estimate of the next arc, is a stop request
+  whatever level the plan expected there (spec §8.3; whole-part check). With positive idle power the plan's expected
+  levels include the idle drain, so before this a vehicle under free flow could pass nodes at speed while critical and
+  enter arcs with an empty battery, and the two controllers came to rest at different nodes; now they agree. With the
+  default `idle_power` of 0 no result changes: of 1,300 random runs before and after the change, the 3 that differ all
+  have positive idle power.
+- On a travel to a charger (the diversion of the low or critical battery branch and the charge after a mission, which
+  now have the purpose `charge`) a critical level is not a stop request, neither at a node nor as the end of the plan:
+  the vehicle goes on while the energy horizon allows and strands only before an arc it cannot afford (spec §8.3;
+  whole-part check). Before, and at the end of part A, a critical vehicle whose charger was more than one arc away
+  stopped at the first node of each travel to it, alternated between diversion and mission and stranded without
+  charging. A custom router now sees the purpose `charge` for such travels, where it saw `travel`.
+- `Arc.speed_limit`, when given, must be positive and finite (`ValueError` at construction). The limits a run samples
+  raise `ValueError`, naming the profile and the values, when a value is not finite, when `decel` is negative, or when
+  `decel` is 0 for a vehicle that can move; a `v_max` or `accel` that is not positive still stalls the run (§9.1).
+  `plan_run` rejects NaN in the entry speed, lengths and caps. Before, a NaN speed limit was ignored, a speed limit of 0
+  or below failed mid-run with an unrelated message, and a NaN deceleration made every move take zero time.
+- Free-flow run time rises by 22 to 24 % over `main` on the benchmark after the whole-part check (37 to 42 % before it,
+  see above).
+
+## Whole-part check
+
+Part B was checked as a whole after its seven tasks: the plan and holdings invariants held over 8,800 random runs, and
+profiles without limits reproduce part A apart from three accounted changes. This wave changed:
+
+- Behaviour: the O(1) critical and next-arc check at a node passed at speed, a critical vehicle that keeps going to its
+  charger, and the validation of speed limits and sampled limits (see "Changes in results").
+- Run time and memory, with event streams bit-identical (the full event stream of 1,800 random runs, kinematic with
+  turning, idle power, speed-dependent depletion and interrupts, without limits, and missions with chargers, cancels and
+  breakdowns, under both controllers; the three examples under both controllers; the pinned digest and fixtures): the
+  piecewise description built as a canonical map without `freeze`'s recursion; the route state of `_follow` read from
+  the arc already looked up and heading changes only for a type that turns; plain loops and a direct cruise phase in the
+  planner; a slotted arc plan; arc caps and energy estimates cached per route and run for the plan, the claim
+  look-ahead, the claim gate and the node-event check; the limits of the check at rest reused by the run when no turn
+  wait came between them; the load weight read once per run; a scan at a node event that finds the plan affordable
+  kept as a floor, so that a level not below it is not scanned again (a depletion the estimate under-predicts only on
+  the arcs from and to rest no longer scans at every node: 2,000 arcs under free flow, 0.563 s to 0.015 s); the claim
+  step skipped when nothing can be claimed; and the reference cycle between a finished trip and its hooks broken. The
+  reuses assume pure `depletion_fn` and `limits` functions, as their docstrings say.
+- Small items: `AGV.battery_level_now()` and its use in `agv_report`; `motion_fraction` returns None for a number
+  beyond the float range; docstrings of `_turn` (the turn wait's idle drain is not in the energy check before it) and
+  of `disposition_of` (`SERVING` inside an `agv.move_ended` handler at a node passed at speed); the outcome of one stop
+  test pinned; `test_replenishment_triggered` asserts the drain and the replenishment orders.
