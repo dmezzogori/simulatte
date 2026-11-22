@@ -848,3 +848,52 @@ def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: 
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
     assert w.agvs["A"].current_node == nodes["Y"]
     assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("Y", "no_reachable_charger")]
+
+
+def test_the_energy_check_at_node_events_ignores_a_level_as_expected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With the default depletion the level at every node is the one the plan expected, bit for bit, so a route of 800
+    arcs under free flow scans the affordable end no more often than a route of 30."""
+    from simulatte.intralogistics.travel import _Trip
+
+    counts = {}
+    for arcs in (30, 800):
+        calls = []
+        original = _Trip._affordable_end
+        monkeypatch.setattr(
+            _Trip, "_affordable_end", lambda self, limit, calls=calls: (calls.append(limit), original(self, limit))[1]
+        )
+        graph, nodes = build(
+            [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        )
+        w = world((graph, nodes), {"A": "P0"}, reserve=False, agv_type=weak(capacity=1e9))
+        w.go("A", f"P{arcs}")
+        w.env.run()
+        assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+        counts[arcs] = len(calls)
+        monkeypatch.undo()
+    assert counts[800] == counts[30] <= 3
+
+
+def test_float_ties_in_the_energy_horizon_change_nothing_for_the_default_depletion() -> None:
+    """Arcs that are not exact in binary and a battery sized for exactly k arcs, or to reach the threshold at a node:
+    the two controllers end alike, and the AGV rests at an interior node only where it cannot go on (the level is
+    critical, or the next arc is not affordable)."""
+    rng = random.Random(7)
+    for trial in range(150):
+        length = rng.choice([0.1, 0.3, 0.7, 1.1, 2.3])
+        count = rng.randint(4, 30)
+        k = rng.randint(2, count)
+        capacity = length * k * rng.choice([1.0, 1.0, 1.0, 1 + 1e-15, 1 - 1e-15]) / rng.choice([1.0, 0.95, 0.5])
+        kind_kw = {"capacity": capacity, "threshold": rng.choice([0.05, 0.0, 0.5])}
+        runs = [
+            energy_run([length] * count, [None] * count, (1.5, 0.8, 0.8), kind_kw, reserve, 0.0)
+            for reserve in (False, True)
+        ]
+        assert runs[0][:3] == runs[1][:3], trial
+        ended, _, _, w = runs[0]
+        starts = {e.from_node: e for e in w.of(AgvMoveStarted)}
+        for node, _, level in ended[:-1]:
+            if node in starts and starts[node].motion["v0"] != 0.0:
+                continue  # passed at speed
+            critical = level / capacity <= kind_kw["threshold"] * (1 + 1e-9) + 1e-9
+            assert critical or level < length * (1 + 1e-9), (trial, node, level)

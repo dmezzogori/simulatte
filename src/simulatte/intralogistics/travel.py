@@ -70,6 +70,10 @@ _TOLERANCE = 1e-9
 _HEADING_TOLERANCE = 1e-9
 """Heading changes below this many radians are taken as 0 (spec §9.4)."""
 
+_ENERGY_SLACK = 1e-12
+"""Relative slack (of the battery capacity) on the level a plan expects at a node: a level lower by more than this makes
+the energy horizon worth recomputing."""
+
 _STOP_SLACK = 1e-12
 """Relative slack on the braking distance when a stop request looks for the first node at which the AGV can be at rest,
 the slack :func:`~simulatte.intralogistics.kinematics.plan_run` allows an entry speed."""
@@ -412,6 +416,7 @@ class _Trip:
         self.profiles: tuple[ArcProfile, ...] = ()
         self.stop_at: int | None = None  # the first node where the AGV can be at rest after a stop request while moving
         self.arrival_speed = 0.0  # the planned speed at the end of the arc being traversed
+        self.expected: tuple[float, ...] = ()  # the level the estimate foresees at each node of the plan
         self.hooks = WaitHooks(
             route=self._remaining,
             loaded=self._carrying,
@@ -565,16 +570,21 @@ class _Trip:
         """The furthest node, up to position `limit`, such that the estimated energy of the arcs from the AGV's node to
         it fits the battery level, and not beyond the first node other than the goal at which the estimated level is
         critical (the energy horizon of spec §9.5, with the estimate of :meth:`_estimate` under the run's limits).
+
+        The level is carried arc by arc as the depletion on arrival carries it, so that the check at rest, which
+        compares the actual level with an arc's estimate, agrees with this horizon to the last bit when the estimate is
+        exact.
         """
         battery, kin = self.agv.battery, self.kin
         assert kin is not None
-        level, total, end = battery.level, 0.0, self.index
+        level, end = battery.level, self.index
         while end < limit:
-            total += self._estimate(end, kin)
-            if total > level:
+            cost = self._estimate(end, kin)
+            if level < cost:
                 break
+            level = max(0.0, level - cost)
             end += 1
-            if self.route[end] != self.goal and _critical(battery, level - total):
+            if self.route[end] != self.goal and _critical(battery, level):
                 break  # the AGV comes to rest where the critical-battery branch runs
         return end
 
@@ -619,6 +629,14 @@ class _Trip:
             node_caps = [self.speed, *self._interior_caps(index + 1, caps), 0.0]
             self.profiles = plan_run(self.speed, self.lengths[index:end], caps, node_caps, kin)
             self.plan_from, self.end = index, end
+            battery, level = agv.battery, agv.battery.level
+            expected = [level]
+            for k in range(index, end):  # arc by arc, as the depletion on arrival computes the level
+                level = max(
+                    0.0, level - estimate_arc_energy(battery, kin, self.lengths[k], load_weight, self.speed_limits[k])
+                )
+                expected.append(level)
+            self.expected = tuple(expected)
         profile = self.profiles[index - self.plan_from]
         return _ArcPlan(length, load_weight, profile.duration, profile.description(), profile.time_at, profile.v_out)
 
@@ -632,12 +650,19 @@ class _Trip:
         force (spec §8.3, §9.5): the level is lower than the estimate foresaw. The plan is cut at the later of the
         affordable node and the first node where the AGV can be at rest, with either controller.
 
+        The plan keeps the level it expects at each node, computed arc by arc as the depletion on arrival computes it
+        (``expected``): with a depletion that ignores the speed the actual level is the expected one bit for bit.
+        The affordable end is recomputed only when the level is below it by more than a relative slack: nothing is
+        scanned at a node where the level is as expected.
+
         A critical level found at a node other than the goal is the same request: the estimate then turns critical at
         the next node, so the energy horizon ends at or before it. (At the goal the plan ends at rest anyway.)
         """
-        affordable = self._affordable_end(self.end)
-        if affordable < self.end:
-            self._stop(self.index, self.speed, affordable)
+        battery = self.agv.battery
+        if self.expected[self.index - self.plan_from] - battery.level > _ENERGY_SLACK * battery.capacity:
+            affordable = self._affordable_end(self.end)
+            if affordable < self.end:
+                self._stop(self.index, self.speed, affordable)
 
     def _stop(self, node: int, speed: float, floor: int = 0) -> None:
         """A stop request received while moving (an interrupt, or a battery found critical at a node other than the goal
