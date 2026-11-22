@@ -1,4 +1,4 @@
-"""Routing: the router protocol (spec §10.1) and the shortest-distance router (§10.2)."""
+"""Routing: the router protocol (spec §10.1) and the shortest-distance and fastest routers (§10.2)."""
 
 from __future__ import annotations
 
@@ -7,11 +7,14 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from simulatte.intralogistics.speed import KinematicProfile
 
-    from simulatte.intralogistics.agv import AGV
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from simulatte.intralogistics.agv import AGV, AGVType
     from simulatte.intralogistics.graph import LayoutGraph, Node
+    from simulatte.intralogistics.kinematics import Kinematics
     from simulatte.intralogistics.network import Resource
     from simulatte.intralogistics.traffic import TrafficView
 
@@ -37,6 +40,44 @@ class Router(Protocol):
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...
 
 
+_HEADING_TOLERANCE = 1e-9
+"""Heading changes below this many radians are taken as 0 (spec §9.4)."""
+
+
+def arc_direction(source: Node, target: Node) -> float | None:
+    """The direction of the chord from `source` to `target` in radians; None for a chord of length 0, which has none."""
+    if source.x == target.x and source.y == target.y:
+        return None
+    return math.atan2(target.y - source.y, target.x - source.x)
+
+
+def heading_change(heading: float, direction: float) -> float:
+    """The change in ``[0, pi]`` from `heading` to `direction`. A change below :data:`_HEADING_TOLERANCE` is 0: rounding
+    in the coordinates of collinear nodes is not a turn."""
+    change = abs(direction - heading)
+    change = min(change, 2 * math.pi - change)
+    return 0.0 if change < _HEADING_TOLERANCE else change
+
+
+def heading_changes(nodes: Sequence[Node], heading: float | None) -> tuple[float | None, ...]:
+    """The heading change in ``[0, pi]`` at each node of `nodes` except the last, between the arc that enters it and the
+    arc that leaves it (spec §9.4).
+
+    The arc that enters the first node is the one that gave the AGV `heading`; None means it is unknown, and so is the
+    change at every node until an arc with a direction has been traversed. An arc whose chord has length 0 has no
+    direction: it leaves the heading unchanged, so the change at its ends is measured from the last known one.
+    """
+    changes: list[float | None] = []
+    for source, target in zip(nodes, nodes[1:]):
+        direction = arc_direction(source, target)
+        if direction is None:
+            changes.append(None if heading is None else 0.0)
+            continue
+        changes.append(None if heading is None else heading_change(heading, direction))
+        heading = direction
+    return tuple(changes)
+
+
 def shortest_path(
     graph: LayoutGraph,
     origin: Node,
@@ -44,11 +85,14 @@ def shortest_path(
     *,
     allowed: Callable[[Node, Node], bool] | None = None,
     heuristic: bool = False,
+    weight: Callable[[Node, Node], float] | None = None,
 ) -> tuple[tuple[Node, ...], float] | None:
     """The path of least summed arc length, or ``None``; ties break by node id.
 
     ``allowed(u, v)`` returning false excludes the leg from ``u`` to ``v``. With ``heuristic`` the search is A* with
     the chord distance to the destination, which never overestimates because an arc is never shorter than its chord.
+    ``weight(u, v)``, non-negative, replaces the arc length as the cost of a leg; it is not meant for ``heuristic``,
+    whose estimate is a length.
     """
     if origin == destination:
         return (origin,), 0.0
@@ -72,7 +116,7 @@ def shortest_path(
         for neighbor in graph.neighbors(node):
             if allowed is not None and not allowed(node, neighbor):
                 continue
-            new_cost = cost + graph.length(node, neighbor)
+            new_cost = cost + (graph.length(node, neighbor) if weight is None else weight(node, neighbor))
             if new_cost < best.get(neighbor, math.inf):
                 best[neighbor] = new_cost
                 previous[neighbor] = node
@@ -90,19 +134,235 @@ class ShortestDistanceRouter:
         self.algorithm = algorithm
 
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
-        avoid = request.avoid
-
-        def allowed(u: Node, v: Node) -> bool:
-            return v not in avoid and not any(resource in avoid for resource in view.resources(u, v))
-
         found = shortest_path(
             view.graph,
             request.origin,
             request.destination,
-            allowed=allowed if avoid else None,
+            allowed=_leg_filter(request.avoid, view),
             heuristic=self.algorithm == "astar",
         )
         if found is None:
             return None
         path = found[0]
         return Route(path, view.graph.path_length(path))  # an fsum, as every other user of route cost computes it
+
+
+def _leg_filter(avoid: frozenset[Resource], view: TrafficView) -> Callable[[Node, Node], bool] | None:
+    """The `allowed` argument of :func:`shortest_path` for a request's `avoid`: a leg is excluded when its end node or
+    any resource of ``view.resources(u, v)`` is avoided; None when nothing is."""
+    if not avoid:
+        return None
+
+    def allowed(u: Node, v: Node) -> bool:
+        return v not in avoid and not any(resource in avoid for resource in view.resources(u, v))
+
+    return allowed
+
+
+_State = tuple["Node", "Node | None"]
+"""A state of the turning search: a node and the node the arc that entered it came from (None at the origin)."""
+
+
+class _Timing:
+    """The times a request's AGV needs for a leg and for a turn (spec §10.2).
+
+    The limits of a profile that has them are sampled once, at the request's load and the AGV's battery level now. A
+    leg costs ``length / min(v_max, speed_limit)`` with them, else ``travel_time`` of the profile. A turn costs the
+    ``turn_time`` of the heading change, plus, for a profile with limits, the time lost slowing from the lower cap ``u``
+    of the two arcs to the speed ``c`` the turn allows, and regaining ``u``: ``(u - c) ** 2 / (2 * u) * (1 / accel + 1 /
+    decel)`` when ``c < u``. As in the executor, ``c`` is 0 where ``turn_time`` is positive (the vehicle stops) and
+    ``corner_speed`` of the heading change otherwise. A profile without limits is at rest at every node: a turn costs
+    its ``turn_time`` only. An AGV at the origin is at rest too: the first turn costs ``turn_time`` only.
+    """
+
+    def __init__(self, agv: AGV, load_weight: float, view: TrafficView) -> None:
+        self.agv_type: AGVType = agv.agv_type
+        self.profile = self.agv_type.speed_profile
+        self.load_weight = load_weight
+        self.level = agv.battery.level_pct
+        self.view = view
+        self.kin = (
+            _limits(self.profile, load_weight, self.level) if isinstance(self.profile, KinematicProfile) else None
+        )
+        self.stalled = self.kin is not None and (self.kin.v_max <= 0 or self.kin.accel <= 0)
+        self.turn_time = self.agv_type.turn_time
+        self.corner_speed = self.agv_type.corner_speed if self.kin is not None else None
+        self.turning = self.turn_time is not None or self.corner_speed is not None
+        self._legs: dict[tuple[Node, Node], tuple[float, float]] = {}
+
+    def leg(self, u: Node, v: Node) -> tuple[float, float]:
+        """The time of the arc from `u` to `v` and its speed cap ``min(v_max, speed_limit)`` (infinite if no limits)."""
+        leg = self._legs.get((u, v))
+        if leg is None:
+            length, limit = self.view.length(u, v), self.view.speed_limit(u, v)
+            kin = self.kin
+            if kin is not None:
+                cap = kin.v_max if limit is None else min(kin.v_max, limit)
+                leg = (length / cap, cap)
+            else:
+                time = float(self.profile.travel_time(length, self.load_weight, self.level, speed_limit=limit))
+                if not math.isfinite(time) or time < 0:
+                    name = type(self.profile).__name__
+                    raise ValueError(
+                        f"{name}.travel_time({length!r}, {self.load_weight!r}, {self.level!r}, speed_limit={limit!r}) "
+                        f"returned {time}; it must be finite and >= 0"
+                    )
+                leg = (time, math.inf)
+            self._legs[(u, v)] = leg
+        return leg
+
+    def _value(self, name: str, angle: float) -> float:
+        """What the AGV type's callable `name` says for the heading change `angle`, validated as the executor does."""
+        value = float(getattr(self.agv_type, name)(angle))
+        if math.isnan(value) or value < 0 or (name == "turn_time" and math.isinf(value)):
+            allowed = "finite and >= 0" if name == "turn_time" else "not NaN and >= 0"
+            raise ValueError(f"AGVType {self.agv_type.name!r}: {name}({angle}) returned {value}; it must be {allowed}")
+        return value
+
+    def turn(self, angle: float | None, cap_in: float | None, cap_out: float) -> float:
+        """The time a turn of `angle` costs between arcs of caps `cap_in` (None: at rest) and `cap_out`; an unknown
+        angle turns for free."""
+        if angle is None:
+            return 0.0
+        wait = 0.0 if self.turn_time is None else self._value("turn_time", angle)
+        if self.kin is None or cap_in is None:
+            return wait
+        u = min(cap_in, cap_out)
+        if wait > 0.0:
+            c = 0.0
+        else:
+            c = math.inf if self.corner_speed is None else self._value("corner_speed", angle)
+        if c >= u:
+            return wait
+        return wait + (u - c) ** 2 / (2 * u) * (1 / self.kin.accel + 1 / self.kin.decel)
+
+    def step(self, u: Node, v: Node, heading: float | None, cap_in: float | None) -> tuple[float, float | None, float]:
+        """The cost of leaving `u` for `v` after entering it with `heading` and speed cap `cap_in` (None at rest), and
+        the heading and cap after the leg. An arc without direction has heading change 0 and leaves the heading
+        unknown."""
+        time, cap = self.leg(u, v)
+        direction = arc_direction(u, v)
+        if heading is None:
+            angle = None
+        elif direction is None:
+            angle = 0.0
+        else:
+            angle = heading_change(heading, direction)
+        return self.turn(angle, cap_in, cap) + time, direction, cap
+
+    def path_cost(self, nodes: Sequence[Node], heading: float | None) -> float:
+        cost, cap_in = 0.0, None
+        for u, v in zip(nodes, nodes[1:]):
+            time, heading, cap_in = self.step(u, v, heading, cap_in)
+            cost += time
+        return cost
+
+    def search(
+        self,
+        graph: LayoutGraph,
+        origin: Node,
+        destination: Node,
+        heading: float | None,
+        allowed: Callable[[Node, Node], bool] | None,
+    ) -> tuple[tuple[Node, ...], float] | None:
+        """Dijkstra over the states (node, node the entering arc came from), for a turn costs by the arc that enters the
+        node. Ties break by cost, then node id, then the id of the node the entering arc came from."""
+        start: _State = (origin, None)
+        best: dict[_State, float] = {start: 0.0}
+        previous: dict[_State, _State] = {}
+        heap: list[tuple[float, str, str, _State]] = [(0.0, origin.id, "", start)]
+        while heap:
+            cost, _, _, state = heapq.heappop(heap)
+            node, before = state
+            if node == destination:
+                path = [node]
+                while state in previous:
+                    state = previous[state]
+                    path.append(state[0])
+                nodes = tuple(reversed(path))
+                if len(set(nodes)) != len(nodes):  # a perverse turn time made a loop pay: cut it, as a route is simple
+                    nodes = _without_loops(nodes)
+                    cost = self.path_cost(nodes, heading)
+                return nodes, cost
+            if cost > best[state]:
+                continue
+            if before is None:
+                entering, cap_in = heading, None
+            else:
+                entering, cap_in = arc_direction(before, node), self.leg(before, node)[1]
+            for neighbor in graph.neighbors(node):
+                if allowed is not None and not allowed(node, neighbor):
+                    continue
+                time, _, _ = self.step(node, neighbor, entering, cap_in)
+                new_cost = cost + time
+                key: _State = (neighbor, node)
+                if new_cost < best.get(key, math.inf):
+                    best[key] = new_cost
+                    previous[key] = state
+                    heapq.heappush(heap, (new_cost, neighbor.id, node.id, key))
+        return None
+
+
+def _without_loops(path: Sequence[Node]) -> tuple[Node, ...]:
+    """`path` with every loop cut at the first visit of the node it returns to."""
+    kept: list[Node] = []
+    for node in path:
+        if node in kept:
+            del kept[kept.index(node) + 1 :]
+        else:
+            kept.append(node)
+    return tuple(kept)
+
+
+def _limits(profile: KinematicProfile, load_weight: float, level: float) -> Kinematics:
+    """``profile.limits`` for the request, checked as the executor checks the limits of a run: ``ValueError`` naming the
+    profile when a value is not finite, when ``decel`` is negative, or when ``decel`` is 0 for a vehicle that can move.
+    """
+    kin = profile.limits(load_weight, level)
+    v_max, accel, decel = kin.v_max, kin.accel, kin.decel
+    if not (math.isfinite(v_max) and math.isfinite(accel) and math.isfinite(decel)):
+        problem = "every value must be finite"
+    elif decel < 0:
+        problem = "decel must not be negative"
+    elif decel == 0 and v_max > 0 and accel > 0:
+        problem = "decel must be positive for a vehicle that can move, else a stop cannot be planned"
+    else:
+        return kin
+    raise ValueError(f"{type(profile).__name__}.limits({load_weight!r}, {level!r}) returned {kin!r}: {problem}")
+
+
+class FastestRouter:
+    """Cost is the time the request's AGV needs: its legs at ``min(v_max, speed_limit)``, or by ``travel_time`` for a
+    profile without limits, and its turns (spec §10.2); see :class:`_Timing`. The limits are those of the request's load
+    and the AGV's battery level now. A vehicle that cannot move (``v_max`` or ``accel`` not positive) has no route.
+
+    The AGV's heading is taken as its heading at the origin: the first arc pays the turn from it, at rest. With a
+    turning model (``corner_speed`` for a profile with limits, or ``turn_time``) the search state is the node and the
+    arc that entered it. The search is then over walks: a route that would return to a node is cut at the first
+    visit, and its cost is that of the cut route. An arc whose chord has length 0 has no direction: the heading
+    change into it is 0 and the heading after it is unknown here (the next turn is free), whereas the executor
+    measures the next turn from the last known heading.
+
+    A request without an AGV is routed by length, as :class:`ShortestDistanceRouter` does, and its cost is a length:
+    a cost is comparable only within one router and one kind of request. A leg is excluded when it enters an avoided
+    node or needs an avoided resource, as for :class:`ShortestDistanceRouter`. Ties break by node id.
+    """
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        agv, origin, destination = request.agv, request.origin, request.destination
+        if agv is None or origin == destination:
+            return _BY_LENGTH.route(request, view)
+        timing = _Timing(agv, request.load_weight, view)
+        if timing.stalled:
+            return None
+        allowed = _leg_filter(request.avoid, view)
+        if timing.turning:
+            found = timing.search(view.graph, origin, destination, agv.heading, allowed)
+        else:
+            found = shortest_path(
+                view.graph, origin, destination, allowed=allowed, weight=lambda u, v: timing.leg(u, v)[0]
+            )
+        return None if found is None else Route(*found)
+
+
+_BY_LENGTH = ShortestDistanceRouter()

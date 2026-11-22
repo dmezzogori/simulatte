@@ -26,7 +26,7 @@ from simulatte.intralogistics.policies import (
     StayInPlace,
 )
 from simulatte.intralogistics.reservation import ReservationController
-from simulatte.intralogistics.routing import Route, Router, RouteRequest, ShortestDistanceRouter
+from simulatte.intralogistics.routing import FastestRouter, Route, Router, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import SpeedProfile, TrapezoidalProfile
 from simulatte.intralogistics.traffic import (
@@ -61,6 +61,7 @@ __all__ = [
     "Route",
     "RouteRequest",
     "ShortestDistanceRouter",
+    "FastestRouter",
     # traffic
     "TrafficController",
     "TrafficView",

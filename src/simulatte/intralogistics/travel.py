@@ -30,7 +30,7 @@ from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, Ag
 from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.kinematics import backward_pass, plan_run
 from simulatte.intralogistics.network import Segment
-from simulatte.intralogistics.routing import Route, RouteRequest
+from simulatte.intralogistics.routing import Route, RouteRequest, heading_changes
 from simulatte.intralogistics.speed import KinematicProfile, describe_motion
 from simulatte.intralogistics.traffic import GaveUp, Granted, Rerouted, WaitHooks
 
@@ -65,10 +65,6 @@ _OWN_REASONS = frozenset({"make_way", "clear_node"})
 
 _TOLERANCE = 1e-9
 """Relative slack when comparing a clear point with the odometer at the end of an arc."""
-
-
-_HEADING_TOLERANCE = 1e-9
-"""Heading changes below this many radians are taken as 0 (spec §9.4)."""
 
 _ENERGY_SLACK = 1e-12
 """Relative slack (of the battery capacity) on the level a plan expects at a node: a level lower by more than this makes
@@ -224,31 +220,6 @@ def standard_target(
         if best_key is None or key < best_key:
             best, best_key = node, key
     return best
-
-
-def _heading_changes(nodes: Sequence[Node], heading: float | None) -> tuple[float | None, ...]:
-    """The heading change in ``[0, pi]`` at each node of `nodes` except the last, between the arc that enters it and the
-    arc that leaves it (spec §9.4).
-
-    The arc that enters the first node is the one that gave the AGV `heading`; None means it is unknown, and so is the
-    change at every node until an arc with a direction has been traversed. An arc whose chord has length 0 has no
-    direction: it leaves the heading unchanged, so the change at its ends is measured from the last known one. A change
-    below :data:`_HEADING_TOLERANCE` is 0: rounding in the coordinates of collinear nodes is not a turn.
-    """
-    changes: list[float | None] = []
-    for source, target in zip(nodes, nodes[1:]):
-        if source.x == target.x and source.y == target.y:
-            changes.append(None if heading is None else 0.0)
-            continue
-        direction = math.atan2(target.y - source.y, target.x - source.x)
-        if heading is None:
-            changes.append(None)
-        else:
-            change = abs(direction - heading)
-            change = min(change, 2 * math.pi - change)
-            changes.append(0.0 if change < _HEADING_TOLERANCE else change)
-        heading = direction
-    return tuple(changes)
 
 
 class _Trail:
@@ -910,7 +881,7 @@ class _Trip:
         self.lengths, self.speed_limits, self.offsets = tuple(lengths), tuple(limits), tuple(offsets)
         self._forget_route_costs()
         # Heading changes matter only to a type that turns (spec §9.4); for any other they are never read.
-        self.turns = _heading_changes(nodes, self.agv.heading) if self.turning else ()
+        self.turns = heading_changes(nodes, self.agv.heading) if self.turning else ()
         self.turned = -1
         self.corner_caps, self.turn_waits = {}, {}
         env = self.env
