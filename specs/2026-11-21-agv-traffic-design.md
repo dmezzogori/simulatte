@@ -780,7 +780,8 @@ same request and a view extended with reservation times; nothing here depends on
   largest, over the leg's resources that are not admissible now, of `(blocking holders + pending claims) *
   mean_hold(resource)`, read from `view.blockers`, `view.pending` and `view.mean_hold`. A resource held to
   capacity by stranded AGVs (every one of its blocking holders is stranded) is avoided. Without an AGV in the
-  request no penalty applies. It is a heuristic and does not claim an optimum.
+  request no penalty applies, and with `wait_weight=0` the router is its base router exactly (no penalty and no
+  exclusion). It is a heuristic and does not claim an optimum.
 
 `mean_hold` is an exponential average (factor 0.1) of observed hold durations per resource, maintained by
 `ReservationController` whether or not anything observes it.
