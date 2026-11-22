@@ -169,7 +169,9 @@ def standard_target(
     every vehicle that holds back for the branch; members stay valid) and not the node of a parking area that is full.
     A node that a pending claim names is not taken either unless it keeps a free slot for each of those claims after
     the move, and neither is a node whose route ends with a leg that needs a segment, zone or corridor named by a
-    pending claim: an idle AGV moved out of one wait's way must not fill what another wait needs.
+    pending claim: an idle AGV moved out of one wait's way must not fill what another wait needs. Nor is a node whose
+    route ends with a leg that needs a zone or corridor its holders make inadmissible for the AGV now: a node inside a
+    full zone is no free rest, and the AGV would stop short of it and block the way.
     `purpose` and `load_weight` are those of the move the search is for; the router is asked with them, so that the
     search and the move make the same request apart from the destination. Nodes in `exclude` are never
     taken (a make-way move does not go back to a node the AGV made way from). With `roomy` (the fallback of a make-way
@@ -221,6 +223,10 @@ def standard_target(
             if not isinstance(resource, Node) and not (roomy and isinstance(resource, Segment))
         ):
             continue
+        if idle and any(
+            not isinstance(resource, (Node, Segment)) for resource, _ in view.blockers(agv, route.nodes[-2], node)
+        ):
+            continue  # a node inside a full zone or a corridor held the other way is no free rest
         if not view.admissible(agv, controller.next_claim(agv, route.nodes, 0)):
             continue
         key = (rank, route.cost, node.id)

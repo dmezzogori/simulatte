@@ -1673,3 +1673,187 @@ def test_a_make_way_move_that_ends_at_once_is_not_repeated_at_the_same_instant()
     m.env.run()
     assert (a.state, a.current_node) == (AGVState.IDLE, sl)
     assert make_way_times(m, "A") == [2.0]
+
+
+# --- final review: a node inside a full zone is not a free rest (spec §7.9) -----------------------------------------
+
+
+@pytest.mark.parametrize(("capacity", "hold_back", "expected"), [(1, True, "P"), (1, False, "P"), (2, True, "Q")])
+def test_the_idle_search_does_not_take_a_node_inside_a_full_zone(capacity: int, hold_back: bool, expected: str) -> None:
+    """``A - B - H - Q`` along a row and ``P`` off ``A``, farther than ``Q``; B and H are bays. Q has two slots and lies
+    in the zone Z, held by R resting on Q. With a zone of one the last leg to Q needs Z, which R makes inadmissible,
+    so Q is no free rest although its node has a slot (the first claim, from A to B, does not name Z, even with
+    `hold_back`): the search takes P. A zone of two has room, and Q, the cheaper, is taken."""
+    graph, nodes = build(
+        [("A", 0, 0), ("B", 10, 0), ("H", 20, 0), ("Q", 30, 0), ("P", 0, 35)],
+        [("A", "B"), ("B", "H"), ("H", "Q"), ("A", "P")],
+    )
+    m = mission_world(
+        (graph, nodes),
+        {"M": "A", "R": "Q"},
+        bays={"WB": "B", "WH": "H"},
+        controller_options={
+            "capacities": {nodes["Q"]: 2},
+            "zones": (Zone("Z", (nodes["Q"],), capacity=capacity, hold_back=hold_back),),
+            "hold_back_dead_ends": False,
+        },
+    )
+    m_agv = m.agvs["M"]
+    assert standard_target(m.fleet, m_agv, idle=True, purpose="make_way") is nodes[expected]
+    assert m.fleet.make_way(m_agv) is True
+    m.env.run()
+    assert m.routed("M") == [("make_way", "A", expected)]
+    assert m_agv.current_node is nodes[expected]
+
+
+class Steady:
+    """A speed profile with only ``travel_time``, at the speed the random world 206 drew."""
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        return distance / 1.3105759301850175
+
+
+def test_make_way_moves_into_a_full_zone_do_not_go_on_for_ever() -> None:
+    """spec §7.9, §7.10: the control reviewer's random world 206, written out. Three AGVs with vehicles 3 m long on arcs
+    of 1 to 4 m, a node c02 of capacity 2 inside the zone Z0 of capacity 1 with hold-back, few nodes where an idle AGV
+    may rest. Before the rule every order completed by about 588 s and then the idle AGVs made way to c02 and around
+    the ring for ever (4,650 make-way moves in 20,000 s): the mover stopped at the hold-back leg, the AGV resting on c02
+    was asked to make way, and so on. With the rule the run returns."""
+    points = [
+        ("g0_0", 0.0, 0.0),
+        ("g0_1", 0.0, 4.0),
+        ("g1_0", 4.0, 0.0),
+        ("g1_1", 4.0, 4.0),
+        ("c01", 2.0, 0.01),
+        ("c02", 0.0, 1.3533333333333333),
+        ("c03", 0.0, 2.6966666666666663),
+        ("c04", 1.0, 4.04),
+        ("c05", 2.0, 4.05),
+        ("c06", 3.0, 4.06),
+        ("s07", 3.29, 2.2),
+        ("s08", 3.36, -1.8),
+        ("s09", 3.4299999999999997, -1.8),
+        ("s10", 2.3000000000000003, -3.6),
+        ("s11", 3.57, -1.8),
+        ("s12", 2.4400000000000004, -3.6),
+        ("s13", 1.3100000000000005, -5.4),
+    ]
+    links = [
+        ("g0_0", "c01"),
+        ("c01", "g1_0"),
+        ("g0_0", "c02"),
+        ("c02", "c03"),
+        ("c03", "g0_1"),
+        ("g0_1", "c04"),
+        ("c04", "c05"),
+        ("c05", "c06"),
+        ("c06", "g1_1"),
+        ("g1_0", "g1_1"),
+        ("g1_1", "s07"),
+        ("g1_0", "s08"),
+        ("g1_0", "s09"),
+        ("s09", "s10"),
+        ("g1_0", "s11"),
+        ("s11", "s12"),
+        ("s12", "s13"),
+    ]
+    graph, nodes = build(points, links)
+    env = Environment(seed=206)
+    skus = [SKU(id="s0", weight=1.0, volume=0.1), SKU(id="s1", weight=5.0, volume=0.1)]
+    sites = {
+        name: Warehouse(
+            env=env,
+            name=name,
+            input_bays=[nodes[node] for node in inputs],
+            output_bays=[nodes[node] for node in outputs],
+            n_slots=2,
+            products=skus,
+            initial_inventory={sku: 500 for sku in skus},
+            pick_time=pick,
+            put_time=put,
+        )
+        for name, inputs, outputs, pick, put in [
+            ("W0", ["g1_1", "c03"], ["c03", "c05", "c04"], 4.087572233010311, 2.1525753034549364),
+            ("W1", ["s13"], ["g0_1", "g0_0"], 3.620136737085658, 3.8710510403947316),
+            ("W2", ["s10", "s11"], ["s08"], 2.8339490391814226, 2.142061978885512),
+        ]
+    }
+    kind = AGVType(
+        name="t",
+        speed_profile=Steady(),
+        battery_capacity=1e9,
+        weight_capacity=50.0,
+        volume_capacity=2.0,
+        load_time=1.0,
+        unload_time=1.0,
+        length=3.0,
+        low_battery_threshold=0.35,
+        critical_battery_threshold=0.02,
+        corner_speed=lambda angle: 0.4 if angle > 0.5 else float("inf"),
+    )
+    starts = {"agv-c": "s07", "agv-e": "c02", "agv-g": "s12"}
+    controller = ReservationController(
+        env=env,
+        graph=graph,
+        capacities={nodes["s09"]: 2, nodes["c02"]: 2},
+        zones=(
+            Zone("Z0", (nodes["c02"],), capacity=1, hold_back=True),
+            Zone("Z1", (nodes["s07"], nodes["g1_1"]), capacity=2),
+        ),
+        derive_corridors=False,
+        priority_fn=lambda agv: float(ord(agv.id[-1]) % 3),
+    )
+    fleet = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes[node]) for name, node in starts.items()],
+        warehouses=list(sites.values()),
+        charging_stations=[ChargingStation(env=env, name="C0", node=nodes["c01"], n_slots=1)],
+        traffic_controller=controller,
+        repositioning_policy=NearestParkingPolicy(),
+        lookahead_margin=2.0,
+        default_metrics=False,
+    )
+    plan = [
+        (33.358343711731784, 1, 3, "W2", "W1"),
+        (45.123767045916495, 0, 2, "W2", "W0"),
+        (56.52421342593519, 0, 1, "W2", "W0"),
+        (94.39082497889825, 0, 2, "W0", "W2"),
+        (95.95357124882808, 1, 3, "W0", "W1"),
+        (127.98471978422121, 1, 3, "W2", "W0"),
+        (128.0357659140218, 0, 1, "W2", "W1"),
+        (163.39789378019483, 0, 1, "W0", "W2"),
+        (175.88048954060568, 1, 3, "W1", "W0"),
+        (196.2717215539972, 0, 2, "W1", "W0"),
+        (224.79032654852284, 1, 3, "W2", "W0"),
+        (226.12947217008522, 0, 3, "W2", "W0"),
+        (331.55905753142736, 0, 1, "W0", "W1"),
+        (339.5536548922958, 1, 1, "W0", "W2"),
+        (379.2489150787415, 1, 1, "W0", "W1"),
+        (433.1794211729264, 1, 3, "W2", "W1"),
+        (513.7088749845988, 0, 3, "W0", "W1"),
+        (538.2031740496097, 0, 3, "W2", "W0"),
+        (571.0609561555615, 0, 2, "W2", "W0"),
+    ]
+    orders: list[TransferOrder] = []
+
+    def submit() -> Any:
+        for time, sku, quantity, origin, destination in plan:
+            yield env.timeout(time - env.now)
+            order = fleet.create_order(
+                sku=skus[sku], quantity=quantity, origin=sites[origin], destination=sites[destination]
+            )
+            orders.append(order)
+            fleet.submit(order)
+
+    env.process(submit())
+    replay = FullReplay(env, from_snapshot=True)
+    TrafficInvariants(env, controller)
+    env.run(until=5000.0)
+    last = replay.events[-1].t
+    assert last < 600.0  # before the rule the moves went on to the end, more than a thousand of them
+    assert [order.status for order in orders] == [OrderStatus.COMPLETED] * len(plan)
+    assert len([e for e in replay.of(AgvRouted) if e.reason == "make_way"]) == 23
+    assert controller._queue == []  # no wait is left open
