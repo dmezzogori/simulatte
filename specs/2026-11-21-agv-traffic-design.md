@@ -567,8 +567,8 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
 - **Stranded and serving blockers** are left to `on_blocked`. When an AGV strands, the coordinator calls `idle(agv)`
   (§7.1) and each open wait the AGV blocks gets one review at that instant, as after a release: the policy can reroute
   around the stranded blocker, and a wait that keeps waiting is reported stuck by the rule of §7.9. A stranded AGV is
-  not asked to make way, a review timer the wait had is replaced, and nothing else is scheduled. Charging and
-  stranding themselves do not change (§8.4).
+  not asked to make way, a review timer the wait had is dropped, the review schedules a new one only by the usual rule
+  (T23), and nothing else is scheduled. Charging and stranding themselves do not change (§8.4).
 
 Assigning `AGV.current_node` directly after activation still bypasses traffic, as today.
 

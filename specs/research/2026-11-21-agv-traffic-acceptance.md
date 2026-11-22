@@ -677,11 +677,13 @@ their AGVs), seeds 0 to 499 with two fleets on one controller under three router
    | Before | 1,451 (206 does not) | 722 | 17,924 of 27,722 | 28,710 (5,187) |
    | After | 1,452 | 731 | 17,883 of 27,722 | 5,105 (5,082) |
 
-   168 of the 1,452 runs changed: 23 completed more orders (69 in all) and 30 fewer (110). Under the other routers
-   every run returns as well (world 206 did not return under `astar` and `fastest` either); completed orders moved by
-   -82 (`astar`), -13 (`fastest`), +13 and +8 (the congestion routers), -6, -21 and -23 (two fleets). A blocker that
-   used to start towards a node inside a full zone, and so cleared the way it stood in, now stays when nothing else
-   qualifies; that is the cost of the rule.
+   175 of the 1,452 runs changed in their full event stream: 23 completed more orders (69 in all) and 30 fewer (110).
+   Under the other routers every run returns as well (world 206 did not return under `astar` and `fastest` either);
+   completed orders moved by -82 (`astar`), -13 (`fastest`), +13 and +8 (the congestion routers), -14, -29 and -23 (two
+   fleets, orders of the first fleet). A blocker that used to start towards a node inside a full zone, and so cleared
+   the way it stood in, now stays when nothing else qualifies; that is the cost of the rule. The scoped re-review pooled its worlds: over 4,388 worlds and the three
+   strict routers the idle-search fix changes completed orders from 159,651 to 159,650 (bootstrap 95 % interval by
+   world -305 to +310), so it is neutral on throughput.
 2. **A wait behind a blocker that strands was never reviewed.** A sleeping wait woke only on a grant or release, and a
    stranding that frees nothing is neither: the waiting travel was not rerouted around the stranded blocker and not
    reported stuck. Fix: the coordinator calls `controller.idle(agv)` on the transition to `STRANDED` as well as to
@@ -701,10 +703,26 @@ their AGVs), seeds 0 to 499 with two fleets on one controller under three router
    3.12 only, so move end times differed in the last place between 3.11 or PyPy and 3.12+ (25 of 349 kinematic runs).
    Fix: `math.fsum` there and in the fallback of `ArcProfile.v_out`; the other sums of `kinematics.py`, `travel.py` and
    `speed.py` reach no event or decision or are already exact. The 25 runs now have the same streams on 3.11 and
-   3.14; on 3.14, 4 of them changed. `tests/intralogistics` and `tests/layout` pass on CPython 3.11 and 3.14 with the
-   same pinned values; nothing was re-pinned. Test: `test_kinematics.py::test_duration_and_exit_speed_are_the_same_floats_on_every_interpreter`
+   3.14; on CPython 3.14 the `fsum` change altered no event stream (0 of 2,904 runs), and the four seeds (134, 169, 233,
+   527) that changed there changed with the idle-search fix of item 1. `tests/intralogistics` and `tests/layout` pass
+   on CPython 3.11 and 3.14 with the same pinned values; nothing was re-pinned. Test: `test_kinematics.py::test_duration_and_exit_speed_are_the_same_floats_on_every_interpreter`
    (fails on 3.11 before the fix).
 5. **`Node.__hash__`.** A node hashed `(id, x, y)` on every dict access; it now hashes its id. `shortest_path` corner
    to corner on a 30 by 30 grid: 1.85 ms before, 1.23 ms after. The full event streams are bit-identical before and
    after on the intralogistics examples (free flow and reservation), Appendix A, and 1,782 random worlds (600 under
    free flow, 600 under reservation of the part C task review, 582 of the control reviewer's under reservation).
+6. **The arc length check failed at georeferenced coordinates.** A layout with `block_length`, far from the origin,
+   raised a bare `ValueError`: the piece length passed to `Arc` fell under the chord of the generated points by more
+   than the check's relative 1e-9, because the points are rounded to the spacing of the floats there (9.3e-10 at 5e6).
+   `subdivide` failed identically; only edges of 5 to 60 m from `(off, off)` at a random angle with `off` of 1e6 or
+   more were affected. Reproduction, 200 random edges per offset and block, failures of the layout (the same count for
+   `subdivide`) before the fix: 55 at `off` 1e6 with block 0.1; 6, 110 and 194 at `off` 5e6 with blocks 1.0, 0.5 and
+   0.1; none at `off` of 1e5 or less. Fix: `Arc` accepts a length below the chord by the larger of the relative 1e-9
+   and four units of floating-point spacing at the largest absolute coordinate of its two nodes (the measured
+   shortfall is at most 1.32 units over offsets from 1e5 to 1e8); near the origin the check is the same as before, the
+   piece counts and lengths of `subdivide` and of the layout are untouched, and the message is unchanged. After the
+   fix the reproduction has no failure. Tests: `test_graph.py::TestArcLength` (a length below the chord by more than
+   the tolerance still raises at the origin and at 5e6; rounding at 5e6 is accepted) and
+   `test_traffic_fields.py::test_subdivide_and_block_length_build_the_same_network_at_georeferenced_coordinates`
+   (offsets 1e6 and 5e6, blocks 1.0, 0.5 and 0.1, 40 random edges each: the twins build without error and have the
+   same nodes and arc lengths to the float). No pinned value moved.
