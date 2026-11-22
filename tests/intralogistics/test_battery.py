@@ -93,3 +93,27 @@ class TestEstimateEnergy:
         battery = Battery(capacity=100.0, depletion_fn=custom_depletion)
         result = battery.estimate_energy(distance=10.0, load_weight=5.0, speed=2.0)
         assert result == pytest.approx(5.52)
+
+
+class TestDrain:
+    def test_drain_lowers_the_level(self) -> None:
+        b = Battery(capacity=100.0)
+        b.drain(12.5)
+        assert b.level == 87.5
+
+    def test_drain_floors_the_level_at_zero(self) -> None:
+        b = Battery(capacity=100.0, initial_level=10.0)
+        b.drain(25.0)
+        assert b.level == 0.0
+
+    def test_drain_of_nothing_leaves_the_level(self) -> None:
+        b = Battery(capacity=100.0, initial_level=40.0)
+        b.drain(0.0)
+        assert b.level == 40.0
+
+    @pytest.mark.parametrize("amount", [-1.0, -1e-9, float("nan")])
+    def test_drain_rejects_a_negative_or_nan_amount(self, amount: float) -> None:
+        b = Battery(capacity=100.0)
+        with pytest.raises(ValueError, match="drain"):
+            b.drain(amount)
+        assert b.level == 100.0

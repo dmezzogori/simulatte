@@ -448,6 +448,7 @@ class _Trip:
             current, next_node = self.route[self.index], self.route[self.index + 1]
             plan: _ArcPlan | None = None
             if self.speed == 0.0:  # at rest: the energy check before the next arc, the turn, then a run starts here
+                agv.accrue_idle_power()  # idle power over the waits at rest is accounted before the level is read
                 if self.kinematic:
                     energy_cost = self._estimate(self.index, self._limits())
                 else:
@@ -460,6 +461,7 @@ class _Trip:
                     if wait > 0.0:
                         self._claim_ahead()  # the claim is asked for on arrival and stays pending during the turn
                         yield from self._turn(wait)
+                        agv.accrue_idle_power()  # the limits and the plan of the run read the level after the turn
                 self._start_run()
 
             self._claim_ahead()
@@ -573,7 +575,9 @@ class _Trip:
 
         The level is carried arc by arc as the depletion on arrival carries it, so that the check at rest, which
         compares the actual level with an arc's estimate, agrees with this horizon to the last bit when the estimate is
-        exact.
+        exact. The estimate does not include the idle power of the time the run ahead takes (spec §9.5): the level it
+        starts from is the one after the idle power accounted so far, and a battery that idle power empties during the
+        run is met by the energy check at rest.
         """
         battery, kin = self.agv.battery, self.kin
         assert kin is not None
@@ -630,11 +634,14 @@ class _Trip:
             self.profiles = plan_run(self.speed, self.lengths[index:end], caps, node_caps, kin)
             self.plan_from, self.end = index, end
             battery, level = agv.battery, agv.battery.level
+            idle_power = agv.agv_type.idle_power
             expected = [level]
-            for k in range(index, end):  # arc by arc, as the depletion on arrival computes the level
+            for k in range(index, end):  # arc by arc, as the depletion on arrival and the fold of idle power compute it
                 level = max(
                     0.0, level - estimate_arc_energy(battery, kin, self.lengths[k], load_weight, self.speed_limits[k])
                 )
+                if idle_power:
+                    level = max(0.0, level - idle_power * self.profiles[k - index].duration)
                 expected.append(level)
             self.expected = tuple(expected)
         profile = self.profiles[index - self.plan_from]
@@ -651,7 +658,9 @@ class _Trip:
         affordable node and the first node where the AGV can be at rest, with either controller.
 
         The plan keeps the level it expects at each node, computed arc by arc as the depletion on arrival computes it
-        (``expected``): with a depletion that ignores the speed the actual level is the expected one bit for bit.
+        (``expected``), with the idle power of the arc's planned duration taken off as the fold at ``agv.move_ended``
+        takes it: with a depletion that ignores the speed the actual level is the expected one bit for bit, with or
+        without idle power.
         The affordable end is recomputed only when the level is below it by more than a relative slack: nothing is
         scanned at a node where the level is as expected.
 
@@ -1014,6 +1023,7 @@ class _Trip:
         self.moving = False
         avg_speed = distance / travel_time if travel_time > 0 else 0.0
         agv.battery.deplete(distance, plan.load_weight, avg_speed)
+        agv.fold_idle_power(travel_time)  # the move's idle drain is part of the level ``agv.move_ended`` reports
         executor._end_segment(agv, next_node, source=current)
         self.index += 1
         self.speed = plan.exit_speed

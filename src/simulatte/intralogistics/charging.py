@@ -46,7 +46,8 @@ class ChargingStation(Entity, kind="charging_station"):
 
     Events (spec §6.4): ``charging.started`` when an AGV is granted a slot and ``charging.ended`` when it releases
     it, ``charging.pool_changed`` whenever the swap pool changes, and ``agv.battery_changed`` after a recharge or a
-    swap.
+    swap. Idle power (spec §9.5) does not drain while the AGV is charging: a recharge brings the level up to date when
+    its slot is granted and the time after that is not accounted.
 
     ``recharge_time`` is a distribution description or a number (managed) or a callable
     ``(current_level, target_level) -> float`` (opaque), bound to the stream ``<name>/recharge``; without it the
@@ -134,6 +135,7 @@ class ChargingStation(Entity, kind="charging_station"):
         req = _SlotRequest(self._slots, agv, "recharge")
         try:
             yield req
+            agv.accrue_idle_power()  # the level the charge starts from (in the CHARGING state nothing accrues)
             target_level = target_pct * agv.battery.capacity
 
             if target_level <= agv.battery.level:
@@ -157,6 +159,7 @@ class ChargingStation(Entity, kind="charging_station"):
             self.total_recharges += 1
         finally:
             if req.triggered:
+                agv.skip_idle_power()  # the time since the slot was granted was spent charging: it does not drain
                 self._slots.release(req)
             else:
                 req.cancel()
@@ -191,6 +194,7 @@ class ChargingStation(Entity, kind="charging_station"):
 
             # Set AGV battery to full
             agv.battery.level = agv.battery.capacity
+            agv.skip_idle_power()  # the level was replaced: idle power counts again from here
             self._battery_changed(agv)
 
             occupied = self.env.now - start

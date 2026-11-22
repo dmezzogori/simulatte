@@ -710,6 +710,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             # Battery check after mission
             target = None
             gave_up = False
+            agv.accrue_idle_power()  # the level the check reads includes the idle power of the waits of the mission
             if agv.battery.is_low and self.charging_stations:
                 gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
             else:

@@ -10,7 +10,7 @@ from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
 from simulatte.layout.binding import node_input, pending
 from simulatte.intralogistics.battery import Battery
-from simulatte.intralogistics.events import AgvPlaced, AgvStateChanged
+from simulatte.intralogistics.events import AgvBatteryChanged, AgvPlaced, AgvStateChanged
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -77,12 +77,18 @@ class AGVType:
     """The time the vehicle waits at rest on a node before it leaves, from the heading change there in radians
     (``[0, pi]``, spec §9.4). A positive value stops the vehicle at the node; negative, NaN and infinite values raise
     ``ValueError``."""
+    idle_power: float = 0.0
+    """Energy drained per unit time in every state except ``CHARGING`` (spec §9.5); finite and >= 0, else
+    ``ValueError``. It accrues lazily (:meth:`AGV.accrue_idle_power`): no timer wakes an idle AGV. With the default 0
+    nothing is accounted, emitted or computed."""
 
     def __post_init__(self) -> None:
         if self.length is not None and not (math.isfinite(self.length) and self.length >= 0):
             raise ValueError(f"AGVType {self.name!r}: length must be finite and >= 0, got {self.length}")
         if not (math.isfinite(self.min_gap) and self.min_gap >= 0):
             raise ValueError(f"AGVType {self.name!r}: min_gap must be finite and >= 0, got {self.min_gap}")
+        if not (math.isfinite(self.idle_power) and self.idle_power >= 0):
+            raise ValueError(f"AGVType {self.name!r}: idle_power must be finite and >= 0, got {self.idle_power}")
 
 
 class AGV(Entity, kind="agv"):
@@ -141,6 +147,8 @@ class AGV(Entity, kind="agv"):
 
         self._state = AGVState.IDLE
         self._state_entered_at: float = env.now
+        self._accrued_at: float = env.now
+        """The time up to which idle power has been accounted (:meth:`accrue_idle_power`)."""
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
 
         self._uses_explicit_graph = env.layout is None and initial_node is not None
@@ -268,6 +276,11 @@ class AGV(Entity, kind="agv"):
         """Enter `new_state` (the only writer of the state) and emit ``agv.state_changed``."""
         env = self.env
         old_state = self._state
+        if self.agv_type.idle_power:  # time spent charging does not drain: account up to the charge, resume after it
+            if new_state is AGVState.CHARGING:
+                self.accrue_idle_power()
+            elif old_state is AGVState.CHARGING:
+                self._accrued_at = env.now
         elapsed = env.now - self._state_entered_at
         self.state_durations[old_state] += elapsed
         self._state = new_state
@@ -281,6 +294,48 @@ class AGV(Entity, kind="agv"):
                     deltas=Deltas.build().set(self.id, "state", new_state.name).done(),
                 )
             )
+
+    def accrue_idle_power(self) -> None:
+        """Bring the battery level up to date with the idle power drained since it was last accounted (spec §9.5).
+
+        Called at each event of the AGV that reads or changes the level: the energy check of a travel, the start of a
+        charge, the check after a mission. It drains ``idle_power * (now - accounted)`` and emits
+        ``agv.battery_changed`` when the level changes; the level is updated whether or not anything observes it. Time
+        spent ``CHARGING`` does not drain: the accounting moves to now. During a move nothing happens: the move folds
+        its drain into ``agv.move_ended`` (:meth:`fold_idle_power`). Without idle power it does nothing.
+        """
+        power = self.agv_type.idle_power
+        if not power or self.motion is not None:
+            return
+        env = self.env
+        now = env.now
+        since, self._accrued_at = self._accrued_at, now
+        if self._state is AGVState.CHARGING or now == since:
+            return
+        battery = self.battery
+        before = battery.level
+        battery.drain(power * (now - since))
+        if battery.level != before and env.wants(AgvBatteryChanged):
+            level = wire_float(battery.level)
+            env.emit(
+                AgvBatteryChanged(
+                    agv=self.id, battery=level, deltas=Deltas.build().set(self.id, "battery", level).done()
+                )
+            )
+
+    def fold_idle_power(self, duration: float) -> None:
+        """Drain the idle power of a move of `duration`, which ends now, without an event: the caller emits
+        ``agv.move_ended`` with the level after the arc's depletion and this drain (spec §9.5). The accounting was up to
+        the start of the move; it moves to now. Without idle power it does nothing."""
+        power = self.agv_type.idle_power
+        if power:
+            self.battery.drain(power * duration)
+            self._accrued_at = self.env.now
+
+    def skip_idle_power(self) -> None:
+        """Declare the level up to date as of now without draining: the time since it was last accounted was spent
+        charging (a station's recharge or swap used outside the ``CHARGING`` state)."""
+        self._accrued_at = self.env.now
 
     def can_carry(self, sku: SKU, quantity: int) -> bool:
         if not self.agv_type.compatibility_fn(sku):

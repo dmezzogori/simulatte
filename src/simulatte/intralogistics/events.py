@@ -173,7 +173,8 @@ class AgvMoveStarted(DomainEvent):
 
 @event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion", "heading"), "node": ("agvs",)})
 class AgvMoveEnded(DomainEvent):
-    """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion.
+    """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion and the
+    idle power of its duration.
 
     Its deltas also set the AGV's ``heading`` to the direction of the segment. An AGV that passes `node` at speed
     starts its next segment at the same instant.
@@ -211,7 +212,8 @@ class AgvLoadChanged(DomainEvent):
 
 @event_type("agv.battery_changed", touches={"agv": ("battery",)})
 class AgvBatteryChanged(DomainEvent):
-    """The battery level changed outside movement: a recharge or a battery swap at a charging station."""
+    """The battery level changed outside movement: a recharge or a battery swap at a charging station, or idle power
+    accounted at an event of the AGV outside a move (inside a move it is part of ``agv.move_ended``)."""
 
     agv: str
     battery: float
