@@ -499,7 +499,10 @@ that must hold back for the branch, and the node where they hold back is often i
 branch stay valid targets, since on a layout made of dead ends a leaf is the natural place to rest. A
 candidate is not taken when a segment, zone or corridor of the last leg of its route is named by a pending
 claim. And a node the AGV has already made way from in the current chain of make-way moves is not taken
-(§7.10).
+(§7.10). A make-way move has one fallback: when no node satisfies these rules, a service node or a root is taken
+if its capacity is above 1 and it would still have a free slot, after the move, for each AGV in the waits
+concerned and for each pending claim that names it. On a line whose only passing place is a charging node with
+two slots, this is where an idle AGV in a bay steps out so that the next one can come in.
 
 `StandardTrafficPolicy(reroute_after=30.0, max_detour=1.5, max_resolutions=8)`:
 
@@ -705,7 +708,9 @@ arc it traversed and is unknown after placement; an unknown heading turns for fr
   arc length in place of the chord.
 - **Energy horizon.** The plan covers only arcs whose cumulative estimate `estimate_energy(length, load_weight,
   u_j)` fits the battery level. A truncated plan stops at the last affordable node, where the existing branch
-  runs.
+  runs. The plan also ends at the first node other than the goal at which the estimated level is critical, so
+  that the AGV is at rest at the node where the critical-battery branch runs and does not pass a charger at
+  speed with a battery it knows will be critical.
 - **Idle power.** `AGVType.idle_power: float = 0.0`, energy per unit time in every state except `CHARGING`. It
   accrues lazily: the level is brought up to date at each event of the AGV that reads or changes the battery,
   and `agv.battery_changed` is emitted when an accrual outside a move changes it. No timer wakes an idle AGV to
