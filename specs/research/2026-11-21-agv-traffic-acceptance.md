@@ -4,8 +4,9 @@ Branch `feature/agv-traffic`, spec `specs/2026-11-21-agv-traffic-design.md` (§1
 reservation with claim-based traffic control: the traffic network of segments, zones and corridors, the
 `ReservationController` with waits, deadlock detection and the standard policy, the router, the travel executor, idle
 behaviour, bounded re-queues, the traffic KPI collector, layout schema 1.1 and the Studio support. Parts B (motion) and
-C (routing) are not covered here, so the §17 items "Motion", "Stop requests" beyond the behaviour already ruled for
-part A, and "Routing" are out of scope.
+C (routing) are not covered in the sections up to "Whole-part review", so the §17 items "Motion", "Stop requests" beyond
+the behaviour already ruled for part A, and "Routing" are out of scope there; part B is recorded in its own section at
+the end.
 
 ## Result
 
@@ -238,3 +239,163 @@ wave changed:
   reported; the unresolved-deadlock test checks `env.peek()`.
 - The examples test asserts no unresolved deadlock, no stuck wait open at the end and, for the intermediate and
   advanced examples, as many completed orders as under free flow.
+
+# Part B acceptance (motion)
+
+Branch `feature/agv-traffic` at `d5d22f0` plus the acceptance tests of this section. Part B made AGVs carry their speed
+through nodes: the run planner (`kinematics.plan_run`), the `piecewise` motion curve in Python and in Studio, runs in
+the travel executor with claim look-ahead, corner speed and turn time, stop requests that take effect at the first node
+where the vehicle can be at rest, the energy horizon, and idle power. Routing (part C) is not covered.
+
+## Result
+
+The Appendix A scenarios complete every order with through-node motion, with and without corner caps, turn waits and
+idle power; the invariants and the replay hold in every scenario and in the three examples under both controllers; the
+digest does not depend on observers or on `PYTHONHASHSEED`; a lone AGV has the free-flow times under reservation. The
+scenarios of this task found no defect and no source file changed. The benchmark shows a cost, reported below.
+
+## §17 items of part B and the tests that cover them
+
+Tests added in this task are marked (new). The others are earlier tests of part B, named so that nothing is pinned twice.
+
+| §17 item | Test |
+|---|---|
+| Appendix A with through-node motion: every order completes | `test_traffic_scenarios.py::test_appendix_a_scenario_1_completes_every_order`, `::test_appendix_a_scenario_2_completes_every_order_and_the_idle_agv_makes_way_to_park` (unchanged since Task 3, see below); (new) `::test_appendix_a_with_corner_caps_turn_waits_and_idle_power_completes_every_order[1, 2]`, the same worlds with `corner_speed`, `turn_time` and `idle_power` |
+| Invariants and replay over every scenario and the three examples | `TrafficInvariants` and `FullReplay` in every world of `test_traffic_scenarios.py`, `test_travel_motion.py`, `test_turning.py`, `test_stop_requests.py` and `test_idle_power.py`; `test_traffic_scenarios.py::test_the_examples_hold_the_traffic_invariants_under_a_reservation_controller[intralogistics_simple, intralogistics_intermediate, intralogistics_advanced]` (unchanged; its assertions hold) |
+| A straight line split into 1, 2 and 10 arcs has equal free-flow time within 1e-9 relative | (new) `test_traffic_scenarios.py::test_a_straight_line_split_into_arcs_takes_the_single_arc_time_under_both_controllers[1, 2, 10 x free flow, reservation]` (100 m, 68.5416666... s, nodes passed at speed); also `test_travel_motion.py::test_split_line_arrival_times` (1, 3, 30 arcs, free flow), `test_kinematics.py::test_split_line_has_the_same_duration`, and the lone-AGV tests of part A on lines of 1, 2 and 10 arcs, which compare the two controllers |
+| Speed limit changes, corner caps and turn waits match hand-computed values | `test_kinematics.py::test_speed_limit_change`, `::test_node_cap_limits_the_pass_speed`, `::test_split_line_has_the_same_duration`; `test_turning.py::test_a_corner_speed_caps_the_speed_through_the_corner`, `::test_a_turn_time_stops_at_the_corner_waits_and_leaves_from_rest`, `::test_the_first_arc_after_placement_turns_for_free_and_reversing_is_a_turn_of_pi`, `::test_a_turn_at_the_start_of_a_travel_from_rest_waits_before_departure`; (new) the corner and reversal values of the Appendix A variant: 1.5 m/s straight through a node, 0.6 m/s through a right-angle corner, at least 3 s at a reversal |
+| `piecewise` descriptions integrate to the arc length and the duration, in both languages | Python: `test_motion_piecewise.py` (the shared fixture `tests/fixtures/motion/piecewise.json`, large event times, planned arcs), `test_travel_motion.py::assert_valid_descriptions` over every `agv.move_started` of its runs (`test_the_t_layout_travel_takes_the_single_profile_time_and_passes_its_nodes_at_speed`, `test_descriptions_are_valid_at_a_large_simulation_time`); TypeScript: `studio/packages/scene/test/motion.test.ts`, which reads the same fixture |
+| A profile without `limits` reproduces the rest-to-rest hop times | `test_travel_motion.py::test_a_profile_without_limits_keeps_the_rest_to_rest_timings[plain, no_limits x free flow, reservation]`; `test_kinematics.py::test_rest_to_rest_matches_travel_time`; the pinned digest and the recorded fixtures of part A are reproduced exactly when every profile is treated as one without limits (see "Pinned values") |
+| Lone AGV: same times as free flow | `test_travel_motion.py::test_lone_agv_matches_free_flow[t_layout, builder_line, thirty_arcs]`, `::test_a_horizon_at_the_braking_distance_keeps_the_free_flow_times_exactly`, `::test_lone_agv_matches_free_flow_over_blocks_at_fractions_of_the_braking_distance`; `test_turning.py::test_a_lone_vehicle_has_the_same_times_under_both_controllers`, `::test_seeded_lone_vehicles_with_turning_match_free_flow_exactly`; `test_stop_requests.py::test_a_lone_agv_has_the_same_arrivals_under_both_controllers_with_a_falling_depletion` |
+| A cancelled order stops the AGV at the next feasible node, energy matches the arcs covered, the mission recovers as before | `test_stop_requests.py::test_a_cancelled_mission_recovers_after_a_stop_at_the_first_feasible_node[loaded, empty x both controllers]`, `::test_an_interrupt_on_a_cruising_arc_passes_its_end_at_speed_and_stops_at_the_end_of_the_next`, `::test_an_interrupt_releases_every_claim_ahead_at_the_stop`; (new) `test_motion.py::test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energy_is_that_of_the_arcs_covered[both controllers]`: the battery at the stop node is 985 after 3 arcs of 5, the cargo goes back over 3 more arcs, the end level is 970. The recovery paths are also in `test_coordinator.py` (`TestResumeDeliveryRecovery`, `TestResumeDeliveryStranded`, the cancellation regression) |
+| A critical battery during a run | `test_stop_requests.py::test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node`, `::test_a_battery_stop_and_an_interrupt_share_the_first_stop_node`, `::test_a_critical_level_found_at_the_goal_arrives`, `::test_the_energy_horizon_shortens_the_plan_at_a_node_event_under_both_controllers`, `::test_a_charger_on_the_node_where_the_estimate_turns_critical_is_not_passed_at_speed`; `test_travel_motion.py::test_the_plan_ends_where_the_estimated_battery_turns_critical` |
+| Idle power | `test_idle_power.py` (17 tests, each world with `FullReplay`), `test_agv.py::TestIdlePower`, `test_battery.py::TestDrain` |
+| Replay equals live state with the new kinds | `FullReplay` in every world above (it compares every live entity after every event, from the first event and from the initial state), including `heading` and `battery`; (new) the Appendix A variant |
+| Digests identical with and without observers and across `PYTHONHASHSEED` values | `test_invariance.py`, both variants, `reservation` and `free_flow`: the advanced example, whose `TrapezoidalProfile` has `limits`, so its reservation variant runs through-node motion (`test_final_state_is_independent_of_observers`, `test_digest_report_and_shared_kpis_are_identical_across_instrumented_configurations`, `test_recorded_traces_verify`, `test_digest_is_stable_across_hash_seeds_in_fresh_processes`); (new) `test_traffic_scenarios.py::test_the_motion_scenario_is_the_same_with_and_without_observers` (replay, invariants and a full trace attached against none; same digest, same final state, a verified trace with that digest) and `::test_the_motion_scenario_digest_is_the_same_across_hash_seeds` (fresh processes with seeds 0, 1 and 123) on the Appendix A variant, which covers corner caps, turn waits and idle power. CPython and PyPy agree through the PyPy lane of CI |
+
+Choices of the new scenarios:
+
+- The Appendix A variant (`MOTION_OPTIONS` in `test_traffic_scenarios.py`) keeps the appendix's graph, warehouses, fleet
+  and orders and changes the vehicle type: the same limits (1.5 m/s, 0.8 m/s^2) without the battery slowing the
+  vehicle, so that a speed through a node is the hand-computable 1.5 m/s; right-angle corners at 0.6 m/s; a 3 s wait for
+  a reversal (a heading change above 2 rad); idle power 0.01. A turn wait for right angles was tried first and
+  abandoned: it makes the corner cap unobservable, because every corner then stops.
+- A node is "passed at speed" when the AGV starts the next arc at the instant it arrived and its exit speed from the
+  previous arc is positive. An AGV that stops at its claim horizon and restarts at the same instant is not one.
+- The cancellation test builds its own world because the existing one uses a vehicle type without a depletion
+  function, which can only assert that the level fell.
+
+## Appendix A under `ReservationController` with through-node motion
+
+The assertions of part A still describe what happens, so they are kept. With the appendix's profile:
+
+- Scenario 1: `order-0` is delivered at 47.61 (51.52 when every arc ended at rest), `order-1` at 93.61 and `order-2` at
+  141.25; every order completes. `agv-1` first waits at `PARK` at 0.0 for the way out through `C1` (blocker `agv-0`).
+  The two AGVs meet head-on on the dead-end branch at 56.39; one deadlock, resolved by `agv-0` stepping aside.
+  `agv-1` makes way from `C2` to `PARK` at 102.46.
+- Scenario 2: `order-0` at 47.61, `order-1` at 93.61, `order-2` at 1573.94; every order completes, no deadlock. `agv-1`
+  waits at `PARK` at 9.0 under the dead-end rule while `agv-0` picks (blocker `agv-0`, standing on `PARK`, asking for
+  `C1`); `agv-0` makes way `C2 -> PARK` at 56.39 and `agv-1` `C2 -> PARK` at 1535.15, each when the other needs `C2`.
+- The variant with corner caps, turn waits and idle power changes the times (scenario 1: `order-0` at 50.42, the
+  deadlock at 61.96, `order-2` at 147.13; scenario 2: `order-2` at 1577.70) and keeps the same sequence: every order
+  completes, scenario 1 has one step-aside deadlock, and in scenario 2 `agv-1` first waits at `PARK` at 9.0 and both
+  AGVs make way to `PARK`.
+
+## The examples under both controllers
+
+Measured at `d5d22f0` as in part A (each coordinator on its own `ReservationController`, vehicle length 0, and as
+written). The assertions of `test_traffic_scenarios.py` hold: no unresolved deadlock, no stuck wait open at the end,
+equal completed orders for the intermediate and advanced examples. The numbers are those of Task 3; Tasks 4 to 6 changed
+none of them, because the examples have no corner speed, no turn time, no idle power and no interrupts, and their
+depletion ignores speed.
+
+| Example | Controller | Completed orders | Waits | Deadlocks by action | Stuck waits | Avg fulfillment, s | After part A: waits, fulfillment |
+|---|---|---|---:|---|---:|---:|---|
+| simple (horizon 120) | free flow | 4 of 4 | 0 | none | 0 | - | 0 |
+| simple (horizon 120) | reservation | 4 of 4 | 4 | none | 0 | - | 7, 3 of 4 |
+| intermediate | free flow | 8 of 8 | 0 | none | 0 | 144.6 | 0, 151.2 |
+| intermediate | reservation | 8 of 8 | 15 | reroute 1, step aside 2 | 0 | 230.1 | 20, 229.5 |
+| advanced | free flow | 63 outbound, 2 replenishment | 0 | none | 0 | 204.4 (outbound) | 0, 217.8 |
+| advanced | reservation | 63 outbound, 2 replenishment | 94 | step aside 38 | 1 (closed before the end) | 226.0 (outbound) | 126, 239.6 |
+
+## Benchmark
+
+`benchmarks/intralogistics.py`, the advanced example scaled to 20 AGVs, one shift, intervals 30 to 60, one warm-up and
+three measured repeats in each of two fresh processes, as for part A. Apple M4 Pro, CPython 3.14.3, the same interpreter
+and dependencies for both sides, run one after the other with nothing else running. The branch ran in this checkout at
+`d5d22f0`; `main` (`ea1292c`) was exported with `git archive main | tar -x -C /tmp/t7/main/src` and run there after its
+own `uv sync --all-extras` (no branch switch, no worktree). Commands, from `benchmarks/` of each tree:
+
+```bash
+for mode in none default default_logging; do
+  uv run --all-extras python intralogistics.py --mode "$mode" --shifts 1 \
+    --warmup 1 --repeat 3 --processes 2 --json "/tmp/t7/out/il-<side>-$mode.json"
+done
+```
+
+| Mode | `main` median (IQR), s | Branch median (IQR), s | Branch / `main` | Peak memory `main` / branch, MB |
+|---|---:|---:|---:|---:|
+| none | 0.17746 (0.00275) | 0.24776 (0.00146) | 1.396 | 39.0 / 50.0 |
+| default | 0.20360 (0.00251) | 0.26618 (0.00330) | 1.307 | 38.9 / 49.9 |
+| default_logging | 0.17877 (0.00109) | 0.24542 (0.00244) | 1.373 | 39.0 / 49.9 |
+
+At the end of part A the same comparison gave 0.970, 0.960 and 0.990 and 41.8 MB: part B costs about 31 to 40 % of run
+time and 8 MB of peak memory over part A under `FreeFlowController`, the controller the benchmark uses. The spec leaves
+this benchmark ungated (§15). The cost was not profiled in this task. The likely sources are the planning work the
+executor now does for a kinematic vehicle (`plan_run`, the claim look-ahead and its backward pass) and the larger
+`piecewise` descriptions in the events; neither is measured. As in part A the two sides
+do not run the same trajectory (the inputs differ because replenishment orders depend on the trajectory), so
+`compare.py` would reject the pair; the numbers are the medians of the JSON files. `main` reproduces the documented
+hashes (input `3278fbdc...`, trajectory `b2a2ca3d...`, 1,018 orders, 1,011 completed). The branch has 1,018 submitted
+orders and 1,012 completed, input hash `1a5ad97c...` and trajectory hash `633394be...`.
+
+## Verification
+
+| Check | Result |
+|---|---|
+| `uv run --all-extras pytest` | 4,547 passed, 1 skipped, 3 warnings, 346 s; branch coverage 99.16 % (gate 99 %; 4,535 passed and 99.15 % before this task) |
+| `uv run --all-extras ruff check src tests` | all checks passed |
+| `uv run --all-extras ruff format --check` | 520 files already formatted |
+| `uv run --all-extras ty check src` | all checks passed |
+| `pnpm typecheck && pnpm test` (from `studio/`) | typecheck passed; tests passed: trace 319, playback 24, scene 23, export 15, viewer 82 |
+
+## Pinned values that changed in part B
+
+| Value | Change | Cause and check |
+|---|---|---|
+| `tests/intralogistics/test_builders.py::test_no_layout_builder_digest_remains_compatible` | `7f761d74...` to `b62e716120b67b3b5561d4d298b6fb455cf8447abc2e5386362299563aed5c7f`, at Task 3 | through-node motion and the new `heading` field of the AGV state; with every profile treated as one without limits and `heading` left out, the event stream and the initial state are those of the end of part A. Unchanged by Tasks 4 to 6 and by this task (checked: the test passes, and `git log` shows its last change in `58ef553`) |
+| `tests/fixtures/fleet_recovery_regression.json` (`simple-1` to `simple-3`) | re-recorded three times | the cancellation fix (the fixture passed on the commit before it); through-node motion (the previous values return exactly with every profile treated as one without limits); the stop rule of Task 5 (breakdowns and cancellations rest at the first node the vehicle can stop at; with the old stop logic and everything else kept, the old fixture passed) |
+| `tests/fixtures/fleet_collector_parity.json`, entries `systems.intermediate` and `systems.advanced` | re-recorded at Task 3 | through-node motion; the previous values return exactly with every profile treated as one without limits |
+| Generated trace fixtures (`tests/fixtures/traces`), the frozen fixtures and the motion fixture of Task 2 | unchanged | `tests/core/test_trace_fixtures.py` reports them current in this task; they hold no AGV |
+
+New fields and kinds in part B: the AGV state field `heading` (Task 3), the `piecewise` motion curve (Task 2),
+`AGVType.corner_speed`, `turn_time` and `idle_power`, and `FleetCoordinator(lookahead_margin=)`. The trace container is
+unchanged.
+
+## Changes in results
+
+- A vehicle whose profile reports kinematic limits (`TrapezoidalProfile`) passes nodes at speed, so every travel time of
+  such a vehicle over more than one arc is shorter than at the end of part A, under both controllers, and every digest
+  and recorded result of such runs changes. The appendix's first delivery moves from 51.52 to 47.61. A lone AGV has the
+  free-flow times under reservation, and a straight line has the same time however many nodes split it. A profile without
+  `limits` keeps its rest-to-rest timings exactly.
+- An AGV under `ReservationController` holds, ahead of itself, the next arc and its braking distance, and so more
+  claims than the one arc of part A; the examples under reservation show fewer waits than at the end of part A (simple
+  7 to 4, intermediate 20 to 15, advanced 126 to 94).
+- A corner speed caps the speed through a node and a positive turn time stops the AGV there and adds the wait; the
+  energy check at rest comes before the turn wait, which comes before the traffic wait (spec §9.4).
+- An interrupt received while moving takes effect at the first node where the vehicle can be at rest (the braking
+  distance beyond the arc being traversed), not at the end of the arc, and the energy of the arcs covered is charged. A
+  critical battery found on arrival at a node other than the goal and the energy horizon are stop requests of the same
+  kind; one found at the goal returns `ARRIVED`.
+- The plan ends at the last affordable node and at the first node where the estimated battery turns critical, so a
+  vehicle does not pass a charger at speed with a battery it knows will be critical. The estimate uses the arc cap and
+  excludes idle power.
+- Idle power drains lazily at the events that read or change the battery, with no timer. Reports and collectors see the
+  level as last accounted, not the level now (Task 6).
+- The `heading` field is part of the AGV state, carried by `agv.move_ended` and `agv.placed`.
+- An order cancelled at the instant of its dispatch to an AGV already on its origin stays cancelled. `main` gets it
+  wrong too: there the cancelled order is dispatched again and completes.
+- The make-way fallback of §7.9 takes a service node or root of capacity above 1 and may arrive over a segment a pending
+  claim names; it ends the stuck wait the simple example left open on the builder's line.
+- Free-flow run time rises by about a third over part A on the benchmark (see above).

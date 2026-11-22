@@ -16,10 +16,13 @@ from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.speed import LINEAR_MOTION, TrapezoidalProfile, describe_motion
 from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.traffic import FreeFlowController
+from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system, _warehouses
 from tests.intralogistics.test_fleet_events import FleetReplay
-from tests.intralogistics.traffic_support import StillFleet
+from tests.intralogistics.test_travel import steady
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, line
 
 
 def agv_heading(nodes: Any, source: str, target: str) -> float:
@@ -276,3 +279,75 @@ def test_stalled_segment_ends_at_infinity() -> None:
     assert started[0].t_end == math.inf
     assert agv.motion is not None
     assert (agv.motion["t_end"], agv.motion["stalled"]) == (math.inf, True)
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energy_is_that_of_the_arcs_covered(
+    reserve: bool,
+) -> None:
+    """Spec §17 (stop requests): six 10 m arcs at 0.5 energy per metre, the order cancelled on the second arc at
+    cruising speed. The AGV rests at ``N3``, the first node it can stop at, having paid for 3 arcs (15) and no more; it
+    carries the cargo back, pays for 3 arcs again, and ends idle on ``N0`` with 970 and the order ``CANCELLED``."""
+    graph, nodes = line(7)
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    warehouses = [
+        Warehouse(
+            env=env,
+            name=name,
+            input_bays=[nodes[node]],
+            output_bays=[nodes[node]],
+            n_slots=2,
+            products=[SKU_A],
+            initial_inventory={SKU_A: stock},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+        for name, node, stock in (("ORIGIN", "N0", 100), ("DEST", "N6", 0))
+    ]
+    kind = AGVType(
+        name="cart",
+        speed_profile=steady(),
+        battery_capacity=1000.0,
+        weight_capacity=100.0,
+        volume_capacity=10.0,
+        load_time=1.0,
+        unload_time=1.0,
+        depletion_fn=lambda distance, load_weight, speed: 0.5 * distance,
+        length=0.0,
+    )
+    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes["N0"])
+    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
+    fleet = FleetCoordinator(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=warehouses,
+        charging_stations=[],
+        traffic_controller=controller,
+        default_metrics=False,
+    )
+    if reserve:
+        TrafficInvariants(env, controller)
+    order = fleet.create_order(sku=SKU_A, quantity=10, origin=warehouses[0], destination=warehouses[1])
+    fleet.submit(order)
+
+    def cancel() -> Any:
+        yield env.timeout(14.0)  # the AGV picks (1 s) and loads (1 s), then 12 s into its first arcs
+        fleet.cancel(order)
+
+    env.process(cancel())
+    env.run()
+
+    started = replay.of(AgvMoveStarted)
+    assert started[0].loaded and started[0].t == 2.0
+    (interrupted,) = replay.of(AgvMoveInterrupted)
+    assert (interrupted.node, interrupted.reason) == ("N3", "cancelled")
+    outbound = [e for e in replay.of(AgvMoveEnded) if e.t <= interrupted.t]
+    assert [(e.node, e.battery) for e in outbound] == [("N1", 995.0), ("N2", 990.0), ("N3", 985.0)]
+    returning = [e for e in replay.of(AgvMoveEnded) if e.t > interrupted.t]
+    assert [(e.node, e.battery) for e in returning] == [("N2", 980.0), ("N1", 975.0), ("N0", 970.0)]
+    assert order.status is OrderStatus.CANCELLED and agv.state is AGVState.IDLE and agv.current_load is None
+    assert agv.current_node is not None and agv.current_node.id == "N0"
+    assert agv.battery.level == 970.0
+    assert warehouses[0].get_inventory_level(SKU_A) == 100  # the cargo is back

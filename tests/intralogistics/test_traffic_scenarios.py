@@ -12,11 +12,15 @@ each item of §17.
 from __future__ import annotations
 
 import contextlib
+import math
+import os
 import re
 import runpy
+import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -52,8 +56,11 @@ from simulatte.intralogistics.events import (
     TrafficWaitStuck,
 )
 from simulatte.intralogistics.reservation import SegmentBinding, ZoneBinding
+from simulatte.intralogistics.travel import TravelOutcome
+from simulatte.trace import Trace, TraceRecorder
 from tests.intralogistics.test_idle_traffic import SKU_A, Mission, mission_world
-from tests.intralogistics.test_travel import vehicle
+from tests.intralogistics.test_travel import steady, vehicle, world
+from tests.intralogistics.test_travel_motion import straight
 from tests.intralogistics.traffic_support import (
     FullReplay,
     TrafficInvariants,
@@ -118,9 +125,11 @@ def timeline(replay: FullReplay) -> list[tuple[str, float, str]]:
 # --- spec Appendix A ---------------------------------------------------------------------------------------------
 
 
-def appendix_a(env: Environment) -> tuple[Mission, TrafficInvariants]:
+def appendix_a(env: Environment, *, observed: bool = True, **type_options: Any) -> tuple[Mission, TrafficInvariants]:
     """The graph and fleet of Appendix A under ``ReservationController`` with ``length=0.0`` and its three orders, none
-    submitted yet (see :func:`run_appendix_a`). The replay and the invariants are attached."""
+    submitted yet (see :func:`run_appendix_a`). The replay and the invariants are attached unless `observed` is false,
+    in which case ``Mission.replay`` and the invariants are ``None`` and the world subscribes to nothing. `type_options`
+    replace or add ``AGVType`` fields (the appendix has none)."""
     graph, nodes = t_layout()
     controller = ReservationController(env=env, graph=graph)
     sku = SKU(id="A", weight=5.0, volume=0.2)
@@ -147,14 +156,17 @@ def appendix_a(env: Environment) -> tuple[Mission, TrafficInvariants]:
         put_time=2.0,
     )
     kind = AGVType(
-        name="std",
-        speed_profile=TrapezoidalProfile(max_speed=1.5, acceleration=0.8, deceleration=0.8),
-        battery_capacity=1000.0,
-        weight_capacity=50.0,
-        volume_capacity=2.0,
-        load_time=5.0,
-        unload_time=5.0,
-        length=0.0,
+        **{
+            "name": "std",
+            "speed_profile": TrapezoidalProfile(max_speed=1.5, acceleration=0.8, deceleration=0.8),
+            "battery_capacity": 1000.0,
+            "weight_capacity": 50.0,
+            "volume_capacity": 2.0,
+            "load_time": 5.0,
+            "unload_time": 5.0,
+            "length": 0.0,
+            **type_options,
+        }
     )
     vehicles = [AGV(env=env, agv_type=kind, initial_node=nodes[start]) for start in ("C1", "PARK")]  # agv-0, agv-1
     agvs = {agv.id: agv for agv in vehicles}
@@ -167,8 +179,8 @@ def appendix_a(env: Environment) -> tuple[Mission, TrafficInvariants]:
         traffic_controller=controller,
         default_metrics=False,
     )
-    replay = FullReplay(env, from_snapshot=True)
-    invariants = TrafficInvariants(env, controller)
+    replay = FullReplay(env, from_snapshot=True) if observed else cast(FullReplay, None)
+    invariants = TrafficInvariants(env, controller) if observed else cast(TrafficInvariants, None)
     m = Mission(env, fleet, nodes, agvs, {"Storage": storage, "Line": line}, {}, {}, replay)
     m.orders = [fleet.create_order(sku=sku, quantity=2, origin=storage, destination=line) for _ in range(3)]
     return m, invariants
@@ -223,6 +235,143 @@ def test_appendix_a_scenario_2_completes_every_order_and_the_idle_agv_makes_way_
         # Each idle AGV left at C2 after a delivery makes way to PARK when the other needs C2.
         made_way = [(e.agv, e.origin, e.destination) for e in m.events(AgvRouted) if e.reason == "make_way"]
         assert made_way == [("agv-0", "C2", "PARK"), ("agv-1", "C2", "PARK")]
+
+
+# --- spec Appendix A with corner caps, turn waits and idle power (part B) -------------------------------------------
+
+CORNER_CAP = 0.6
+"""The speed cap of a corner (every turn above 0.1 rad) in the part B variant of Appendix A, in m/s."""
+
+TURN_WAIT = 3.0
+"""The wait of a reversal (a heading change above 2 rad) in the part B variant of Appendix A, in seconds."""
+
+MOTION_OPTIONS: dict[str, Any] = {
+    "speed_profile": TrapezoidalProfile(
+        max_speed=1.5, acceleration=0.8, deceleration=0.8, battery_degradation_fn=lambda level: 1.0
+    ),
+    "corner_speed": lambda angle: CORNER_CAP if angle > 0.1 else math.inf,
+    "turn_time": lambda angle: TURN_WAIT if angle > 2.0 else 0.0,
+    "idle_power": 0.01,
+}
+"""The part B variant: the appendix profile without the battery slowing the vehicle (so that the speed through a node is
+the hand-computable 1.5 m/s), right-angle corners at 0.6 m/s, a 3 s wait for a reversal and idle power."""
+
+
+def heading_change(first: AgvMoveStarted, second: AgvMoveStarted, nodes: dict[str, Node]) -> float:
+    """The heading change at the node where `first` ends and `second` starts, from the chords (spec §9.4)."""
+
+    def heading(event: AgvMoveStarted) -> float:
+        a, b = nodes[event.from_node], nodes[event.to_node]
+        return math.atan2(b.y - a.y, b.x - a.x)
+
+    delta = abs(heading(second) - heading(first)) % (2 * math.pi)
+    return min(delta, 2 * math.pi - delta)
+
+
+def node_events(m: Mission) -> list[tuple[AgvMoveStarted, AgvMoveStarted, float]]:
+    """For every node an AGV left after arriving over an arc: the arc it came over, the arc it took, and the time it
+    spent at the node (0 when it passed the node at speed)."""
+    arrived: dict[str, AgvMoveEnded] = {}
+    entered: dict[str, AgvMoveStarted] = {}
+    found = []
+    for event in m.replay.events:
+        if isinstance(event, AgvMoveEnded):
+            arrived[event.agv] = event
+        elif isinstance(event, AgvMoveStarted):
+            end, last = arrived.get(event.agv), entered.get(event.agv)
+            if end is not None and last is not None and end.node == event.from_node == last.to_node:
+                found.append((last, event, float(event.t) - float(end.t)))
+            entered[event.agv] = event
+    return found
+
+
+@pytest.mark.parametrize("number", [1, 2])
+def test_appendix_a_with_corner_caps_turn_waits_and_idle_power_completes_every_order(number: int) -> None:
+    """Part B: through-node motion with a corner cap, a turn wait and idle power changes when things happen, not what
+    the spec expects. Every order completes, none fails, no deadlock stays unresolved, no wait is stuck; the invariants
+    and the replay hold. Hand-computed: an AGV that passes a node straight leaves it at 1.5 m/s at the instant it
+    arrived, one that takes a right-angle corner without stopping leaves at 0.6 m/s, and a reversal waits at least
+    3 s."""
+    with Environment(debug=True) as env:
+        m, invariants = appendix_a(env, **MOTION_OPTIONS)
+        spots = Spots(m)
+        run_appendix_a(number, m)
+        assert invariants.checked > 0
+        assert [o.status for o in m.orders] == [OrderStatus.COMPLETED] * 3
+        assert not [e for e in m.events(OrderStatusChanged) if e.status == "FAILED"]
+        assert not m.events(TrafficWaitStuck)
+        assert all(e.action != "unresolved" for e in m.events(TrafficDeadlock))
+
+        if number == 1:  # the second AGV waits for the first and, head-on on the dead-end branch, one steps aside
+            assert [(e.agvs, e.action) for e in m.events(TrafficDeadlock)] == [(("agv-0", "agv-1"), "step_aside")]
+        else:  # agv-1 waits at PARK under the dead-end rule while agv-0 picks; each idle AGV left at C2 makes way
+            event, node = spots.first("agv-1")
+            assert (float(event.t), node, event.node, event.blockers) == (9.0, "PARK", "C1", ("agv-0",))
+            assert [(e.agv, e.origin, e.destination) for e in m.events(AgvRouted) if e.reason == "make_way"] == [
+                ("agv-0", "C2", "PARK"),
+                ("agv-1", "C2", "PARK"),
+            ]
+
+        straight_passes, corner_passes, reversals = [], [], []
+        for before, after, spent in node_events(m):
+            angle = heading_change(before, after, m.nodes)
+            exit_speed = before.motion["v0"] + sum(duration * accel for duration, accel in before.motion["phases"])
+            if spent == 0.0 and exit_speed > 1e-9:  # passed at speed
+                assert angle < 2.0  # a reversal is never taken at speed
+                (corner_passes if angle > 0.1 else straight_passes).append(after.motion["v0"])
+            elif angle > 2.0:
+                assert spent >= TURN_WAIT - 1e-9
+                reversals.append(spent)
+        assert straight_passes and corner_passes and reversals
+        assert straight_passes == pytest.approx([1.5] * len(straight_passes), abs=1e-9)
+        assert corner_passes == pytest.approx([CORNER_CAP] * len(corner_passes), abs=1e-9)
+
+        # Idle power drains without a timer: both AGVs lost more than the arcs alone cost, and none is empty.
+        assert all(0.0 < agv.battery.level < 1000.0 for agv in m.agvs.values())
+
+
+def run_motion_world(*, observed: bool, trace: Path | None = None) -> tuple[str, dict[str, Any]]:
+    """Scenario 1 of the part B variant of Appendix A with the digest on; `observed` adds the replay and the invariants
+    and, when `trace` is given, a full trace. Returns the digest and the final entity snapshot."""
+    with Environment(debug=observed) as env:
+        env.enable_digest()
+        if trace is not None:
+            TraceRecorder(env, trace)
+        m, _ = appendix_a(env, observed=observed, **MOTION_OPTIONS)
+        run_appendix_a(1, m)
+        assert [o.status for o in m.orders] == [OrderStatus.COMPLETED] * 3
+        digest = env.fingerprint().digest
+        assert digest is not None
+        return digest, env.entities.snapshot()
+
+
+def test_the_motion_scenario_is_the_same_with_and_without_observers(tmp_path: Path) -> None:
+    """Spec §17, purity: the replay, the invariants and a full trace change neither the digest nor the final state."""
+    bare = run_motion_world(observed=False)
+    observed = run_motion_world(observed=True, trace=tmp_path / "motion.simtrace")
+    assert bare == observed
+    trace = Trace.open(tmp_path / "motion.simtrace")
+    assert trace.verify() is True
+    assert trace.fingerprint is not None and trace.fingerprint.digest == bare[0]
+
+
+def test_the_motion_scenario_digest_is_the_same_across_hash_seeds() -> None:
+    expected = run_motion_world(observed=False)[0]
+    script = (
+        "from tests.intralogistics.test_traffic_scenarios import run_motion_world;"
+        "print('DIGEST', run_motion_world(observed=False)[0])"
+    )
+    for hash_seed in ("0", "1", "123"):
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            env={**os.environ, "PYTHONHASHSEED": hash_seed},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stdout.splitlines()[-1] == f"DIGEST {expected}", hash_seed
 
 
 # --- spec §17: control ---------------------------------------------------------------------------------------------
@@ -767,6 +916,25 @@ def test_a_lone_agv_arrives_at_the_same_times_under_both_controllers_on_a_line_s
         assert len(m.events(AgvMoveEnded)) == 2 * pieces
         runs.append(timeline(m.replay))
     assert runs[0] == runs[1]
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+@pytest.mark.parametrize("pieces", [1, 2, 10])
+def test_a_straight_line_split_into_arcs_takes_the_single_arc_time_under_both_controllers(
+    pieces: int, reserve: bool
+) -> None:
+    """Spec §17 (motion): 100 m at 1.5 m/s with 0.8 m/s^2 takes 100 / 1.5 + 1.5 / 0.8 = 68.541666... s as one arc and as
+    2 or 10 arcs, to 1e-9 relative, with the nodes passed at speed."""
+    expected = 100.0 / 1.5 + 1.5 / 0.8
+    assert steady().travel_time(100.0) == pytest.approx(expected, rel=1e-12)
+    w = world(straight(pieces, 100.0), {"A": "P0"}, reserve=reserve)
+    w.go("A", f"P{pieces}")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+    ended = w.of(AgvMoveEnded)
+    assert len(ended) == pieces
+    assert ended[-1].t == pytest.approx(expected, rel=1e-9)
+    assert [e.t for e in ended[:-1]] == [e.t for e in w.of(AgvMoveStarted)[1:]]  # passed at speed, not stopped
 
 
 def test_free_flow_creates_no_segment_or_zone_entity_and_emits_no_traffic_event() -> None:
