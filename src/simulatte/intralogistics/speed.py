@@ -117,8 +117,9 @@ class KinematicProfile(Protocol):
     """A profile that reports its motion limits for a load and a battery level (spec §9.1).
 
     A non-positive ``v_max`` or ``accel`` means the AGV cannot move. ``limits`` must be pure (the same arguments give
-    the same limits): the travel executor may call it once for the energy check before a run and reuse the result for
-    the run.
+    the same limits, and nothing else changes): the travel executor may call it once for the energy check before a run
+    and reuse the result for the run, and :class:`~simulatte.intralogistics.routing.FastestRouter` calls it for routes
+    that are ranked or searched but never travelled.
     """
 
     def limits(self, load_weight: float, battery_level: float) -> Kinematics: ...

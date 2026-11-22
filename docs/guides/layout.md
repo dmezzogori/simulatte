@@ -255,13 +255,13 @@ layout handles, or handles from different layouts, fails early.
 from simulatte import Environment, Layout
 from simulatte.layout import Explicit, LayoutNotReady
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 
 with Environment(seed=7) as env:
     a, b = Node("a", 0, 0), Node("b", 2, 0)
     layout = Layout(env)
     layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b)])))
-    traffic = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    traffic = ReservationController(env=env, graph=layout.graph())
     try:
         traffic.graph
     except LayoutNotReady:
@@ -272,7 +272,7 @@ with Environment(seed=7) as env:
 ```
 
 Before binding, physical getters (`AGV.current_node`, warehouse bays, station/parking `node`, fleet/traffic
-`graph`) raise `LayoutNotReady`. Declaration snapshots can still record null pending endpoints. Call
+controller `graph`) raise `LayoutNotReady`. Declaration snapshots can still record null pending endpoints. Call
 `prepare()` before inspecting physical fields, or let activation bind them. Graph coordinates remain
 authoritative: file placement positions on node definitions, or on node-bound AGVs, do not move the effective
 graph/node positions. Graphs and static endpoints become read-only in layout mode; an AGV may move among exact
@@ -285,10 +285,15 @@ With an existing network, pass the complete `nodes` mapping shown above, with ro
 entities but never implicitly merges or replaces a network. Layout-mode AGVs have stable `vehicle-N` names
 without a prefix. Builder warehouses are not obstacles unless explicitly placed as such.
 
-**Traffic reserves nodes only.** Geometry does not add edge/segment reservations, continuous collision avoidance
-or deadlock-free guarantees at lane crossings. Share one `ResourceBasedTrafficManager` per layout graph.
-Custom managers must register a common resource owner and a named declared-read binder with
-`register_resource_owner`; `FreeTrafficManager` requires no resource registration.
+**Traffic on a layout graph.** A `ReservationController` built with `graph=layout.graph()` registers itself as the
+layout's resource owner and reads the resolved graph, the node capacities and the zones when the layout binds; it
+then holds nodes, lane segments, zones and corridors as on any graph (see the
+[intralogistics guide](intralogistics.md#traffic-control)). Lanes are straight: an arc's travelled length is the
+distance between its nodes. Share one `ReservationController` per layout graph; every fleet on it must reuse the
+registered one. A controller that does not control occupancy, such as the default `FreeFlowController`, needs no
+registration. Any other controller that does must register a common resource owner and a named declared-read binder
+with `register_resource_owner`; the layout checks its own record of registered owners, not the controller's class.
+The model has no continuous collision avoidance: vehicles are kept apart only by the resources they hold.
 
 Existing scripts remain valid without opting into layout mode:
 
@@ -305,10 +310,68 @@ with Environment(seed=7) as env:
     env.run(until=1)
 ```
 
+## Traffic fields (schema 1.1)
+
+Author format `1.1` adds three fields for traffic control. They are physical inputs: they enter the dependency
+closure and the physical hash.
+
+- `passing` (boolean, default false) on lanes, explicit arcs, connectors, the lattice network and edge overrides:
+  opposite traffic may pass on the edge. It sets `Arc.passing` on the resolved arcs.
+- `network.block_length` (positive number): after the overrides, every enabled edge longer than it is split into
+  `ceil(length / block_length)` equal pieces, so that a vehicle holds a shorter stretch of lane at a time. A
+  generated node has the address kind `block_node` (the parent edge's address and the piece index `k`, counted
+  from the end with the smaller id), the id `"<a>~<b>#<k>"` (`a` and `b` the ids of the edge's ends in sorted
+  order) and the network's default capacity; a piece has the address kind `block_edge`. Pieces inherit the parent
+  edge's effective properties. Overrides cannot target a piece or a generated node. `max_nodes` and
+  `max_directed_arcs` apply after splitting.
+- `network.zones`: a map of zone id to `{capacity, hold_back, members}`, where `members` lists element addresses
+  and selectors as overrides accept them. Members are matched against the network before splitting, and a matched
+  edge stands for all its pieces and the generated nodes between them, so a zone covers the same stretch with and
+  without `block_length`. A member that matches nothing is a `stale-zone-member` warning. The resolved zones are
+  `ResolvedNetwork.zones` (concrete nodes and node pairs), and a `ReservationController` on the layout graph adds
+  them to its own `zones`; one id defined in both raises `ValueError`.
+
+Readers accept `1.0` and `1.1`; a `1.0` file with a `1.1` field is an error that names the field, and `save()`
+writes `1.1` only when a `1.1` field is present. Code declarations (`Lanes`, `Lattice`, `Explicit`, `Connector`,
+`NetworkOverride`) accept the same fields, and a prepared bundle is `1.1` exactly when its layers use one.
+
+```python { .run }
+from simulatte import Environment, Layout
+from simulatte.layout import Lanes
+from simulatte.intralogistics.reservation import ReservationController
+
+with Environment(seed=7) as env:
+    layout = Layout(env)
+    layout.set_network(
+        Lanes(
+            {
+                "aisle": {
+                    "vertices": [{"id": "west", "position": [0, 0, 0]}, {"id": "east", "position": [20, 0, 0]}],
+                    "passing": True,
+                }
+            },
+            block_length=5,
+            zones={"aisle": {"capacity": 2, "members": [{"kind": "lane", "id": "aisle"}]}},
+        )
+    )
+    traffic = ReservationController(env=env, graph=layout.graph())
+    result = layout.prepare()
+    assert result.bundle.schema_version == "1.1"
+    kinds = [address.to_dict()["kind"] for address in result.network.nodes]
+    assert kinds == ["lane_vertex", "lane_vertex", "block_node", "block_node", "block_node"]
+    graph = result.network.graph
+    assert all(graph.arc_between(u, v).passing for u in graph.nodes for v in graph.neighbors(u))
+    (zone,) = result.network.zones
+    assert (zone.id, zone.capacity, len(zone.members)) == ("aisle", 2, 2 + 3 + 4)
+    env.activate()
+    assert [zone.id for zone in traffic.network.zones] == ["aisle"]
+    print(kinds)
+```
+
 ## Diagnostics, schema and traces
 
 The packaged [layout JSON Schema](https://github.com/dmezzogori/simulatte/blob/main/src/simulatte/layout/schema/layout-v1.schema.json)
-defines author format `1.0`. Load it offline with
+defines author formats `1.0` and `1.1`. Load it offline with
 `importlib.resources.files("simulatte.layout.schema").joinpath("layout-v1.schema.json")`.
 A `LayoutError` is a `ValueError` with a nonempty tuple of structured `diagnostics`; each diagnostic provides `code`,
 `severity`, `path`, `stage`, `target`, `message` and `related_paths`. Successful results expose warnings through

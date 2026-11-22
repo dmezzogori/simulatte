@@ -178,6 +178,10 @@ class AgvMoveEnded(DomainEvent):
 
     Its deltas also set the AGV's ``heading`` to the direction of the segment. An AGV that passes `node` at speed
     starts its next segment at the same instant.
+
+    A stalled segment (``t_end`` infinite) that is interrupted ends with this event at its departure node: `node` is the
+    node the AGV never left and the deltas only clear the motion. A consumer that counts arrivals must check that the
+    node changed.
     """
 
     agv: str
@@ -191,7 +195,8 @@ class AgvMoveInterrupted(DomainEvent):
 
     An interrupt received while the AGV waits for a claim takes effect at once, at the node where it waits; one
     received while it moves takes effect where it comes to rest, after ``agv.move_ended``: the end node of the
-    segment for a rest-to-rest profile, the node it held last when the interrupt arrived for a run. `reason` is the
+    segment for a rest-to-rest profile, the node it held last when the interrupt arrived for a run, and the departure
+    node for a stalled segment, which is never left. `reason` is the
     interrupt cause when it is a string, otherwise ``"interrupted"``. It changes no state: ``agv.move_ended`` already
     cleared the motion.
     """
@@ -243,7 +248,9 @@ class TrafficReserved(DomainEvent):
     """The AGV took hold of `resources` (entity ids, in claim order): one event per grant or placement (spec §11.2).
 
     The deltas insert the AGV into each node's and zone's ``reserved_by`` and into each segment's ``forward`` or
-    ``backward``, and set a corridor's ``orientation`` when it changes. A node without a binding is left out.
+    ``backward``, and set a corridor's ``orientation`` when it changes. A node without a binding is left out. A
+    corridor claimed again with the orientation it already has is listed in `resources` with no delta, so an event
+    can carry empty deltas.
     """
 
     agv: str
@@ -293,10 +300,13 @@ class TrafficWaitEnded(DomainEvent):
 
 @event_type("traffic.wait_stuck")
 class TrafficWaitStuck(DomainEvent):
-    """A review of the AGV's wait kept it waiting while every blocker was idle, stranded or stalled (spec §7.9).
+    """The AGV's wait is stuck (spec §7.9): every blocker is idle, stranded or stalled, or waits in a wait that is
+    stuck by the same rule.
 
-    `blockers` maps each blocker's id to its disposition name (``IDLE``, ``STRANDED``), or ``STALLED`` for an AGV
-    whose motion is stalled. Emitted once per wait; it is a report, not a deadlock, and changes no state.
+    `blockers` maps each blocker's id to its disposition name (``IDLE``, ``STRANDED``, ``WAITING``), or ``STALLED``
+    for an AGV whose motion is stalled. It is emitted at a review that keeps the wait waiting, when an idle blocker
+    does not move, and for the waits behind a wait just reported, at the instant their chain becomes stuck. Emitted
+    once per wait; it is a report, not a deadlock, and changes no state.
     """
 
     agv: str

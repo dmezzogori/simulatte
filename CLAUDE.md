@@ -62,11 +62,11 @@ simulatte/
 │   │   ├── draco.py        # DRACO policy
 │   │   ├── norms.py        # Workload norm definitions
 │   │   └── slar_limit.py   # SLAR-Limit policy
-│   ├── intralogistics/     # Warehouse, AGV fleet, material transport (graph, pathfinding, traffic, fleet coordinator, metrics, policies)
+│   ├── intralogistics/     # Warehouse, AGV fleet, material transport (graph, routing, traffic control, motion, fleet coordinator, metrics, policies)
 │   └── experimental/       # Unstable modules (gymnasium wrapper)
 ├── studio/                 # TypeScript workspace (pnpm): trace reader, playback, scene, export, viewer app (experiments, results, compare panels) and offline player
 ├── benchmarks/             # Overhead benchmarks against simulatte 0.12.0 (CI bench job)
-├── examples/               # Runnable example scripts (intralogistics_simple, _intermediate, _advanced)
+├── examples/               # Runnable example scripts (intralogistics_simple, _intermediate, _advanced, _traffic)
 ├── tests/
 │   ├── core/               # Tests for stable modules
 │   ├── execution/          # Tests for managed execution, experiments' scheduler, workers (fake ssh and uv are POSIX-only)
@@ -126,14 +126,17 @@ Simulatte is a discrete-event simulation framework for production planning and c
 
 Warehouse-to-warehouse material transport via AGV fleets:
 
-- **LayoutGraph** (`intralogistics/graph.py`): Directed graph of `Node`/`Arc` with Dijkstra and A* pathfinding
+- **LayoutGraph** (`intralogistics/graph.py`): Directed graph of `Node`/`Arc` (`speed_limit`, travelled `length`, `passing`); `length`, `path_length`, `subdivide(max_length)`
 - **Warehouse** (`intralogistics/warehouse.py`): Per-SKU inventory, finite pick/put slots, input/output bays
-- **AGV** (`intralogistics/agv.py`): State machine (IDLE, TRAVELING_EMPTY/LOADED, WAITING_LOAD/UNLOAD, CHARGING, STRANDED) with battery and speed profile
-- **FleetCoordinator** (`intralogistics/fleet.py`): Central orchestrator for AGV missions — dispatch, travel, pick, deliver, reposition, charge. Pluggable strategies for dispatch, repositioning, replenishment, and load recovery
-- **Policies** (`intralogistics/policies.py`): `NearestIdleStrategy`, `RoundRobinStrategy`, `NearestParkingPolicy`, `ReorderPointPolicy`, `ReturnToOrigin`, `ResumeDelivery`
-- **Metrics** (`intralogistics/metrics.py`): bus collectors scoped to a fleet: `OrderEMACollector` (default `coordinator.metrics`: fulfillment time, dispatch delay, travel times), `FleetTimeSeries` (`plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`) and `FleetKPIs`
-- **Events** (`intralogistics/events.py`): fleet, order, AGV, traffic, warehouse, charging and parking events
-- **Traffic** (`intralogistics/traffic.py`): `ResourceBasedTrafficManager` with node capacity enforcement and deadlock resolution
+- **AGV** (`intralogistics/agv.py`): State machine (IDLE, TRAVELING_EMPTY/LOADED, WAITING_LOAD/UNLOAD, CHARGING, STRANDED) with battery and speed profile; `AGVType` carries `length`/`min_gap` (required by `ReservationController`), `corner_speed`, `turn_time` and `idle_power` (lazy; `AGV.battery_level_now()` is the pure read)
+- **Speed and kinematics** (`speed.py`, `kinematics.py`): `SpeedProfile`, `KinematicProfile.limits` -> `Kinematics`, `TrapezoidalProfile`; the pure run planner (`plan_run`, constant-acceleration phases, the `piecewise` motion curve)
+- **FleetCoordinator** (`intralogistics/fleet.py`): Central orchestrator for AGV missions — dispatch, travel, pick, deliver, reposition, charge, make way (`make_way`), clearing service nodes, parking slots, `best_bay`. Pluggable strategies for dispatch, repositioning, replenishment, and load recovery
+- **Travel** (`intralogistics/travel.py`): the travel executor: routes, claims with look-ahead, waits, runs through nodes, turns, energy horizon, stop requests, outcomes (`ARRIVED`, `RETRY_FROM_CURRENT_POSITION`, `BATTERY_STRANDED`, `NO_ROUTE`, `GAVE_UP`), the standard search for idle targets
+- **Traffic** (`traffic.py`, `network.py`, `reservation.py`, `traffic_holdings.py`, `traffic_view.py`, `traffic_entities.py`, `traffic_policy.py`): the `TrafficController`/`TrafficView`/`TrafficPolicy` protocols, reactions and value types and `FreeFlowController` (default) in `traffic.py`; `TrafficNetwork` (capacities, segments, `Zone`s, derived corridors and dead-end branches, claims) in `network.py`; `ReservationController` (queue, fairness gate, grants, waits, reviews, deadlock detection, make-way, stuck waits) with its holdings ledger (`controller.ledger`, also `mean_hold`), view and `segment`/`zone` entities; `StandardTrafficPolicy`
+- **Routing** (`intralogistics/routing.py`): `Router`, `RouteRequest`, `Route`; `ShortestDistanceRouter` (default), `FastestRouter`, `CongestionAwareRouter` (heuristic); costs are comparable only within one router; the shared validation of limits and turning values
+- **Policies** (`intralogistics/policies.py`): `DispatchContext` (`select(order, fleet, context)`), `RepositioningContext` (`router`, `view`, `cost`), `NearestIdleStrategy`, `RoundRobinStrategy`, `NearestParkingPolicy`, `ReorderPointPolicy`, `ReturnToOrigin`, `ResumeDelivery`; rankings by route cost (`ranking_route`)
+- **Metrics** (`intralogistics/metrics.py`): bus collectors scoped to a fleet: `OrderEMACollector` (default `coordinator.metrics`: fulfillment time, dispatch delay, travel times), `FleetTimeSeries` (`plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`), `FleetKPIs` and `TrafficKPIs`
+- **Events** (`intralogistics/events.py`): fleet, order, AGV (including `agv.routed`), traffic (`traffic.reserved`/`released`/`wait_started`/`wait_ended`/`wait_stuck`/`deadlock`), warehouse, charging and parking events; `_resources.py` holds SimPy resources that report their changes
 - **Facilities**: `ChargingStation` (`charging.py`), `ParkingArea` (`parking.py`)
 - **Builders** (`intralogistics/builders.py`): `build_simple_system()` for quick setup
 

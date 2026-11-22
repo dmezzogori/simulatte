@@ -6,21 +6,12 @@ import re
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# The layout guide still imports the removed node-reservation manager from ``traffic``; the guide is rewritten with
-# the rest of the documentation in a later part of the AGV traffic work. Until then its block runs with the controller
-# that replaced it, under the old name. The count check below fails once the guide no longer has that import, so
-# this shim is then removed.
-_STALE_IMPORT = re.compile(r"^from simulatte\.intralogistics\.traffic import (\w+)$", re.M)
-_CURRENT_IMPORT = r"from simulatte.intralogistics.reservation import ReservationController as \1"
-
 
 def test_layout_guide_examples_execute(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     guide = (ROOT / "docs/guides/layout.md").read_text()
     blocks = re.findall(r"```python \{ \.run \}\n(.*?)\n```", guide, re.DOTALL)
-    assert len(blocks) == 7, "Every layout use case must remain executable"
-    assert sum(len(_STALE_IMPORT.findall(block)) for block in blocks) == 1
-    blocks = [_STALE_IMPORT.sub(_CURRENT_IMPORT, block) for block in blocks]
+    assert len(blocks) == 8, "Every layout use case must remain executable"
     for index, block in enumerate(blocks):
         exec(compile(block, f"layout.md:block-{index + 1}", "exec"), {"__name__": "__main__"})
 

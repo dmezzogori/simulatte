@@ -22,6 +22,10 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class RouteRequest:
+    """What a router is asked (spec §10.1): a route for `agv` from `origin` to `destination` with `load_weight` on
+    board, avoiding the resources and nodes in `avoid`. `purpose` names the travel: ``"travel"``, ``"make_way"``,
+    ``"step_aside"`` or ``"clear_node"``. `agv` may be None for a request that is not made for a vehicle."""
+
     agv: AGV | None
     origin: Node
     destination: Node
@@ -32,12 +36,20 @@ class RouteRequest:
 
 @dataclass(frozen=True)
 class Route:
+    """A router's answer: a simple path from the origin to the destination and its cost in the router's own unit."""
+
     nodes: tuple[Node, ...]  # a simple path from origin to destination
     cost: float  # the router's own unit; comparable only within one router
 
 
 @runtime_checkable
 class Router(Protocol):
+    """Finds routes for the travels of a fleet (spec §10.1); the default is :class:`ShortestDistanceRouter`.
+
+    `route` returns None when there is no route. It must not change the simulation's state: rankings call it for
+    candidates that are never travelled. Costs are comparable only within one router.
+    """
+
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...
 
 
@@ -466,18 +478,22 @@ class _Congestion:
 class CongestionAwareRouter:
     """A heuristic that steers a route away from legs that are busy now (spec §10.2); it does not claim an optimum.
 
-    The cost is that of `base` (:class:`FastestRouter`, the default, or :class:`ShortestDistanceRouter`; any other base
-    raises ``TypeError``) plus, for each leg, ``wait_weight * w * exp(-t / horizon)``. `t` is the cost accumulated when
-    the search expands the leg, in the unit of `base`, so a leg far ahead counts less: it will have changed by the time
-    the AGV gets there. `w` is the largest, over the resources of the leg that the holders make inadmissible for the
-    requesting AGV now (``view.blockers``, which ignores the queue and the gate), of ``(blocking holders + pending
-    claims) * mean_hold``. A leg with such a resource whose blocking holders are all stranded is excluded: no wait for
-    it ends. ``Route.cost`` includes the penalties.
+    The cost is that of `base` (:class:`FastestRouter`, the default, or :class:`ShortestDistanceRouter`; any other base,
+    or a subclass of one of them, raises ``TypeError``) plus, for each leg, ``wait_weight * w * exp(-t / horizon)``.
+    `t` is the cost accumulated when the search expands the leg, in the unit of `base`, so a leg far ahead counts less:
+    it will have changed by the time the AGV gets there. `w` is the largest, over the resources of the leg that the
+    holders make inadmissible for the requesting AGV now (``view.blockers``, which ignores the queue and the gate), of
+    ``(blocking holders + pending claims) * mean_hold``. ``view.pending`` counts the requesting AGV's own queued claim
+    too, so during a reroute the resource it waits for counts one claim more. A leg with such a resource whose
+    blocking holders are all stranded is excluded: no wait for it ends. ``Route.cost`` includes the penalties.
 
     The penalty depends on the cost at which a leg is reached, which a shortest-path search does not model, and `w` is
     a snapshot of the traffic now: the route is a good one, not the best one. Without an AGV in the request no penalty
     applies, and with ``wait_weight`` 0 the result is the base router's (a leg held by stranded AGVs is then not
     excluded). Where no penalty applies the route and its cost equal the base router's exactly.
+
+    Under this router the reroute ratio of :class:`~simulatte.intralogistics.traffic_policy.StandardTrafficPolicy`
+    (``max_detour``) compares costs that include penalties, so it no longer bounds the detour in time.
     """
 
     def __init__(

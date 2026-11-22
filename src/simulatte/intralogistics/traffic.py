@@ -106,23 +106,30 @@ class Wait:
 
 @dataclass(frozen=True)
 class KeepWaiting:
+    """Reaction: keep waiting; with `review_after`, ``on_blocked`` is asked again after that delay (spec §7.9)."""
+
     review_after: float | None = None
 
 
 @dataclass(frozen=True)
 class Reroute:
+    """Reaction: take the fleet's router's route that avoids `avoid`, if its first claim is admissible now and, with
+    `max_cost_ratio`, its cost is at most that ratio times the cost of the route without `avoid` (spec §7.9)."""
+
     avoid: frozenset[Resource] = frozenset()
     max_cost_ratio: float | None = None
 
 
 @dataclass(frozen=True)
 class StepAside:
+    """Reaction: move to `target`, or to the node of the standard search when None, then route to the goal again."""
+
     target: Node | None = None
 
 
 @dataclass(frozen=True)
 class GiveUp:
-    pass
+    """Reaction: end the travel with ``GAVE_UP``, when the travel's ``give_up`` hook accepts (spec §8.2)."""
 
 
 Reaction = KeepWaiting | Reroute | StepAside | GiveUp
@@ -136,17 +143,51 @@ class TrafficView(Protocol):
     def graph(self) -> LayoutGraph: ...
     def length(self, u: Node, v: Node) -> float: ...
     def speed_limit(self, u: Node, v: Node) -> float | None: ...
-    def capacity(self, node: Node) -> int: ...
-    def branch_root(self, node: Node) -> bool: ...
-    def resources(self, u: Node, v: Node) -> tuple[Resource, ...]: ...
-    def holders(self, resource: Resource) -> tuple[AGV, ...]: ...
-    def pending(self, resource: Resource) -> int: ...
-    def disposition(self, agv: AGV) -> Disposition: ...
-    def route_of(self, agv: AGV) -> tuple[Node, ...]: ...
-    def waiting_on(self, agv: AGV) -> tuple[AGV, ...]: ...
-    def admissible(self, agv: AGV, claim: Claim) -> bool: ...
-    def blockers(self, agv: AGV, u: Node, v: Node) -> tuple[tuple[Resource, tuple[AGV, ...]], ...]: ...
-    def mean_hold(self, resource: Resource) -> float: ...
+    def capacity(self, node: Node) -> int:
+        """The capacity of `node` (spec §6.2)."""
+        ...
+
+    def branch_root(self, node: Node) -> bool:
+        """Whether `node` is the root of a dead-end branch (spec §6.5); false when ``hold_back_dead_ends`` is off."""
+        ...
+
+    def resources(self, u: Node, v: Node) -> tuple[Resource, ...]:
+        """What the leg from `u` to `v` needs: its segment, its end node and the zones and corridors containing them."""
+        ...
+
+    def holders(self, resource: Resource) -> tuple[AGV, ...]:
+        """The AGVs that hold `resource` now."""
+        ...
+
+    def pending(self, resource: Resource) -> int:
+        """The number of queued claims that still need `resource`, the claim of the AGV that asks included."""
+        ...
+
+    def disposition(self, agv: AGV) -> Disposition:
+        """What `agv` is doing as traffic sees it; ``WAITING`` for an AGV at rest with a pending claim."""
+        ...
+
+    def route_of(self, agv: AGV) -> tuple[Node, ...]:
+        """The remaining route of the travel of `agv` while it has a pending claim, else empty."""
+        ...
+
+    def waiting_on(self, agv: AGV) -> tuple[AGV, ...]:
+        """The AGVs whose waits a resource held by `agv` blocks."""
+        ...
+
+    def admissible(self, agv: AGV, claim: Claim) -> bool:
+        """Whether `claim` would be granted to `agv` now as a new request, the fairness gate included."""
+        ...
+
+    def blockers(self, agv: AGV, u: Node, v: Node) -> tuple[tuple[Resource, tuple[AGV, ...]], ...]:
+        """For each resource of the leg from `u` to `v` that its holders make inadmissible for `agv` now, the
+        holders that block it, in the leg's resource order. The queue and the gate are ignored."""
+        ...
+
+    def mean_hold(self, resource: Resource) -> float:
+        """The exponential average (factor 0.1) of the observed hold durations of `resource`; before the first one,
+        the average over resources of the same kind, else 0.0 (spec §10.2)."""
+        ...
 
 
 @runtime_checkable
@@ -155,7 +196,13 @@ class TrafficPolicy(Protocol):
 
     def on_blocked(self, wait: Wait, view: TrafficView) -> Sequence[Reaction]: ...
     def on_deadlock(self, waits: Sequence[Wait], view: TrafficView) -> Sequence[tuple[AGV, Reaction]]: ...
-    def make_way_target(self, blocker: AGV, wait: Wait, view: TrafficView) -> Node | None: ...
+    def make_way_target(self, blocker: AGV, wait: Wait, view: TrafficView) -> Node | None:
+        """Where the idle `blocker` moves to clear the way for `wait`; None selects the standard search (spec §7.10).
+
+        A target the fleet's router cannot reach, or a parking area without a free slot, is refused: the blocker
+        stays, even where the standard search would have found a node, and the wait can then be reported stuck.
+        """
+        ...
 
 
 @runtime_checkable
@@ -170,7 +217,14 @@ class TrafficController(Protocol):
     def next_claim(self, agv: AGV, route: Sequence[Node], index: int) -> Claim: ...
     def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest: ...
     def stopped(self, request: ClaimRequest) -> None: ...
-    def idle(self, agv: AGV) -> None: ...
+    def idle(self, agv: AGV) -> None:
+        """`agv` has just become ``IDLE`` where it stands; the coordinator calls it on every transition to ``IDLE``.
+
+        ``ReservationController`` asks the AGV to make way for the waits it blocks (spec §7.10);
+        ``FreeFlowController`` does nothing.
+        """
+        ...
+
     def withdraw(self, request: ClaimRequest) -> None: ...
     def release(self, agv: AGV, resources: Collection[Resource]) -> None: ...
     def retain(self, agv: AGV, resources: Collection[Resource]) -> None: ...

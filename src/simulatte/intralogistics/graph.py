@@ -181,7 +181,8 @@ class LayoutGraph:
         ``bidirectional``, ``speed_limit`` and ``passing``. The generated nodes are named ``"<a>~<b>#<k>"`` with
         ``a`` and ``b`` the node ids in sorted order and ``k`` counted from ``a``, placed on the chord; both
         directions of a node pair share them. Original nodes are kept as the same instances, followed by the
-        generated ones in arc order. Graphs built by the layout package cannot be subdivided.
+        generated ones in the order in which the graph's adjacency lists the arcs (the order of construction, so the
+        result is deterministic). Graphs built by the layout package cannot be subdivided.
         """
         if self._layout_frozen:
             raise ValueError("a layout-built graph cannot be subdivided")

@@ -36,7 +36,7 @@ graph TD
 
 ## Intralogistics
 
-A `TransferOrder` is queued in the `FleetCoordinator`, the central orchestrator for all AGV missions. The coordinator assigns an `AGV` via pluggable dispatch and repositioning policies, plans its path across the `LayoutGraph` (a directed graph of nodes and arcs), and enforces node-capacity constraints via a `TrafficManager`. The AGV picks inventory from a source `Warehouse`, transits to the destination, puts it down, and then either recharges at a `ChargingStation` or parks at a `ParkingArea`. Every state change is published as an event on the environment's bus, and the order and time-series metrics are collectors subscribed to it.
+A `TransferOrder` is queued in the `FleetCoordinator`, the central orchestrator for all AGV missions. The coordinator assigns an `AGV` via pluggable dispatch and repositioning policies, asks its `Router` for a route across the `LayoutGraph` (a directed graph of nodes and arcs), and moves the AGV as its `TrafficController` grants the nodes, lane segments, zones and corridors it needs: `FreeFlowController`, the default, grants everything at once; `ReservationController` enforces occupancy, with a `TrafficPolicy` for waits and deadlocks. The AGV picks inventory from a source `Warehouse`, transits to the destination, puts it down, and then either recharges at a `ChargingStation` or parks at a `ParkingArea`. Every state change is published as an event on the environment's bus, and the order and time-series metrics are collectors subscribed to it.
 
 ```mermaid
 graph TD
@@ -46,7 +46,8 @@ graph TD
     TO["TransferOrder"]
     FC["FleetCoordinator<br/>orchestrator"]
     DP["Dispatch / Repositioning /<br/>Replenishment / Load-recovery policies"]
-    TM["TrafficManager"]
+    RT["Router"]
+    TM["TrafficController"]
     AGV["AGV<br/>AGVType + SpeedProfile + Battery"]
     CH["ChargingStation"]
     PK["ParkingArea"]
@@ -54,8 +55,10 @@ graph TD
 
     TO -->|queued in| FC
     FC -->|assigns via| DP
-    FC -->|paths on| LG
-    LG -->|guarded by| TM
+    FC -->|routes with| RT
+    RT -->|searches| LG
+    FC -->|claims from| TM
+    LG -->|resources of| TM
     FC -->|commands| AGV
     AGV -->|picks/puts at| WH
     AGV -->|charges at| CH

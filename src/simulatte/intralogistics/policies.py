@@ -77,7 +77,9 @@ class DispatchContext:
 class DispatchStrategy(Protocol):
     """Chooses the AGV for an order, or None to leave it pending.
 
-    A strategy that reads the battery finds in ``agv.battery.level`` the level as last accounted; with idle power,
+    A custom strategy receives the whole fleet, including AGVs that are not idle: an AGV making way for a waiting one
+    (spec §7.10) is ``TRAVELING_EMPTY`` without an order. Choose only ``IDLE`` AGVs; the built-in strategies do. A
+    strategy that reads the battery finds in ``agv.battery.level`` the level as last accounted; with idle power,
     :meth:`AGV.battery_level_now` is the level now (spec §9.5). Neither accounts anything.
     """
 

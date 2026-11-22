@@ -49,6 +49,9 @@ _UTILIZED_STATES = frozenset(
 
 @dataclass(frozen=True)
 class AGVType:
+    """The settings shared by the AGVs of one kind: speed profile, battery, capacities, load and unload times, the
+    vehicle's size (``length``, ``min_gap``) and its turning and idle-power models."""
+
     name: str
     speed_profile: SpeedProfile
     battery_capacity: float
@@ -57,8 +60,9 @@ class AGVType:
     compatibility_fn: Callable[[Any], bool] = field(default=lambda sku: True)
     depletion_fn: Callable[[float, float, float], float] | None = None
     """Energy for ``(distance, load_weight, speed)``; None for one unit per unit of distance. It must be pure (the same
-    arguments give the same energy): the travel executor may call it fewer times than once per arc and reuse the result
-    within a run."""
+    arguments give the same energy, and nothing else changes): the travel executor may call it fewer times than once
+    per arc and reuse the result within a run, and the energy estimates of the planner and of the charger choice call
+    it for arcs that are not travelled."""
     recharge_fn: Callable[[float, float], float] | None = None
     low_battery_threshold: float = 0.2
     critical_battery_threshold: float = 0.05
@@ -75,11 +79,14 @@ class AGVType:
     """Distance kept to the vehicle ahead; the extent of the vehicle is ``length + min_gap``."""
     corner_speed: Callable[[float], float] | None = None
     """The speed cap through a node, from the heading change there in radians (``[0, pi]``, spec §9.4). 0 is a stop
-    at the node, infinity no cap; negative and NaN values raise ``ValueError``. It acts on profiles with limits."""
+    at the node, infinity no cap; negative and NaN values raise ``ValueError``. It acts on profiles with limits. It must
+    be pure: the planner and :class:`~simulatte.intralogistics.routing.FastestRouter` call it for turns that are not
+    on the route finally travelled."""
     turn_time: Callable[[float], float] | None = None
     """The time the vehicle waits at rest on a node before it leaves, from the heading change there in radians
     (``[0, pi]``, spec §9.4). A positive value stops the vehicle at the node; negative, NaN and infinite values raise
-    ``ValueError``."""
+    ``ValueError``. It must be pure: :class:`~simulatte.intralogistics.routing.FastestRouter` calls it for turns that
+    are not on the route finally travelled."""
     idle_power: float = 0.0
     """Energy drained per unit time in every state except ``CHARGING`` (spec §9.5); finite and >= 0, else
     ``ValueError``. It accrues lazily (:meth:`AGV.accrue_idle_power`): no timer wakes an idle AGV. With the default 0

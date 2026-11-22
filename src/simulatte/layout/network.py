@@ -591,7 +591,7 @@ class ResolvedNetwork:
 
     ``nodes`` contains enabled canonical addresses only. ``aliases`` and
     ``definitions`` also retain disabled elements. Capacity keys are the same
-    concrete Node instances consumed by binders and traffic managers. Handle owner
+    concrete Node instances consumed by binders and traffic controllers. Handle owner
     checks belong to the facade; this pure layer accepts only logical Addresses.
     """
 

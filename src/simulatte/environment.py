@@ -611,7 +611,7 @@ class Environment(simpy.Environment):
 
     def unschedule(self, event: simpy.Event) -> None:
         """Remove `event`, scheduled and not yet processed, from the event queue: it never fires and never advances the
-        clock.
+        clock. A process waiting on the removed event never resumes.
 
         Raises `ValueError` when the event is not in the queue (never scheduled, already processed or already
         unscheduled). SimPy has no cancellation, so this is the one place that knows the layout of its event queue: a

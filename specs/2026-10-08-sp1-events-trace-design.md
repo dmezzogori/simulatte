@@ -504,3 +504,31 @@ Decisions D66–D68 and [SP3 §3](2026-10-11-sp3-viewer-design.md#3-decisions-an
 ## SP4 execution metadata amendment (approved 2026-10-11)
 
 SP4 A7/D79 adds optional execution-v1 in container1.3. HEADER.execution carries {schema:1,request_id,request}, INITIAL.execution carries {schema:1,resolved}, FOOTER.execution carries {schema:1,termination,actual_end}. The authoritative field/limit contract is the [SP4 trace provenance section](2026-10-11-sp4-studio-design.md#trace-provenance-extension-a7). No event/KPI/digest semantics change; existing readers must continue check/verify on new recordings. Layout schema stays1.0. Implementation and conformance evidence are pending.
+
+## AGV traffic amendment (2026-11-21)
+
+The AGV traffic work ([traffic design](2026-11-21-agv-traffic-design.md) §11) adds entity kinds, events and a motion
+curve through the existing catalog. It changes no container, record, cursor or digest algorithm; old traces stay
+readable.
+
+- State schemas. `segment` (id: the two node ids in sorted order joined by `~`): `source`, `target`, `length`,
+  `forward` and `backward` (agv ids in grant order). `zone` (id: the zone id, or `corridor:<smallest interior node
+  id>` for a derived corridor): `rule` (`exclusive` or `same_direction`), `capacity` (null for corridors), `members`
+  (ids), `reserved_by` (agv ids in grant order), `orientation` (`forward`, `backward` or null). Both kinds exist only
+  under `ReservationController`. The `agv` schema gains `heading` (nullable float); `node` is unchanged.
+- Events, per traffic design §11.2: `traffic.reserved` and `traffic.released` carry `agv` and `resources` (entity ids),
+  one event per grant or placement and per release, with the deltas of every resource; `traffic.wait_started` carries
+  `agv`, `node`, `resources`, `blockers` and the reason `occupied`; `traffic.wait_ended` has the reasons `granted`,
+  `rerouted`, `stepped_aside`, `gave_up` and `interrupted`; `traffic.wait_stuck` and `traffic.deadlock` are new and
+  carry no deltas; `agv.routed` is new and carries no deltas; `agv.move_interrupted` is emitted at the node where an
+  interrupted AGV came to rest; `agv.battery_changed` is also emitted for idle-power accrual outside a move;
+  `order.status_changed` gains the reason `traffic_requeued`, and `travel_failed` means no route; `parking.entered`
+  and `parking.left` are emitted in normal operation. The wait reasons `node_occupied`, `path_delay`,
+  `deadlock_backoff`, `cancelled` and `elapsed` are removed.
+- Motion curve `piecewise` (traffic design §11.3): `{"curve": "piecewise", "v0", "phases": [[duration,
+  acceleration], ...], "distance"}`, valid when it has at least one phase, every duration is positive and finite, the
+  durations sum to `t_end - t_start` within the `keyframes` tolerance, the speed never falls below `-1e-9`, and the
+  integrated distance equals `distance` within `max(1e-9, 1e-9 * distance)`. An invalid description falls back to
+  linear with the approximate flag. `trapezoidal`, `constant`, `linear` and `keyframes` stay valid.
+- No container change. Semantic digests of intralogistics runs change because the event stream and the AGV state
+  change, not because the algorithm does.

@@ -761,3 +761,26 @@ accepted release budget.
 
 The two reviews and A1–A5 approval are recorded above. The plan carries task ownership and verification
 commands; this document carries behavior and contracts. Implementation is authorized with subagents.
+
+## AGV traffic amendment (2026-11-21)
+
+The AGV traffic work ([traffic design](2026-11-21-agv-traffic-design.md) §12) amends this specification:
+
+- **Schema 1.1.** Readers accept `"1.0"` and `"1.1"`; a 1.0 file with a 1.1 field is an error that names the field,
+  and `save` writes 1.1 only when a 1.1 field is present. The new fields are physical inputs, in the dependency
+  closure and the physical hash: `passing` (boolean) on lanes, explicit arcs, connectors, the lattice network and
+  edge overrides; `network.block_length` (positive), which after the overrides splits every enabled edge longer
+  than it into `ceil(length / block_length)` equal pieces, with generated nodes of address kind `block_node` and
+  pieces of address kind `block_edge`, deterministic ids `"<a>~<b>#<k>"` and the network default capacity
+  (overrides cannot target them; `max_nodes` and `max_directed_arcs` apply after splitting); and `network.zones`, a
+  map of zone id to `{capacity, hold_back, members}` whose members are override addresses and selectors matched
+  before splitting (a member that matches nothing is a `stale-zone-member` warning). `resolve_network` sets
+  `Arc.passing`, leaves `Arc.length` unset (lanes are straight) and adds `ResolvedNetwork.zones`. A bundle is 1.1
+  exactly when its layers use a 1.1 field.
+- **§7 is superseded** by the traffic design. Traffic holds nodes, segments, zones and corridors
+  (`ReservationController`), routing may be by time (`FastestRouter`), and dispatch, bays, chargers and parking rank
+  by route cost. The built-in controller registers as the layout's resource owner and reads the graph, capacities
+  and zones at bind.
+- **Traffic owner validation by protocol.** A fleet's controller with `controls_occupancy == False` needs no
+  registration; `ReservationController` must be the registered owner; any other controller must be registered with
+  `register_resource_owner`. The layout's own record of registered owners decides, not the controller's class.

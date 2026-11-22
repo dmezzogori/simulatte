@@ -2,6 +2,126 @@
 
 All notable changes to Simulatte are documented here.
 
+## Unreleased
+
+AGV traffic control, motion and routing for the intralogistics subpackage. Travel times and semantic digests of
+intralogistics models change with this release; see "Changed" and "Migration".
+
+### Added
+
+- `ReservationController`: AGVs move on claims over nodes, lane segments, zones and corridors, granted all or
+  nothing, in priority and request order, with a fairness rule for opposite directions. Corridors and dead-end
+  branches are derived from the graph; vehicles hold what their body covers, from `AGVType.length` and `min_gap`.
+  Segments, zones and corridors are `segment` and `zone` entities in traces.
+- Waits, deadlocks and their resolution: the `TrafficPolicy` protocol, `StandardTrafficPolicy(reroute_after=30.0,
+  max_detour=1.5, max_resolutions=8)` and the reactions `KeepWaiting`, `Reroute`, `StepAside` and `GiveUp`.
+  Deadlocks are detected when an AGV starts to wait and reported with `traffic.deadlock`; waits that nothing can end
+  are reported with `traffic.wait_stuck`. An AGV that gives up a travel before pickup re-queues its order
+  (`FleetCoordinator(max_traffic_requeues=3)`, reason `traffic_requeued`).
+- Idle AGVs make way for waiting ones (`FleetCoordinator.make_way`, `TrafficController.idle`), move off bays and
+  charger nodes (`FleetCoordinator(clear_service_nodes=True)`) and take parking slots when they are sent to a parking
+  area.
+- `Zone(id, members, capacity=1, hold_back=False)` for authored zones; the protocol values `Claim`, `ClaimItem`,
+  `ClaimRequest`, `Segment`, `Corridor`, `WaitHooks`, `Wait`, `Blocker`, `Disposition`, `Granted`, `Rerouted`,
+  `SteppedAside` and `GaveUp`; `TrafficView` with `branch_root`, `blockers` and `mean_hold` (an exponential average
+  of the observed hold times of each resource).
+- Motion through nodes: a speed profile with `limits(load_weight, battery_level) -> Kinematics` (as
+  `TrapezoidalProfile` has) moves in runs and passes nodes at speed, with claims held one arc plus the braking
+  distance ahead (`FleetCoordinator(lookahead_margin=0.0)`). The motion curve `piecewise` describes such runs in
+  traces and Studio.
+- `AGVType.corner_speed` and `turn_time` (a turning model from the heading change at a node), `AGVType.idle_power`
+  (energy drained per unit time outside charging, accounted lazily) and `AGV.battery_level_now()`. The AGV state has
+  a `heading` field.
+- Routers: the `Router` protocol with `RouteRequest` and `Route`, `ShortestDistanceRouter(algorithm=...)` (the
+  default), `FastestRouter` (by travel time) and `CongestionAwareRouter` (a heuristic that penalises busy legs).
+  Every route assignment emits `agv.routed`.
+- `DispatchContext` (`graph`, `router`, `view`, `cost`), the `RepositioningContext` fields `router` and `view` and its
+  `cost`, and `FleetCoordinator.best_bay`.
+- `Arc.length` (the travelled length, never shorter than the chord) and `Arc.passing` (opposite traffic may pass);
+  `LayoutGraph.length`, `path_length` and `subdivide(max_length)`.
+- `TrafficKPIs`: blocked time, waits, stuck waits, resolved and unresolved deadlocks, reroutes, make-way moves and
+  re-queued orders of a fleet.
+- Layout schema 1.1: `passing`, `network.block_length` (with the address kinds `block_node` and `block_edge`) and
+  `network.zones`. Readers accept 1.0 and 1.1.
+- `Environment.unschedule(event)` removes a scheduled event from the queue.
+- `build_simple_system(traffic_controller=None, router=None, agv_length=None)`.
+- The example `examples/intralogistics_traffic.py` and a traffic section in the intralogistics guide.
+
+### Changed
+
+- **Travel times and digests of intralogistics models change.** A vehicle whose profile reports kinematic limits
+  (every `TrapezoidalProfile`) passes intermediate nodes at speed instead of stopping at each, so travel times over
+  more than one arc are shorter under both controllers. A profile without `limits` keeps its rest-to-rest timings.
+  The new `agv.routed` event and the `heading` field enter semantic digests. Recorded results of intralogistics runs
+  are not comparable with earlier releases.
+- An interrupt received while an AGV moves takes effect at the first node where it can come to rest, with the energy
+  of the arcs covered charged; one received while it waits for a claim takes effect at once.
+- A critical battery found on arrival at the goal no longer interrupts the travel: it returns `ARRIVED`, and the
+  energy check before the next arc handles the battery.
+- A run is planned only over arcs whose estimated energy fits the battery and ends at the first node, other than the
+  goal, where the estimated level turns critical, so an AGV does not pass a charger at speed with a battery it knows
+  will be critical.
+- Dispatch, bays, chargers and parking areas are ranked by the fleet's router's cost of the travel that follows. With
+  the default router the decisions are the earlier ones, except on a graph with an arc whose explicit `length`
+  exceeds its chord: the rankings now sum arc lengths where they summed chords. The reachable-charger estimate uses
+  the route the router gives and the battery level now. `Warehouse.nearest_input_bay` and `nearest_output_bay` keep
+  the chord ranking and are no longer used by the coordinator.
+- `DispatchStrategy.select(order, fleet, graph)` is now `select(order, fleet, context)`, and
+  the context of `RepositioningPolicy.reposition(agv, context)` gains `router`, `view` and `cost`. Custom dispatch
+  strategies must be updated (see "Migration"). A custom dispatch strategy receives the whole fleet,
+  including AGVs that are making way.
+- The coordinator takes a parking slot when it sends an AGV to a parking area and gives it back when the AGV leaves,
+  under both controllers: `parking.entered`, `parking.left` and the areas' `parked` state now appear in free-flow
+  traces and digests. A custom repositioning policy that names a full area gets no move.
+- `order.status_changed` with reason `travel_failed` now means that the router found no route.
+- `traffic.reserved` and `traffic.released` carry `resources` (entity ids) instead of `node`; `traffic.wait_started`
+  carries `resources`, `blockers` and the reason `occupied`; `traffic.wait_ended` has the reasons `granted`,
+  `rerouted`, `stepped_aside`, `gave_up` and `interrupted`; `agv.battery_changed` is also emitted for idle power
+  accounted outside a move.
+- A `FreeFlowController` serves one graph: registering a fleet on another graph raises `ValueError`. Fleets on
+  different graphs each take their own controller, as they do by default.
+- `Arc.speed_limit`, when given, must be positive and finite (`ValueError` at construction). The kinematic limits a
+  run samples are validated when the run starts: a value that is not finite, a negative `decel`, or a `decel` of 0
+  for a vehicle that can move raises `ValueError` naming the profile.
+- A layout controller is validated by the layout's record of registered resource owners, not by its class.
+- The free-flow benchmark (`benchmarks/intralogistics.py`, see `benchmarks/intralogistics-baseline.md`) runs slower
+  than in the previous release, because planning runs through nodes costs more per arc than one travel time per arc.
+
+### Fixed
+
+- `env.run()` without `until` ends at the last finite event when an AGV is stalled (an arc with an infinite travel
+  time); no timer is left at infinity.
+- A run with a serviceable backlog and no AGV that can become idle now ends: the retry loop of the pending queue
+  ticks only while a pending order is unserviceable with the built-in dispatch strategies. A run whose last event
+  was a retry tick ends earlier.
+- An order cancelled at the instant of its dispatch to an AGV already on its origin stays cancelled.
+
+### Removed
+
+- The node-reservation traffic managers, the path planners and the module `intralogistics/pathfinding.py`, without
+  aliases; see the table under "Migration".
+- The wait reasons `node_occupied`, `path_delay`, `deadlock_backoff`, `cancelled` and `elapsed`.
+
+### Migration
+
+| Removed | Replacement |
+|---|---|
+| `TrafficManager`, `PathCheckResult` | `TrafficController`, `Claim`, `ClaimRequest` |
+| `FreeTrafficManager` | `FreeFlowController` |
+| `ResourceBasedTrafficManager(graph=, env=, node_capacity=, deadlock_timeout=, priority_fn=)` | `ReservationController(...)`; `deadlock_timeout` has no equivalent, see `StandardTrafficPolicy.reroute_after` |
+| `PathPlanner`, `DijkstraPlanner`, `AStarPlanner` | `Router`, `ShortestDistanceRouter(algorithm=...)` |
+| `FleetCoordinator(traffic_manager=, path_planner=)` | `FleetCoordinator(traffic_controller=, router=, clear_service_nodes=, lookahead_margin=)` |
+| `DispatchStrategy.select(order, fleet, graph)` | `select(order, fleet, context)` |
+
+- `AGVType.length` is required with `ReservationController`: `register_fleet` raises `ValueError` naming a vehicle
+  type without one. `FreeFlowController`, the default, does not need it. With a length of 0 (and no `min_gap`) a node is
+  released the instant the AGV leaves it.
+- A custom dispatch strategy reads the graph from `context.graph` and can rank AGVs with `context.cost(agv, node)`. A
+  custom repositioning policy can use `context.router`, `context.view` and `context.cost(agv, node)`.
+- Code that read `agv.battery.level` with idle power should read `agv.battery_level_now()` for the level now.
+- Results, digests and recorded fixtures of intralogistics models change (see "Changed"); re-record them. Layout
+  files of schema 1.0 load unchanged, and old traces stay readable.
+
 ## 0.17.0 — 2026-10-13
 
 - Added experiments: `*.experiment.json` files (schema `experiment-v1`), the

@@ -457,7 +457,9 @@ class TrafficKPIs(Collector):
     - ``requeued_orders``: ``order.status_changed`` with reason ``traffic_requeued``.
 
     A KPI without observations is left out of :meth:`scalars`, so a fleet under ``FreeFlowController`` has none.
-    Attach the collector before the run.
+    ``blocked_time`` is reported, possibly 0.0, once any wait of the fleet has started. Deadlocks are counted as
+    resolved or unresolved, not by action; the action is in each ``traffic.deadlock`` event. Attach the collector
+    before the run.
     """
 
     kpis: ClassVar = (
