@@ -289,8 +289,8 @@ without a prefix. Builder warehouses are not obstacles unless explicitly placed 
 layout's resource owner and reads the resolved graph, the node capacities and the zones when the layout binds; it
 then holds nodes, lane segments, zones and corridors as on any graph (see the
 [intralogistics guide](intralogistics.md#traffic-control)). Lanes are straight: an arc's travelled length is the
-distance between its nodes. Share one `ReservationController` per layout graph; every fleet on it must reuse the
-registered one. A controller that does not control occupancy, such as the default `FreeFlowController`, needs no
+distance between its nodes. Share one `ReservationController` per layout graph; every fleet on the graph must use that
+same controller. A controller that does not control occupancy, such as the default `FreeFlowController`, needs no
 registration. Any other controller that does must register a common resource owner and a named declared-read binder
 with `register_resource_owner`; the layout checks its own record of registered owners, not the controller's class.
 The model has no continuous collision avoidance: vehicles are kept apart only by the resources they hold.

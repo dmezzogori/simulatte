@@ -81,8 +81,8 @@ Every `@event_type` is registered in a global catalog with its payload fields, t
 | Server | `job.queued`, `job.granted`, `job.queue_left`, `job.released`, `server.queue_reordered`, `server.work_credited` | `simulatte.server` |
 | Release policies | `policy.decision` | `simulatte.policies` |
 | Fleet and orders | `fleet.agv_added`, `fleet.pending_changed`, `order.status_changed`, `order.assigned`, `order.unassigned` | `simulatte.intralogistics.events` |
-| AGVs | `agv.state_changed`, `agv.placed`, `agv.move_started`, `agv.move_ended`, `agv.move_interrupted`, `agv.load_changed`, `agv.battery_changed`, `agv.stranded` | `simulatte.intralogistics.events` |
-| Traffic | `traffic.reserved`, `traffic.released`, `traffic.wait_started`, `traffic.wait_ended` | `simulatte.intralogistics.events` |
+| AGVs | `agv.state_changed`, `agv.placed`, `agv.move_started`, `agv.move_ended`, `agv.move_interrupted`, `agv.load_changed`, `agv.battery_changed`, `agv.stranded`, `agv.routed` | `simulatte.intralogistics.events` |
+| Traffic | `traffic.reserved`, `traffic.released`, `traffic.wait_started`, `traffic.wait_ended`, `traffic.wait_stuck`, `traffic.deadlock` | `simulatte.intralogistics.events` |
 | Facilities | `warehouse.inventory_changed`, `warehouse.slot_changed`, `charging.started`, `charging.ended`, `charging.pool_changed`, `parking.entered`, `parking.left` | `simulatte.intralogistics.events` |
 | Observer events | `log`, `kpi.sample` | `simulatte.events` |
 

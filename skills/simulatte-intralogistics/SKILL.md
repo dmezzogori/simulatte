@@ -182,6 +182,7 @@ which is slow on large layouts with `FastestRouter` and turning, or with
 
 `TrapezoidalProfile` models acceleration, cruising, and deceleration.
 Optional functions degrade speed based on battery level and load weight.
+By default the battery factor equals the battery level, so speed falls in proportion to the charge; pass `lambda level: 1.0` for full speed at any level.
 
 ```python
 speed = TrapezoidalProfile(

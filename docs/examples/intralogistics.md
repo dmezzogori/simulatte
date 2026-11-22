@@ -895,7 +895,7 @@ graph LR
     J2 --> E_S --> E --> E_N --> J2
 ```
 
-Each warehouse bay (`W`, `E`) is on a one-way loop, so vehicles never meet head-on at a bay. The corridor `J1 - M1 - C` and the corridor `D - M2 - J2` are one lane each: vehicles in a corridor all travel in the same direction, and a vehicle going the other way waits at the port. Between `C` and `D` the main lane and the siding through `S` form the passing place. `S` is also the parking area, with three slots, where the AGVs start and return when idle. The siding has a speed limit of 1 m/s, so `FastestRouter` prefers the main lane.
+Each warehouse bay (`W`, `E`) is on a one-way loop, so vehicles never meet head-on at a bay. The corridor `J1 - M1 - C` and the corridor `D - M2 - J2` are one lane each: vehicles in a corridor all travel in the same direction, and a vehicle going the other way waits at the port. Between `C` and `D` the main lane and the siding through `S` form the passing place. `S` is also the parking area, with three slots, where the AGVs start and return when idle. The siding has a speed limit of 1 m/s, so `FastestRouter` prefers the main lane. The vehicle type overrides the default battery degradation (speed proportional to the battery level) with full speed at any level; without the override speed falls as the batteries drain and the same script takes about twice as long.
 
 **What it demonstrates:**
 
