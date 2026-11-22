@@ -309,6 +309,35 @@ def test_grant_at_the_instant_of_arrival_is_used() -> None:
     assert started["N2"].motion["v0"] == 0.0
 
 
+def stream_past_a_leader(leader_leaves: float) -> World:
+    """F drives ``P00 -> P14`` over 1 m arcs while L stands on P10 until `leader_leaves`, then goes to the side node S;
+    one claim per leg."""
+    points = [(f"P{i:02d}", i, 0) for i in range(15)] + [("S", 10, 1)]
+    links = [(f"P{i:02d}", f"P{i + 1:02d}") for i in range(14)] + [("P10", "S")]
+    w = world(build(points, links), {"L": "P10", "F": "P00"}, hold_back_dead_ends=False)
+    w.go("F", "P14")
+    w.go("L", "S", at=leader_leaves)
+    w.env.run()
+    assert w.outcomes == {"F": TravelOutcome.ARRIVED, "L": TravelOutcome.ARRIVED}
+    return w
+
+
+def test_grant_at_the_instant_of_a_node_passed_at_speed_is_used() -> None:
+    """L leaves P10 exactly when F passes P08 at speed, F's claim of ``P09 -> P10`` pending. The grant is made before
+    F's arrival at P08 is processed, so F takes it there and plans past P09 instead of braking for it: it passes P09
+    at speed and loses no more than when L leaves a microsecond earlier, while F is still on its way to P08."""
+    passing = {e.node: e.t for e in stream_past_a_leader(1000.0).of(AgvMoveEnded, agv="F")}["P08"]
+    alone = {e.node: e.t for e in stream_past_a_leader(1e-9).of(AgvMoveEnded, agv="F")}["P14"]
+    w = stream_past_a_leader(passing)
+    started = {e.from_node: e for e in w.of(AgvMoveStarted, agv="F")}
+    assert started["P08"].t == passing and started["P08"].motion["v0"] > 0.0
+    assert not at_rest(started["P08"].motion) and started["P09"].motion["v0"] > 0.0  # P09 is passed at speed
+    assert not w.of(TrafficWaitStarted, agv="F")
+    earlier = stream_past_a_leader(passing - 1e-6)
+    delay = w.of(AgvMoveEnded, agv="F")[-1].t - alone
+    assert delay <= earlier.of(AgvMoveEnded, agv="F")[-1].t - alone + 1e-6
+
+
 def test_a_claim_granted_on_an_arc_that_already_brakes_ends_in_a_stop_at_its_node() -> None:
     """L leaves at 10, while F brakes on ``N1 -> N2`` for N2. F still stops there (the documented limit of spec
     §9.3), restarts at once without a wait, and loses at most one deceleration and one acceleration."""

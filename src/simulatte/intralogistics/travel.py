@@ -609,11 +609,15 @@ class _Trip:
     def _claim_ahead(self) -> None:
         """Step 2 of spec §8.1: request the next claim while none is pending and :meth:`_wants_claim`.
 
-        A grant at once extends the horizon and the step repeats. A request that is not granted at once stays pending;
-        its grant is taken by the event's callback, which repeats the step if the AGV is moving then, without waking
-        the travel process. A directive is left pending for :meth:`_wait`.
+        A pending request already granted (at the instant of a node event, before its callback ran) is taken first,
+        at speed as at rest. A grant at once extends the horizon and the step repeats. A request that is not granted at
+        once stays pending; its grant is taken by the event's callback, which repeats the step if the AGV is moving
+        then, without waking the travel process. A directive is left pending for :meth:`_wait`.
         """
         controller, agv = self.controller, self.agv
+        request = self.request
+        if request is not None and request.granted:  # granted at this instant, its callback not run yet: take it now
+            self._granted(request)
         while self.request is None and self._wants_claim():
             request = self.request = controller.request(
                 agv, controller.next_claim(agv, self.route, self.horizon), self.hooks
