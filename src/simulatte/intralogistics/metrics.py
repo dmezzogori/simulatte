@@ -471,7 +471,10 @@ class TrafficKPIs(Collector):
             description="Total time AGVs spent waiting on traffic claims.",
         ),
         _count_kpi("waits", "Waits started."),
-        _count_kpi("stuck_waits", "Waits reported stuck behind idle, stranded or stalled blockers."),
+        _count_kpi(
+            "stuck_waits",
+            "Waits reported stuck behind idle, stranded or stalled blockers, or behind waiters whose waits are stuck.",
+        ),
         _count_kpi("deadlocks_resolved", "Deadlock events with a victim."),
         _count_kpi("deadlocks_unresolved", "Deadlock events where no reaction succeeded."),
         _count_kpi("reroutes", "Routes staged by traffic because of a block or a deadlock."),
