@@ -27,9 +27,10 @@ def motion_fraction(
     a phase boundary, an integrated distance that differs from ``distance`` by more than
     ``max(1e-9, 1e-9 * distance)``, or a ``distance`` that is not positive and finite. A caller that has the event
     times passes ``duration = t_end - t_start`` and `t_start`, so that the tolerance is the one Studio computes.
-    Speeds are floored at zero between phases, as :class:`ArcProfile` does.
+    Speeds are floored at zero between phases, as :class:`ArcProfile` does. A number beyond the float range (a huge
+    integer read from JSON) makes the description invalid.
     """
-    if description.get("curve") != "piecewise" or not math.isfinite(duration) or duration < 0:
+    if description.get("curve") != "piecewise" or not _finite(duration) or duration < 0:
         return None
     v0, phases, distance = description.get("v0"), description.get("phases"), description.get("distance")
     if (
@@ -37,8 +38,8 @@ def motion_fraction(
         or not _is_number(distance)
         or not isinstance(phases, list | tuple)
         or not phases
-        or not math.isfinite(v0)
-        or not math.isfinite(distance)
+        or not _finite(v0)
+        or not _finite(distance)
         or v0 < -1e-9
         or distance <= 0
     ):
@@ -48,12 +49,15 @@ def motion_fraction(
         if not isinstance(phase, list | tuple) or len(phase) != 2 or not all(_is_number(x) for x in phase):
             return None
         length, accel = phase
-        if not (math.isfinite(length) and length > 0 and math.isfinite(accel)):
+        if not (_finite(length) and length > 0 and _finite(accel)):
             return None
         parsed.append((float(length), float(accel)))
     # The tolerance of ``keyframes`` and of Studio: eight ulps of the larger absolute event time, at least 1e-12.
-    magnitude = max(abs(t_start), abs(t_start + duration), 5e-324)
-    tolerance = max(1e-12, 8 * math.ldexp(1.0, math.frexp(magnitude)[1] - 1 - 52))
+    try:
+        magnitude = max(abs(t_start), abs(t_start + duration), 5e-324)
+        tolerance = max(1e-12, 8 * math.ldexp(1.0, math.frexp(magnitude)[1] - 1 - 52))
+    except OverflowError:  # a start time beyond the float range
+        return None
     if abs(sum(length for length, _ in parsed) - duration) > tolerance:
         return None
     t = min(max(elapsed, 0.0), duration)
@@ -74,6 +78,14 @@ def motion_fraction(
 
 def _is_number(value: object) -> TypeGuard[float]:
     return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _finite(value: float) -> bool:
+    """``math.isfinite``, false rather than `OverflowError` for an integer beyond the float range."""
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 @runtime_checkable

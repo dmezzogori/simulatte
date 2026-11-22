@@ -90,6 +90,21 @@ def test_motion_fraction_rejects_other_curves_and_malformed_values() -> None:
         assert motion_fraction({**good, key: value}, 3.0, 1.0) is None, (key, value)
 
 
+def test_motion_fraction_is_none_for_a_number_beyond_float_range() -> None:
+    """A huge integer, as JSON can carry, is not a valid number for the description: None, not `OverflowError`."""
+    good = {"curve": "piecewise", "v0": 0.0, "phases": [[2.0, 0.5], [1.0, -1.0]], "distance": 1.5}
+    huge = 10**400
+    for key, value in [
+        ("v0", huge),
+        ("distance", huge),
+        ("phases", [[huge, 0.5], [1.0, -1.0]]),
+        ("phases", [[2.0, 0.5], [1.0, -huge]]),
+    ]:
+        assert motion_fraction({**good, key: value}, 3.0, 1.0) is None, (key, value)
+    assert motion_fraction(good, huge, 1.0) is None
+    assert motion_fraction(good, 3.0, 1.0, t_start=huge) is None
+
+
 def test_motion_fraction_accepts_tuples_and_floors_rounding_negative_speed() -> None:
     # The speed ends at -1e-10, inside the 1e-9 allowance; later phases start from zero.
     description = {"curve": "piecewise", "v0": 1.0, "phases": ((1.0, -1.0 - 1e-10), (1.0, 0.0)), "distance": 0.5}
