@@ -673,11 +673,15 @@ class _Trip:
         charger = None if diverting.get(agv) is current else fleet._find_reachable_charger(agv)
         if charger is not None:
             prior_state = agv.state
+            outer = diverting.get(agv)  # a diversion that diverts again from another node restores the guard it found
             diverting[agv] = current
             try:
                 outcome = yield from fleet._charge_agv(agv, charger)
             finally:
-                del diverting[agv]
+                if outer is None:
+                    del diverting[agv]
+                else:
+                    diverting[agv] = outer
             if outcome is TravelOutcome.GAVE_UP:
                 return TravelOutcome.GAVE_UP  # the diversion gave up: this travel ends where the AGV stopped
             if agv.state is AGVState.STRANDED:

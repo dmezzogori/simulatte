@@ -825,3 +825,26 @@ def test_a_lone_agv_ends_alike_under_both_controllers_for_a_depletion_that_falls
         reserved = energy_run(lengths, limits, kin, kind_kw, True, margin)
         assert free[:3] == reserved[:3], (trial, name)
         assert free[3].agvs["A"].current_node.id == reserved[3].agvs["A"].current_node.id
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: bool) -> None:
+    """S to G costs 30 against a battery of 25: the AGV diverts to the charger on C, whose route the router sends over a
+    detour: at Y the diversion again lacks the energy and diverts from Y, where the route through Z is too long. The
+    guard of the first diversion survives the second: the travel returns ``BATTERY_STRANDED`` at Y."""
+    nodes = {n: Node(n, x, y) for n, x, y in [("S", 0, 0), ("G", 30, 0), ("Y", 0, 10), ("C", 0, 20), ("Z", 3, 19)]}
+    arcs = [
+        Arc(nodes["S"], nodes["G"]),
+        Arc(nodes["S"], nodes["Y"]),
+        Arc(nodes["Y"], nodes["C"]),
+        Arc(nodes["Y"], nodes["Z"], length=20.0),
+        Arc(nodes["Z"], nodes["C"]),
+    ]
+    graph = LayoutGraph(nodes.values(), arcs)
+    router = Via(nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")})
+    w = charger_world(25.0, "C", reserve=reserve, graph_nodes=(graph, nodes), router=router, start="S")
+    w.go("A", "G")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
+    assert w.agvs["A"].current_node == nodes["Y"]
+    assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("Y", "no_reachable_charger")]
