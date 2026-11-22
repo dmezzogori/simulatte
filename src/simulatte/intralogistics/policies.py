@@ -26,6 +26,12 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class DispatchStrategy(Protocol):
+    """Chooses the AGV for an order, or None to leave it pending.
+
+    A strategy that reads the battery finds in ``agv.battery.level`` the level as last accounted; with idle power,
+    :meth:`AGV.battery_level_now` is the level now (spec §9.5). Neither accounts anything.
+    """
+
     def select(
         self,
         order: TransferOrder,

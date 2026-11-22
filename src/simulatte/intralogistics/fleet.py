@@ -106,6 +106,11 @@ class FleetCoordinator(Entity, kind="fleet"):
     transition ran and the mission bookkeeping was cleaned up. :meth:`submit` and :meth:`cancel` are deferrable: before
     activation they are queued and run at activation (spec §10).
 
+    ``on_low_battery``, when given, is called with an AGV sent to charge, after the :meth:`on_battery_low` hooks; a
+    generator it returns runs instead of the default travel to the charger and charge. In these callbacks, as in a
+    custom ``dispatch_strategy``, ``agv.battery.level`` is the level as last accounted; with idle power,
+    :meth:`AGV.battery_level_now` is the level now (spec §9.5).
+
     Unless built with ``default_metrics=False``, it attaches an :class:`~simulatte.intralogistics.OrderEMACollector`
     as ``metrics`` (with smoothing factor ``ema_alpha``, default 0.01); other collectors
     (:class:`~simulatte.intralogistics.FleetTimeSeries`,
@@ -359,6 +364,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_delivery_complete.append(callback)
 
     def on_battery_low(self, callback: Callable[[AGV], None]) -> None:
+        """Call `callback` with the AGV when it is sent to charge. ``agv.battery.level`` is the level as last accounted;
+        with idle power, :meth:`AGV.battery_level_now` is the level now (spec §9.5)."""
         self._hooks_on_battery_low.append(callback)
 
     def on_charging_started(self, callback: Callable[[AGV, ChargingStation], None]) -> None:
@@ -402,14 +409,16 @@ class FleetCoordinator(Entity, kind="fleet"):
         return {s: v / n for s, v in combined.items()}
 
     def agv_report(self) -> list[dict[str, object]]:
-        """Per-AGV summary."""
+        """Per-AGV summary. ``battery_pct`` is the level now (:meth:`AGV.battery_level_now`), with the idle power not
+        yet accounted taken off; the report accounts nothing."""
         report: list[dict[str, object]] = []
         for agv in self.fleet:
+            capacity = agv.battery.capacity
             report.append(
                 {
                     "agv_id": agv.agv_id,
                     "state": agv.state.name,
-                    "battery_pct": agv.battery.level_pct,
+                    "battery_pct": agv.battery_level_now() / capacity if capacity > 0 else 0.0,
                     "current_node": agv.current_node.id if agv.current_node else None,
                     "utilization": agv.utilization(),
                 }

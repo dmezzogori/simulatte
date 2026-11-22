@@ -323,6 +323,19 @@ class AGV(Entity, kind="agv"):
                 )
             )
 
+    def battery_level_now(self) -> float:
+        """The battery level now: ``battery.level``, the level as last accounted, less the idle power drained since,
+        floored at 0, which :meth:`accrue_idle_power` would account now (spec §9.5).
+
+        A pure read: it changes no state and emits nothing, so reports, dispatch strategies and low-battery callbacks
+        may use it. While charging or moving it is ``battery.level`` (a move accounts its drain on arrival), and without
+        idle power it is ``battery.level`` exactly.
+        """
+        power, level = self.agv_type.idle_power, self.battery.level
+        if not power or self.motion is not None or self._state is AGVState.CHARGING:
+            return level
+        return max(0.0, level - power * (self.env.now - self._accrued_at))
+
     def fold_idle_power(self, duration: float) -> None:
         """Drain the idle power of a move of `duration`, which ends now, without an event: the caller emits
         ``agv.move_ended`` with the level after the arc's depletion and this drain (spec §9.5). The accounting was up to

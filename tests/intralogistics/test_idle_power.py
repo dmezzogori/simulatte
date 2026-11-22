@@ -417,6 +417,16 @@ def test_the_low_battery_check_after_a_mission_finds_the_level_the_unload_wait_d
     assert before and before[0].battery <= 0.2 * 100.0
 
 
+def test_the_agv_report_shows_the_level_now_without_accounting_it() -> None:
+    """Idle at 1 per second for 12: the report shows 38 of 100 while the level as last accounted stays 50, and nothing
+    is emitted (a report is an observer)."""
+    env, replay, fleet, agv, order, charger = mission_world(1.0)
+    env.run(until=12.0)
+    (row,) = fleet.agv_report()
+    assert row["battery_pct"] == 0.38
+    assert agv.battery.level == 50.0 and not replay.of(AgvBatteryChanged)
+
+
 def test_the_same_mission_without_idle_power_does_not_charge() -> None:
     env, replay, fleet, agv, order, charger = mission_world(0.0)
     fleet.submit(order)

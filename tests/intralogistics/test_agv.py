@@ -228,6 +228,30 @@ class TestIdlePower:
         agv.accrue_idle_power()  # nothing elapsed: no change, no event
         assert agv.battery.level == 90.0 and len(seen) == 1
 
+    def test_the_level_now_subtracts_the_idle_power_not_yet_accounted_and_changes_nothing(
+        self, env: Environment, simple_speed_profile: TrapezoidalProfile
+    ) -> None:
+        seen = self._listen(env)
+        agv = AGV(env=env, agv_type=self._type(simple_speed_profile, idle_power=0.5), agv_id="A")
+        env.run(until=20.0)
+        assert agv.battery_level_now() == 90.0
+        assert agv.battery.level == 100.0 and agv._accrued_at == 0.0 and not seen  # a pure read
+        agv.accrue_idle_power()
+        assert agv.battery_level_now() == agv.battery.level == 90.0
+        env.run(until=300.0)
+        assert agv.battery_level_now() == 0.0  # floored at 0, as the accrual floors it
+
+    def test_the_level_now_is_the_accounted_level_without_idle_power_and_while_charging(
+        self, env: Environment, simple_speed_profile: TrapezoidalProfile
+    ) -> None:
+        plain = AGV(env=env, agv_type=self._type(simple_speed_profile), agv_id="P")
+        charging = AGV(env=env, agv_type=self._type(simple_speed_profile, idle_power=0.5), agv_id="C")
+        plain.battery.level = charging.battery.level = 63.7
+        charging.transition_to(AGVState.CHARGING)
+        env.run(until=20.0)
+        assert plain.battery_level_now() == plain.battery.level == 63.7
+        assert charging.battery_level_now() == charging.battery.level == 63.7
+
     def test_the_level_is_updated_whether_or_not_anything_observes_it(
         self, env: Environment, simple_speed_profile: TrapezoidalProfile
     ) -> None:
