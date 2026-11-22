@@ -36,6 +36,11 @@ class Node:
     x: float
     y: float
 
+    def __hash__(self) -> int:
+        # Equal nodes have equal ids, so the id alone is a hash consistent with equality; graphs and searches hash
+        # nodes on every dict access, and hashing the coordinates as well cost about a third of a run.
+        return hash(self.id)
+
 
 @dataclass(frozen=True)
 class Arc:

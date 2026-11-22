@@ -23,6 +23,13 @@ class TestNode:
         assert n1 == n2
         assert len({n1, n2}) == 1
 
+    def test_hash_is_the_hash_of_the_id(self) -> None:
+        """Equal nodes have equal ids, so a hash of the id alone agrees with equality; it is cheaper than hashing the
+        coordinates too, and graphs hash nodes on every dict access."""
+        assert hash(Node(id="N1", x=0.0, y=0.0)) == hash("N1")
+        assert hash(Node(id="N1", x=3.0, y=4.0)) == hash("N1")
+        assert Node(id="N1", x=0.0, y=0.0) != Node(id="N1", x=3.0, y=4.0)
+
 
 class TestArc:
     def test_bidirectional_default(self) -> None:
