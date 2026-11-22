@@ -919,7 +919,8 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     def make_way(self, agv: AGV, target: Node | None = None, *, concerned: Sequence[AGV] = ()) -> bool:
         """Move the idle `agv` out of the way of the waiting AGVs `concerned`, to `target` or, without one, to the node
-        of the standard search for an idle AGV (spec §7.9, §7.10); whether a move was started.
+        of the standard search for an idle AGV (spec §7.9, §7.10); whether a move was started. When that search finds
+        no node, a service node or a root of capacity above 1 is taken under the same rules (the fallback of §7.9).
 
         Nothing happens, and false is returned, for an AGV that is not idle (one already making way is not), when there
         is no target, when the target is the AGV's own node, a node the router cannot reach from the AGV's node
@@ -939,9 +940,12 @@ class FleetCoordinator(Entity, kind="fleet"):
             return False
         left = self._made_way_from.get(agv, set())
         if target is None:
-            target = standard_target(
-                self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=sorted(left, key=lambda n: n.id)
-            )
+            exclude = sorted(left, key=lambda n: n.id)
+            target = standard_target(self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=exclude)
+            if target is None:  # the fallback: a service node or a root with room to spare (spec §7.9)
+                target = standard_target(
+                    self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=exclude, roomy=True
+                )
         elif target in left or (target != origin and not self._reachable(agv, origin, target)):
             return False
         if target is None or target == origin or not self._take_slot(agv, target):

@@ -44,6 +44,7 @@ from tests.intralogistics.traffic_support import (
     FullReplay,
     TrafficInvariants,
     build,
+    fake_hooks,
     line,
     t_layout,
     two_junction_corridor,
@@ -827,6 +828,101 @@ def test_standard_target_for_an_idle_agv_skips_a_branch_root_unless_it_is_a_park
     agv = m.agvs["A"]
     assert standard_target(m.fleet, agv) is nodes["B0"]  # the generic search takes the nearest node, root or not
     assert standard_target(m.fleet, agv, idle=True) is nodes[expected]
+
+
+# --- the make-way fallback (spec §7.9) ----------------------------------------------------------------------------
+
+
+def charger_fork() -> tuple[LayoutGraph, dict[str, Node]]:
+    """``P - X - Q`` along a row with ``CH`` hanging off ``X``."""
+    return build([("P", 0, 0), ("X", 10, 0), ("Q", 20, 0), ("CH", 10, 10)], [("P", "X"), ("X", "Q"), ("X", "CH")])
+
+
+def pending_claim(m: Mission, agv: str, *route: str) -> Any:
+    """Request the first claim of `route` for `agv`, with hooks that report that route."""
+    nodes = tuple(m.nodes[name] for name in route)
+    vehicle = m.agvs[agv]
+    return m.controller.request(vehicle, m.controller.next_claim(vehicle, nodes, 0), fake_hooks(nodes))
+
+
+@pytest.mark.parametrize(("slots", "expected"), [(2, "CH"), (1, None)])
+def test_make_way_falls_back_to_a_charging_node_with_room(slots: int, expected: str | None) -> None:
+    """Idle A on X blocks B's claim from P. Q is a bay, P is taken and the charger node CH is a service node: the
+    search finds nothing, and the fallback takes CH when it has two slots, not when it has one."""
+    m = mission_world(
+        charger_fork(),
+        {"A": "X", "B": "P"},
+        bays={"WQ": "Q"},
+        chargers={"CS": ("CH", slots)},
+        controller_options={"hold_back_dead_ends": False},
+    )
+    request = pending_claim(m, "B", "P", "X", "Q")
+    a, b = m.agvs["A"], m.agvs["B"]
+    assert standard_target(m.fleet, a, concerned=(b,), idle=True, purpose="make_way") is None
+    assert m.fleet.make_way(a, concerned=(b,)) is (expected is not None)
+    m.env.run()
+    if expected is None:
+        assert a.current_node is m.nodes["X"] and not m.events(AgvRouted) and not request.granted
+    else:
+        assert m.routed("A") == [("make_way", "X", "CH")]
+        assert a.current_node is m.nodes["CH"] and request.granted
+
+
+@pytest.mark.parametrize(("capacity", "expected"), [(2, "R"), (1, None)])
+def test_make_way_falls_back_to_a_root_with_room(capacity: int, expected: str | None) -> None:
+    """Idle A on X blocks B's dead-end claim from P to Q. R is the root of the bays L1 and L2: the fallback takes it
+    when its capacity is above 1."""
+    graph, nodes = build(
+        [("P", 0, 0), ("X", 10, 0), ("Q", 20, 0), ("R", 10, 10), ("L1", 0, 20), ("L2", 20, 20)],
+        [("P", "X"), ("X", "Q"), ("X", "R"), ("R", "L1"), ("R", "L2")],
+    )
+    m = mission_world(
+        (graph, nodes),
+        {"A": "X", "B": "P"},
+        bays={"W1": "L1", "W2": "L2"},
+        controller_options={"capacities": {nodes["R"]: capacity}},
+    )
+    pending_claim(m, "B", "P", "X", "Q")
+    a, b = m.agvs["A"], m.agvs["B"]
+    assert m.controller.view.branch_root(nodes["R"])
+    assert standard_target(m.fleet, a, concerned=(b,), idle=True, purpose="make_way") is None
+    assert m.fleet.make_way(a, concerned=(b,)) is (expected is not None)
+    m.env.run()
+    assert a.current_node is nodes[expected or "X"]
+
+
+@pytest.mark.parametrize(("goal", "expected"), [("Q", "CH"), ("CH", None)])
+def test_make_way_does_not_fall_back_to_a_node_whose_last_slot_a_concerned_agv_needs(
+    goal: str, expected: str | None
+) -> None:
+    """C rests on the two-slot charger node CH. When B's route leads to CH, the slot left there is B's, so A does not
+    take it; when B goes to Q, A does."""
+    m = mission_world(
+        charger_fork(),
+        {"A": "X", "B": "P", "C": "CH"},
+        bays={"WQ": "Q"},
+        chargers={"CS": ("CH", 2)},
+        controller_options={"hold_back_dead_ends": False},
+    )
+    pending_claim(m, "B", "P", "X", goal)
+    a, b = m.agvs["A"], m.agvs["B"]
+    assert m.fleet.make_way(a, concerned=(b,)) is (expected is not None)
+    m.env.run()
+    assert a.current_node is m.nodes[expected or "X"]
+
+
+def test_clearing_a_service_node_has_no_fallback() -> None:
+    """After its delivery A stands on the bay Q. The bay P, the root X and the charger node CH are not places to idle,
+    so A stays on Q: the roomy charger node is a fallback of make-way moves only."""
+    m = mission_world(charger_fork(), {"A": "P"}, bays={"WP": "P", "WQ": "Q"}, chargers={"CS": ("CH", 2)})
+    (order,) = [m.order("WP", "WQ")]
+    m.env.run()
+    a = m.agvs["A"]
+    assert order.status is OrderStatus.COMPLETED
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["Q"])
+    assert [reason for reason, _, _ in m.routed("A")] == ["travel"]
+    assert standard_target(m.fleet, a, idle=True, purpose="clear_node") is None
+    assert standard_target(m.fleet, a, idle=True, purpose="clear_node", roomy=True) is m.nodes["CH"]
 
 
 # --- passing a full charging node -------------------------------------------------------------------------------

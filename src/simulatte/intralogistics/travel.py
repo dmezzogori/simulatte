@@ -102,6 +102,7 @@ def standard_target(
     purpose: str = "step_aside",
     load_weight: float = 0.0,
     exclude: Collection[Node] = (),
+    roomy: bool = False,
 ) -> Node | None:
     """The node of the standard search (spec §7.9) for `agv`, or None when no node qualifies.
 
@@ -117,7 +118,8 @@ def standard_target(
     pending claim: an idle AGV moved out of one wait's way must not fill what another wait needs.
     `purpose` and `load_weight` are those of the move the search is for; the router is asked with them, so that the
     search and the move make the same request apart from the destination. Nodes in `exclude` are never
-    taken (a make-way move does not go back to a node the AGV made way from).
+    taken (a make-way move does not go back to a node the AGV made way from). With `roomy` (the fallback of a make-way
+    move, spec §7.9) a service node or a root of capacity above 1 is a candidate too, under every other rule.
     """
     controller = fleet.traffic_controller
     view = controller.view
@@ -137,7 +139,7 @@ def standard_target(
         if node == origin or node in full or node in exclude:
             continue
         rank = 0 if node in parking else 1
-        if rank and (node in service or (idle and view.branch_root(node))):
+        if rank and (node in service or (idle and view.branch_root(node))) and not (roomy and view.capacity(node) > 1):
             continue
         free = view.capacity(node) - len(view.holders(node))
         if free < 1:
