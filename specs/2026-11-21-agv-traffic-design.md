@@ -761,7 +761,9 @@ class Router(Protocol):
 `hold_back_dead_ends` is off),
 `resources(u, v)` (what a leg needs), `holders(resource)`, `pending(resource)` (count of pending claims that name
 it), `disposition(agv)`, `route_of(agv)`, `waiting_on(agv)` (the AGVs whose waits a resource held by `agv`
-blocks), `admissible(agv, claim)` and `mean_hold(resource)`. With
+blocks), `admissible(agv, claim)`, `blockers(agv, u, v)` (for each resource of the leg from `u` to `v` that the
+holders make inadmissible for `agv` now, whatever the queue and the gate say, the holders that block it, in the
+leg's resource order) and `mean_hold(resource)`. With
 `FreeFlowController` the dynamic members report an empty network. A space-time router can later be built on the
 same request and a view extended with reservation times; nothing here depends on that.
 
@@ -776,8 +778,9 @@ same request and a view extended with reservation times; nothing here depends on
 - `CongestionAwareRouter(base=FastestRouter(), wait_weight=1.0, horizon=60.0)`: adds to each leg
   `wait_weight * w * exp(-t / horizon)`, where `t` is the cost accumulated when the leg is expanded and `w` is the
   largest, over the leg's resources that are not admissible now, of `(blocking holders + pending claims) *
-  mean_hold(resource)`. A resource held to capacity by stranded AGVs is avoided. It is a heuristic and does not
-  claim an optimum.
+  mean_hold(resource)`, read from `view.blockers`, `view.pending` and `view.mean_hold`. A resource held to
+  capacity by stranded AGVs (every one of its blocking holders is stranded) is avoided. Without an AGV in the
+  request no penalty applies. It is a heuristic and does not claim an optimum.
 
 `mean_hold` is an exponential average (factor 0.1) of observed hold durations per resource, maintained by
 `ReservationController` whether or not anything observes it.
