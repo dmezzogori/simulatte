@@ -70,3 +70,61 @@ trace-only modes with an explicit CLI error.
 The CI-size 10-shift smoke run also matched exactly: 10,979 submitted orders and 10,969 completed,
 with lifecycle hash `79d15c6fd5acc342e5c91d88c893e0f85406c98fd16d6d377447a7dc14888bf9`.
 Both versions also passed a separate-process memory-probe smoke run.
+
+## AGV traffic release against `main`, 2026-11-22
+
+The branch `feature/agv-traffic` (traffic control, motion and routing, parts A to C) against `main` at `ea1292c`
+(0.17.0), on Apple M4 Pro (12 cores), CPython 3.14.3, the same interpreter and dependency versions for both sides
+(each tree synced with `uv sync --all-extras` in its own directory; `main` in a temporary `git worktree` outside the
+repository, removed afterwards). The branch ran at `9f0406f`, the workload source unchanged since part B. The workload
+is the one above: 20 AGVs, one shift, intervals 30 to 60, seed 42, `--warmup 1 --repeat 5 --processes 3`. The two sides
+ran alternately (main, branch) in five rounds for each mode, one after the other, on an otherwise idle machine
+(load average 1.8 before the first run). `--json` files were kept for every run; each round's median below is that of
+the 15 timed runs of one invocation.
+
+| Mode | `main` median, s (range over 5 rounds) | Branch median, s (range over 5 rounds) | Branch / `main`, median (range over rounds) | Peak memory `main` / branch, MB |
+|---|---:|---:|---:|---:|
+| none | 0.18973 (0.18843 to 0.19062) | 0.24144 (0.24069 to 0.24180) | 1.274 (1.267 to 1.282) | 38.9 / 40.3 |
+| default | 0.20912 (0.20764 to 0.20986) | 0.26028 (0.25938 to 0.26210) | 1.247 (1.240 to 1.258) | 38.9 / 40.4 |
+| default_logging | 0.18963 (0.18890 to 0.19268) | 0.24171 (0.23998 to 0.24594) | 1.273 (1.252 to 1.298) | 39.0 / 40.3 |
+
+The IQR inside a round is 0.001 to 0.002 s on both sides (about 1 %). `main` reproduces the hashes above (input
+`3278fbdc...`, trajectory `b2a2ca3d...`, 1,018 orders, 1,011 completed). The branch has 1,018 orders, 1,012 completed,
+input hash `1a5ad97c4bd908101086d8ba16cc592cdbb43c24d768fd85756105ff10e28583` and trajectory hash
+`633394be9d9f5b5e07a76a224c14050235a80d5a31a0348488b48a679db95767`, the same in all 15 branch runs and the same as at
+the end of part B: part C changes no decision under the default router. The two sides do not run the same trajectory
+(different hashes), so `compare.py` rejects the pair and the figures above are the medians of the JSON files.
+
+Why the branch is slower. The workload runs under `FreeFlowController` with a `TrapezoidalProfile` that has kinematic
+limits, so each travel is planned as runs of arcs (spec §9) where `main` evaluated one rest-to-rest profile per arc.
+Part A alone cost nothing measurable on this workload (branch / `main` 0.96 to 0.99 at the end of part A). Part B added
+the planning of a run per travel (the speed plan, the affordable-end and battery scans, the larger `piecewise` motion
+descriptions, the route state kept per node) and, after its own optimisation pass, cost 22 to 24 % of run time. Part C
+adds the router protocol and one router call per ranking (dispatch, bays, chargers, parking). The commit before part C
+(`ad4a823`) was run against the branch in the same way (five alternating rounds, the same settings, the same trajectory
+and hashes in both):
+
+| Mode | `ad4a823` median, s (range) | Branch median, s (range) | Branch / `ad4a823`, median (range) | `ad4a823` / `main` |
+|---|---:|---:|---:|---:|
+| none | 0.23595 (0.23214 to 0.23691) | 0.24097 (0.23993 to 0.24252) | 1.027 (1.018 to 1.034) | 1.244 |
+| default | 0.25582 (0.25385 to 0.25652) | 0.25959 (0.25860 to 0.26321) | 1.019 (1.008 to 1.027) | 1.223 |
+| default_logging | 0.23640 (0.23445 to 0.23738) | 0.24155 (0.24107 to 0.24321) | 1.024 (1.016 to 1.030) | 1.247 |
+
+So part C costs 2 to 3 % and part B (with a little of part A) the rest of the 25 to 27 %. Peak memory is 1.4 MB higher
+than `main` (peak at `ad4a823`: 40.2 MB). The spec leaves this benchmark ungated (§15). The difference in trajectory
+(the 1,012th completed order, the input hash) comes from parking slots being taken (part A) and through-node motion
+(part B), recorded in `specs/research/2026-11-21-agv-traffic-acceptance.md`.
+
+Overhead gate of the core workload (CI job `bench`, step "Mode none against released and stripped 0.12.0", CPython
+3.14, as the workflow runs it: `--warmup 1 --repeat 5 --processes 3`, budgets `BUDGET_RELEASED` 0.03 with noise 0.02 and
+`BUDGET_STRIPPED` 0.065 with noise 0.02), in environments built as the workflow builds them from this checkout:
+
+| Workload | Against | Base median (IQR), s | Branch median (IQR), s | Overhead | Limit | Verdict |
+|---|---|---:|---:|---:|---:|---|
+| jobshop10-u90-5k | released 0.12.0 | 0.650 (0.005) | 0.483 (0.003) | -25.7 % | +5.0 % | pass |
+| jobshop10-u90-5k | 0.12.0 without `env.debug` calls | 0.453 (0.005) | 0.483 (0.003) | +6.7 % | +8.5 % | pass |
+| jobshop10-u95-5k | released 0.12.0 | 0.683 (0.007) | 0.518 (0.010) | -24.1 % | +5.0 % | pass |
+| jobshop10-u95-5k | 0.12.0 without `env.debug` calls | 0.485 (0.004) | 0.518 (0.010) | +6.7 % | +8.5 % | pass |
+
+The core workload does not run the traffic code, so the gate measures the same unobserved path as before this work.
+The PyPy lane of the gate was not run locally (the job runs it on the CI runner).

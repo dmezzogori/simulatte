@@ -26,7 +26,15 @@ from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import Disposition, FreeFlowController, Reroute, TrafficView
 from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics.test_travel import Scripted, World, diamond, vehicle, world
-from tests.intralogistics.traffic_support import StillFleet, build, fake_hooks, line, two_junction_corridor
+from tests.intralogistics.traffic_support import (
+    FullReplay,
+    StillFleet,
+    TrafficInvariants,
+    build,
+    fake_hooks,
+    line,
+    two_junction_corridor,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -952,11 +960,13 @@ class TestCongestionAwareRouter:
         assert FastestRouter().route(request, w.controller.view) is not None
 
 
-def congested_run(*, probe: bool = False, router: Router | None = None) -> str:
-    """The digest of a small run in which the congestion router meets traffic: three AGVs on the two-arm world."""
+def congested_run(*, probe: bool = False, check: bool = False, router: Router | None = None) -> str:
+    """The digest of a small run in which the congestion router meets traffic: three AGVs on the two-arm world. With
+    `check` every event is replayed against the live state and the traffic invariants are asserted."""
     graph, nodes = two_arms(15.0)
     env = Environment(debug=True)
     env.enable_digest()
+    replay = FullReplay(env) if check else None
     controller = ReservationController(env=env, graph=graph, derive_corridors=False, hold_back_dead_ends=False)
     vehicles = {
         name: AGV(env=env, agv_type=vehicle(), agv_id=name, initial_node=nodes[start])
@@ -972,6 +982,8 @@ def congested_run(*, probe: bool = False, router: Router | None = None) -> str:
         router=router or CongestionAwareRouter(),
         default_metrics=False,
     )
+    if check:
+        TrafficInvariants(env, controller)
     env.activate()
     if probe:
         view = controller.view
@@ -989,6 +1001,7 @@ def congested_run(*, probe: bool = False, router: Router | None = None) -> str:
     w.go("C", "K", at=20.0)
     env.run()
     assert set(w.outcomes) == {"A", "B", "C"}
+    assert replay is None or replay.of(AgvRouted)
     digest = env.fingerprint().digest
     assert digest is not None
     return digest
@@ -1015,3 +1028,10 @@ def test_reading_the_traffic_view_changes_no_result(router: Router) -> None:
     """``mean_hold`` and the other reads of the view are bookkeeping only: a run in which every event is followed by
     reads of the whole view has the digest of a run that never reads it."""
     assert congested_run(probe=True, router=router) == congested_run(router=router)
+
+
+@pytest.mark.parametrize("router", [FastestRouter(), CongestionAwareRouter()], ids=["fastest", "congestion"])
+def test_a_run_with_a_routing_router_replays_and_keeps_the_invariants(router: Router) -> None:
+    """Replay equals the live state at every event and the traffic invariants hold under each new router, and the
+    digest is that of the run without these observers."""
+    assert congested_run(check=True, router=router) == congested_run(router=router)

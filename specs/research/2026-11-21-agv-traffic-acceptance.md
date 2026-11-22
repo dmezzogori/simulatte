@@ -518,3 +518,128 @@ The release gate (Task 5) records part C as a whole; these notes are kept by the
   a detour, or with idle power not yet accounted, a charger could count as reachable that the travel could not reach.
 - `DispatchStrategy.select(order, fleet, graph)` is now `select(order, fleet, context)` with a `DispatchContext`
   (`graph`, `router`, `view`, `cost`); `RepositioningContext` gains `router`, `view` and `cost` and is frozen.
+
+Behaviour of the routers that the tasks of part C settled and the release should state:
+
+- `CongestionAwareRouter` with `wait_weight=0` is its base router exactly: no penalty and no exclusion of legs held by
+  stranded AGVs (a leg behind stranded AGVs is excluded at every positive weight). `view.pending` counts the requesting
+  AGV's own queued claim during a reroute. Under `CongestionAwareRouter` the detour bound of a reroute (`max_cost_ratio`)
+  compares costs that include penalties, so it no longer bounds the detour in time.
+- `FastestRouter` costs omit the start and end ramps of a travel (a constant, the same for every route) and, with a
+  turning model, give the least-cost walk cut to a simple path, which is not guaranteed to be the least-cost simple path.
+  It samples the limits at the AGV's battery level now (idle power accrued but not accounted).
+- A ranking asks the router with the purpose and load of the travel it ranks for; the cost of a route is comparable
+  only within one router, and no code compares costs of two routers.
+- One dispatch decision on a 900-node grid costs about 40 ms with `ShortestDistanceRouter`, 95 ms with `FastestRouter`,
+  330 ms with `FastestRouter` and a turning model and 600 ms with `CongestionAwareRouter` (each ranking is one router
+  call per candidate).
+
+## §17 items of part C and the tests that cover them
+
+Tests are in `tests/intralogistics`. The one test marked (added) was added by the release gate; the rest existed.
+
+| §17 item | Test |
+|---|---|
+| `FastestRouter` prefers a longer, faster route | `test_routing.py::TestFastestRouter::test_the_fastest_route_is_not_the_shortest`, `::test_a_longer_straight_route_wins_below_the_turn_time`, `::test_a_turn_adds_its_time`; on a real AGV `test_routing.py::test_a_travel_follows_the_fastest_route`; in a ranking `test_policies.py::TestNearestIdleStrategy::test_the_fastest_router_picks_another_agv_than_the_default_one_past_a_slow_arm`; limits at the battery level now `test_routing.py::test_the_fastest_router_samples_the_limits_at_the_battery_level_now[fastest, congestion]` |
+| `CongestionAwareRouter` avoids a queue when the detour is cheaper | `test_routing.py::TestCongestionAwareRouter::test_a_penalty_makes_the_search_take_the_slower_arm`, `::test_the_arm_with_a_serving_agv_is_taken_only_when_the_other_costs_more_than_the_wait` (a real `ReservationController` view: `P` held for 40 s and held now, the other arm 6.7 s or 53.3 s longer), `::test_a_leg_held_to_capacity_by_stranded_agvs_is_excluded`, `::test_a_node_filled_by_a_stranded_agv_is_avoided_and_may_be_the_only_way`, `::test_the_largest_penalty_of_the_resources_of_the_leg_applies`, `::test_the_penalty_of_a_leg_falls_with_the_cost_at_which_it_is_reached`; with nothing to avoid, `::test_congestion_router_equals_base_without_traffic` and `::test_no_penalty_without_an_agv_or_with_a_zero_weight` |
+| With the default router, dispatch and bay choices equal the baseline on the examples | `test_traffic_scenarios.py::test_with_the_default_router_dispatch_bays_chargers_and_parking_decide_as_path_length_did[intralogistics_simple, intralogistics_intermediate, intralogistics_advanced, building_an_agv_system, appendix_a_1, appendix_a_2]` (assigned orders, AGVs, times and routes equal those of a run with the rankings of the end of part B); the explicit-length exception `test_charging.py::test_an_arc_longer_than_its_chord_changes_the_charger_and_the_bay`; `test_coordinator.py::TestRouteCostRankings::test_best_bay_ranks_by_router_cost`, `::test_chargers_rank_by_router_cost`; `test_policies.py::TestContexts`, `::TestNearestIdleStrategy::test_picks_the_lowest_router_cost_to_the_best_output_bay`, `::TestNearestParkingPolicy::test_ranks_areas_by_router_cost`; `test_parking.py::test_nearest_parking_ranks_areas_by_the_fleets_router`; `test_charging.py::test_the_reachable_charger_estimate_sums_the_route_arc_lengths`; `test_stop_requests.py::test_the_charger_estimate_is_made_on_the_routers_route[both controllers]` |
+| `mean_hold` is kept whether or not anything observes it, and changes no result | `test_reservation.py::TestMeanHold` (the exponential average, an unobserved resource, zones and corridors as kinds of their own, a claim in a new direction, a node without an entity, `::test_values_do_not_depend_on_what_observes_the_run`); `test_traffic.py` (the free-flow view reports an empty network, `mean_hold` 0.0); `test_routing.py::test_reading_the_traffic_view_changes_no_result[shortest, fastest]` |
+| Replay equals live state, traffic invariants, digests independent of observers and of `PYTHONHASHSEED`, with the new routers | every world of `test_routing.py` built by `world()` runs `FullReplay` and, under reservation, `TrafficInvariants`; (added) `test_routing.py::test_a_run_with_a_routing_router_replays_and_keeps_the_invariants[fastest, congestion]` (three AGVs on the two-arm world under each router, replay and invariants attached, digest equal to the run without them); `::test_a_run_with_the_congestion_router_has_the_same_digest_across_hash_seeds`, `::test_the_fastest_router_does_not_depend_on_the_hash_seed`; CPython and PyPy agree through the PyPy lane (see "Gates") |
+| Routes are valid and a router that answers nothing fails cleanly | `test_routing.py::test_executor_rejects_invalid_routes`, `::test_avoid_can_make_destination_unreachable`; `test_coordinator.py::test_a_router_without_route_fails_the_order_cleanly`; `test_travel.py::test_no_route`, `::test_no_route_fails_the_order_after_returning_the_cargo` |
+
+## §17 walk of the whole release
+
+Every item of §17, in the order of the spec. "Existing" means the test existed before the release gate; the sections
+above name the tests in full.
+
+| §17 item | Covering tests | Added or existing |
+|---|---|---|
+| Invariants over every scenario and the three examples | `TrafficInvariants` and `FullReplay` in `traffic_support.py`, attached in every world of `test_traffic_scenarios.py`, `test_travel.py`, `test_idle_traffic.py`, `test_travel_motion.py`, `test_turning.py`, `test_stop_requests.py`, `test_idle_power.py`; `test_traffic_scenarios.py::test_the_examples_hold_the_traffic_invariants_under_a_reservation_controller[intralogistics_simple, intralogistics_intermediate, intralogistics_advanced]` | existing |
+| Baseline scenarios (Appendix A) | `test_traffic_scenarios.py::test_appendix_a_scenario_1_completes_every_order`, `::test_appendix_a_scenario_2_completes_every_order_and_the_idle_agv_makes_way_to_park`, and with corner caps, turn waits and idle power `::test_appendix_a_with_corner_caps_turn_waits_and_idle_power_completes_every_order[1, 2]` | existing |
+| Following | `test_traffic_scenarios.py::test_following_on_a_subdivided_one_way_line` | existing |
+| Head-on | `test_traffic_scenarios.py::test_head_on_in_a_corridor_the_second_agv_waits_before_its_port`; `test_traffic_termination.py::test_two_agvs_swapping_on_a_line_leave_one_unresolved_deadlock_and_the_run_returns` | existing |
+| Stuck wait | `test_traffic_termination.py::test_a_loaded_agv_stuck_behind_an_idle_one_that_cannot_move_leaves_one_stuck_wait_and_the_run_returns` | existing |
+| Default builder | `test_traffic_scenarios.py::test_the_default_builder_completes_twenty_transfer_orders_with_no_deadlock_and_no_stuck_wait` | existing |
+| Lone AGV | `test_traffic_scenarios.py::test_a_lone_agv_arrives_at_the_same_times_under_both_controllers_on_a_line_split_into_arcs[1, 2, 10]` and `..._on_the_appendix_layout`; `test_travel_motion.py::test_lone_agv_matches_free_flow[t_layout, builder_line, thirty_arcs]` | existing |
+| Giving up | `test_traffic_termination.py::test_an_agv_with_cargo_does_not_give_up_a_charging_diversion`, `::test_an_order_is_requeued_for_traffic_at_most_max_traffic_requeues_times` | existing |
+| Resolution | `test_traffic_scenarios.py::test_a_swap_with_a_second_route_is_resolved_by_reroute`, `::test_a_swap_without_another_route_is_resolved_by_step_aside` | existing |
+| Fairness; gate waiver | `test_traffic_scenarios.py::test_a_stream_does_not_delay_an_opposite_waiter_beyond_the_vehicles_already_inside[port-1, port-2, port-3]`, `::test_a_gate_that_would_complete_a_cycle_is_waived` | existing |
+| Idle and parking | `test_idle_traffic.py::test_an_idle_blocker_makes_way_and_goes_idle_again`, `::test_an_agv_leaves_the_delivery_bay_under_reservation`, `::test_an_area_of_two_never_lists_three_agvs`, `::test_a_full_area_is_not_a_target` | existing |
+| Capacity above one, extent longer than a block, `passing` segments, authored zones with and without `hold_back` | `test_travel.py::test_extent_longer_than_arc_holds_two_segments`, `::test_two_vehicles_at_a_multi_slot_leaf_one_sent_away`; `test_reservation.py::TestAdmission::test_passing_admits_both_directions`, `::TestAdmission::test_zone_capacity`, `::TestRelease::test_hold_back_zone_is_claimed_a_leg_early` | existing |
+| Vehicle length | `test_reservation.py::TestLifecycle::test_a_vehicle_type_without_length_cannot_register`; `test_travel.py::test_coordinator_registers_with_a_reservation_controller` | existing |
+| Motion | `test_traffic_scenarios.py::test_a_straight_line_split_into_arcs_takes_the_single_arc_time_under_both_controllers[1, 2, 10]`; `test_kinematics.py::test_speed_limit_change`, `::test_node_cap_limits_the_pass_speed`; `test_turning.py::test_a_corner_speed_caps_the_speed_through_the_corner`, `::test_a_turn_time_stops_at_the_corner_waits_and_leaves_from_rest`; `test_motion_piecewise.py` and `studio/packages/scene/test/motion.test.ts` (shared fixture `tests/fixtures/motion/piecewise.json`); `test_travel_motion.py::test_a_profile_without_limits_keeps_the_rest_to_rest_timings[plain, no_limits x free flow, reservation]` | existing |
+| Stop requests | `test_stop_requests.py::test_a_cancelled_mission_recovers_after_a_stop_at_the_first_feasible_node[loaded, empty x both controllers]`, `::test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node`; `test_motion.py::test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energy_is_that_of_the_arcs_covered[both controllers]` | existing |
+| Routing | the table "§17 items of part C" above | existing, with one test added |
+| Replay and purity | `FullReplay` in every world; `test_invariance.py::test_final_state_is_independent_of_observers`, `::test_digest_report_and_shared_kpis_are_identical_across_instrumented_configurations`, `::test_digest_is_stable_across_hash_seeds_in_fresh_processes`; `test_traffic_scenarios.py::test_the_motion_scenario_is_the_same_with_and_without_observers`, `::test_the_motion_scenario_digest_is_the_same_across_hash_seeds`; `test_routing.py` (the part C table); CPython and PyPy agree through the PyPy lane | existing, with one test added |
+| Layout | `tests/layout/test_traffic_fields.py::test_1_0_file_loads_unchanged_and_keeps_its_hashes`, `::test_1_1_file_round_trips_through_save_and_load`, `::test_passing_changes_the_physical_hash`, `::test_zones_enter_the_physical_hash_and_the_bundle`, `::test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream` | existing |
+| Free flow | `test_traffic_scenarios.py::test_free_flow_creates_no_segment_or_zone_entity_and_emits_no_traffic_event`; `test_travel.py::test_free_flow_arrivals_and_events` | existing |
+| Pinned digest and golden traces regenerated in parts A and B | `test_builders.py::test_no_layout_builder_digest_remains_compatible` (`b62e7161...`, unchanged by part C); `tests/core/test_trace_fixtures.py::test_generated_fixtures_canonically_up_to_date`; the causes are under "Pinned values" in the sections of parts A and B | existing |
+
+Part C re-pinned nothing: the pinned digest, `fleet_recovery_regression.json` and `fleet_collector_parity.json` are as at
+the end of part B, and the part C test suite reproduces the end of part B's rankings with the default router (first row
+of the part C table).
+
+## Gates of the release (this task)
+
+Run at the head of the branch plus the one added test, on bigboss (Apple M4 Pro, CPython 3.14.3), with each result line
+as printed.
+
+| Gate | Command | Result |
+|---|---|---|
+| Tests and coverage | `uv run --all-extras pytest` | 4,715 passed, 1 skipped, 3 warnings, 355.33 s; "Required test coverage of 99% reached. Total coverage: 99.17%" |
+| Lint | `uv run --all-extras ruff check src tests` | All checks passed! |
+| Format | `uv run --all-extras ruff format --check` | 522 files already formatted |
+| Types | `uv run --all-extras ty check src` | All checks passed! |
+| Docs | `uv run --all-extras zensical build` | "No issues found", build finished |
+| Studio types | `pnpm typecheck` (in `studio/`) | exit 0 |
+| Studio tests | `pnpm test` | exit 0; trace 319, playback 24, scene 23, export 15, viewer 82 passed (apps/player has no tests) |
+| Studio build | `pnpm build` | exit 0 (a chunk-size warning of the bundler only) |
+| Studio browsers | `pnpm test:browser` | 36 passed (1.2 m) on chromium, firefox and webkit; the three engines are installed on this machine |
+| PyPy lane | `UV_PROJECT_ENVIRONMENT=/tmp/simulatte-pypy-venv uv sync --dev --python pypy-3.11 --frozen`, then `MPLBACKEND=Agg uv run --python pypy-3.11 pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` (job `test-pypy` of `ci.yml`; a separate project environment keeps the checkout's `.venv` on CPython) | 4584 passed, 23 skipped in 500.90 s (PyPy 3.11.15), run twice with the same result |
+| Overhead gate of the core workload | the CI `bench` step "Mode none against released and stripped 0.12.0 (gate)" on CPython 3.14, `--warmup 1 --repeat 5 --processes 3`, in environments built as the workflow builds them | pass on both workloads against both baselines: against released 0.12.0 -25.7 % and -24.1 % (limit +5.0 %), against 0.12.0 without `env.debug` calls +6.7 % and +6.7 % (limit +8.5 %); numbers in `benchmarks/intralogistics-baseline.md`. The PyPy variant of the job runs only on the CI runner |
+
+The first pytest run of the day (4,713 passed, coverage 99.17 %) preceded the added test; every other gate was run
+after it or does not read it. `ci.yml` needed no change: the PyPy lane and the Linux matrix name directories, not files,
+and the `execution-native` lane lists files of the execution and Studio tests that no work of this branch renamed.
+
+## Benchmark of the release
+
+Branch against `main`, `benchmarks/intralogistics.py`, five alternating rounds per mode, `--warmup 1 --repeat 5
+--processes 3`; the full table, the spread, the reason, and the comparison with the commit before part C are in
+`benchmarks/intralogistics-baseline.md`. Branch / `main`: none 1.274 (1.267 to 1.282 over the rounds), default 1.247
+(1.240 to 1.258), default_logging 1.273 (1.252 to 1.298); peak memory 38.9 to 39.0 MB on `main`, 40.3 to 40.4 MB on the
+branch. Against the commit before part C: 1.027, 1.019 and 1.024. The free-flow ratio against `main` is therefore about
+1.25 to 1.27 on this workload, as the spec foresaw (§15, ungated); it was 0.96 to 0.99 at the end of part A and 1.22 to
+1.24 after the whole-part check of part B.
+
+## Known limits
+
+From spec §18 and the ledgers of the three parts, as the release leaves them.
+
+- **Passing places defined by capacity.** The hold-back rules treat a port or a root of capacity above 1 like any other:
+  a vehicle that cannot enter the corridor or branch behind it waits one node before it, so two vehicles that meet
+  head-on at such a node deadlock and one steps aside, where they could have passed each other on the node. A sound
+  rule (admit the waiting vehicle only while a slot remains for each oncoming one) is not part of this release. A
+  `passing` segment or a siding is a passing place that works.
+- **Make-way is not transitive.** An idle blocker whose only free neighbours are held by other idle AGVs stays, and the
+  step-aside search excludes nodes ahead on the routes of the waits concerned even where a retreat exists. On small
+  layouts without parking this produces stuck waits (`traffic.wait_stuck`, reported once, no timer left) and unresolved
+  deadlocks (`traffic.deadlock` with `unresolved`); both are reported, not hidden, and `env.run()` returns. The
+  advanced example under reservation ends with no stuck wait open; the simple example completes 4 of 4 orders.
+- **The fairness gate's lapse.** With `clear_service_nodes` on, a vehicle outside the corridor but on the waiter's port
+  lets the stream pass first (`test_known_lapse_a_vehicle_outside_the_corridor_on_the_waiters_port_lets_the_stream_pass_first`);
+  the fairness bound holds with clearing off.
+- **Two charging defects predate this work and are unchanged by it** (see "Known limits" of part B): a vehicle with a
+  critical battery and a charger more than one arc away stops at the first node of each travel towards the charger and
+  strands without charging; and an arc that cannot be afforded with the level a full charge leaves on arrival at the node
+  before it makes the vehicle charge, return and divert again without end, so `env.run()` without `until` does not
+  return there.
+- **`CongestionAwareRouter` is a heuristic.** It can choose worse routes than `FastestRouter` in some states (in the
+  task review's runs on the same seeds it completed more orders and had fewer deadlocks than `FastestRouter`, but no
+  optimum is claimed), and it is opt-in. The detour bound of a reroute under it compares penalised costs.
+- **Look-ahead holds resources.** A fast AGV reserves its braking distance, which lowers density; `lookahead_margin`
+  tunes it.
+- **Free-flow cost.** About 25 to 27 % more run time than `main` on the scaled advanced example, from planning runs of
+  arcs (part B) and ranking by router cost (part C).
+- **Tie at the energy check.** At an exact float tie in the energy check some missions end `BATTERY_STRANDED` where they
+  used to retry (part B, "Changes in results"); a relative slack at the check at rest is a possible follow-up.
