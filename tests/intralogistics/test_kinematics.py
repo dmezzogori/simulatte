@@ -5,7 +5,14 @@ import random
 
 import pytest
 
-from simulatte.intralogistics.kinematics import ArcProfile, Kinematics, arc_profile, plan_run, rest_to_rest
+from simulatte.intralogistics.kinematics import (
+    ArcProfile,
+    Kinematics,
+    arc_profile,
+    backward_pass,
+    plan_run,
+    rest_to_rest,
+)
 from simulatte.intralogistics.speed import TrapezoidalProfile
 
 KIN = Kinematics(v_max=1.5, accel=0.8, decel=0.8)
@@ -372,3 +379,10 @@ def test_random_runs_have_exact_node_speeds(seed: int) -> None:
     for before, after in zip(run, run[1:], strict=False):
         assert before.v_out == after.v_in
     assert run[-1].v_out == 0.0
+
+
+def test_backward_pass_bounds_each_node_by_the_stop_at_the_last() -> None:
+    # 2 m arcs, decel 1: from rest at the last node, sqrt(4) = 2 and sqrt(8) at the nodes before, capped; a zero-length
+    # arc carries the bound unchanged.
+    bounds = backward_pass([2.0, 0.0, 2.0, 2.0], [9.0, 2.5, 9.0, 9.0, 0.0], 1.0)
+    assert bounds == [min(9.0, math.sqrt(2.5**2 + 4.0)), 2.5, math.sqrt(8.0), 2.0, 0.0]

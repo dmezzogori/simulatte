@@ -24,7 +24,7 @@ from simulatte.events import Deltas
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveInterrupted, AgvMoveStarted, AgvRouted
 from simulatte.intralogistics.graph import Node
-from simulatte.intralogistics.kinematics import plan_run
+from simulatte.intralogistics.kinematics import backward_pass, plan_run
 from simulatte.intralogistics.network import Segment
 from simulatte.intralogistics.routing import Route, RouteRequest
 from simulatte.intralogistics.speed import KinematicProfile, describe_motion
@@ -661,20 +661,19 @@ class _Trip:
         From such a node back, the backward pass gives what it gives with any farther horizon, so the plan of the next
         arc is the plan the AGV would have if it held the whole route: under free flow it does (spec §9.3). A rounding
         of the braking distance can leave the pass one unit in the last place below ``v_max``; this test then asks for
-        one claim more. True for a profile without limits and for a stalled run, whose look-ahead is 0.
+        one claim more. It uses the planner's own :func:`backward_pass`, so the two cannot disagree. True for a profile
+        without limits and for a stalled run, whose look-ahead is 0.
         """
         kin = self.kin
         if kin is None or self.stalled:
             return True
-        caps = [kin.v_max if limit is None else min(kin.v_max, limit) for limit in self.speed_limits]
-        speed = 0.0
-        for j in range(self.horizon - 1, first - 1, -1):
-            cap = min(caps[j - 1], caps[j])  # the node cap of plan_run: the smaller cap of the arcs at node j
-            length = self.lengths[j]
-            speed = min(cap, speed if length == 0 else math.sqrt(speed * speed + 2 * kin.decel * length))
-            if speed == cap:
-                return True
-        return False
+        horizon = self.horizon
+        arcs = [
+            kin.v_max if limit is None else min(kin.v_max, limit) for limit in self.speed_limits[first - 1 : horizon]
+        ]
+        caps = [min(before, after) for before, after in zip(arcs, arcs[1:])] + [0.0]  # the node caps of plan_run
+        bounds = backward_pass(self.lengths[first:horizon], caps, kin.decel)
+        return any(bound == cap for bound, cap in zip(bounds[:-1], caps[:-1]))
 
     def _wait(self) -> ProcessGenerator:
         """Step 3 of spec §8.1: at rest at the horizon with a pending request, call ``stopped`` (unless the request was

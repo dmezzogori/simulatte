@@ -167,6 +167,23 @@ def rest_to_rest(length: float, cap: float, kin: Kinematics) -> ArcProfile:
     return arc_profile(0.0, 0.0, cap, length, kin)
 
 
+def backward_pass(lengths: Sequence[float], caps: Sequence[float], decel: float) -> list[float]:
+    """The backward pass of spec §9.2 over a run of arcs: for each node, the speed bound that still lets the AGV come
+    to rest at the last node.
+
+    `caps` holds one cap per node (``caps[-1]`` is the speed at the last node, 0 at rest) and `lengths` one length
+    per arc. The bound of the last node is its cap; the bound of node ``j`` is ``min(caps[j],
+    sqrt(bound[j + 1] ** 2 + 2 * decel * lengths[j]))``, or ``min(caps[j], bound[j + 1])`` across a zero-length arc.
+    :func:`plan_run` and the executor's claim look-ahead both use it, so they judge the bounds with the same
+    arithmetic.
+    """
+    bounds = list(caps)
+    for j in range(len(lengths) - 1, -1, -1):
+        after = bounds[j + 1]
+        bounds[j] = min(caps[j], after if lengths[j] == 0 else math.sqrt(after**2 + 2 * decel * lengths[j]))
+    return bounds
+
+
 def plan_run(
     v0: float, lengths: Sequence[float], arc_caps: Sequence[float], node_caps: Sequence[float], kin: Kinematics
 ) -> tuple[ArcProfile, ...]:
@@ -191,12 +208,7 @@ def plan_run(
         return ()
     accel, decel = kin.accel, kin.decel
     caps = [v0] + [min(node_caps[j], arc_caps[j - 1], arc_caps[j]) for j in range(1, count)] + [0.0]
-    backward = caps[:]
-    for j in range(count - 1, 0, -1):
-        if lengths[j] == 0:
-            backward[j] = min(caps[j], backward[j + 1])
-        else:
-            backward[j] = min(caps[j], math.sqrt(backward[j + 1] ** 2 + 2 * decel * lengths[j]))
+    backward = backward_pass(lengths, caps, decel)  # backward[0] is not used: the entry speed is v0
     reach_squared = backward[1] ** 2 + 2 * decel * lengths[0]
     reach = backward[1] if lengths[0] == 0 else math.sqrt(reach_squared)
     if v0 > reach:

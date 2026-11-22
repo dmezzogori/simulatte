@@ -12,6 +12,7 @@ Every world runs :class:`FullReplay`; worlds with a ``ReservationController`` al
 from __future__ import annotations
 
 import math
+import random
 from typing import Any
 
 import pytest
@@ -212,6 +213,17 @@ BRAKING_1_59 = 1.59**2 / (2 * 1.14)
 """The braking distance at ``v_max=1.59``, ``decel=1.14``, where ``sqrt(2 * decel * distance)`` rounds below 1.59."""
 
 
+def line_arrivals(v_max: float, accel: float, decel: float, block: float, arcs: int, reserve: bool) -> list[Any]:
+    """The arrivals of a lone AGV over `arcs` straight arcs of length `block`, under one controller."""
+    nodes = {f"E{i}": Node(f"E{i}", block * i, 0) for i in range(arcs + 1)}
+    graph = LayoutGraph(nodes.values(), [Arc(nodes[f"E{i}"], nodes[f"E{i + 1}"], length=block) for i in range(arcs)])
+    profile = TrapezoidalProfile(v_max, accel, decel, battery_degradation_fn=lambda level: 1.0)
+    w = world((graph, nodes), {"A": "E0"}, reserve=reserve, agv_type=vehicle(profile=profile, battery=1e9))
+    w.go("A", f"E{arcs}")
+    w.env.run()
+    return arrivals(w)
+
+
 @pytest.mark.parametrize(
     "block",
     [
@@ -229,18 +241,29 @@ def test_a_horizon_at_the_braking_distance_keeps_the_free_flow_times_exactly(blo
     horizon lands on the braking distance and ``sqrt(2 d L)`` rounds one unit below ``v_max``; the AGV then claims one
     block more, until the backward pass gives the cap at the end of the next arc, and its times equal free flow
     exactly (spec §9.3)."""
-    v_max, accel, decel = 1.59, 0.8, 1.14
-    assert math.sqrt(2 * decel * BRAKING_1_59) < v_max
-    nodes = {f"E{i}": Node(f"E{i}", block * i, 0) for i in range(21)}
-    graph = LayoutGraph(nodes.values(), [Arc(nodes[f"E{i}"], nodes[f"E{i + 1}"], length=block) for i in range(20)])
-    profile = TrapezoidalProfile(v_max, accel, decel, battery_degradation_fn=lambda level: 1.0)
-    runs = []
-    for reserve in (True, False):
-        w = world((graph, nodes), {"A": "E0"}, reserve=reserve, agv_type=vehicle(profile=profile))
-        w.go("A", "E20")
-        w.env.run()
-        runs.append(arrivals(w))
-    assert runs[0] == runs[1]
+    assert math.sqrt(2 * 1.14 * BRAKING_1_59) < 1.59
+    reserved = line_arrivals(1.59, 0.8, 1.14, block, 20, True)
+    assert reserved == line_arrivals(1.59, 0.8, 1.14, block, 20, False)
+
+
+@pytest.mark.parametrize(
+    ("v_max", "decel", "block"), [(2.76, 0.6, 1.2695999999999998), (0.69, 0.87, 0.05472413793103448)]
+)
+def test_the_look_ahead_and_the_planner_judge_the_cap_alike(v_max: float, decel: float, block: float) -> None:
+    """Blocks of a fifth of the braking distance where ``x * x`` and ``x ** 2`` round apart in the backward pass: the
+    claim look-ahead uses the planner's own backward pass, so the lone AGV's times equal free flow exactly."""
+    reserved = line_arrivals(v_max, 0.8, decel, block, 30, True)
+    assert reserved == line_arrivals(v_max, 0.8, decel, block, 30, False)
+
+
+def test_lone_agv_matches_free_flow_over_blocks_at_fractions_of_the_braking_distance() -> None:
+    rng = random.Random(20261122)
+    for case in range(240):
+        v_max = round(rng.uniform(0.3, 4.0), rng.choice([1, 2, 3]))
+        decel = round(rng.uniform(0.2, 3.0), rng.choice([1, 2]))
+        block = v_max * v_max / (2 * decel) / rng.randint(1, 6)
+        reserved = line_arrivals(v_max, 0.8, decel, block, 12, True)
+        assert reserved == line_arrivals(v_max, 0.8, decel, block, 12, False), (case, v_max, decel, block)
 
 
 @pytest.mark.parametrize("margin", [0.0, 5.0])
