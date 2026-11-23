@@ -31,12 +31,14 @@ from simulatte.intralogistics.events import (
     TrafficWaitEnded,
     TrafficWaitStarted,
 )
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import Disposition, Reroute
 from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics.test_travel import ARC, Plain, Scripted, World, vehicle, world
 from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, build
+from tests.intralogistics.traffic_support import World as Declared
 
 RIGHT = math.pi / 2
 
@@ -62,9 +64,9 @@ def turning(**options: Any) -> AGVType:
     return replace(vehicle(), **options)
 
 
-def l_shape() -> Any:
+def l_shape(env: Environment) -> Declared:
     """``N0`` to ``N1`` eastwards and ``N1`` to ``N2`` northwards, 10 m each."""
-    return build([("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10)], [("N0", "N1"), ("N1", "N2")])
+    return build(env, [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10)], [("N0", "N1"), ("N1", "N2")])
 
 
 def arc_times(w: World, agv: str = "A") -> list[tuple[str, float]]:
@@ -72,7 +74,7 @@ def arc_times(w: World, agv: str = "A") -> list[tuple[str, float]]:
 
 
 def run_l(agv_type: AGVType, *, reserve: bool) -> World:
-    w = world(l_shape(), {"A": "N0"}, reserve=reserve, agv_type=agv_type)
+    w = world(l_shape, {"A": "N0"}, reserve=reserve, agv_type=agv_type)
     w.go("A", "N2")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -146,7 +148,7 @@ def test_a_turn_wait_holds_the_claims_ahead_and_a_stop_request_takes_effect_at_o
     w = run_l(turning(turn_time=proportional), reserve=True)
     assert not w.of(AgvMoveInterrupted)
 
-    w = world(l_shape(), {"A": "N0"}, reserve=True, agv_type=turning(turn_time=proportional))
+    w = world(l_shape, {"A": "N0"}, reserve=True, agv_type=turning(turn_time=proportional))
     process = w.go("A", "N2")
     w.interrupt(process, 10.0)  # the wait lasts from ARC to ARC + 2
     w.env.run(until=9.0)
@@ -165,13 +167,13 @@ def test_a_turn_wait_holds_the_claims_ahead_and_a_stop_request_takes_effect_at_o
 
 
 def test_a_straight_continuation_costs_nothing() -> None:
-    graph = build([("P0", 0, 0), ("P1", 10, 0), ("P2", 20, 0)], [("P0", "P1"), ("P1", "P2")])
+    points, links = [("P0", 0, 0), ("P1", 10, 0), ("P2", 20, 0)], [("P0", "P1"), ("P1", "P2")]
     spy = Spy(proportional)
     cap = Spy(lambda angle: math.inf if angle == 0 else 0.5)
-    w = world(graph, {"A": "P0"}, agv_type=turning(turn_time=spy, corner_speed=cap))
+    w = world(lambda env: build(env, points, links), {"A": "P0"}, agv_type=turning(turn_time=spy, corner_speed=cap))
     w.go("A", "P2")
     w.env.run()
-    free = world(build([("P0", 0, 0), ("P1", 10, 0), ("P2", 20, 0)], [("P0", "P1"), ("P1", "P2")]), {"A": "P0"})
+    free = world(lambda env: build(env, points, links), {"A": "P0"})
     free.go("A", "P2")
     free.env.run()
     assert [e.t for e in w.of(AgvMoveEnded)] == [e.t for e in free.of(AgvMoveEnded)]
@@ -179,9 +181,12 @@ def test_a_straight_continuation_costs_nothing() -> None:
 
 
 def test_the_first_arc_after_placement_turns_for_free_and_reversing_is_a_turn_of_pi() -> None:
-    graph = build([("N0", 0, 0), ("N1", 10, 0)], [("N0", "N1")])
     spy = Spy(proportional)
-    w = world(graph, {"A": "N0"}, agv_type=turning(turn_time=spy))
+    w = world(
+        lambda env: build(env, [("N0", 0, 0), ("N1", 10, 0)], [("N0", "N1")]),
+        {"A": "N0"},
+        agv_type=turning(turn_time=spy),
+    )
     assert w.agvs["A"].heading is None
     w.go("A", "N1")
     w.env.run()
@@ -197,7 +202,7 @@ def test_the_first_arc_after_placement_turns_for_free_and_reversing_is_a_turn_of
 
 def test_a_turn_at_the_start_of_a_travel_from_rest_waits_before_departure() -> None:
     spy = Spy(proportional)
-    w = world(l_shape(), {"A": "N0"}, agv_type=turning(turn_time=spy))
+    w = world(l_shape, {"A": "N0"}, agv_type=turning(turn_time=spy))
     w.go("A", "N1")
     w.env.run()
     w.go("A", "N2", at=20.0)  # the heading is east; the arc to N2 goes north
@@ -219,12 +224,9 @@ def test_a_turn_at_the_start_of_a_travel_from_rest_waits_before_departure() -> N
 )
 def test_the_heading_change_is_the_wrapped_absolute_difference(first: float, second: float, expected: float) -> None:
     x, y = 10 * math.cos(first), 10 * math.sin(first)
-    graph = build(
-        [("P", 0, 0), ("Q", x, y), ("R", x + 10 * math.cos(second), y + 10 * math.sin(second))],
-        [("P", "Q"), ("Q", "R")],
-    )
+    points = [("P", 0, 0), ("Q", x, y), ("R", x + 10 * math.cos(second), y + 10 * math.sin(second))]
     spy = Spy(lambda angle: 0.0)
-    w = world(graph, {"A": "P"}, agv_type=turning(turn_time=spy))
+    w = world(lambda env: build(env, points, [("P", "Q"), ("Q", "R")]), {"A": "P"}, agv_type=turning(turn_time=spy))
     w.go("A", "R")
     w.env.run()
     assert spy.angles == [pytest.approx(expected, abs=1e-9)]
@@ -234,11 +236,33 @@ def test_the_heading_change_is_the_wrapped_absolute_difference(first: float, sec
 def test_an_arc_whose_chord_has_no_direction_leaves_the_heading_unchanged() -> None:
     """``N1`` and ``N2`` coincide: the turn at ``N1`` into the zero-length arc is 0, and the turn at ``N2`` is measured
     from the last known heading, east."""
-    graph = build(
-        [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 0), ("N3", 10, 10)], [("N0", "N1"), ("N1", "N2"), ("N2", "N3")]
+    # Explicit mode, built here by hand: the layout rejects an arc between two nodes at one position (spec L16), and
+    # this test goes with that support.
+    nodes = {name: Node(name, x, y) for name, x, y in (("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 0), ("N3", 10, 10))}
+    graph = LayoutGraph(
+        nodes.values(), [Arc(nodes[a], nodes[b]) for a, b in (("N0", "N1"), ("N1", "N2"), ("N2", "N3"))]
     )
+
+    def explicit_world(start: str, agv_type: AGVType) -> World:
+        env = Environment(debug=True)
+        replay = FullReplay(env)
+        controller = ReservationController(env=env, graph=graph)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="A", initial_node=nodes[start])
+        fleet = StillFleet(
+            env=env,
+            graph=graph,
+            fleet=[agv],
+            warehouses=[],
+            charging_stations=[],
+            traffic_controller=controller,
+            default_metrics=False,
+        )
+        TrafficInvariants(env, controller)
+        env.activate()
+        return World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
+
     spy = Spy(lambda angle: 0.0)
-    w = world(graph, {"A": "N0"}, agv_type=turning(turn_time=spy))
+    w = explicit_world("N0", turning(turn_time=spy))
     w.go("A", "N3")
     w.env.run()
     assert spy.angles == [0.0, pytest.approx(RIGHT)]
@@ -246,7 +270,7 @@ def test_an_arc_whose_chord_has_no_direction_leaves_the_heading_unchanged() -> N
 
     # a vehicle that has never had a direction turns for free across it and after it
     spy = Spy(lambda angle: 0.0)
-    w = world(graph, {"A": "N1"}, agv_type=turning(turn_time=spy))
+    w = explicit_world("N1", turning(turn_time=spy))
     w.go("A", "N3")
     w.env.run()
     assert spy.angles == []
@@ -266,7 +290,7 @@ def test_an_arc_whose_chord_has_no_direction_leaves_the_heading_unchanged() -> N
     ],
 )
 def test_invalid_turning_values_raise(option: str, value: float) -> None:
-    w = world(l_shape(), {"A": "N0"}, agv_type=turning(**{option: lambda angle: value}))
+    w = world(l_shape, {"A": "N0"}, agv_type=turning(**{option: lambda angle: value}))
     w.go("A", "N2")
     with pytest.raises(ValueError, match=rf"AGVType 'cart': {option}\(1\.5707963\d*\) returned"):
         w.env.run()
@@ -275,13 +299,13 @@ def test_invalid_turning_values_raise(option: str, value: float) -> None:
 # --- both controllers --------------------------------------------------------------------------------------------
 
 
-def staircase(lengths: list[float]) -> Any:
+def staircase(env: Environment, lengths: list[float]) -> Declared:
     """Arcs of the given lengths alternating east and north, from ``S0``."""
     points, x, y = [("S0", 0.0, 0.0)], 0.0, 0.0
     for i, length in enumerate(lengths):
         x, y = (x + length, y) if i % 2 == 0 else (x, y + length)
         points.append((f"S{i + 1}", x, y))
-    return build(points, [(f"S{i}", f"S{i + 1}") for i in range(len(lengths))])
+    return build(env, points, [(f"S{i}", f"S{i + 1}") for i in range(len(lengths))])
 
 
 @pytest.mark.parametrize(
@@ -297,7 +321,7 @@ def test_a_lone_vehicle_has_the_same_times_under_both_controllers(lengths: list[
         options["turn_time"] = lambda angle: 1.5 * angle / RIGHT
     times = []
     for reserve in (False, True):
-        w = world(staircase(lengths), {"A": "S0"}, reserve=reserve, agv_type=turning(**options))
+        w = world(lambda env: staircase(env, lengths), {"A": "S0"}, reserve=reserve, agv_type=turning(**options))
         w.go("A", f"S{len(lengths)}")
         w.env.run()
         assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -321,7 +345,7 @@ def test_seeded_lone_vehicles_with_turning_match_free_flow_exactly() -> None:
         )
         times = []
         for reserve in (False, True):
-            w = world(staircase(lengths), {"A": "S0"}, reserve=reserve, agv_type=kind)
+            w = world(lambda env: staircase(env, lengths), {"A": "S0"}, reserve=reserve, agv_type=kind)
             w.go("A", f"S{len(lengths)}")
             w.env.run()
             times.append([(e.node, e.t) for e in w.of(AgvMoveEnded)])
@@ -341,7 +365,7 @@ def test_the_look_ahead_counts_a_corner_cap_among_the_caps_the_backward_pass_rea
     )
     worlds = {}
     for reserve in (False, True):
-        w = worlds[reserve] = world(staircase(lengths), {"A": "S0"}, reserve=reserve, agv_type=kind)
+        w = worlds[reserve] = world(lambda env: staircase(env, lengths), {"A": "S0"}, reserve=reserve, agv_type=kind)
         w.go("A", f"S{len(lengths)}")
         w.env.run()
     assert arc_times(worlds[True]) == arc_times(worlds[False])
@@ -353,7 +377,7 @@ def test_the_look_ahead_counts_a_corner_cap_among_the_caps_the_backward_pass_rea
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_a_turn_wait_reports_serving_and_a_run_reports_moving(reserve: bool) -> None:
-    w = world(l_shape(), {"A": "N0"}, reserve=reserve, agv_type=turning(turn_time=proportional))
+    w = world(l_shape, {"A": "N0"}, reserve=reserve, agv_type=turning(turn_time=proportional))
     a, view = w.agvs["A"], w.controller.view
     w.go("A", "N2")
     w.env.run(until=4.0)
@@ -370,19 +394,20 @@ def test_a_reroute_after_a_turn_wait_turns_again_towards_the_new_first_arc() -> 
     """A new direction is a new turn: ``A``, heading north, turns to east at ``S`` (2 s), is blocked by ``B`` on ``P``,
     is sent round through ``Q`` and turns from north to north-east (1 s) before it leaves. Its heading has not changed
     by waiting, so the second turn is measured from north again."""
-    graph_nodes = build(
-        [("K", 0, -10), ("S", 0, 0), ("P", 10, 0), ("Q", 10, 10), ("E", 20, 0)],
-        [("K", "S"), ("S", "P"), ("P", "E"), ("S", "Q"), ("Q", "E")],
-    )
-    policy = Scripted(blocked=(Reroute(frozenset({graph_nodes[1]["P"]})),))
+    policy = Scripted()
     w = world(
-        graph_nodes,
+        lambda env: build(
+            env,
+            [("K", 0, -10), ("S", 0, 0), ("P", 10, 0), ("Q", 10, 10), ("E", 20, 0)],
+            [("K", "S"), ("S", "P"), ("P", "E"), ("S", "Q"), ("Q", "E")],
+        ),
         {"A": "K", "B": "P"},
         agv_type=turning(turn_time=proportional),
         derive_corridors=False,
         hold_back_dead_ends=False,
         policy=policy,
     )
+    policy.blocked = (Reroute(frozenset({w.nodes["P"]})),)
     w.go("A", "S")
     w.env.run()
     w.go("A", "E", at=20.0)
@@ -397,9 +422,9 @@ def test_a_reroute_after_a_turn_wait_turns_again_towards_the_new_first_arc() -> 
 # --- fix round 1: the tolerance of the heading change, and the order of energy check, turn and claim wait ----------
 
 
-def noisy_line() -> Any:
+def noisy_line(env: Environment) -> Declared:
     """Six collinear nodes whose coordinates carry rounding: the computed heading changes are 5.6e-17 and 1.1e-16."""
-    return build([(f"P{i}", 7.1 * i, 0.3 * 7.1 * i) for i in range(6)], [(f"P{i}", f"P{i + 1}") for i in range(5)])
+    return build(env, [(f"P{i}", 7.1 * i, 0.3 * 7.1 * i) for i in range(6)], [(f"P{i}", f"P{i + 1}") for i in range(5)])
 
 
 @pytest.mark.parametrize("reserve", [False, True])
@@ -417,7 +442,7 @@ def test_rounding_in_the_coordinates_does_not_turn_a_straight_continuation(reser
     kind = turning(**{"corner_speed" if option == "corner_speed" else "turn_time": spy})
     results = []
     for agv_type in (kind, vehicle()):
-        w = world(noisy_line(), {"A": "P0"}, reserve=reserve, agv_type=agv_type)
+        w = world(noisy_line, {"A": "P0"}, reserve=reserve, agv_type=agv_type)
         w.go("A", "P5")
         w.env.run()
         assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -429,16 +454,16 @@ def test_rounding_in_the_coordinates_does_not_turn_a_straight_continuation(reser
 
 def charger_world(turn: bool) -> World:
     """The L route with a charging station on ``N1``; the vehicle holds 11 units and an arc takes 10."""
-    graph, nodes = l_shape()
     env = Environment(debug=True)
     replay = FullReplay(env)
-    controller = ReservationController(env=env, graph=graph)
+    declared = l_shape(env)
+    controller = ReservationController(env=env, graph=declared.graph)
     agv_type = turning(turn_time=proportional if turn else None, battery_capacity=11.0)
-    agv = AGV(env=env, agv_type=agv_type, agv_id="A", initial_node=nodes["N0"])
-    station = ChargingStation(env=env, name="CS", node=nodes["N1"], n_slots=1)
+    agv = AGV(env=env, agv_type=agv_type, agv_id="A", initial_node=declared.ref("N0"))
+    station = ChargingStation(env=env, name="CS", node=declared.ref("N1"), n_slots=1)
     fleet = StillFleet(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=[agv],
         warehouses=[],
         charging_stations=[station],
@@ -447,13 +472,14 @@ def charger_world(turn: bool) -> World:
     )
     TrafficInvariants(env, controller)
     env.activate()
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
     return World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
 
 
 def test_the_energy_check_comes_before_the_turn_wait_and_strands_at_once() -> None:
     """The vehicle arrives at N1 with 1 unit left. The travel to N2 turns 90 degrees (2 s) and the arc needs 10: the
     check comes first, so ``agv.stranded`` is emitted when the travel starts, not after the turn."""
-    w = world(l_shape(), {"A": "N0"}, agv_type=turning(turn_time=proportional, battery_capacity=11.0))
+    w = world(l_shape, {"A": "N0"}, agv_type=turning(turn_time=proportional, battery_capacity=11.0))
     w.go("A", "N1")
     w.env.run()
     assert w.agvs["A"].battery.level == 1.0
@@ -481,10 +507,15 @@ def test_a_charging_diversion_does_not_serve_the_turn_towards_the_abandoned_arc(
 def blocked_corner(leaves: float) -> World:
     """The L route of :func:`l_shape` extended to ``N3``; ``A`` turns at ``N1`` from 8.54 to 10.54 while ``B`` stands on
     ``N2`` and leaves for ``N3`` at `leaves`."""
-    graph = build(
-        [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10), ("N3", 10, 20)], [("N0", "N1"), ("N1", "N2"), ("N2", "N3")]
+    w = world(
+        lambda env: build(
+            env,
+            [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10), ("N3", 10, 20)],
+            [("N0", "N1"), ("N1", "N2"), ("N2", "N3")],
+        ),
+        {"A": "N0", "B": "N2"},
+        agv_type=turning(turn_time=proportional),
     )
-    w = world(graph, {"A": "N0", "B": "N2"}, agv_type=turning(turn_time=proportional))
     w.go("A", "N2")
     w.go("B", "N3", at=leaves)
     w.env.run()
@@ -510,10 +541,15 @@ def test_the_claim_is_requested_before_the_turn_wait_at_the_start_of_a_travel() 
     """``A`` has stopped at N1 heading east and sets out for N2 at 20: a turn of 2 s. ``B`` stands on N2 and leaves at
     21, during the turn. The claim was asked for at 20, so it is granted at 21 and the vehicle leaves at 22 with no
     traffic wait."""
-    graph = build(
-        [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10), ("N3", 10, 20)], [("N0", "N1"), ("N1", "N2"), ("N2", "N3")]
+    w = world(
+        lambda env: build(
+            env,
+            [("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 10), ("N3", 10, 20)],
+            [("N0", "N1"), ("N1", "N2"), ("N2", "N3")],
+        ),
+        {"A": "N0", "B": "N2"},
+        agv_type=turning(turn_time=proportional),
     )
-    w = world(graph, {"A": "N0", "B": "N2"}, agv_type=turning(turn_time=proportional))
     w.go("A", "N1")
     w.env.run()
     w.go("A", "N2", at=20.0)

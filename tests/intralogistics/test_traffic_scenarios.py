@@ -68,10 +68,12 @@ from tests.intralogistics.traffic_support import (
     FullReplay,
     TrafficInvariants,
     build,
+    declare,
     loop_with_side_node,
     t_layout,
     two_junction_corridor,
 )
+from tests.intralogistics.traffic_support import World as Declared
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -133,14 +135,14 @@ def appendix_a(env: Environment, *, observed: bool = True, **type_options: Any) 
     submitted yet (see :func:`run_appendix_a`). The replay and the invariants are attached unless `observed` is false,
     in which case ``Mission.replay`` and the invariants are ``None`` and the world subscribes to nothing. `type_options`
     replace or add ``AGVType`` fields (the appendix has none)."""
-    graph, nodes = t_layout()
-    controller = ReservationController(env=env, graph=graph)
+    declared = t_layout(env)
+    controller = ReservationController(env=env, graph=declared.graph)
     sku = SKU(id="A", weight=5.0, volume=0.2)
     storage = Warehouse(
         env=env,
         name="Storage",
-        input_bays=[nodes["STORE_OUT"]],
-        output_bays=[nodes["STORE_OUT"]],
+        input_bays=[declared.ref("STORE_OUT")],
+        output_bays=[declared.ref("STORE_OUT")],
         n_slots=3,
         products=[sku],
         initial_inventory={sku: 50},
@@ -150,8 +152,8 @@ def appendix_a(env: Environment, *, observed: bool = True, **type_options: Any) 
     line = Warehouse(
         env=env,
         name="Line",
-        input_bays=[nodes["LINE_IN"]],
-        output_bays=[nodes["LINE_IN"]],
+        input_bays=[declared.ref("LINE_IN")],
+        output_bays=[declared.ref("LINE_IN")],
         n_slots=3,
         products=[sku],
         initial_inventory={},
@@ -171,11 +173,13 @@ def appendix_a(env: Environment, *, observed: bool = True, **type_options: Any) 
             **type_options,
         }
     )
-    vehicles = [AGV(env=env, agv_type=kind, initial_node=nodes[start]) for start in ("C1", "PARK")]  # agv-0, agv-1
+    vehicles = [
+        AGV(env=env, agv_type=kind, initial_node=declared.ref(start)) for start in ("C1", "PARK")
+    ]  # agv-0, agv-1
     agvs = {agv.id: agv for agv in vehicles}
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=vehicles,
         warehouses=[storage, line],
         charging_stations=[],
@@ -184,8 +188,10 @@ def appendix_a(env: Environment, *, observed: bool = True, **type_options: Any) 
     )
     replay = FullReplay(env, from_snapshot=True) if observed else cast(FullReplay, None)
     invariants = TrafficInvariants(env, controller) if observed else cast(TrafficInvariants, None)
+    orders = [fleet.create_order(sku=sku, quantity=2, origin=storage, destination=line) for _ in range(3)]
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}  # prepares the layout, after the orders
     m = Mission(env, fleet, nodes, agvs, {"Storage": storage, "Line": line}, {}, {}, replay)
-    m.orders = [fleet.create_order(sku=sku, quantity=2, origin=storage, destination=line) for _ in range(3)]
+    m.orders = orders
     return m, invariants
 
 
@@ -397,27 +403,23 @@ def test_the_motion_scenario_digest_is_the_same_across_hash_seeds() -> None:
 # --- spec §17: control ---------------------------------------------------------------------------------------------
 
 
-def one_way_line() -> tuple[LayoutGraph, dict[str, Node]]:
+def one_way_line(env: Environment, **network: Any) -> Declared:
     """A one-way line ``S -> N0 -> N1`` of 10 m and 30 m, split into blocks of at most 10 m: the nodes ``N0~N1#1`` and
     ``N0~N1#2`` appear between ``N0`` and ``N1``."""
     nodes = [Node("S", -10, 0), Node("N0", 0, 0), Node("N1", 30, 0)]
     graph = LayoutGraph(
         nodes, [Arc(nodes[0], nodes[1], bidirectional=False), Arc(nodes[1], nodes[2], bidirectional=False)]
     )
-    graph = graph.subdivide(10.0)
-    return graph, {node.id: node for node in graph.nodes}
+    return declare(env, graph.subdivide(10.0), **network)
 
 
 def test_following_on_a_subdivided_one_way_line() -> None:
     """The second AGV waits for the first to leave the bay, then runs one block behind it; neither fails."""
-    graph_nodes = one_way_line()
-    nodes = graph_nodes[1]
     m, invariants = scenario(
-        graph_nodes,
+        lambda env: one_way_line(env, capacities={"N1": 2}),  # the end of the line takes both vehicles
         {"A": "N0", "B": "S"},
         bays={"W0": "N0", "W1": "N1"},
         agv_type=vehicle(length=1.0),
-        controller_options={"capacities": {nodes["N1"]: 2}},  # the end of the line takes both vehicles
     )
     m.order("W0", "W1")
     m.order("W0", "W1")
@@ -438,7 +440,7 @@ def test_following_on_a_subdivided_one_way_line() -> None:
 
 def test_head_on_in_a_corridor_the_second_agv_waits_before_its_port() -> None:
     m, invariants = scenario(
-        two_junction_corridor(),
+        two_junction_corridor,
         {"A": "x1", "B": "x2"},
         bays={"X1": "x1", "X2": "x2", "Y1": "y1", "Y2": "y2"},
     )
@@ -464,7 +466,7 @@ def test_head_on_in_a_corridor_the_second_agv_waits_before_its_port() -> None:
 def test_a_swap_with_a_second_route_is_resolved_by_reroute() -> None:
     """``S1 -> S2`` and ``S2 -> S1`` over the corridor ``J1, L, J2``: A waits for S2 inside the corridor while B holds
     S2 and waits for the corridor. The victim takes the other chain."""
-    m, invariants = scenario(loop_with_side_node(), {"A": "S1", "B": "S2"}, bays={"W1": "S1", "W2": "S2"})
+    m, invariants = scenario(loop_with_side_node, {"A": "S1", "B": "S2"}, bays={"W1": "S1", "W2": "S2"})
     m.order("W1", "W2")
     m.order("W2", "W1")
     m.env.run()
@@ -479,11 +481,15 @@ def test_a_swap_with_a_second_route_is_resolved_by_reroute() -> None:
 def test_a_swap_without_another_route_is_resolved_by_step_aside() -> None:
     """The same swap on a graph whose only connection is the corridor ``J1, U, J2``: the victim steps aside onto a side
     leaf of the junction and drives on when the corridor is free."""
-    graph_nodes = build(
-        [("J1", 0, 0), ("U", 10, 0), ("J2", 20, 0), ("S1", -10, 0), ("S2", 30, 0), ("X1", 0, 10), ("X2", 20, 10)],
-        [("J1", "U"), ("U", "J2"), ("J1", "S1"), ("J2", "S2"), ("J1", "X1"), ("J2", "X2")],
+    m, invariants = scenario(
+        lambda env: build(
+            env,
+            [("J1", 0, 0), ("U", 10, 0), ("J2", 20, 0), ("S1", -10, 0), ("S2", 30, 0), ("X1", 0, 10), ("X2", 20, 10)],
+            [("J1", "U"), ("U", "J2"), ("J1", "S1"), ("J2", "S2"), ("J1", "X1"), ("J2", "X2")],
+        ),
+        {"A": "S1", "B": "S2"},
+        bays={"W1": "S1", "W2": "S2"},
     )
-    m, invariants = scenario(graph_nodes, {"A": "S1", "B": "S2"}, bays={"W1": "S1", "W2": "S2"})
     m.order("W1", "W2")
     m.order("W2", "W1")
     m.env.run()
@@ -495,10 +501,11 @@ def test_a_swap_without_another_route_is_resolved_by_step_aside() -> None:
     assert not [e for e in m.events(AgvRouted) if e.reason == "deadlock"]  # there is no other route to take
 
 
-def stream_world() -> tuple[LayoutGraph, dict[str, Node]]:
+def stream_world(env: Environment, **network: Any) -> Declared:
     """A corridor ``J1, a, b, J2`` with four bay leaves on each junction and a parking leaf on each, for idle AGVs to
     step off to."""
     return build(
+        env,
         [
             ("J1", 0, 0),
             ("a", 10, 0),
@@ -530,19 +537,18 @@ def stream_world() -> tuple[LayoutGraph, dict[str, Node]]:
             ("J2", "v2"),
             ("J2", "p2"),
         ],
+        **network,
     )
 
 
 def stream(port: int, *, clear_service_nodes: bool) -> tuple[Mission, TrafficInvariants]:
     """The fairness scenario on :func:`stream_world` with the port J2 of capacity `port`: forward stream A1 (x1 to y2)
     and A2 (y1 to w2), W the other way (x2 to u1), and A3 (z1 to v2) at 20, after the corridor is held forward."""
-    graph, nodes = stream_world()
     m, invariants = scenario(
-        (graph, nodes),
+        lambda env: stream_world(env, capacities={"J2": port}),
         {"A1": "x1", "A2": "y1", "W": "x2", "A3": "z1"},
         bays={name.upper(): name for name in ("x1", "y1", "z1", "u1", "x2", "y2", "w2", "v2")},
         parking={"P1": ("p1", 4), "P2": ("p2", 4)},
-        controller_options={"capacities": {nodes["J2"]: port}},
         clear_service_nodes=clear_service_nodes,
     )
     m.order("X1", "Y2")  # A1
@@ -599,19 +605,23 @@ def test_known_lapse_a_vehicle_outside_the_corridor_on_the_waiters_port_lets_the
     assert ("clear_node", "y2", "p2") in m.routed("A1")
 
 
-def passing_place(kind: str) -> tuple[LayoutGraph, dict[str, Node]]:
+def passing_place(env: Environment, kind: str, **network: Any) -> Declared:
     """``x1 ... a, P, b ... x2`` with P of capacity 2 (set by the test): two corridors ``J1, a, P`` and ``P, b, J2``
     between junctions with two leaves each (``corridors``), or the line ``x1, a, P, b, x2`` of two dead ends rooted at
     P (``dead_ends``)."""
     if kind == "dead_ends":
         return build(
+            env,
             [("x1", 0, 0), ("a", 10, 0), ("P", 20, 0), ("b", 30, 0), ("x2", 40, 0)],
             [("x1", "a"), ("a", "P"), ("P", "b"), ("b", "x2")],
+            **network,
         )
     return build(
+        env,
         [("J1", 0, 0), ("a", 10, 0), ("P", 20, 0), ("b", 30, 0), ("J2", 40, 0)]
         + [("x1", -10, 10), ("y1", -10, -10), ("x2", 50, 10), ("y2", 50, -10)],
         [("J1", "a"), ("a", "P"), ("P", "b"), ("b", "J2"), ("J1", "x1"), ("J1", "y1"), ("J2", "x2"), ("J2", "y2")],
+        **network,
     )
 
 
@@ -619,12 +629,10 @@ def passing_place(kind: str) -> tuple[LayoutGraph, dict[str, Node]]:
 def test_two_agvs_head_on_at_a_node_of_capacity_two_complete_through_one_resolved_deadlock(kind: str) -> None:
     """spec §7.2, §18: the hold-back treats a port or root of capacity above 1 like any other, so two AGVs that meet
     head-on each stop one node before P; the deadlock is resolved by one step aside and both orders complete."""
-    graph, nodes = passing_place(kind)
     m, invariants = scenario(
-        (graph, nodes),
+        lambda env: passing_place(env, kind, capacities={"P": 2}),
         {"A": "x1", "B": "x2"},
         bays={"WA": "x1", "WB": "x2"},
-        controller_options={"capacities": {nodes["P"]: 2}},
     )
     m.order("WA", "WB")  # A
     m.order("WB", "WA")  # B
@@ -637,12 +645,10 @@ def test_a_vehicle_does_not_wait_on_a_roomy_port_where_a_resting_agv_holds_the_o
     """The reviewer's plug: S1 rests on the port J2 (capacity 2); W carries from x2 into the corridor while S2, inside
     it, carries out through J2. Had W waited on J2, it would take the slot S2 needs, and neither would move with nothing
     reported. W holds back before the port instead, and both orders complete."""
-    graph, nodes = two_junction_corridor()
     m, invariants = scenario(
-        (graph, nodes),
+        lambda env: two_junction_corridor(env, capacities={"J2": 2}),
         {"S1": "J2", "W": "x2", "S2": "x1"},
         bays={"WA": "x1", "WB": "x2", "WC": "y2"},
-        controller_options={"capacities": {nodes["J2"]: 2}},
     )
     m.order("WA", "WC", at=1.0)  # S2, through the corridor and J2
     m.order("WB", "WA", at=1.0)  # W, the other way
@@ -653,9 +659,8 @@ def test_a_vehicle_does_not_wait_on_a_roomy_port_where_a_resting_agv_holds_the_o
 def test_a_swap_past_a_resting_agv_on_a_roomy_root_is_a_reported_deadlock() -> None:
     """The reviewer's second plug: ``x1, a, P, b, x2`` with an AGV parked on the parking area of capacity 2 on P, and
     two AGVs swapping ends. There is no way past: the deadlock is reported unresolved, once, and the run returns."""
-    graph, nodes = passing_place("dead_ends")
     m, invariants = scenario(
-        (graph, nodes),
+        lambda env: passing_place(env, "dead_ends"),
         {"I": "P", "A": "x1", "B": "x2"},
         bays={"WA": "x1", "WB": "x2"},
         parking={"PK": ("P", 2)},
@@ -674,13 +679,13 @@ def test_an_agv_parked_on_a_roomy_port_is_dispatched_through_the_empty_corridor_
     """I1 and I2 came through the corridor to the parking area of capacity 2 on the port J2, whose other neighbours are
     bays. I1 is then dispatched back through the empty corridor: neither keeps an exit record on J2 (spec §7.5), so
     I1's claims are granted at once and the order completes."""
-    graph, nodes = two_junction_corridor()
     m, invariants = scenario(
-        (graph, nodes),
+        two_junction_corridor,
         {"I1": "x1", "I2": "y1"},
         bays={"A": "x1", "D": "y1", "B": "x2", "C": "y2"},
         parking={"P": ("J2", 2)},
     )
+    nodes = m.nodes
     m.at(1.0, lambda: m.fleet.make_way(m.agvs["I1"], nodes["J2"]))
     m.at(60.0, lambda: m.fleet.make_way(m.agvs["I2"], nodes["J2"]))
     m.order("D", "A", at=200.0)
@@ -696,12 +701,10 @@ def test_a_standstill_behind_waiting_blockers_on_a_roomy_port_is_reported_stuck(
     for the corridor, S2 waits before J2 for a slot held by I1 and by I2, which has nowhere to go. It is not a deadlock
     (I2 is not waiting), but both waits are stuck (spec §7.9): each is reported once, the run returns and no order
     fails."""
-    graph, nodes = two_junction_corridor()
     m, invariants = scenario(
-        (graph, nodes),
+        lambda env: two_junction_corridor(env, capacities={"J2": 2}),
         {"I1": "J2", "I2": "J2", "S2": "x1"},
         bays={"WA": "x1", "WB": "x2", "WC": "y2", "WD": "y1"},
-        controller_options={"capacities": {nodes["J2"]: 2}},
     )
     m.order("WA", "WC", at=1.0)  # S2: x1 to y2 through the corridor
     m.order("WD", "WA", at=3.0)  # I1: J2 to y1 through the corridor
@@ -717,9 +720,10 @@ def test_a_standstill_behind_waiting_blockers_on_a_roomy_port_is_reported_stuck(
     assert [o.status for o in m.orders] == [OrderStatus.IN_TRANSIT, OrderStatus.DISPATCHED]
 
 
-def long_corridor() -> tuple[LayoutGraph, dict[str, Node]]:
+def long_corridor(env: Environment) -> Declared:
     """A corridor ``J1, a, b, c, J2`` with three leaves on each junction and a parking leaf on each."""
     return build(
+        env,
         [
             ("J1", 0, 0),
             ("a", 10, 0),
@@ -777,7 +781,7 @@ def test_a_gate_that_would_complete_a_cycle_is_waived() -> None:
     a cycle stands without gates, is a real one and is resolved by a step aside."""
     sites = ["x1", "y1", "z1", "x2", "y2", "z2", "a", "b", "c"]
     m, invariants = scenario(
-        long_corridor(),
+        long_corridor,
         {"A0": "y2", "A1": "b", "A2": "z2"},
         bays={f"B{site}": site for site in sites},
         parking={"P1": ("p1", 4), "P2": ("p2", 4)},
@@ -808,7 +812,7 @@ def test_a_reroute_asked_of_an_agv_on_its_goal_during_a_step_aside_does_not_rais
     goal, and is asked for a reroute. It has arrived (spec §7.9): the run goes on and every order completes."""
     sites = ["x1", "y1", "z1", "x2", "y2", "z2", "a", "b", "c"]
     m, invariants = scenario(
-        long_corridor(),
+        long_corridor,
         {"A0": "a", "A1": "c", "A2": "b", "A3": "x1"},
         bays={f"B{site}": site for site in sites},
         parking={"P1": ("p1", 4), "P2": ("p2", 4)},
@@ -882,17 +886,17 @@ def test_the_default_builder_with_orders_in_both_directions() -> None:
 def test_two_fleets_share_a_controller() -> None:
     """Two fleets on one graph and one ``ReservationController`` meet head-on in a corridor: the second waits for the
     first, whatever fleet it belongs to."""
-    graph, nodes = two_junction_corridor()
     env = Environment(debug=True)
-    controller = ReservationController(env=env, graph=graph)
+    declared = two_junction_corridor(env)
+    controller = ReservationController(env=env, graph=declared.graph)
     kind = vehicle(length=0.0)
 
     def bay(name: str, node: str) -> Warehouse:
         return Warehouse(
             env=env,
             name=name,
-            input_bays=[nodes[node]],
-            output_bays=[nodes[node]],
+            input_bays=[declared.ref(node)],
+            output_bays=[declared.ref(node)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: 10},
@@ -904,8 +908,8 @@ def test_two_fleets_share_a_controller() -> None:
     fleets = {
         "first": FleetCoordinator(
             env=env,
-            graph=graph,
-            fleet=[AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes["x1"])],
+            graph=declared.graph,
+            fleet=[AGV(env=env, agv_type=kind, agv_id="A", initial_node=declared.ref("x1"))],
             warehouses=[sites["X1"], sites["Y2"]],
             charging_stations=[],
             traffic_controller=controller,
@@ -914,8 +918,8 @@ def test_two_fleets_share_a_controller() -> None:
         ),
         "second": FleetCoordinator(
             env=env,
-            graph=graph,
-            fleet=[AGV(env=env, agv_type=kind, agv_id="B", initial_node=nodes["x2"])],
+            graph=declared.graph,
+            fleet=[AGV(env=env, agv_type=kind, agv_id="B", initial_node=declared.ref("x2"))],
             warehouses=[sites["X2"], sites["Y1"]],
             charging_stations=[],
             traffic_controller=controller,
@@ -948,7 +952,7 @@ def test_a_lone_agv_arrives_at_the_same_times_under_both_controllers_on_the_appe
     runs = []
     for reserve in (True, False):
         m = mission_world(
-            t_layout(),
+            t_layout,
             {"A": "C1"},
             bays={"S": "STORE_OUT", "L": "LINE_IN", "P": "PARK"},
             reserve=reserve,
@@ -973,7 +977,7 @@ def test_a_lone_agv_arrives_at_the_same_times_under_both_controllers_on_a_line_s
         graph = LayoutGraph(ends, [Arc(ends[0], ends[1])]).subdivide(100.0 / pieces)
         assert len(graph.nodes) == pieces + 1
         m = mission_world(
-            (graph, {node.id: node for node in graph.nodes}),
+            lambda env: declare(env, graph),
             {"A": "L0"},
             bays={"W0": "L0", "W1": "L1"},
             reserve=reserve,
@@ -998,7 +1002,7 @@ def test_a_straight_line_split_into_arcs_takes_the_single_arc_time_under_both_co
     2 or 10 arcs, to 1e-9 relative, with the nodes passed at speed."""
     expected = 100.0 / 1.5 + 1.5 / 0.8
     assert steady().travel_time(100.0) == pytest.approx(expected, rel=1e-12)
-    w = world(straight(pieces, 100.0), {"A": "P0"}, reserve=reserve)
+    w = world(lambda env: straight(env, pieces, 100.0), {"A": "P0"}, reserve=reserve)
     w.go("A", f"P{pieces}")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -1009,7 +1013,7 @@ def test_a_straight_line_split_into_arcs_takes_the_single_arc_time_under_both_co
 
 
 def test_free_flow_creates_no_segment_or_zone_entity_and_emits_no_traffic_event() -> None:
-    m = mission_world(t_layout(), {"A": "C1", "B": "PARK"}, bays={"S": "STORE_OUT", "L": "LINE_IN"}, reserve=False)
+    m = mission_world(t_layout, {"A": "C1", "B": "PARK"}, bays={"S": "STORE_OUT", "L": "LINE_IN"}, reserve=False)
     m.order("S", "L")
     m.order("S", "L")
     m.env.run()

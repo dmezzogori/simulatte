@@ -7,6 +7,7 @@ coordinator's. Every world runs ``FullReplay`` and ``TrafficInvariants`` (see ``
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -22,7 +23,8 @@ from simulatte.intralogistics.events import (
     TrafficDeadlock,
     TrafficWaitStuck,
 )
-from simulatte.intralogistics.graph import LayoutGraph, Node
+from simulatte.environment import Environment
+from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.traffic import (
@@ -45,6 +47,7 @@ from tests.intralogistics.test_idle_traffic import (
     mission_world,
 )
 from tests.intralogistics.test_travel import vehicle, world
+from tests.intralogistics.traffic_support import World as Declared
 from tests.intralogistics.traffic_support import build, line
 
 
@@ -81,7 +84,7 @@ class Quitter(ReservationController):
 
 
 def quit_world(
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]],
+    shape: Callable[[Environment], Declared],
     agvs: dict[str, str],
     *goals: str,
     only: frozenset[str] | None = None,
@@ -89,7 +92,7 @@ def quit_world(
     **kw: Any,
 ) -> Mission:
     options = {"quits": frozenset(goals), "agvs": only}
-    return mission_world(graph_nodes, agvs, controller_type=controller_type, controller_options=options, **kw)
+    return mission_world(shape, agvs, controller_type=controller_type, controller_options=options, **kw)
 
 
 def asked(m: Mission) -> list[tuple[str, str, bool]]:
@@ -136,7 +139,7 @@ class Snapshots:
 def test_an_order_is_requeued_for_traffic_at_most_max_traffic_requeues_times(limit: int | None) -> None:
     options = {} if limit is None else {"max_traffic_requeues": limit}
     bound = 3 if limit is None else limit
-    m = quit_world(lane(), {"A": "M"}, "S", bays={"WH-S": "S", "WH-D": "D"}, **options)
+    m = quit_world(lane, {"A": "M"}, "S", bays={"WH-S": "S", "WH-D": "D"}, **options)
     order = m.order("WH-S", "WH-D")
     snapshots = Snapshots(m)
     m.env.run()
@@ -161,9 +164,8 @@ def test_a_give_up_through_the_standard_machinery_requeues_and_the_run_returns()
         def on_blocked(self, wait: Wait, view: TrafficView) -> tuple[Any, ...]:
             return (GiveUp(), KeepWaiting())
 
-    graph_nodes = line(3)
     m = mission_world(
-        graph_nodes,
+        lambda env: line(env, 3),
         {"A": "N0", "B": "N1"},
         bays={"WH-0": "N0", "WH-2": "N2"},
         controller_options={"policy": GivesUp()},
@@ -183,15 +185,15 @@ class _OnlyA:
         return next((agv for agv in fleet if agv.id == "A" and agv.state is AGVState.IDLE), None)
 
 
-def charge_lane() -> tuple[LayoutGraph, dict[str, Node]]:
+def charge_lane(env: Environment) -> Declared:
     """``M`` and ``D`` 10 m apart, with the charger node ``CH`` 4 m from ``M``."""
-    return build([("M", 0, 0), ("D", 10, 0), ("CH", 0, 4)], [("M", "D"), ("M", "CH")])
+    return build(env, [("M", 0, 0), ("D", 10, 0), ("CH", 0, 4)], [("M", "D"), ("M", "CH")])
 
 
 def test_a_charging_diversion_before_pickup_is_part_of_the_order_mission() -> None:
     """A at M cannot cover the 10 m to the origin bay on 8 units but reaches the charger 4 m away."""
     m = quit_world(
-        charge_lane(),
+        charge_lane,
         {"A": "M"},
         "CH",
         bays={"WH-D": "D", "WH-M": "M"},
@@ -212,9 +214,10 @@ def test_a_charging_diversion_before_pickup_is_part_of_the_order_mission() -> No
 
 def test_a_charging_diversion_after_a_critical_arrival_gives_up_too() -> None:
     """A arrives critical at M, which is not its goal, and the mission charges first: that travel gives up."""
-    graph_nodes = build([("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("CH", 10, 2)], [("S", "M"), ("M", "D"), ("M", "CH")])
     m = quit_world(
-        graph_nodes,
+        lambda env: build(
+            env, [("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("CH", 10, 2)], [("S", "M"), ("M", "D"), ("M", "CH")]
+        ),
         {"A": "S"},
         "CH",
         bays={"WH-D": "D", "WH-S": "S"},
@@ -235,7 +238,7 @@ def test_a_charging_diversion_after_a_critical_arrival_gives_up_too() -> None:
 
 
 def test_an_agv_with_cargo_does_not_give_up_a_delivery() -> None:
-    m = quit_world(lane(), {"A": "S"}, "D", bays={"WH-S": "S", "WH-D": "D"})
+    m = quit_world(lane, {"A": "S"}, "D", bays={"WH-S": "S", "WH-D": "D"})
     order = m.order("WH-S", "WH-D")
     m.env.run()
     assert asked(m) == [("A", "D", False)]
@@ -246,7 +249,7 @@ def test_an_agv_with_cargo_does_not_give_up_a_delivery() -> None:
 def test_an_agv_with_cargo_does_not_give_up_a_charging_diversion() -> None:
     """The diversion travels unloaded, but the cargo is on board: 8 units do not cover the loaded 10 m to D."""
     m = quit_world(
-        charge_lane(),
+        charge_lane,
         {"A": "M"},
         "CH",
         bays={"WH-M": "M", "WH-D": "D"},
@@ -266,7 +269,7 @@ def test_an_agv_with_cargo_does_not_give_up_a_charging_diversion() -> None:
 
 
 def test_a_repositioning_travel_that_gives_up_ends_idle_in_place(caplog: pytest.LogCaptureFixture) -> None:
-    m = quit_world(lane(), {"A": "S"}, "END", bays={"WH-S": "S", "WH-D": "D"})
+    m = quit_world(lane, {"A": "S"}, "END", bays={"WH-S": "S", "WH-D": "D"})
     m.fleet._repositioning_policy = Always(m.nodes["END"])
     order = m.order("WH-S", "WH-D")
     m.env.run()
@@ -278,7 +281,7 @@ def test_a_repositioning_travel_that_gives_up_ends_idle_in_place(caplog: pytest.
 
 
 def test_a_clearing_travel_that_gives_up_ends_idle_in_place() -> None:
-    m = quit_world(lane(), {"A": "S"}, "FAR", bays={"WH-S": "S", "WH-D": "D"})
+    m = quit_world(lane, {"A": "S"}, "FAR", bays={"WH-S": "S", "WH-D": "D"})
     m.order("WH-S", "WH-D")
     m.env.run()
     a = m.agvs["A"]
@@ -289,7 +292,7 @@ def test_a_clearing_travel_that_gives_up_ends_idle_in_place() -> None:
 
 def test_a_charging_travel_after_the_mission_that_gives_up_ends_idle_in_place() -> None:
     m = quit_world(
-        lane(),
+        lane,
         {"A": "S"},
         "FAR",
         bays={"WH-S": "S", "WH-D": "D"},
@@ -309,7 +312,7 @@ def test_a_charging_travel_after_the_mission_that_gives_up_ends_idle_in_place() 
 class QuittingX(StandardTrafficPolicy):
     """The AGV ``X`` gives up when it waits; it is asked to make way to `target`, the others to the standard search."""
 
-    def __init__(self, target: Node) -> None:
+    def __init__(self, target: Node | None) -> None:
         super().__init__()
         self.target = target
 
@@ -323,8 +326,10 @@ class QuittingX(StandardTrafficPolicy):
 def test_a_make_way_move_that_gives_up_at_once_is_not_repeated_at_the_same_instant() -> None:
     """W waits for X, which makes way towards N3 but is blocked by Y at N2 and gives up on the spot. X idles where it
     started and still blocks W: without the guard of spec §7.10 the idle notification would ask it again, endlessly."""
-    graph, nodes = line(4)
-    w = world((graph, nodes), {"W": "N0", "X": "N1", "Y": "N2"}, make_way=True, policy=QuittingX(nodes["N3"]))
+    policy = QuittingX(None)
+    w = world(lambda env: line(env, 4), {"W": "N0", "X": "N1", "Y": "N2"}, make_way=True, policy=policy)
+    nodes = w.nodes
+    policy.target = nodes["N3"]
     w.go("W", "N1")
     w.env.run()  # returns: nothing repeats
     x = w.agvs["X"]
@@ -340,7 +345,7 @@ def test_a_make_way_move_that_gives_up_at_once_is_not_repeated_at_the_same_insta
 def swap() -> Mission:
     """Two AGVs on ``line(2)`` that pick up at their own end and carry to the other: a deadlock with no way out. A third
     order finds no idle AGV."""
-    m = mission_world(line(2), {"A": "N0", "B": "N1"}, bays={"W0": "N0", "W1": "N1"})
+    m = mission_world(lambda env: line(env, 2), {"A": "N0", "B": "N1"}, bays={"W0": "N0", "W1": "N1"})
     m.order("W1", "W0")  # nearest idle AGV: B
     m.order("W0", "W1")  # then A
     return m
@@ -367,7 +372,7 @@ def test_a_serviceable_pending_order_does_not_keep_the_run_alive() -> None:
 
 def test_a_loaded_agv_stuck_behind_an_idle_one_that_cannot_move_leaves_one_stuck_wait_and_the_run_returns() -> None:
     """spec §17: ``N0 - N1 - N2`` with a bay at each end, capacity 1: B idles on N1 with no node to move to."""
-    m = mission_world(line(3), {"A": "N0", "B": "N1"}, bays={"W0": "N0", "W2": "N2"})
+    m = mission_world(lambda env: line(env, 3), {"A": "N0", "B": "N1"}, bays={"W0": "N0", "W2": "N2"})
     order = m.order("W0", "W2")
     m.env.run()
     (stuck,) = m.events(TrafficWaitStuck)
@@ -375,10 +380,11 @@ def test_a_loaded_agv_stuck_behind_an_idle_one_that_cannot_move_leaves_one_stuck
     assert order.status is OrderStatus.IN_TRANSIT
 
 
-def diamond() -> tuple[LayoutGraph, dict[str, Node]]:
+def diamond(env: Environment) -> Declared:
     """Two parallel chains ``J, a1, b1, K`` and ``J, a2, b2, K`` between the bays ``s`` (off ``J``) and ``t`` (off
     ``K``)."""
     return build(
+        env,
         [("s", -10, 0), ("J", 0, 0), ("a1", 10, 10), ("b1", 20, 10), ("a2", 10, -10), ("b2", 20, -10)]
         + [("K", 30, 0), ("t", 40, 0)],
         [("s", "J"), ("J", "a1"), ("a1", "b1"), ("b1", "K"), ("J", "a2"), ("a2", "b2"), ("b2", "K"), ("K", "t")],
@@ -390,7 +396,7 @@ def test_a_travel_between_standing_blockers_is_rerouted_at_most_max_resolutions_
     """spec §7.9: stranded AGVs on b1 and b2; the loaded AGV is rerouted between the two chains until its resolutions
     reach the bound, then waits, reported stuck once, and the run returns."""
     m = mission_world(
-        diamond(),
+        diamond,
         {"X": "s", "S1": "b1", "S2": "b2"},
         bays={"A": "s", "B": "t"},
         agv_type=vehicle(battery=1e7),
@@ -410,7 +416,7 @@ def test_a_travel_between_standing_blockers_is_rerouted_at_most_max_resolutions_
 
 
 def test_no_retry_timer_while_a_serviceable_order_waits_and_dispatch_resumes_when_an_agv_is_idle() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     first, second = m.order("WH-S", "WH-D"), m.order("WH-S", "WH-D")
     checks: list[float] = []
     original = m.fleet._check_pending_queue
@@ -429,7 +435,7 @@ def test_no_retry_timer_while_a_serviceable_order_waits_and_dispatch_resumes_whe
 
 
 def test_an_unserviceable_order_still_exhausts_its_retries_while_a_serviceable_one_waits() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, max_dispatch_retries=3)
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, max_dispatch_retries=3)
     first, second = m.order("WH-S", "WH-D"), m.order("WH-S", "WH-D")
     too_heavy = m.fleet.create_order(
         sku=first.sku, quantity=1000, origin=m.warehouses["WH-S"], destination=m.warehouses["WH-D"]
@@ -452,8 +458,12 @@ def test_an_unserviceable_order_still_exhausts_its_retries_while_a_serviceable_o
 
 
 def test_an_order_an_idle_agv_cannot_reach_still_exhausts_its_retries() -> None:
-    graph_nodes = build([("S", 0, 0), ("D", 10, 0), ("Z", 50, 50)], [("S", "D")])
-    m = mission_world(graph_nodes, {"A": "Z"}, bays={"WH-S": "S", "WH-D": "D"}, max_dispatch_retries=3)
+    m = mission_world(
+        lambda env: build(env, [("S", 0, 0), ("D", 10, 0), ("Z", 50, 50)], [("S", "D")]),
+        {"A": "Z"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        max_dispatch_retries=3,
+    )
     order = m.order("WH-S", "WH-D")
     m.env.run()
     assert (order.status, m.env.now) == (OrderStatus.FAILED, 3.0)
@@ -469,7 +479,7 @@ class _Never:
 
 def test_a_custom_dispatch_strategy_keeps_the_polling_loop() -> None:
     m = mission_world(
-        lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, dispatch_strategy=_Never(), max_dispatch_retries=3
+        lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, dispatch_strategy=_Never(), max_dispatch_retries=3
     )
     order = m.order("WH-S", "WH-D")
     m.env.run(until=1.5)
@@ -481,9 +491,10 @@ def test_a_custom_dispatch_strategy_keeps_the_polling_loop() -> None:
 # --- fix round 1: the AGV that gave up makes way before the order is offered again ------------------------------------
 
 
-def head_on() -> tuple[LayoutGraph, dict[str, Node]]:
+def head_on(env: Environment) -> Declared:
     """``N0 - N1 - N2 - N3`` along a row with the side node ``SIDE`` off ``N1``."""
     return build(
+        env,
         [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("N3", 30, 0), ("SIDE", 10, 10)],
         [("N0", "N1"), ("N1", "N2"), ("N2", "N3"), ("N1", "SIDE")],
     )
@@ -493,7 +504,7 @@ def test_a_deadlock_give_up_frees_the_way_before_the_order_is_offered_again() ->
     """A carries a load from N3 to N0 and B, unloaded, goes to N3 for the same pickup: head on, with no resolution left
     but giving up. B gives up once, at the first give-up instant, makes way to SIDE, and A delivers."""
     m = mission_world(
-        head_on(),
+        head_on,
         {"A": "N3", "B": "N0"},
         bays={"W3": "N3", "W0": "N0"},
         controller_options={"policy": StandardTrafficPolicy(max_resolutions=0)},
@@ -513,7 +524,7 @@ def test_a_deadlock_give_up_frees_the_way_before_the_order_is_offered_again() ->
 
 def test_the_requeued_order_goes_to_another_idle_agv_at_once() -> None:
     m = quit_world(
-        lane(),
+        lane,
         {"A": "M", "C": "SIDE"},
         "S",
         only=frozenset({"A"}),
@@ -536,7 +547,7 @@ def test_the_requeued_order_goes_to_another_idle_agv_at_once() -> None:
 
 def test_the_requeued_order_waits_behind_another_pending_one_which_the_agv_may_take_at_once() -> None:
     m = quit_world(
-        lane(),
+        lane,
         {"A": "M"},
         "S",
         bays={"WH-S": "S", "WH-D": "D", "WH-F": "FAR"},
@@ -572,7 +583,7 @@ class Bypass(Quitter):
 
 
 def test_a_loaded_travel_ended_with_gave_up_is_a_controller_error() -> None:
-    m = quit_world(lane(), {"A": "S"}, "D", bays={"WH-S": "S", "WH-D": "D"}, controller_type=Bypass)
+    m = quit_world(lane, {"A": "S"}, "D", bays={"WH-S": "S", "WH-D": "D"}, controller_type=Bypass)
     order = m.order("WH-S", "WH-D")
     with pytest.raises(RuntimeError, match=r"Bypass.*A.*cargo"):
         m.env.run()
@@ -582,9 +593,10 @@ def test_a_loaded_travel_ended_with_gave_up_is_a_controller_error() -> None:
 def test_a_charging_diversion_with_cargo_after_a_critical_arrival_is_a_controller_error() -> None:
     """A arrives critical at M with its load, M is not its goal, and the mission charges first: that travel carries
     cargo, so ending it with ``GaveUp`` is an error, as for any other loaded travel."""
-    graph_nodes = build([("S", 0, 0), ("M", 10, 0), ("D", 12, 0), ("CH", 10, 2)], [("S", "M"), ("M", "D"), ("M", "CH")])
     m = quit_world(
-        graph_nodes,
+        lambda env: build(
+            env, [("S", 0, 0), ("M", 10, 0), ("D", 12, 0), ("CH", 10, 2)], [("S", "M"), ("M", "D"), ("M", "CH")]
+        ),
         {"A": "S"},
         "CH",
         bays={"WH-S": "S", "WH-D": "D"},

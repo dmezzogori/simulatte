@@ -18,6 +18,7 @@ from __future__ import annotations
 import math
 import random
 import re
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -49,7 +50,8 @@ from simulatte.intralogistics.warehouse import Warehouse
 from tests.intralogistics.test_idle_traffic import Via
 from tests.intralogistics.test_travel import Plain, World, run_of, steady, vehicle, world
 from tests.intralogistics.test_travel_motion import arrivals, at_rest, side_line
-from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, build, line
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, build, declare, line
+from tests.intralogistics.traffic_support import World as Declared
 
 CASES = [(False, 0.0), (True, 0.0), (True, 25.0)]
 """``(reserve, lookahead_margin)``: free flow; reservation with the braking distance; reservation holding 25 m more."""
@@ -76,7 +78,7 @@ def test_an_interrupt_on_a_cruising_arc_passes_its_end_at_speed_and_stops_at_the
 ) -> None:
     """Cancelled at 10.0 on arc 2 of 6, which was entered at 1.5 m/s: the arc keeps its profile, N2 is passed at speed,
     and the AGV rests at N3, wherever the horizon lies (spec §8.3)."""
-    w = world(line(7), {"A": "N0"}, reserve=reserve, lookahead_margin=margin)
+    w = world(lambda env: line(env, 7), {"A": "N0"}, reserve=reserve, lookahead_margin=margin)
     process = w.go("A", "N6")
     w.interrupt(process, 10.0)
     w.env.run()
@@ -100,7 +102,7 @@ def test_an_interrupt_on_a_cruising_arc_passes_its_end_at_speed_and_stops_at_the
 @pytest.mark.parametrize(("margin", "farthest"), [(10.0, "N4"), (25.0, "N5")])
 def test_an_interrupt_releases_every_claim_ahead_at_the_stop(margin: float, farthest: str) -> None:
     """The look-ahead margin makes the AGV hold claims beyond N3; the stop at N3 releases them at that instant."""
-    w = world(line(7), {"A": "N0"}, lookahead_margin=margin)
+    w = world(lambda env: line(env, 7), {"A": "N0"}, lookahead_margin=margin)
     process = w.go("A", "N6")
     w.interrupt(process, 10.0)
     w.env.run()
@@ -118,8 +120,12 @@ def test_an_interrupt_stops_at_the_first_node_a_braking_distance_on_with_short_a
     """With 1 m arcs the claims reach the next arc and the braking distance beyond it (three nodes past the arc being
     traversed), but the stop request truncates the plan at the first node 1.40625 m on from the end of that arc: the
     second one."""
-    graph = build([(f"P{i}", float(i), 0.0) for i in range(31)], [(f"P{i}", f"P{i + 1}") for i in range(30)])
-    w = world(graph, {"A": "P0"})
+    w = world(
+        lambda env: build(
+            env, [(f"P{i}", float(i), 0.0) for i in range(31)], [(f"P{i}", f"P{i + 1}") for i in range(30)]
+        ),
+        {"A": "P0"},
+    )
     process = w.go("A", "P30")
     w.interrupt(process, 6.0)
     w.env.run()
@@ -134,7 +140,7 @@ def test_an_interrupt_stops_at_the_first_node_a_braking_distance_on_with_short_a
 def test_an_interrupt_on_an_arc_that_ends_at_rest_stops_at_its_end() -> None:
     """F brakes for N2 because L stands on N3. Cancelled on that arc with the claim of the next arc pending, F rests at
     N2 as planned, withdraws the claim and does not wait."""
-    w = world(side_line(), {"L": "N3", "F": "N0"}, hold_back_dead_ends=False)
+    w = world(side_line, {"L": "N3", "F": "N0"}, hold_back_dead_ends=False)
     process = w.go("F", "N4")
     w.interrupt(process, 10.0)
     w.env.run()
@@ -147,7 +153,7 @@ def test_an_interrupt_on_an_arc_that_ends_at_rest_stops_at_its_end() -> None:
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_an_interrupt_on_a_profile_without_limits_stops_at_the_end_of_the_arc(reserve: bool) -> None:
-    w = world(line(5), {"A": "N0"}, reserve=reserve, agv_type=vehicle(profile=Plain()))
+    w = world(lambda env: line(env, 5), {"A": "N0"}, reserve=reserve, agv_type=vehicle(profile=Plain()))
     process = w.go("A", "N4")
     w.interrupt(process, 2.0)
     w.env.run()
@@ -160,7 +166,7 @@ def test_an_interrupt_on_a_profile_without_limits_stops_at_the_end_of_the_arc(re
 def test_a_second_interrupt_before_rest_is_dropped() -> None:
     """The first interrupt fixes the stop (N3); the second, received while the AGV still moves, changes nothing, and
     neither does a third one received after N2 was passed. Only the first cause is raised and reported."""
-    w = world(line(7), {"A": "N0"})
+    w = world(lambda env: line(env, 7), {"A": "N0"})
     process = w.go("A", "N6")
     w.interrupt(process, 10.0, "first")
     w.interrupt(process, 12.0, "second")
@@ -184,11 +190,11 @@ def test_interrupt_at_the_instant_of_arrival(first: bool, stop: str) -> None:
     decides: an interrupt delivered before the arrival is a stop request received while moving, so the plan from N2
     already ends at N3; delivered after it, the arc N2 -> N3 has been entered with a profile that passes N3 at speed.
     Either way the AGV rests at the first node where it can, and the order is deterministic."""
-    reference = world(line(7), {"A": "N0"})
+    reference = world(lambda env: line(env, 7), {"A": "N0"})
     reference.go("A", "N6")
     reference.env.run()
     t1, t2 = (t for node, t in arrivals(reference) if node in ("N1", "N2"))
-    w = world(line(7), {"A": "N0"})
+    w = world(lambda env: line(env, 7), {"A": "N0"})
     process = w.go("A", "N6")
     fired: list[float] = []
     if first:
@@ -210,7 +216,7 @@ def test_an_interrupt_at_the_instant_of_arrival_at_rest() -> None:
     takes effect at N2 at that instant. Delivered after the arrival, the AGV has left and rests at N3."""
     outcomes = {}
     for first in (True, False):
-        w = world(line(5), {"A": "N0"}, agv_type=vehicle(profile=Plain()))
+        w = world(lambda env: line(env, 5), {"A": "N0"}, agv_type=vehicle(profile=Plain()))
         process = w.go("A", "N4")
         fired: list[float] = []
         if first:
@@ -238,12 +244,19 @@ def test_a_stop_request_rests_at_the_first_node_a_braking_distance_beyond_the_en
         xs = [sum(arcs[:i]) for i in range(count + 1)]
         v_max, accel, decel = rng.uniform(0.5, 3.0), rng.uniform(0.3, 2.0), rng.uniform(0.3, 2.0)
         profile = TrapezoidalProfile(v_max, accel, decel, battery_degradation_fn=lambda level: 1.0)
-        graph = build([(f"P{i}", x, 0.0) for i, x in enumerate(xs)], [(f"P{i}", f"P{i + 1}") for i in range(count)])
+        points = [(f"P{i}", x, 0.0) for i, x in enumerate(xs)]
+        links = [(f"P{i}", f"P{i + 1}") for i in range(count)]
         margin = rng.choice([0.0, 0.0, 6.0])
 
-        def run(interrupt: float | None, graph: Any = graph, profile: Any = profile, margin: float = margin) -> World:
+        def run(
+            interrupt: float | None,
+            points: Any = points,
+            links: Any = links,
+            profile: Any = profile,
+            margin: float = margin,
+        ) -> World:
             w = world(
-                graph,
+                lambda env: build(env, points, links),
                 {"A": "P0"},
                 reserve=reserve,
                 agv_type=vehicle(profile=profile),
@@ -282,15 +295,15 @@ def mission_world(
 ) -> tuple[Environment, FleetCoordinator, Any, Warehouse, AGV, FullReplay, SKU]:
     """Six 10 m arcs, a warehouse at each end; the order goes from ``N0`` to ``N6`` and the AGV starts on ``N0`` (to
     carry cargo) or on ``N6`` (to drive empty to the origin)."""
-    graph, nodes = line(7)
     env = Environment(debug=True)
     replay = FullReplay(env)
+    declared = line(env, 7)
     sku = SKU(id="SKU-A", weight=5.0, volume=0.1)
     origin = Warehouse(
         env=env,
         name="WH-ORIGIN",
-        input_bays=[nodes["N0"]],
-        output_bays=[nodes["N0"]],
+        input_bays=[declared.ref("N0")],
+        output_bays=[declared.ref("N0")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 100},
@@ -300,8 +313,8 @@ def mission_world(
     destination = Warehouse(
         env=env,
         name="WH-DEST",
-        input_bays=[nodes["N6"]],
-        output_bays=[nodes["N6"]],
+        input_bays=[declared.ref("N6")],
+        output_bays=[declared.ref("N6")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 0},
@@ -318,11 +331,11 @@ def mission_world(
         unload_time=1.0,
         length=0.0,
     )
-    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes["N0" if loaded else "N6"])
-    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
+    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=declared.ref("N0" if loaded else "N6"))
+    controller: Any = ReservationController(env=env, graph=declared.graph) if reserve else FreeFlowController()
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=[agv],
         warehouses=[origin, destination],
         charging_stations=[],
@@ -384,7 +397,7 @@ def test_a_level_critical_on_arrival_stops_the_agv_at_the_first_feasible_node(re
     (spec §8.3), under both controllers."""
     kind = weak(lambda distance, load, speed: distance * (1.0 if speed >= 1.4 else 5.0), threshold=0.96)
     # Under reservation the claims reach N4, where the estimate turns critical: only a stop request ends the plan at N2.
-    w = world(line(6), {"A": "N0"}, reserve=reserve, agv_type=kind, lookahead_margin=25.0)
+    w = world(lambda env: line(env, 6), {"A": "N0"}, reserve=reserve, agv_type=kind, lookahead_margin=25.0)
     w.go("A", "N5")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
@@ -410,7 +423,7 @@ def test_a_battery_stop_and_an_interrupt_share_the_first_stop_node(
     before (3.0, on the first arc) or after (10.0, on the second) that finds the stop already fixed at N2: the first
     request keeps its node, and at rest the interrupt, not the retry, reaches the mission."""
     kind = weak(lambda distance, load, speed: distance * (1.0 if speed >= 1.4 else 5.0), threshold=0.96)
-    w = world(line(6), {"A": "N0"}, reserve=reserve, agv_type=kind, lookahead_margin=25.0)
+    w = world(lambda env: line(env, 6), {"A": "N0"}, reserve=reserve, agv_type=kind, lookahead_margin=25.0)
     process = w.go("A", "N5")
     w.interrupt(process, interrupt_at, cause)
     w.env.run()
@@ -424,7 +437,7 @@ def test_a_battery_stop_and_an_interrupt_share_the_first_stop_node(
 def test_a_critical_level_found_at_the_goal_arrives(reserve: bool) -> None:
     """A critical level on arrival at the goal does not change the outcome (spec §8.2): the travel arrives."""
     kind = weak(lambda distance, load, speed: distance * 60.0, threshold=0.5)
-    w = world(line(2), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    w = world(lambda env: line(env, 2), {"A": "N0"}, reserve=reserve, agv_type=kind)
     w.go("A", "N1")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED} and w.agvs["A"].battery.is_critical
@@ -436,20 +449,21 @@ def charger_world(
     *,
     depletion: Any = None,
     reserve: bool = True,
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]] | None = None,
+    shape: Callable[[Environment], Declared] | None = None,
     router: Any = None,
     start: str = "N0",
 ) -> World:
-    """The line ``N0 ... N4`` of 10 m arcs (or `graph_nodes`) with a charging station on `station` (none: no one)."""
-    graph, nodes = graph_nodes or line(5)
+    """The line ``N0 ... N4`` of 10 m arcs (or the graph `shape` declares) with a charging station on `station` (none:
+    no one)."""
     env = Environment(debug=True)
     replay = FullReplay(env)
-    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
-    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=nodes[start])
-    stations = [] if station is None else [ChargingStation(env=env, name="CS", node=nodes[station], n_slots=1)]
+    declared = line(env, 5) if shape is None else shape(env)
+    controller: Any = ReservationController(env=env, graph=declared.graph) if reserve else FreeFlowController()
+    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=declared.ref(start))
+    stations = [] if station is None else [ChargingStation(env=env, name="CS", node=declared.ref(station), n_slots=1)]
     fleet = StillFleet(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=[agv],
         warehouses=[],
         charging_stations=stations,
@@ -460,6 +474,7 @@ def charger_world(
     if reserve:
         TrafficInvariants(env, controller)
     env.activate()
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
     return World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
 
 
@@ -490,11 +505,11 @@ def speed_cost(distance: float, load: float, speed: float) -> float:
     return distance * speed
 
 
-def limited_line(limits: dict[int, float]) -> tuple[LayoutGraph, dict[str, Node]]:
+def limited_line(env: Environment, limits: dict[int, float]) -> Declared:
     """``N0 ... N5`` of 10 m arcs; arc `i` (from ``N<i>``) has the speed limit ``limits[i]`` when given."""
     nodes = {f"N{i}": Node(f"N{i}", 10.0 * i, 0.0) for i in range(6)}
     arcs = [Arc(nodes[f"N{i}"], nodes[f"N{i + 1}"], speed_limit=limits.get(i)) for i in range(5)]
-    return LayoutGraph(nodes.values(), arcs), nodes
+    return declare(env, LayoutGraph(nodes.values(), arcs))
 
 
 @pytest.mark.parametrize("reserve", [False, True])
@@ -504,7 +519,9 @@ def test_the_energy_horizon_uses_the_arc_cap(reserve: bool, limits: dict[int, fl
     two (the old estimate, at the average speed of one arc from rest, 1.17, would have afforded three). A limit of
     0.5 on the third arc makes it cost 5, so the plan reaches N3; a limit of 0.25 on the second makes it cost 2.5, and
     the plan reaches N3 too (15 + 2.5 + 15 = 32.5)."""
-    w = world(limited_line(limits), {"A": "N0"}, reserve=reserve, agv_type=weak(speed_cost, capacity=40.0))
+    w = world(
+        lambda env: limited_line(env, limits), {"A": "N0"}, reserve=reserve, agv_type=weak(speed_cost, capacity=40.0)
+    )
     w.go("A", "N5")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
@@ -517,7 +534,7 @@ def test_the_energy_horizon_uses_the_arc_cap(reserve: bool, limits: dict[int, fl
 def test_the_energy_check_at_rest_uses_the_arc_cap(reserve: bool) -> None:
     """A battery of 14 would take one arc at its average speed from rest (1.17 m/s, 11.7) but not at the arc cap (15):
     the AGV does not depart."""
-    w = world(line(3), {"A": "N0"}, reserve=reserve, agv_type=weak(speed_cost, capacity=14.0))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=reserve, agv_type=weak(speed_cost, capacity=14.0))
     w.go("A", "N2")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
@@ -542,7 +559,7 @@ def test_a_vehicle_that_cannot_move_estimates_its_energy_at_speed_zero(capacity:
     limits. A stalled run is estimated at speed 0 (``max(cap, 0)``), so with 1.2 the check at rest passes and the
     vehicle stalls on its first arc until interrupted, and with 0.8 it is stranded at once."""
     kind = weak(lambda distance, load, speed: 0.05 * distance * (2.0 + speed), capacity=capacity, profile=Stalled())
-    w = world(line(3), {"A": "N0"}, agv_type=kind)
+    w = world(lambda env: line(env, 3), {"A": "N0"}, agv_type=kind)
     process = w.go("A", "N2")
     if stalls:
         w.interrupt(process, 5.0)
@@ -589,7 +606,7 @@ NAN, INF = math.nan, math.inf
 def test_invalid_sampled_limits_raise_naming_the_profile_and_the_values(
     reserve: bool, kin: Kinematics, problem: str
 ) -> None:
-    w = world(line(3), {"A": "N0"}, reserve=reserve, agv_type=vehicle(profile=Fixed(kin)))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=reserve, agv_type=vehicle(profile=Fixed(kin)))
     w.go("A", "N2")
     with pytest.raises(ValueError, match=rf"Fixed\.limits\(.*\) returned {re.escape(repr(kin))}: .*{problem}"):
         w.env.run()
@@ -603,7 +620,7 @@ def test_invalid_sampled_limits_raise_naming_the_profile_and_the_values(
 def test_limits_with_a_top_speed_or_acceleration_not_positive_stall_as_before(kin: Kinematics) -> None:
     """A non-positive ``v_max`` or ``accel`` is a vehicle that cannot move (spec §9.1): the run stalls, whatever the
     deceleration, until an interrupt."""
-    w = world(line(3), {"A": "N0"}, agv_type=vehicle(profile=Fixed(kin)))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, agv_type=vehicle(profile=Fixed(kin)))
     w.interrupt(w.go("A", "N2"), 5.0)
     w.env.run()
     assert w.caught == {"A": "cancelled"}
@@ -640,10 +657,8 @@ class Detours(Via):
     ranking estimates is not the one its diversion then travels, as with a router whose answer changes between the
     two requests."""
 
-    def __init__(
-        self, nodes: dict[str, Node], fixed: dict[tuple[str, str], tuple[str, ...]], first: set[tuple[str, str]]
-    ) -> None:
-        super().__init__(nodes, fixed)
+    def __init__(self, fixed: dict[tuple[str, str], tuple[str, ...]], first: set[tuple[str, str]]) -> None:
+        super().__init__(fixed)
         self.first = first
 
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
@@ -664,14 +679,14 @@ def test_a_diversion_whose_first_arc_is_not_affordable_strands_without_recursing
     arcs = [Arc(nodes["N0"], nodes["N1"], speed_limit=0.5), Arc(nodes["N1"], nodes["N2"])]
     arcs += [Arc(nodes["N0"], nodes["X"]), Arc(nodes["X"], nodes["N1"])]
     graph = LayoutGraph(nodes.values(), arcs)
-    router = Detours(
-        nodes, {("N0", "N2"): ("N0", "X", "N1", "N2"), ("N0", "N1"): ("N0", "X", "N1")}, first={("N0", "N1")}
+    router = Detours({("N0", "N2"): ("N0", "X", "N1", "N2"), ("N0", "N1"): ("N0", "X", "N1")}, first={("N0", "N1")})
+    w = charger_world(
+        13.0, "N1", depletion=speed_cost, reserve=reserve, shape=lambda env: declare(env, graph), router=router
     )
-    w = charger_world(13.0, "N1", depletion=speed_cost, reserve=reserve, graph_nodes=(graph, nodes), router=router)
     w.go("A", "N2")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
-    assert w.agvs["A"].current_node == nodes["N0"]
+    assert w.agvs["A"].current_node == w.nodes["N0"]
     (stranded,) = w.of(AgvStranded)
     assert (stranded.node, stranded.reason) == ("N0", "no_reachable_charger")
     assert not w.of(AgvMoveStarted)
@@ -685,9 +700,8 @@ def test_a_diversion_whose_first_arc_is_not_affordable_strands_without_recursing
 def long_vehicle_line(roomy: str | None) -> World:
     """``N0 ... N5`` of 10 m arcs with the vehicle on N3; it is 100 m long, longer than the line, so on a node of
     capacity 1 its body overlaps everything it has driven over; `roomy` names a node of capacity 2."""
-    graph, nodes = line(6)
-    capacities = {} if roomy is None else {nodes[roomy]: 2}
-    return world((graph, nodes), {"A": "N3"}, agv_type=vehicle(length=100.0), capacities=capacities)
+    capacities = {} if roomy is None else {roomy: 2}
+    return world(lambda env: line(env, 6, capacities=capacities), {"A": "N3"}, agv_type=vehicle(length=100.0))
 
 
 def holds(w: World) -> list[str]:
@@ -720,8 +734,8 @@ def test_a_later_travel_over_the_old_trail_holds_nothing_ahead_of_it() -> None:
     """After an ordinary arrival on N4 (capacity 2) the AGV holds N4 only and its trail is empty. Driving back towards
     N0 and cancelled 1 s in, it rests at N2 and holds what its 100 m body overlaps behind it on this trip: N2 to N4.
     Nothing lies ahead of it (N0 to N1~N2)."""
-    graph, nodes = line(8)
-    w = world((graph, nodes), {"A": "N5"}, agv_type=vehicle(length=100.0), capacities={nodes["N4"]: 2})
+    w = world(lambda env: line(env, 8, capacities={"N4": 2}), {"A": "N5"}, agv_type=vehicle(length=100.0))
+    nodes = w.nodes
     agv = w.agvs["A"]
     w.go("A", "N0")
     w.env.run()
@@ -747,7 +761,7 @@ def falls_with_speed(distance: float, load: float, speed: float) -> float:
 def test_the_energy_horizon_shortens_the_plan_at_a_node_event_under_both_controllers(reserve: bool) -> None:
     """N0 to N10 with a battery of 100. The first arc costs 50, not 10: from N1 the estimate affords five arcs and turns
     critical at N6. Free flow and reservation alike come to rest at N6, never passing it at speed."""
-    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+    w = world(lambda env: line(env, 11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
     w.go("A", "N10")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
@@ -759,8 +773,7 @@ def test_the_energy_horizon_shortens_the_plan_at_a_node_event_under_both_control
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_a_charger_on_the_node_where_the_estimate_turns_critical_is_not_passed_at_speed(reserve: bool) -> None:
-    graph_nodes = line(11)
-    w = charger_world(100.0, "N6", depletion=falls_with_speed, reserve=reserve, graph_nodes=graph_nodes)
+    w = charger_world(100.0, "N6", depletion=falls_with_speed, reserve=reserve, shape=lambda env: line(env, 11))
     w.go("A", "N10")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
@@ -771,7 +784,9 @@ def test_a_charger_on_the_node_where_the_estimate_turns_critical_is_not_passed_a
 def test_a_lone_agv_has_the_same_arrivals_under_both_controllers_with_a_falling_depletion() -> None:
     runs = []
     for reserve in (False, True):
-        w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+        w = world(
+            lambda env: line(env, 11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0)
+        )
         w.go("A", "N10")
         w.env.run()
         runs.append(arrivals(w))
@@ -789,7 +804,7 @@ def test_an_interrupt_after_an_energy_stop_request_takes_effect_at_its_own_first
     """The falling depletion makes the AGV ask, at N1, to stop at the affordable end N6. An interrupt received later,
     on N1 -> N2 (10.0) or N2 -> N3 (20.0), moves the stop nearer: the first node a braking distance beyond the end
     of the arc being traversed, as without the energy request, and the same under both controllers."""
-    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+    w = world(lambda env: line(env, 11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
     process = w.go("A", "N10")
     w.interrupt(process, at)
     w.env.run()
@@ -802,7 +817,7 @@ def test_an_interrupt_after_an_energy_stop_request_takes_effect_at_its_own_first
 def test_an_energy_request_after_an_interrupt_never_moves_the_stop_farther(reserve: bool) -> None:
     """Cancelled at 3.0 on the first arc, the AGV is to rest at N2. At N1 the energy horizon asks for N6, which is
     farther: the stop stays at N2."""
-    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
+    w = world(lambda env: line(env, 11), {"A": "N0"}, reserve=reserve, agv_type=weak(falls_with_speed, capacity=100.0))
     process = w.go("A", "N10")
     w.interrupt(process, 3.0)
     w.env.run()
@@ -829,7 +844,7 @@ def trace_336_world(reserve: bool) -> World:
     profile = TrapezoidalProfile(2.9815443942111157, 0.8, 1.2749757037707088, battery_degradation_fn=lambda level: 1.0)
     kind = weak(lambda d, load, speed: d * 3.0 / (0.5 + speed), capacity=34.4, threshold=0.0, profile=profile)
     return world(
-        (LayoutGraph(nodes.values(), arcs), nodes),
+        lambda env: declare(env, LayoutGraph(nodes.values(), arcs)),
         {"A": "E000"},
         reserve=reserve,
         agv_type=kind,
@@ -866,7 +881,7 @@ def energy_run(
     ]
     profile = TrapezoidalProfile(*kin, battery_degradation_fn=lambda level: 1.0)
     w = world(
-        (LayoutGraph(nodes.values(), arcs), nodes),
+        lambda env: declare(env, LayoutGraph(nodes.values(), arcs)),
         {"A": names[0]},
         reserve=reserve,
         agv_type=weak(profile=profile, **kind_kw),
@@ -908,7 +923,7 @@ def test_a_lone_agv_ends_alike_under_both_controllers_for_a_depletion_that_falls
         assert free[3].agvs["A"].current_node.id == reserved[3].agvs["A"].current_node.id
 
 
-def detour_world() -> tuple[LayoutGraph, dict[str, Node]]:
+def detour_world(env: Environment) -> Declared:
     """``S`` to ``G`` is 30 m; the charger node ``C`` is 20 m from ``S`` through ``Y``, or 33.2 m through ``Y`` and
     ``Z`` (the arc from ``Y`` to ``Z`` is 20 m long)."""
     nodes = {n: Node(n, x, y) for n, x, y in [("S", 0, 0), ("G", 30, 0), ("Y", 0, 10), ("C", 0, 20), ("Z", 3, 19)]}
@@ -919,7 +934,7 @@ def detour_world() -> tuple[LayoutGraph, dict[str, Node]]:
         Arc(nodes["Y"], nodes["Z"], length=20.0),
         Arc(nodes["Z"], nodes["C"]),
     ]
-    return LayoutGraph(nodes.values(), arcs), nodes
+    return declare(env, LayoutGraph(nodes.values(), arcs))
 
 
 @pytest.mark.parametrize("reserve", [False, True])
@@ -928,15 +943,12 @@ def test_a_nested_diversion_from_a_second_node_strands_without_raising(reserve: 
     first gives, which then sends the diversion over a detour: at Y the diversion again lacks the energy and diverts
     from Y, where the route through Z is too long. The guard of the first diversion survives the second: the travel
     returns ``BATTERY_STRANDED`` at Y."""
-    graph, nodes = detour_world()
-    router = Detours(
-        nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")}, first={("S", "C"), ("Y", "C")}
-    )
-    w = charger_world(25.0, "C", reserve=reserve, graph_nodes=(graph, nodes), router=router, start="S")
+    router = Detours({("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")}, first={("S", "C"), ("Y", "C")})
+    w = charger_world(25.0, "C", reserve=reserve, shape=detour_world, router=router, start="S")
     w.go("A", "G")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
-    assert w.agvs["A"].current_node == nodes["Y"]
+    assert w.agvs["A"].current_node == w.nodes["Y"]
     assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("Y", "no_reachable_charger")]
 
 
@@ -945,13 +957,12 @@ def test_the_charger_estimate_is_made_on_the_routers_route(reserve: bool) -> Non
     """The world of the nested diversion with a router that always sends the AGV to C over the detour (33.2 m): the
     charger is out of reach of a battery of 25 on that route, though the shortest path (20 m) would reach it, so the
     AGV strands at S without moving (spec §10.4)."""
-    graph, nodes = detour_world()
-    router = Via(nodes, {("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")})
-    w = charger_world(25.0, "C", reserve=reserve, graph_nodes=(graph, nodes), router=router, start="S")
+    router = Via({("S", "C"): ("S", "Y", "Z", "C"), ("Y", "C"): ("Y", "Z", "C")})
+    w = charger_world(25.0, "C", reserve=reserve, shape=detour_world, router=router, start="S")
     w.go("A", "G")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
-    assert w.agvs["A"].current_node == nodes["S"]
+    assert w.agvs["A"].current_node == w.nodes["S"]
     assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("S", "no_reachable_charger")]
     assert not w.of(AgvMoveStarted)
 
@@ -970,10 +981,9 @@ def test_the_energy_check_at_node_events_ignores_a_level_as_expected(monkeypatch
             "_affordable_end",
             lambda self, limit, *args, calls=calls: (calls.append(limit), original(self, limit, *args))[1],
         )
-        graph, nodes = build(
-            [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
-        )
-        w = world((graph, nodes), {"A": "P0"}, reserve=False, agv_type=weak(capacity=1e9))
+        points = [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)]
+        links = [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        w = world(lambda env: build(env, points, links), {"A": "P0"}, reserve=False, agv_type=weak(capacity=1e9))
         w.go("A", f"P{arcs}")
         w.env.run()
         assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -1002,10 +1012,11 @@ def test_after_a_deficit_that_does_not_grow_the_energy_horizon_is_not_scanned_ag
         monkeypatch.setattr(
             _Trip, "_affordable_end", lambda self, *args, calls=calls: (calls.append(1), original(self, *args))[1]
         )
-        graph, nodes = build(
-            [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        points = [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)]
+        links = [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        w = world(
+            lambda env: build(env, points, links), {"A": "P0"}, reserve=False, agv_type=weak(depletion, capacity=1e9)
         )
-        w = world((graph, nodes), {"A": "P0"}, reserve=False, agv_type=weak(depletion, capacity=1e9))
         w.go("A", f"P{arcs}")
         w.env.run()
         assert w.outcomes == {"A": TravelOutcome.ARRIVED}

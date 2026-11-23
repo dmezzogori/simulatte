@@ -19,10 +19,41 @@ from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 
-from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system, _warehouses
+from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph
 from tests.intralogistics.test_fleet_events import FleetReplay
 from tests.intralogistics.test_travel import steady
-from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, line
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, World, declare, line
+
+
+def _warehouses(env: Environment, world: World) -> tuple[Warehouse, Warehouse]:
+    """WH-A on OUT, stocked, and WH-B on IN, empty, as ``test_entities._warehouses`` builds them."""
+
+    def make(name: str, bay: str, level: int) -> Warehouse:
+        return Warehouse(
+            env=env,
+            name=name,
+            input_bays=[world.ref(bay)],
+            output_bays=[world.ref(bay)],
+            n_slots=2,
+            products=[SKU_A],
+            initial_inventory={SKU_A: level},
+            pick_time=1.0,
+            put_time=1.0,
+        )
+
+    return make("WH-A", "OUT", 100), make("WH-B", "IN", 0)
+
+
+def _system(env: Environment) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, World]:
+    """``test_entities._system`` through the layout: the line OUT - C1 - C2 - IN declared on the layout of `env`,
+    WH-A at OUT and WH-B at IN, one AGV at C1."""
+    world = declare(env, _line_graph()[1])
+    wh_a, wh_b = _warehouses(env, world)
+    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("C1"))]
+    coordinator = FleetCoordinator(
+        env=env, graph=world.graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[]
+    )
+    return coordinator, agvs, wh_a, wh_b, world
 
 
 def agv_heading(nodes: Any, source: str, target: str) -> float:
@@ -120,7 +151,7 @@ def test_motion_edge_cases() -> None:
 def test_move_events_carry_the_segment() -> None:
     env = Environment(debug=True)
     replay = FleetReplay(env)
-    coordinator, (agv,), wh_a, wh_b, nodes = _system(env)
+    coordinator, (agv,), wh_a, wh_b, world = _system(env)
     seen: list[DomainEvent] = []
     env.bus.subscribe(seen.append, (AgvMoveStarted, AgvMoveEnded))
     observed: list[Any] = []
@@ -146,7 +177,7 @@ def test_move_events_carry_the_segment() -> None:
         ("insert", "OUT", "agvs", 0, agv.id),
         ("set", agv.id, "battery", 995.0),
         ("set", agv.id, "motion", None),
-        ("set", agv.id, "heading", agv_heading(nodes, "C1", "OUT")),
+        ("set", agv.id, "heading", agv_heading(world.canonical_graph().nodes, "C1", "OUT")),
     )
     assert [e.loaded for e in seen if isinstance(e, AgvMoveStarted)] == [False, True, True, True]
     assert agv.motion is None and replay.events > 10
@@ -157,13 +188,17 @@ def test_move_started_after_the_claim_is_granted() -> None:
     its first segment."""
     env = Environment(debug=True)
     FleetReplay(env)
-    nodes, graph = _line_graph()
-    out, c1, c2, end = nodes
+    world = declare(env, _line_graph()[1])
     sized = dataclasses.replace(_agv_type(), length=1.0)
-    blocker, waiter = (AGV(env=env, agv_type=sized, initial_node=node) for node in (c1, out))
-    traffic = ReservationController(graph=graph, env=env)
+    blocker, waiter = (AGV(env=env, agv_type=sized, initial_node=world.ref(node)) for node in ("C1", "OUT"))
+    traffic = ReservationController(graph=world.graph, env=env)
     coordinator = StillFleet(
-        env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
+        env=env,
+        graph=world.graph,
+        fleet=[blocker, waiter],
+        warehouses=[],
+        charging_stations=[],
+        traffic_controller=traffic,
     )
     started: list[tuple[float, str, str, str]] = []
 
@@ -175,6 +210,8 @@ def test_move_started_after_the_claim_is_granted() -> None:
 
     env.bus.subscribe(on_started, (AgvMoveStarted,))
     env.activate()
+    nodes = [world.node(name) for name in ("OUT", "C1", "C2", "IN")]
+    out, c1, c2, end = nodes
     # The waiter asks first and waits for C1, which the blocker holds until its tail has cleared it.
     env.process(coordinator._executor.travel(waiter, c1, loaded=False))
     env.process(coordinator._executor.travel(blocker, end, loaded=False))
@@ -201,17 +238,22 @@ def test_a_shared_profile_describes_each_run_with_the_limits_sampled_at_its_star
         volume_capacity=10.0,
         length=0.0,
     )
-    nodes, graph = _line_graph()
-    out, c1, _, end = nodes
-    blocker, waiter = (AGV(env=env, agv_type=shared, initial_node=node) for node in (c1, out))
+    world = declare(env, _line_graph()[1])
+    blocker, waiter = (AGV(env=env, agv_type=shared, initial_node=world.ref(node)) for node in ("C1", "OUT"))
     waiter.battery.level = 500.0
-    traffic = ReservationController(graph=graph, env=env)
+    traffic = ReservationController(graph=world.graph, env=env)
     coordinator = StillFleet(
-        env=env, graph=graph, fleet=[blocker, waiter], warehouses=[], charging_stations=[], traffic_controller=traffic
+        env=env,
+        graph=world.graph,
+        fleet=[blocker, waiter],
+        warehouses=[],
+        charging_stations=[],
+        traffic_controller=traffic,
     )
     started: list[AgvMoveStarted] = []
     env.bus.subscribe(started.append, (AgvMoveStarted,))
     env.activate()
+    c1, end = world.node("C1"), world.node("IN")
     env.process(coordinator._executor.travel(waiter, c1, loaded=False))
     env.process(coordinator._executor.travel(blocker, end, loaded=False))
     env.run()
@@ -234,7 +276,7 @@ def test_interrupted_move_ends_at_the_next_node(cause: str | None) -> None:
     """An interrupt during a segment takes effect at its end node (spec §8.3)."""
     env = Environment(debug=True)
     replay = FleetReplay(env)
-    coordinator, (agv,), wh_a, wh_b, nodes = _system(env)
+    coordinator, (agv,), wh_a, wh_b, world = _system(env)
     order = coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b)
     interrupted: list[AgvMoveInterrupted] = []
     env.bus.subscribe(interrupted.append, (AgvMoveInterrupted,))
@@ -251,7 +293,7 @@ def test_interrupted_move_ends_at_the_next_node(cause: str | None) -> None:
     first = interrupted[0]
     assert (first.t, first.agv, first.node, first.reason) == (4.5, agv.id, "OUT", cause or "interrupted")
     assert first.deltas.ops == ()  # agv.move_ended cleared the motion
-    assert agv.current_node == nodes[0] and env.entities.bind_node(nodes[0]).agvs[0] == agv.id
+    assert agv.current_node == world.node("OUT") and env.entities.bind_node(world.node("OUT")).agvs[0] == agv.id
     env.run()
     if cause == "cancelled":
         assert order.status is OrderStatus.CANCELLED and agv.state is AGVState.IDLE
@@ -263,14 +305,16 @@ def test_interrupted_move_ends_at_the_next_node(cause: str | None) -> None:
 def test_stalled_segment_ends_at_infinity() -> None:
     env = Environment(debug=True)
     FleetReplay(env)
-    nodes, graph = _line_graph()
-    wh_a, wh_b = _warehouses(env, nodes)
+    world = declare(env, _line_graph()[1])
+    wh_a, wh_b = _warehouses(env, world)
     stalled = TrapezoidalProfile(2.0, 1.0, 1.0, load_speed_factor_fn=lambda weight: 0.0)
     agv_type = AGVType(
         name="stalled", speed_profile=stalled, battery_capacity=1000.0, weight_capacity=100.0, volume_capacity=10.0
     )
-    agv = AGV(env=env, agv_type=agv_type, initial_node=nodes[1])
-    coordinator = FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[wh_a, wh_b], charging_stations=[])
+    agv = AGV(env=env, agv_type=agv_type, initial_node=world.ref("C1"))
+    coordinator = FleetCoordinator(
+        env=env, graph=world.graph, fleet=[agv], warehouses=[wh_a, wh_b], charging_stations=[]
+    )
     started: list[AgvMoveStarted] = []
     env.bus.subscribe(started.append, (AgvMoveStarted,))
     coordinator.submit(coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b))
@@ -288,15 +332,15 @@ def test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energ
     """Spec §17 (stop requests): six 10 m arcs at 0.5 energy per metre, the order cancelled on the second arc at
     cruising speed. The AGV rests at ``N3``, the first node it can stop at, having paid for 3 arcs (15) and no more; it
     carries the cargo back, pays for 3 arcs again, and ends idle on ``N0`` with 970 and the order ``CANCELLED``."""
-    graph, nodes = line(7)
     env = Environment(debug=True)
     replay = FullReplay(env)
+    world = line(env, 7)
     warehouses = [
         Warehouse(
             env=env,
             name=name,
-            input_bays=[nodes[node]],
-            output_bays=[nodes[node]],
+            input_bays=[world.ref(node)],
+            output_bays=[world.ref(node)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: stock},
@@ -316,11 +360,11 @@ def test_a_cancelled_loaded_order_stops_at_the_first_feasible_node_and_the_energ
         depletion_fn=lambda distance, load_weight, speed: 0.5 * distance,
         length=0.0,
     )
-    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes["N0"])
-    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
+    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=world.ref("N0"))
+    controller: Any = ReservationController(env=env, graph=world.graph) if reserve else FreeFlowController()
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=[agv],
         warehouses=warehouses,
         charging_stations=[],

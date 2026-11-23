@@ -39,7 +39,8 @@ from simulatte.intralogistics.warehouse import Warehouse
 from tests.intralogistics.test_stop_requests import weak
 from tests.intralogistics.test_travel import Plain, World, vehicle, world
 from tests.intralogistics.test_turning import run_l, turning
-from tests.intralogistics.traffic_support import FullReplay, StillFleet, build, line
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, build, declare, line
+from tests.intralogistics.traffic_support import World as Declared
 
 
 def powered(power: float, **options: Any) -> AGVType:
@@ -47,9 +48,11 @@ def powered(power: float, **options: Any) -> AGVType:
     return replace(vehicle(), idle_power=power, **options)
 
 
-def side_branch() -> Any:
+def side_branch(env: Environment) -> Declared:
     """``N0 - N1 - N2`` with ``S`` hanging off ``N1``: a vehicle on ``N1`` blocks the line until it moves to ``S``."""
-    return build([("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("S", 10, 10)], [("N0", "N1"), ("N1", "N2"), ("N1", "S")])
+    return build(
+        env, [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("S", 10, 10)], [("N0", "N1"), ("N1", "N2"), ("N1", "S")]
+    )
 
 
 def changes(w: World, agv: str) -> list[tuple[float, float]]:
@@ -60,7 +63,7 @@ def changes(w: World, agv: str) -> list[tuple[float, float]]:
 
 
 def test_a_traffic_wait_of_20_costs_10_and_is_accounted_at_the_next_energy_check() -> None:
-    w = world(side_branch(), {"F": "N0", "L": "N1"}, reserve=True, agv_type=powered(0.5))
+    w = world(side_branch, {"F": "N0", "L": "N1"}, reserve=True, agv_type=powered(0.5))
     w.go("F", "N2")
     w.go("L", "S", at=20.0)
     w.env.run()
@@ -74,7 +77,7 @@ def test_a_traffic_wait_of_20_costs_10_and_is_accounted_at_the_next_energy_check
 
 
 def test_the_drain_of_a_move_is_folded_into_move_ended_and_nothing_is_emitted_inside_it() -> None:
-    w = world(side_branch(), {"F": "N0", "L": "N1"}, reserve=True, agv_type=powered(0.5))
+    w = world(side_branch, {"F": "N0", "L": "N1"}, reserve=True, agv_type=powered(0.5))
     w.go("F", "N2")
     w.go("L", "S", at=20.0)
     w.env.run()
@@ -104,7 +107,7 @@ def test_a_turn_wait_is_accounted_when_it_ends(reserve: bool) -> None:
 
 
 def test_a_profile_without_limits_accrues_over_a_wait_and_in_a_move() -> None:
-    w = world(side_branch(), {"F": "N0", "L": "N1"}, reserve=True, agv_type=powered(0.5, speed_profile=Plain()))
+    w = world(side_branch, {"F": "N0", "L": "N1"}, reserve=True, agv_type=powered(0.5, speed_profile=Plain()))
     w.go("F", "N2")
     w.go("L", "S", at=20.0)
     w.env.run()
@@ -120,7 +123,7 @@ def test_without_idle_power_nothing_is_emitted_and_no_level_is_computed(monkeypa
         raise AssertionError("the battery was drained")
 
     monkeypatch.setattr(Battery, "drain", forbidden)
-    w = world(side_branch(), {"F": "N0", "L": "N1"}, reserve=True, agv_type=vehicle())
+    w = world(side_branch, {"F": "N0", "L": "N1"}, reserve=True, agv_type=vehicle())
     w.go("F", "N2")
     w.go("L", "S", at=20.0)
     w.env.run()
@@ -149,10 +152,14 @@ def test_with_idle_power_the_levels_at_node_events_are_the_expected_ones(monkeyp
             "_affordable_end",
             lambda self, limit, *args, calls=calls: (calls.append(limit), original(self, limit, *args))[1],
         )
-        graph, nodes = build(
-            [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)], [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        points = [(f"P{i}", 1.0 * i, 0.0) for i in range(arcs + 1)]
+        links = [(f"P{i}", f"P{i + 1}") for i in range(arcs)]
+        w = world(
+            lambda env: build(env, points, links),
+            {"A": "P0"},
+            reserve=False,
+            agv_type=replace(weak(capacity=1e9), idle_power=0.5),
         )
-        w = world((graph, nodes), {"A": "P0"}, reserve=False, agv_type=replace(weak(capacity=1e9), idle_power=0.5))
         w.go("A", f"P{arcs}")
         w.env.run()
         assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -165,7 +172,13 @@ def test_with_idle_power_the_levels_at_node_events_are_the_expected_ones(monkeyp
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_no_energy_stop_is_raised_while_the_battery_is_ample(reserve: bool) -> None:
-    w = world(line(8), {"A": "N0"}, reserve=reserve, agv_type=powered(2.0), lookahead_margin=25.0 if reserve else 0.0)
+    w = world(
+        lambda env: line(env, 8),
+        {"A": "N0"},
+        reserve=reserve,
+        agv_type=powered(2.0),
+        lookahead_margin=25.0 if reserve else 0.0,
+    )
     w.go("A", "N7")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -183,7 +196,7 @@ def test_a_battery_that_idle_power_empties_during_a_run_floors_at_zero_and_is_me
     node where it can, with a retry. The energy check of its next travel finds the empty battery and, with no charger,
     strands it."""
     kind = replace(weak(capacity=1000.0), idle_power=20.0)
-    w = world(line(11), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    w = world(lambda env: line(env, 11), {"A": "N0"}, reserve=reserve, agv_type=kind)
     w.go("A", "N10")
     w.env.run()
     levels = [e.battery for e in w.of(AgvMoveEnded)]
@@ -201,7 +214,9 @@ def test_a_battery_that_idle_power_empties_during_a_run_floors_at_zero_and_is_me
 
 def critical_run(reserve: bool, capacity: float, power: float) -> World:
     """``N0 ... N40`` of 10 m arcs, depletion 1 per metre, critical at 5 %, `power` of idle power: a travel to N40."""
-    w = world(line(41), {"A": "N0"}, reserve=reserve, agv_type=powered(power, battery_capacity=capacity))
+    w = world(
+        lambda env: line(env, 41), {"A": "N0"}, reserve=reserve, agv_type=powered(power, battery_capacity=capacity)
+    )
     w.go("A", "N40")
     w.env.run()
     return w
@@ -252,24 +267,24 @@ def test_without_idle_power_the_critical_check_at_a_node_passed_at_speed_changes
 
 
 def charging_world(power: float, slots: int = 1, swap: bool = False) -> tuple[Environment, FullReplay, StillFleet]:
-    graph, nodes = line(2)
     env = Environment(debug=True)
+    declared = line(env, 2)
     kind = replace(vehicle(), idle_power=power, battery_capacity=100.0)
-    agvs = [AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes["N0"]) for name in ("A", "B")]
+    agvs = [AGV(env=env, agv_type=kind, agv_id=name, initial_node=declared.ref("N0")) for name in ("A", "B")]
     for agv in agvs:
         agv.battery.level = 50.0
     replay = FullReplay(env, from_snapshot=True)  # after the levels were set: they were not events
     station = ChargingStation(
         env=env,
         name="CS",
-        node=nodes["N0"],
+        node=declared.ref("N0"),
         n_slots=slots,
         supports_swap=swap,
         swap_pool_size=1 if swap else 0,
         swap_time=5.0,
     )
     fleet = StillFleet(
-        env=env, graph=graph, fleet=agvs, warehouses=[], charging_stations=[station], default_metrics=False
+        env=env, graph=declared.graph, fleet=agvs, warehouses=[], charging_stations=[station], default_metrics=False
     )
     env.activate()
     return env, replay, fleet
@@ -339,12 +354,12 @@ def mission_world(power: float) -> tuple[Environment, FullReplay, FleetCoordinat
     env = Environment(debug=True)
     sku = SKU(id="SKU-A", weight=5.0, volume=0.1)
     a_out, corridor, b_in = Node("WH_A_OUT", 0.0, 0.0), Node("CORRIDOR", 5.0, 0.0), Node("WH_B_IN", 10.0, 0.0)
-    graph = LayoutGraph([a_out, corridor, b_in], [Arc(a_out, corridor), Arc(corridor, b_in)])
+    declared = declare(env, LayoutGraph([a_out, corridor, b_in], [Arc(a_out, corridor), Arc(corridor, b_in)]))
     wh_a = Warehouse(
         env=env,
         name="WH-A",
-        input_bays=[a_out],
-        output_bays=[a_out],
+        input_bays=[declared.ref("WH_A_OUT")],
+        output_bays=[declared.ref("WH_A_OUT")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 100},
@@ -354,8 +369,8 @@ def mission_world(power: float) -> tuple[Environment, FullReplay, FleetCoordinat
     wh_b = Warehouse(
         env=env,
         name="WH-B",
-        input_bays=[b_in],
-        output_bays=[b_in],
+        input_bays=[declared.ref("WH_B_IN")],
+        output_bays=[declared.ref("WH_B_IN")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 0},
@@ -374,12 +389,17 @@ def mission_world(power: float) -> tuple[Environment, FullReplay, FleetCoordinat
         critical_battery_threshold=0.05,
         idle_power=power,
     )
-    agv = AGV(env=env, agv_type=kind, agv_id="AGV-1", initial_node=a_out)
+    agv = AGV(env=env, agv_type=kind, agv_id="AGV-1", initial_node=declared.ref("WH_A_OUT"))
     agv.battery.level = 50.0
     replay = FullReplay(env, from_snapshot=True)  # after the level was set: it was not an event
-    charger = ChargingStation(env=env, name="CS-1", node=b_in, n_slots=1)
+    charger = ChargingStation(env=env, name="CS-1", node=declared.ref("WH_B_IN"), n_slots=1)
     fleet = FleetCoordinator(
-        env=env, graph=graph, fleet=[agv], warehouses=[wh_a, wh_b], charging_stations=[charger], default_metrics=False
+        env=env,
+        graph=declared.graph,
+        fleet=[agv],
+        warehouses=[wh_a, wh_b],
+        charging_stations=[charger],
+        default_metrics=False,
     )
     order = fleet.create_order(sku=sku, quantity=10, origin=wh_a, destination=wh_b)
     env.activate()
@@ -446,7 +466,7 @@ def test_the_affordable_end_does_not_include_the_idle_power_of_the_run_ahead(res
     ends = {}
     for power in (0.0, 0.5):
         kind = replace(weak(capacity=25.0), idle_power=power)
-        w = world(line(5), {"A": "N0"}, reserve=reserve, agv_type=kind)
+        w = world(lambda env: line(env, 5), {"A": "N0"}, reserve=reserve, agv_type=kind)
         w.go("A", "N4")
         w.env.run()
         node = w.agvs["A"].current_node

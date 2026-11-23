@@ -7,6 +7,7 @@ nodes, orders submitted by :meth:`Mission.order`); worlds that only drive travel
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -28,8 +29,7 @@ from simulatte.intralogistics.events import (
     TrafficWaitStuck,
 )
 from simulatte.intralogistics.fleet import FleetCoordinator
-from simulatte.intralogistics.graph import LayoutGraph, Node
-from simulatte.intralogistics.network import Zone
+from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import NearestParkingPolicy, RepositioningContext
@@ -50,6 +50,7 @@ from tests.intralogistics.traffic_support import (
     t_layout,
     two_junction_corridor,
 )
+from tests.intralogistics.traffic_support import World as Declared
 
 SKU_A = SKU(id="SKU-A", weight=5.0, volume=0.1)
 
@@ -135,7 +136,7 @@ class Mission:
 
 
 def mission_world(
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]],
+    shape: Callable[[Environment], Declared],
     agvs: dict[str, str],
     *,
     bays: dict[str, str] | None = None,
@@ -150,22 +151,25 @@ def mission_world(
 ) -> Mission:
     """An activated world with missions: one warehouse per entry of `bays` (name to node id, input and output bay),
     parking areas and charging stations by name to ``(node id, size)``, one fleet with the AGVs. `battery` sets the
-    level of some AGVs before the replay starts."""
-    graph, nodes = graph_nodes
+    level of some AGVs before the replay starts. `shape` declares the graph on the environment's layout, as for
+    ``world`` of ``test_travel``; ``Mission.nodes`` holds the canonical nodes of the resolved network."""
     env = Environment(debug=True)
+    declared = shape(env)
     controller: Any = (
-        controller_type(env=env, graph=graph, **(controller_options or {})) if reserve else FreeFlowController()
+        controller_type(env=env, graph=declared.graph, **(controller_options or {}))
+        if reserve
+        else FreeFlowController()
     )
     kind = agv_type or vehicle()
     vehicles = {
-        name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes[start]) for name, start in agvs.items()
+        name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=declared.ref(start)) for name, start in agvs.items()
     }
     warehouses = {
         name: Warehouse(
             env=env,
             name=name,
-            input_bays=[nodes[node]],
-            output_bays=[nodes[node]],
+            input_bays=[declared.ref(node)],
+            output_bays=[declared.ref(node)],
             n_slots=4,
             products=[SKU_A],
             initial_inventory={SKU_A: 100},
@@ -175,16 +179,16 @@ def mission_world(
         for name, node in (bays or {}).items()
     }
     areas = {
-        name: ParkingArea(env=env, name=name, node=nodes[node], capacity=size)
+        name: ParkingArea(env=env, name=name, node=declared.ref(node), capacity=size)
         for name, (node, size) in (parking or {}).items()
     }
     stations = {
-        name: ChargingStation(env=env, name=name, node=nodes[node], n_slots=size)
+        name: ChargingStation(env=env, name=name, node=declared.ref(node), n_slots=size)
         for name, (node, size) in (chargers or {}).items()
     }
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=list(vehicles.values()),
         warehouses=list(warehouses.values()),
         charging_stations=list(stations.values()),
@@ -199,12 +203,14 @@ def mission_world(
     if reserve:
         TrafficInvariants(env, controller)
     env.activate()
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
     return Mission(env, fleet, nodes, vehicles, warehouses, areas, stations, replay)
 
 
-def lane() -> tuple[LayoutGraph, dict[str, Node]]:
+def lane(env: Environment) -> Declared:
     """``S - M - D - FAR - END`` along a row with ``SIDE`` hanging off ``M``."""
     return build(
+        env,
         [("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("SIDE", 10, 10), ("FAR", 35, 0), ("END", 50, 0)],
         [("S", "M"), ("M", "D"), ("M", "SIDE"), ("D", "FAR"), ("FAR", "END")],
     )
@@ -214,7 +220,7 @@ def lane() -> tuple[LayoutGraph, dict[str, Node]]:
 
 
 def test_an_idle_blocker_makes_way_and_goes_idle_again(monkeypatch: pytest.MonkeyPatch) -> None:
-    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"}, make_way=True)
+    w = world(t_layout, {"A": "C1", "B": "STORE_OUT"}, make_way=True)
     idle: list[tuple[float, AGVState]] = []
     w.fleet.on_agv_idle(lambda agv: idle.append((float(w.env.now), agv.state)))
     checked: list[AGVState] = []
@@ -245,7 +251,7 @@ def _arrival(w: Any) -> float:
 
 
 def test_make_way_refuses_what_cannot_move() -> None:
-    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"}, make_way=True)
+    w = world(t_layout, {"A": "C1", "B": "STORE_OUT"}, make_way=True)
     fleet, a, b, nodes = w.fleet, w.agvs["A"], w.agvs["B"], w.nodes
     b.transition_to(AGVState.TRAVELING_EMPTY)
     assert fleet.make_way(b, nodes["C2"]) is False  # not idle
@@ -259,7 +265,7 @@ def test_make_way_refuses_what_cannot_move() -> None:
 
 
 def test_make_way_without_a_target_leaves_the_agv_idle() -> None:
-    w = world(line(2), {"A": "N0", "B": "N1"}, make_way=True)
+    w = world(lambda env: line(env, 2), {"A": "N0", "B": "N1"}, make_way=True)
     assert standard_target(w.fleet, w.agvs["A"], idle=True) is None
     assert w.fleet.make_way(w.agvs["A"]) is False
     assert w.agvs["A"].state is AGVState.IDLE
@@ -267,7 +273,7 @@ def test_make_way_without_a_target_leaves_the_agv_idle() -> None:
 
 
 def test_make_way_takes_the_given_target() -> None:
-    w = world(t_layout(), {"A": "C1"}, make_way=True)
+    w = world(t_layout, {"A": "C1"}, make_way=True)
     assert w.fleet.make_way(w.agvs["A"], w.nodes["C2"]) is True
     w.env.run()
     assert w.agvs["A"].current_node is w.nodes["C2"]
@@ -275,7 +281,7 @@ def test_make_way_takes_the_given_target() -> None:
 
 
 def test_a_make_way_move_that_fails_ends_idle_where_it_stands() -> None:
-    w = world(t_layout(), {"A": "C1"}, make_way=True)
+    w = world(t_layout, {"A": "C1"}, make_way=True)
     w.fleet.router = Scripted(True, False)  # the check finds a route, the move does not
     idle: list[str] = []
     w.fleet.on_agv_idle(lambda agv: idle.append(agv.id))
@@ -287,7 +293,7 @@ def test_a_make_way_move_that_fails_ends_idle_where_it_stands() -> None:
 
 
 def test_a_stranded_make_way_stays_stranded() -> None:
-    w = world(t_layout(), {"A": "C1"}, make_way=True, agv_type=vehicle(battery=0.5))
+    w = world(t_layout, {"A": "C1"}, make_way=True, agv_type=vehicle(battery=0.5))
     assert w.fleet.make_way(w.agvs["A"], w.nodes["PARK"]) is True
     w.env.run()
     assert w.agvs["A"].state is AGVState.STRANDED
@@ -296,7 +302,7 @@ def test_a_stranded_make_way_stays_stranded() -> None:
 def test_a_make_way_move_that_must_retry_ends_idle() -> None:
     """A travel that arrives with a critical battery before its goal ends with ``RETRY_FROM_CURRENT_POSITION``; a
     make-way move does not retry, the AGV is idle where it stopped."""
-    m = mission_world(lane(), {"A": "M"}, agv_type=vehicle(battery=100.0), battery={"A": 12.0})
+    m = mission_world(lane, {"A": "M"}, agv_type=vehicle(battery=100.0), battery={"A": 12.0})
     a = m.agvs["A"]
     idle: list[str] = []
     m.fleet.on_agv_idle(lambda agv: idle.append(agv.id))
@@ -307,7 +313,7 @@ def test_a_make_way_move_that_must_retry_ends_idle() -> None:
 
 
 def test_agv_making_way_is_not_dispatched() -> None:
-    m = mission_world(lane(), {"A": "M"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
+    m = mission_world(lane, {"A": "M"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
     a = m.agvs["A"]
     assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
     order = m.order("WH-S", "WH-D")
@@ -322,7 +328,7 @@ def test_agv_making_way_is_not_dispatched() -> None:
 
 def test_an_agv_that_becomes_idle_on_a_blocking_node_makes_way() -> None:
     """A mission ends at M with B already waiting for it: the coordinator asks the idle AGV to make way."""
-    m = mission_world(lane(), {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
+    m = mission_world(lane, {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
     m.order("WH-S", "WH-M")  # A carries from S to M
     m.at(2.0, lambda: m.env.process(_travel(m, "B", "S")))  # B wants to pass through M to S
     m.env.run()
@@ -345,10 +351,13 @@ def test_an_agv_idle_on_a_roomy_exit_port_of_a_corridor_does_not_block_the_oppos
     """A leaves the corridor onto J2 (capacity 2) and idles there. A port of capacity above 1 keeps no exit record
     (spec §7.5): the corridor goes with A's last member, so B, coming from the other end, passes J2 and the corridor
     without waiting, and A is not asked to move."""
-    graph, nodes = two_junction_corridor()
     w = world(
-        (graph, nodes), {"A": "J1", "B": "x2"}, make_way=make_way, capacities={nodes["J2"]: 2}, derive_corridors=True
+        lambda env: two_junction_corridor(env, capacities={"J2": 2}),
+        {"A": "J1", "B": "x2"},
+        make_way=make_way,
+        derive_corridors=True,
     )
+    nodes = w.nodes
     w.go("A", "J2")
     w.go("B", "x1", at=40.0)
     w.env.run()
@@ -363,7 +372,7 @@ def test_an_agv_idle_on_a_roomy_exit_port_of_a_corridor_does_not_block_the_oppos
 
 
 def test_a_review_stops_when_its_wait_ended() -> None:
-    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"})
+    w = world(t_layout, {"A": "C1", "B": "STORE_OUT"})
     w.go("B", "LINE_IN")
     w.env.run(until=1.0)
     waiting = w.controller._pending[w.agvs["B"]]
@@ -377,7 +386,7 @@ def test_a_review_stops_when_its_wait_ended() -> None:
 def test_a_review_stops_when_making_way_ended_the_wait() -> None:
     """Making way at a review moves the blocker out of the way synchronously, so the claim is granted inside the
     review: the review must not go on to react, to schedule another review or to report the wait stuck."""
-    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"})
+    w = world(t_layout, {"A": "C1", "B": "STORE_OUT"})
     controller, a, park = w.controller, w.agvs["A"], w.nodes["PARK"]
     w.go("B", "LINE_IN")
     w.env.run(until=1.0)
@@ -403,12 +412,12 @@ def test_a_review_stops_when_making_way_ended_the_wait() -> None:
 
 
 def test_service_nodes_are_the_bays_and_the_charger_nodes() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, chargers={"CS": ("SIDE", 1)})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, chargers={"CS": ("SIDE", 1)})
     assert m.fleet.service_nodes == frozenset(m.nodes[name] for name in ("S", "D", "SIDE"))
 
 
 def test_an_agv_leaves_the_delivery_bay_under_reservation() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     order = m.order("WH-S", "WH-D")
     m.env.run()
     a = m.agvs["A"]
@@ -421,7 +430,7 @@ def test_an_agv_leaves_the_delivery_bay_under_reservation() -> None:
 
 
 def test_clearing_is_the_last_step_before_the_idle_hooks() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     seen: list[tuple[float, str]] = []
     m.fleet.on_agv_idle(lambda agv: seen.append((float(m.env.now), agv.current_node.id)))  # type: ignore[union-attr]
     m.order("WH-S", "WH-D")
@@ -431,7 +440,7 @@ def test_clearing_is_the_last_step_before_the_idle_hooks() -> None:
 
 
 def test_an_agv_stays_on_the_bay_without_clear_service_nodes() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
     m.order("WH-S", "WH-D")
     m.env.run()
     assert m.agvs["A"].current_node is m.nodes["D"]
@@ -439,7 +448,7 @@ def test_an_agv_stays_on_the_bay_without_clear_service_nodes() -> None:
 
 
 def test_an_agv_stays_on_the_bay_under_free_flow() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, reserve=False)
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, reserve=False)
     m.order("WH-S", "WH-D")
     m.env.run()
     assert m.agvs["A"].current_node is m.nodes["D"]
@@ -447,7 +456,7 @@ def test_an_agv_stays_on_the_bay_under_free_flow() -> None:
 
 
 def test_an_agv_stays_when_the_search_finds_no_node() -> None:
-    m = mission_world(line(2), {"A": "N0"}, bays={"WH-0": "N0", "WH-1": "N1"})
+    m = mission_world(lambda env: line(env, 2), {"A": "N0"}, bays={"WH-0": "N0", "WH-1": "N1"})
     order = m.order("WH-0", "WH-1")
     m.env.run()
     assert order.status is OrderStatus.COMPLETED
@@ -456,8 +465,7 @@ def test_an_agv_stays_when_the_search_finds_no_node() -> None:
 
 
 def test_a_repositioning_target_prevents_clearing() -> None:
-    graph_nodes = lane()
-    m = mission_world(graph_nodes, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     m.fleet._repositioning_policy = Always(m.nodes["FAR"])
     m.order("WH-S", "WH-D")
     m.env.run()
@@ -466,7 +474,7 @@ def test_a_repositioning_target_prevents_clearing() -> None:
 
 
 def test_a_repositioning_policy_that_names_the_current_node_keeps_the_agv_there() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     m.fleet._repositioning_policy = Always(m.nodes["D"])
     m.order("WH-S", "WH-D")
     m.env.run()
@@ -475,7 +483,7 @@ def test_a_repositioning_policy_that_names_the_current_node_keeps_the_agv_there(
 
 def test_a_charged_agv_leaves_the_charger() -> None:
     m = mission_world(
-        lane(),
+        lane,
         {"A": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         chargers={"CS": ("FAR", 1)},
@@ -499,7 +507,7 @@ def test_an_agv_that_a_low_battery_callback_moved_off_the_bays_is_not_cleared() 
         yield from m.fleet._executor.travel(agv, m.nodes["M"], loaded=False)
 
     m = mission_world(
-        lane(),
+        lane,
         {"A": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         chargers={"CS": ("FAR", 1)},
@@ -515,7 +523,7 @@ def test_an_agv_that_a_low_battery_callback_moved_off_the_bays_is_not_cleared() 
 
 
 def test_a_clearing_move_that_is_stranded_ends_the_mission_stranded() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     a = m.agvs["A"]
     original = m.fleet._executor.travel
 
@@ -536,7 +544,7 @@ def test_an_agv_stranded_on_its_way_to_the_charger_after_a_mission_is_not_cleare
     """After the delivery on the bay D the battery is low and the only charger, on END, is out of reach: the charging
     travel ends stranded at D. The stranded AGV does not travel on to clear the bay and is stranded once."""
     m = mission_world(
-        lane(),
+        lane,
         {"A": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         chargers={"CS": ("END", 1)},
@@ -571,19 +579,19 @@ def parked(m: Mission, area: str) -> list[str]:
 
 
 def test_a_parking_node_gets_its_capacity_from_its_area() -> None:
-    m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 2)})
+    m = mission_world(t_layout, {"A": "C1"}, parking={"P": ("PARK", 2)})
     assert m.controller.network.capacity(m.nodes["PARK"]) == 2
 
 
 def test_agvs_placed_on_a_parking_node_take_no_slot() -> None:
-    m = mission_world(t_layout(), {"A": "PARK", "B": "PARK"}, parking={"P": ("PARK", 2)})
+    m = mission_world(t_layout, {"A": "PARK", "B": "PARK"}, parking={"P": ("PARK", 2)})
     assert m.areas["P"].available_capacity == 2
     assert m.events(ParkingEntered) == []
 
 
 def test_repositioning_takes_the_slot_at_the_decision_and_releases_it_at_departure() -> None:
     m = mission_world(
-        lane(),
+        lane,
         {"A": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         parking={"P": ("FAR", 2)},
@@ -613,9 +621,8 @@ def test_repositioning_takes_the_slot_at_the_decision_and_releases_it_at_departu
 
 
 def test_a_repositioning_travel_that_does_not_arrive_gives_the_slot_back() -> None:
-    graph_nodes = lane()
     m = mission_world(
-        graph_nodes,
+        lane,
         {"A": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         parking={"P": ("FAR", 1)},
@@ -639,7 +646,7 @@ def test_an_interrupted_idle_move_gives_the_slot_back_unless_it_ended_on_the_tar
     FAR) that is short of END, the parking node, so the slot goes back; in the second (FAR to END) the AGV is on the
     parking node. (A kinematic vehicle passes a node at speed: see the test below.)"""
     m = mission_world(
-        lane(),
+        lane,
         {"A": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         parking={"P": ("END", 1)},
@@ -671,11 +678,24 @@ def test_an_interrupted_idle_move_of_a_kinematic_vehicle_gives_the_slot_back_unl
     passes FAR at speed and rests at F2, the first node a braking distance (1.40625 m) beyond it: short of END, so the
     slot goes back. Interrupted in the second arc it passes F2 at speed and rests at END, and keeps the slot (spec
     §8.3)."""
-    graph_nodes = build(
-        [("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("SIDE", 10, 10), ("FAR", 35, 0), ("F2", 42.5, 0), ("END", 50, 0)],
-        [("S", "M"), ("M", "D"), ("M", "SIDE"), ("D", "FAR"), ("FAR", "F2"), ("F2", "END")],
+    m = mission_world(
+        lambda env: build(
+            env,
+            [
+                ("S", 0, 0),
+                ("M", 10, 0),
+                ("D", 20, 0),
+                ("SIDE", 10, 10),
+                ("FAR", 35, 0),
+                ("F2", 42.5, 0),
+                ("END", 50, 0),
+            ],
+            [("S", "M"), ("M", "D"), ("M", "SIDE"), ("D", "FAR"), ("FAR", "F2"), ("F2", "END")],
+        ),
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("END", 1)},
     )
-    m = mission_world(graph_nodes, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("END", 1)})
     m.fleet._repositioning_policy = Always(m.nodes["END"])
     order = m.order("WH-S", "WH-D")
 
@@ -697,7 +717,7 @@ def test_an_interrupted_idle_move_of_a_kinematic_vehicle_gives_the_slot_back_unl
 
 
 def test_a_full_area_is_not_a_target() -> None:
-    m = mission_world(lane(), {"A": "S", "B": "SIDE"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("FAR", 1)})
+    m = mission_world(lane, {"A": "S", "B": "SIDE"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("FAR", 1)})
     for _ in m.areas["P"].enter(m.agvs["B"]):  # B holds the only slot
         pass
     assert m.areas["P"].available_capacity == 0
@@ -712,33 +732,39 @@ def test_a_full_area_is_not_a_target() -> None:
 
 
 class Via(ShortestDistanceRouter):
-    """The shortest-distance router, except for the routes named in `fixed` by ``(origin id, destination id)``."""
+    """The shortest-distance router, except for the routes named in `fixed` by ``(origin id, destination id)``; the
+    node ids of a fixed route are looked up in the view's graph."""
 
-    def __init__(self, nodes: dict[str, Node], fixed: dict[tuple[str, str], tuple[str, ...]]) -> None:
+    def __init__(self, fixed: dict[tuple[str, str], tuple[str, ...]]) -> None:
         super().__init__()
-        self.fixed = {key: tuple(nodes[name] for name in path) for key, path in fixed.items()}
+        self.fixed = fixed
 
     def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
-        path = self.fixed.get((request.origin.id, request.destination.id))
-        if path is None:
+        names = self.fixed.get((request.origin.id, request.destination.id))
+        if names is None:
             return super().route(request, view)
+        nodes = {node.id: node for node in view.graph.nodes}
+        path = tuple(nodes[name] for name in names)
         return Route(path, view.graph.path_length(path))
 
 
 def test_a_step_aside_through_the_goal_keeps_the_parking_slot_of_the_goal() -> None:
     """A travels from S to the parking node G, with its slot taken. X, stranded on X1, blocks the way; A is sent aside
     to T along S, Y, G, T, departs from G, comes back to G and arrives: the slot is still its own (spec §7.10)."""
-    graph, nodes = build(
-        [("S", 0, 0), ("X1", 10, 0), ("G", 20, 0), ("Y", 10, -10), ("T", 30, 0)],
-        [("S", "X1"), ("X1", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
-    )
+    policy = StepAsideTo(None)
     m = mission_world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("S", 0, 0), ("X1", 10, 0), ("G", 20, 0), ("Y", 10, -10), ("T", 30, 0)],
+            [("S", "X1"), ("X1", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+        ),
         {"A": "S", "X": "X1"},
         parking={"P": ("G", 1)},
-        router=Via(nodes, {("S", "T"): ("S", "Y", "G", "T")}),
-        controller_options={"policy": StepAsideTo(nodes["T"]), "derive_corridors": False},
+        router=Via({("S", "T"): ("S", "Y", "G", "T")}),
+        controller_options={"policy": policy, "derive_corridors": False},
     )
+    nodes = m.nodes
+    policy.target = nodes["T"]
     a = m.agvs["A"]
     m.fleet._transition_agv(m.agvs["X"], AGVState.STRANDED)
     assert m.fleet._take_slot(a, nodes["G"])
@@ -756,7 +782,7 @@ def test_a_step_aside_through_the_goal_keeps_the_parking_slot_of_the_goal() -> N
 
 def test_an_area_of_two_never_lists_three_agvs() -> None:
     m = mission_world(
-        lane(),
+        lane,
         {"A": "S", "B": "S", "C": "S"},
         bays={"WH-S": "S", "WH-D": "D"},
         parking={"P": ("FAR", 2)},
@@ -776,7 +802,7 @@ def test_an_area_of_two_never_lists_three_agvs() -> None:
 
 
 def test_clearing_takes_a_parking_slot() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("FAR", 1)})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, parking={"P": ("FAR", 1)})
     m.order("WH-S", "WH-D")
     m.env.run()
     assert m.routed("A")[-1] == ("clear_node", "D", "FAR")  # the parking node comes first, though M is nearer
@@ -785,7 +811,7 @@ def test_clearing_takes_a_parking_slot() -> None:
 
 
 def test_make_way_takes_a_parking_slot_and_gives_it_back_when_it_does_not_arrive() -> None:
-    m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 1)})
+    m = mission_world(t_layout, {"A": "C1"}, parking={"P": ("PARK", 1)})
     m.fleet.router = Scripted(True, False)  # the check finds a route, the move does not
     assert m.fleet.make_way(m.agvs["A"], m.nodes["PARK"]) is True
     assert m.areas["P"].available_capacity == 0  # taken at the decision, before the move runs
@@ -795,7 +821,7 @@ def test_make_way_takes_a_parking_slot_and_gives_it_back_when_it_does_not_arrive
 
 
 def test_a_parked_agv_that_makes_way_departs_from_its_slot() -> None:
-    m = mission_world(t_layout(), {"A": "C1"}, parking={"P": ("PARK", 1)})
+    m = mission_world(t_layout, {"A": "C1"}, parking={"P": ("PARK", 1)})
     assert m.fleet.make_way(m.agvs["A"], m.nodes["PARK"]) is True
     m.env.run()
     assert parked(m, "P") == ["A"]
@@ -806,16 +832,17 @@ def test_a_parked_agv_that_makes_way_departs_from_its_slot() -> None:
 
 
 def test_standard_target_for_an_idle_agv_prefers_the_cheapest_parking_area_with_a_free_slot() -> None:
-    graph, nodes = build(
-        [("O", 0, 0), ("N", 10, 0), ("P1", 20, 0), ("P2", 30, 0), ("P3", 40, 0), ("SB", 0, 10)],
-        [("O", "N"), ("N", "P1"), ("P1", "P2"), ("P2", "P3"), ("O", "SB")],
-    )
     m = mission_world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("O", 0, 0), ("N", 10, 0), ("P1", 20, 0), ("P2", 30, 0), ("P3", 40, 0), ("SB", 0, 10)],
+            [("O", "N"), ("N", "P1"), ("P1", "P2"), ("P2", "P3"), ("O", "SB")],
+        ),
         {"A": "O", "X": "P1"},
         bays={"WH": "SB"},
         parking={"A1": ("P1", 1), "A2": ("P2", 1), "A3": ("P3", 1)},
     )
+    nodes = m.nodes
     agv = m.agvs["A"]
     assert standard_target(m.fleet, agv) is nodes["N"]  # the generic search takes the nearest node
     assert standard_target(m.fleet, agv, idle=True) is nodes["P2"]  # P1 is held by X? X took no slot: P1 is nearest
@@ -829,22 +856,23 @@ def test_standard_target_for_an_idle_agv_prefers_the_cheapest_parking_area_with_
 
 
 def test_standard_target_for_an_idle_agv_avoids_service_nodes_without_parking() -> None:
-    m = mission_world(lane(), {"A": "M"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "M"}, bays={"WH-S": "S", "WH-D": "D"})
     agv = m.agvs["A"]
     assert standard_target(m.fleet, agv) is m.nodes["D"]  # the generic search takes the first of the nearest
     assert standard_target(m.fleet, agv, idle=True) is m.nodes["SIDE"]  # S and D are bays
 
 
 def test_standard_target_for_an_idle_agv_skips_the_node_of_a_full_area() -> None:
-    m = mission_world(lane(), {"A": "M", "B": "S"}, parking={"P": ("SIDE", 1)})
+    m = mission_world(lane, {"A": "M", "B": "S"}, parking={"P": ("SIDE", 1)})
     for _ in m.areas["P"].enter(m.agvs["B"]):
         pass
     assert standard_target(m.fleet, m.agvs["A"], idle=True) is m.nodes["D"]
 
 
-def ring_with_a_tail() -> tuple[LayoutGraph, dict[str, Node]]:
+def ring_with_a_tail(env: Environment) -> Declared:
     """The ring ``A0, B0, C0, D0`` with the dead end ``T1, T2`` rooted at ``B0``."""
     return build(
+        env,
         [("A0", 0, 0), ("B0", 10, 0), ("C0", 10, 10), ("D0", 0, 10), ("T1", 20, 0), ("T2", 30, 0)],
         [("A0", "B0"), ("B0", "C0"), ("C0", "D0"), ("D0", "A0"), ("B0", "T1"), ("T1", "T2")],
     )
@@ -864,8 +892,8 @@ def test_standard_target_for_an_idle_agv_skips_a_branch_root_unless_it_is_a_park
 ) -> None:
     """spec §7.9: an idle AGV does not rest on the root of a dead-end branch unless on a parking node; members of the
     branch are valid targets."""
-    graph, nodes = ring_with_a_tail()
-    m = mission_world((graph, nodes), {"A": "A0", **others}, parking={"P": parking} if parking else None)
+    m = mission_world(ring_with_a_tail, {"A": "A0", **others}, parking={"P": parking} if parking else None)
+    nodes = m.nodes
     agv = m.agvs["A"]
     assert standard_target(m.fleet, agv) is nodes["B0"]  # the generic search takes the nearest node, root or not
     assert standard_target(m.fleet, agv, idle=True) is nodes[expected]
@@ -874,9 +902,9 @@ def test_standard_target_for_an_idle_agv_skips_a_branch_root_unless_it_is_a_park
 # --- the make-way fallback (spec §7.9) ----------------------------------------------------------------------------
 
 
-def charger_fork() -> tuple[LayoutGraph, dict[str, Node]]:
+def charger_fork(env: Environment) -> Declared:
     """``P - X - Q`` along a row with ``CH`` hanging off ``X``."""
-    return build([("P", 0, 0), ("X", 10, 0), ("Q", 20, 0), ("CH", 10, 10)], [("P", "X"), ("X", "Q"), ("X", "CH")])
+    return build(env, [("P", 0, 0), ("X", 10, 0), ("Q", 20, 0), ("CH", 10, 10)], [("P", "X"), ("X", "Q"), ("X", "CH")])
 
 
 def pending_claim(m: Mission, agv: str, *route: str) -> Any:
@@ -891,7 +919,7 @@ def test_make_way_falls_back_to_a_charging_node_with_room(slots: int, expected: 
     """Idle A on X blocks B's claim from P. Q is a bay, P is taken and the charger node CH is a service node: the
     search finds nothing, and the fallback takes CH when it has two slots, not when it has one."""
     m = mission_world(
-        charger_fork(),
+        charger_fork,
         {"A": "X", "B": "P"},
         bays={"WQ": "Q"},
         chargers={"CS": ("CH", slots)},
@@ -913,16 +941,17 @@ def test_make_way_falls_back_to_a_charging_node_with_room(slots: int, expected: 
 def test_make_way_falls_back_to_a_root_with_room(capacity: int, expected: str | None) -> None:
     """Idle A on X blocks B's dead-end claim from P to Q. R is the root of the bays L1 and L2: the fallback takes it
     when its capacity is above 1."""
-    graph, nodes = build(
-        [("P", 0, 0), ("X", 10, 0), ("Q", 20, 0), ("R", 10, 10), ("L1", 0, 20), ("L2", 20, 20)],
-        [("P", "X"), ("X", "Q"), ("X", "R"), ("R", "L1"), ("R", "L2")],
-    )
     m = mission_world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("P", 0, 0), ("X", 10, 0), ("Q", 20, 0), ("R", 10, 10), ("L1", 0, 20), ("L2", 20, 20)],
+            [("P", "X"), ("X", "Q"), ("X", "R"), ("R", "L1"), ("R", "L2")],
+            capacities={"R": capacity},
+        ),
         {"A": "X", "B": "P"},
         bays={"W1": "L1", "W2": "L2"},
-        controller_options={"capacities": {nodes["R"]: capacity}},
     )
+    nodes = m.nodes
     pending_claim(m, "B", "P", "X", "Q")
     a, b = m.agvs["A"], m.agvs["B"]
     assert m.controller.view.branch_root(nodes["R"])
@@ -939,7 +968,7 @@ def test_make_way_does_not_fall_back_to_a_node_whose_last_slot_a_concerned_agv_n
     """C rests on the two-slot charger node CH. When B's route leads to CH, the slot left there is B's, so A does not
     take it; when B goes to Q, A does."""
     m = mission_world(
-        charger_fork(),
+        charger_fork,
         {"A": "X", "B": "P", "C": "CH"},
         bays={"WQ": "Q"},
         chargers={"CS": ("CH", 2)},
@@ -952,11 +981,13 @@ def test_make_way_does_not_fall_back_to_a_node_whose_last_slot_a_concerned_agv_n
     assert a.current_node is m.nodes[expected or "X"]
 
 
-def bay_line() -> tuple[LayoutGraph, dict[str, Node]]:
+def bay_line(env: Environment, **network: Any) -> Declared:
     """``W - X - CH - Y - BAY`` along a row: two bays at the ends; CH is the root of the dead end ``Y, BAY``."""
     return build(
+        env,
         [("W", 0, 0), ("X", 10, 0), ("CH", 20, 0), ("Y", 30, 0), ("BAY", 40, 0)],
         [("W", "X"), ("X", "CH"), ("CH", "Y"), ("Y", "BAY")],
+        **network,
     )
 
 
@@ -965,15 +996,14 @@ def test_the_fallback_may_arrive_over_a_segment_a_pending_claim_names(zone: bool
     """Idle A on BAY blocks B's dead-end claim ``X -> BAY``, which names ``CH~Y``, the last segment of A's way to the
     two-slot charger node CH. The fallback takes CH all the same (A comes to rest there and its trail clears), unless a
     zone on that last leg is named too: a zone or corridor of the last leg still rules a node out."""
-    graph, nodes = bay_line()
-    options: dict[str, Any] = {"zones": [Zone("z", ((nodes["CH"], nodes["Y"]),))]} if zone else {}
+    network: dict[str, Any] = {"zones": {"z": {"members": [("CH", "Y")]}}} if zone else {}
     m = mission_world(
-        (graph, nodes),
+        lambda env: bay_line(env, **network),
         {"A": "BAY", "B": "X"},
         bays={"WW": "W", "WB": "BAY"},
         chargers={"CS": ("CH", 2)},
-        controller_options=options,
     )
+    nodes = m.nodes
     request = pending_claim(m, "B", "X", "CH", "Y", "BAY")
     a, b = m.agvs["A"], m.agvs["B"]
     assert m.controller.view.pending(m.controller.network.segment(nodes["CH"], nodes["Y"])) == 1
@@ -991,7 +1021,7 @@ def test_the_strict_search_still_refuses_a_last_segment_a_pending_claim_names() 
     """CH is a parking node with two slots, a place the strict search may take; the last segment of the way there is
     named by B's pending claim, so the strict search refuses it, and the fallback, which looks only at service nodes and
     roots, does not take it either."""
-    m = mission_world(bay_line(), {"A": "BAY", "B": "X"}, bays={"WW": "W", "WB": "BAY"}, parking={"PA": ("CH", 2)})
+    m = mission_world(bay_line, {"A": "BAY", "B": "X"}, bays={"WW": "W", "WB": "BAY"}, parking={"PA": ("CH", 2)})
     pending_claim(m, "B", "X", "CH", "Y", "BAY")
     a, b = m.agvs["A"], m.agvs["B"]
     assert standard_target(m.fleet, a, concerned=(b,), idle=True, purpose="make_way") is None
@@ -1002,7 +1032,7 @@ def test_the_strict_search_still_refuses_a_last_segment_a_pending_claim_names() 
 def test_clearing_a_service_node_has_no_fallback() -> None:
     """After its delivery A stands on the bay Q. The bay P, the root X and the charger node CH are not places to idle,
     so A stays on Q: the roomy charger node is a fallback of make-way moves only."""
-    m = mission_world(charger_fork(), {"A": "P"}, bays={"WP": "P", "WQ": "Q"}, chargers={"CS": ("CH", 2)})
+    m = mission_world(charger_fork, {"A": "P"}, bays={"WP": "P", "WQ": "Q"}, chargers={"CS": ("CH", 2)})
     (order,) = [m.order("WP", "WQ")]
     m.env.run()
     a = m.agvs["A"]
@@ -1016,13 +1046,13 @@ def test_clearing_a_service_node_has_no_fallback() -> None:
 # --- passing a full charging node -------------------------------------------------------------------------------
 
 
-def bypass_layout(*, bypass: bool) -> tuple[LayoutGraph, dict[str, Node]]:
+def bypass_layout(env: Environment, *, bypass: bool) -> Declared:
     """``A - C - B`` along a row with the charger on ``C``, and with `bypass` also ``A - D - B`` around it."""
     points = [("A", 0, 0), ("C", 10, 0), ("B", 20, 0), ("D", 10, 3)]
     links = [("A", "C"), ("C", "B")] + ([("A", "D"), ("D", "B")] if bypass else [])
     if not bypass:
         points = points[:3]
-    return build(points, links)
+    return build(env, points, links)
 
 
 @pytest.mark.parametrize(("bypass", "level"), [(False, 80.0), (False, 5.0), (True, 5.0)])
@@ -1032,7 +1062,7 @@ def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
     instant X has finished charging and sits idle where it cannot make way, whether that is before or after the
     review."""
     m = mission_world(
-        bypass_layout(bypass=bypass),
+        lambda env: bypass_layout(env, bypass=bypass),
         {"X": "C", "P": "A"},
         chargers={"CS": ("C", 1)},
         agv_type=vehicle(battery=100.0),
@@ -1076,9 +1106,10 @@ def test_transit_through_full_charging_node(bypass: bool, level: float) -> None:
 # --- fix round 1 ---------------------------------------------------------------------------------------------------
 
 
-def fork() -> tuple[LayoutGraph, dict[str, Node]]:
+def fork(env: Environment) -> Declared:
     """``B0 - S - M - D`` along a row with the leaf ``SL`` off ``S``."""
     return build(
+        env,
         [("B0", -10, 0), ("S", 0, 0), ("M", 10, 0), ("D", 20, 0), ("SL", 0, 10)],
         [("B0", "S"), ("S", "M"), ("M", "D"), ("S", "SL")],
     )
@@ -1095,10 +1126,11 @@ def make_way_times(m: Mission, agv: str) -> list[float]:
 # Finding 1: the idle search does not land where another wait needs room
 
 
-def twin_roots() -> tuple[LayoutGraph, dict[str, Node]]:
+def twin_roots(env: Environment) -> Declared:
     """Two roots ``R1``, ``R2`` joined by an arc, each with a waiting AGV on one side and a dead-end branch on the other
     whose leaf holds a stranded AGV."""
     return build(
+        env,
         [
             ("w1", -10, 0),
             ("R1", 0, 0),
@@ -1115,7 +1147,7 @@ def twin_roots() -> tuple[LayoutGraph, dict[str, Node]]:
 
 def test_an_idle_agv_is_not_shuttled_between_two_waits() -> None:
     w = world(
-        twin_roots(), {"A": "R1", "W1": "w1", "W2": "w2", "S1": "d1", "S2": "d2"}, make_way=True, derive_corridors=False
+        twin_roots, {"A": "R1", "W1": "w1", "W2": "w2", "S1": "d1", "S2": "d2"}, make_way=True, derive_corridors=False
     )
     for name in ("S1", "S2"):
         w.agvs[name].transition_to(AGVState.STRANDED)
@@ -1135,16 +1167,16 @@ def test_an_idle_agv_is_not_shuttled_between_two_zones() -> None:
     2, stranded AGVs on A1 and B1, X idle on A, and W1, W2 travelling to A1 and B1. Each arrival of X fills the zone a
     waiter needs; the claims name the zone, not the node X would land on (before the fix: 101 make-way moves until the
     battery was empty)."""
-    graph, nodes = build(
-        [("P1", 0, 0), ("A1", 10, 0), ("A", 20, 0), ("B", 30, 0), ("B1", 40, 0), ("P2", 50, 0)],
-        [("P1", "A1"), ("A1", "A"), ("A", "B"), ("B", "B1"), ("B1", "P2")],
-    )
-    zones = [Zone("Z1", (nodes["A1"], nodes["A"]), capacity=2), Zone("Z2", (nodes["B"], nodes["B1"]), capacity=2)]
+    zones = {"Z1": {"members": ["A1", "A"], "capacity": 2}, "Z2": {"members": ["B", "B1"], "capacity": 2}}
     w = world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("P1", 0, 0), ("A1", 10, 0), ("A", 20, 0), ("B", 30, 0), ("B1", 40, 0), ("P2", 50, 0)],
+            [("P1", "A1"), ("A1", "A"), ("A", "B"), ("B", "B1"), ("B1", "P2")],
+            zones=zones,
+        ),
         {"X": "A", "S1": "A1", "S2": "B1", "W1": "P1", "W2": "P2"},
         make_way=True,
-        zones=zones,
         derive_corridors=False,
         hold_back_dead_ends=False,
     )
@@ -1164,17 +1196,19 @@ def test_an_idle_agv_is_not_shuttled_between_two_zones() -> None:
 def test_an_agv_does_not_make_way_back_within_a_chain_of_moves_until_its_next_mission() -> None:
     """spec §7.10: X made way from A to B, where it blocks W2's wait: the chain goes on, and a move back to A is
     refused although A is free and reachable. A mission ends the chain."""
-    graph, nodes = build(
-        [("P1", 0, 0), ("A1", 10, 0), ("A", 20, 0), ("B", 30, 0), ("B1", 40, 0), ("P2", 50, 0)],
-        [("P1", "A1"), ("A1", "A"), ("A", "B"), ("B", "B1"), ("B1", "P2")],
-    )
-    zones = (Zone("Z1", (nodes["A1"], nodes["A"]), capacity=2), Zone("Z2", (nodes["B"], nodes["B1"]), capacity=2))
+    zones = {"Z1": {"members": ["A1", "A"], "capacity": 2}, "Z2": {"members": ["B", "B1"], "capacity": 2}}
     m = mission_world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("P1", 0, 0), ("A1", 10, 0), ("A", 20, 0), ("B", 30, 0), ("B1", 40, 0), ("P2", 50, 0)],
+            [("P1", "A1"), ("A1", "A"), ("A", "B"), ("B", "B1"), ("B1", "P2")],
+            zones=zones,
+        ),
         {"X": "A", "S1": "A1", "S2": "B1", "W1": "P1", "W2": "P2"},
         bays={"WP1": "P1", "WP2": "P2"},
-        controller_options={"zones": zones, "derive_corridors": False, "hold_back_dead_ends": False},
+        controller_options={"derive_corridors": False, "hold_back_dead_ends": False},
     )
+    nodes = m.nodes
     x = m.agvs["X"]
     for name in ("S1", "S2"):
         m.fleet._transition_agv(m.agvs[name], AGVState.STRANDED)
@@ -1192,7 +1226,7 @@ def test_an_agv_does_not_make_way_back_within_a_chain_of_moves_until_its_next_mi
 
 def test_a_chain_of_make_way_moves_ends_where_the_agv_blocks_no_wait() -> None:
     """spec §7.10: A made way from M to SIDE and blocks no wait there; the chain ends, and M is a target again."""
-    m = mission_world(lane(), {"A": "M"})
+    m = mission_world(lane, {"A": "M"})
     a = m.agvs["A"]
     assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
     m.env.run()
@@ -1212,16 +1246,17 @@ def test_a_chain_of_make_way_moves_cut_short_by_giving_up_ends() -> None:
     deadlock and gives up, which a travel without an order always does: A2 is idle again on a node it made way from.
     It is not asked to start another move from there in the same chain, so the moves are bounded, both waits are
     reported stuck behind A2, and the run returns."""
-    graph, nodes = build(
-        [(f"N{i}", 2 * i, 0) for i in range(6)] + [(f"B{i}", 2 * i, 2) for i in range(6)],
-        [(f"N{i}", f"N{i + 1}") for i in range(5)] + [(f"N{i}", f"B{i}") for i in range(6)],
-    )
     w = world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [(f"N{i}", 2 * i, 0) for i in range(6)] + [(f"B{i}", 2 * i, 2) for i in range(6)],
+            [(f"N{i}", f"N{i + 1}") for i in range(5)] + [(f"N{i}", f"B{i}") for i in range(6)],
+        ),
         {"A1": "B0", "A2": "B2", "A3": "B5"},
         make_way=True,
         agv_type=vehicle(length=8.0, profile=Plain(), battery=1e6),
     )
+    nodes = w.nodes
     fleet = w.fleet
 
     def travel(name: str, goal: str) -> Any:  # as the stress ran it: idle and told the controller afterwards
@@ -1252,22 +1287,23 @@ def test_a_spare_agv_keeps_making_way_on_a_ring() -> None:
     no wait, so it is never left without a target: every order completes and no stuck wait is open at the end."""
     import random
 
-    graph, nodes = build(
+    env = Environment(debug=True)
+    declared = build(
+        env,
         [("r0", 0, 0), ("r1", 10, 0), ("r2", 20, 0), ("r3", 20, 10), ("r4", 10, 10), ("r5", 0, 10)]
         + [("L", -10, 0), ("R", 30, 0), ("T", 10, 20)],
         [("r0", "r1"), ("r1", "r2"), ("r2", "r3"), ("r3", "r4"), ("r4", "r5"), ("r5", "r0")]
         + [("L", "r0"), ("R", "r2"), ("T", "r4")],
     )
-    env = Environment(debug=True)
-    controller = ReservationController(env=env, graph=graph)
+    controller = ReservationController(env=env, graph=declared.graph)
     kind = vehicle(length=0.0, battery=1e9)
     bays = ["L", "R", "T"]
     sites = {
         bay: Warehouse(
             env=env,
             name=f"WH-{bay}",
-            input_bays=[nodes[bay]],
-            output_bays=[nodes[bay]],
+            input_bays=[declared.ref(bay)],
+            output_bays=[declared.ref(bay)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: 1000},
@@ -1276,16 +1312,21 @@ def test_a_spare_agv_keeps_making_way_on_a_ring() -> None:
         )
         for bay in bays
     }
-    common: dict[str, Any] = {"env": env, "graph": graph, "traffic_controller": controller, "default_metrics": False}
+    common: dict[str, Any] = {
+        "env": env,
+        "graph": declared.graph,
+        "traffic_controller": controller,
+        "default_metrics": False,
+    }
     working = FleetCoordinator(
-        fleet=[AGV(env=env, agv_type=kind, agv_id="A", initial_node=nodes["L"])],
+        fleet=[AGV(env=env, agv_type=kind, agv_id="A", initial_node=declared.ref("L"))],
         warehouses=list(sites.values()),
         charging_stations=[],
         name="working",
         **common,
     )
     spare = FleetCoordinator(
-        fleet=[AGV(env=env, agv_type=kind, agv_id="I", initial_node=nodes["r1"])],
+        fleet=[AGV(env=env, agv_type=kind, agv_id="I", initial_node=declared.ref("r1"))],
         warehouses=[],
         charging_stations=[],
         name="spare",
@@ -1317,18 +1358,19 @@ def test_a_node_named_by_a_pending_claim_is_taken_when_a_slot_remains_for_each(
 ) -> None:
     """W, on its way to g through X, holds back for the zone of g, which the stranded G holds: W's pending claim
     names X. The layout has no dead end; Y is taken by another stranded AGV."""
-    graph, nodes = build(
-        [("w1", -10, 0), ("X", 0, 0), ("g", 10, 0), ("e", 0, 10), ("Y", 0, 30)],
-        [("w1", "X"), ("X", "g"), ("X", "e"), ("w1", "Y"), ("g", "Y"), ("e", "Y")],
-    )
     w = world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("w1", -10, 0), ("X", 0, 0), ("g", 10, 0), ("e", 0, 10), ("Y", 0, 30)],
+            [("w1", "X"), ("X", "g"), ("X", "e"), ("w1", "Y"), ("g", "Y"), ("e", "Y")],
+            capacities={"X": capacity},
+            zones={"Z": {"members": ["g"], "hold_back": True}},
+        ),
         {"A": "e", "W": "w1", "G": "g", "H": "Y"},
         make_way=True,
-        capacities={nodes["X"]: capacity},
-        zones=(Zone("Z", (nodes["g"],), hold_back=True),),
         derive_corridors=False,
     )
+    nodes = w.nodes
     w.agvs["G"].transition_to(AGVState.STRANDED)
     w.agvs["H"].transition_to(AGVState.STRANDED)
     w.go("W", "g")
@@ -1353,13 +1395,13 @@ class Recording(ShortestDistanceRouter):
 
 
 def test_the_search_and_the_move_use_the_same_purpose() -> None:
-    w = world(t_layout(), {"A": "C1"}, make_way=True, router=Recording())
+    w = world(t_layout, {"A": "C1"}, make_way=True, router=Recording())
     router = w.fleet.router
     assert w.fleet.make_way(w.agvs["A"]) is True
     w.env.run()
     assert set(router.purposes) == {"make_way"}  # the search for the node and the move, not "step_aside"
 
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, router=Recording())
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"}, router=Recording())
     router = m.fleet.router
     m.order("WH-S", "WH-D")
     m.env.run()
@@ -1383,12 +1425,12 @@ class Requests(ShortestDistanceRouter):
 def test_the_step_aside_search_and_its_move_ask_the_router_alike() -> None:
     """A carries cargo on a travel that is not loaded in name (as a charging diversion does) and is sent aside by the
     standard search: the search and the staged move ask with the same purpose and load weight (spec §7.9)."""
-    graph, nodes = build(
-        [("S", 0, 0), ("X1", 10, 0), ("G", 20, 0), ("Y", 10, -10), ("T", 30, 0)],
-        [("S", "X1"), ("X1", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
-    )
     m = mission_world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("S", 0, 0), ("X1", 10, 0), ("G", 20, 0), ("Y", 10, -10), ("T", 30, 0)],
+            [("S", "X1"), ("X1", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+        ),
         {"A": "S", "X": "X1"},
         router=Requests(),
         controller_options={"policy": StepAsideTo(None), "derive_corridors": False},
@@ -1411,7 +1453,7 @@ def test_a_purpose_sensitive_router_is_asked_with_the_purpose_of_the_move() -> N
         def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
             return None if request.purpose == "step_aside" else super().route(request, view)
 
-    w = world(t_layout(), {"A": "C1"}, make_way=True, router=NoStepAside())
+    w = world(t_layout, {"A": "C1"}, make_way=True, router=NoStepAside())
     assert w.fleet.make_way(w.agvs["A"]) is True
     w.env.run()
     assert w.agvs["A"].current_node is not w.nodes["C1"]  # the search found a node: the move reached it
@@ -1421,7 +1463,7 @@ def test_a_purpose_sensitive_router_is_asked_with_the_purpose_of_the_move() -> N
 
 
 def test_a_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
-    m = mission_world(fork(), {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
+    m = mission_world(fork, {"A": "S", "B": "D"}, bays={"WH-S": "S", "WH-M": "M"}, clear_service_nodes=False)
     m.order("WH-S", "WH-M")  # A ends on M
     m.at(3.0, lambda: m.env.process(_travel(m, "B", "S")))  # B waits on M, held by A while it moves and serves
     m.env.run()
@@ -1432,7 +1474,7 @@ def test_a_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None
 
 def test_a_failed_travel_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
     m = mission_world(
-        fork(),
+        fork,
         {"A": "S", "B": "M"},
         bays={"WH-S": "S", "WH-D": "D"},
         clear_service_nodes=False,
@@ -1446,7 +1488,7 @@ def test_a_failed_travel_that_ends_idle_on_a_blocking_node_makes_way_at_once() -
 
 
 def test_a_cancelled_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once() -> None:
-    m = mission_world(fork(), {"A": "S", "B": "M"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
+    m = mission_world(fork, {"A": "S", "B": "M"}, bays={"WH-S": "S", "WH-D": "D"}, clear_service_nodes=False)
     order = m.order("WH-S", "WH-D")
     m.at(0.5, lambda: m.env.process(_travel(m, "B", "S")))
     m.at(1.0, lambda: m.fleet.cancel(order))
@@ -1456,11 +1498,16 @@ def test_a_cancelled_mission_that_ends_idle_on_a_blocking_node_makes_way_at_once
 
 
 def test_the_end_of_a_make_way_move_that_blocks_another_wait_makes_way_at_once() -> None:
-    graph, nodes = build(
-        [("P", -10, 0), ("Y", 0, 0), ("Z", 10, 0), ("C0", 0, 10), ("E", 0, -10)],
-        [("P", "Y"), ("Y", "Z"), ("C0", "Y"), ("Y", "E")],
+    m = mission_world(
+        lambda env: build(
+            env,
+            [("P", -10, 0), ("Y", 0, 0), ("Z", 10, 0), ("C0", 0, 10), ("E", 0, -10)],
+            [("P", "Y"), ("Y", "Z"), ("C0", "Y"), ("Y", "E")],
+        ),
+        {"A": "P", "C": "C0", "S": "Z"},
+        clear_service_nodes=False,
     )
-    m = mission_world((graph, nodes), {"A": "P", "C": "C0", "S": "Z"}, clear_service_nodes=False)
+    nodes = m.nodes
     m.agvs["S"].transition_to(AGVState.STRANDED)
     m.at(0.5, lambda: m.env.process(_travel(m, "C", "Z")))  # C waits for Y and Z, which S holds
     m.at(2.0, lambda: m.fleet.make_way(m.agvs["A"], nodes["Y"]))
@@ -1488,15 +1535,15 @@ class Choosing(StandardTrafficPolicy):
 
 
 def test_the_policys_make_way_target_is_used_on_the_idle_path() -> None:
-    graph_nodes = fork()
-    policy = Choosing(graph_nodes[1]["SL"])  # the standard search would take B0
+    policy = Choosing(None)
     m = mission_world(
-        graph_nodes,
+        fork,
         {"A": "S", "B": "D"},
         bays={"WH-S": "S", "WH-M": "M"},
         clear_service_nodes=False,
         controller_options={"policy": policy},
     )
+    policy.node = m.nodes["SL"]  # the standard search would take B0
     m.order("WH-S", "WH-M")
     m.at(3.0, lambda: m.env.process(_travel(m, "B", "S")))
     m.env.run()
@@ -1505,7 +1552,7 @@ def test_the_policys_make_way_target_is_used_on_the_idle_path() -> None:
 
 
 def test_free_flow_idle_does_nothing() -> None:
-    m = mission_world(lane(), {"A": "S"}, reserve=False)
+    m = mission_world(lane, {"A": "S"}, reserve=False)
     before = len(m.replay.events)
     assert FreeFlowController().idle(m.agvs["A"]) is None
     assert m.controller.idle(m.agvs["A"]) is None
@@ -1513,7 +1560,7 @@ def test_free_flow_idle_does_nothing() -> None:
 
 
 def test_idle_on_an_agv_that_blocks_nobody_emits_nothing_and_asks_nothing() -> None:
-    m = mission_world(lane(), {"A": "S", "B": "D"})
+    m = mission_world(lane, {"A": "S", "B": "D"})
     calls: list[AGV] = []
     m.fleet.make_way = lambda agv, target=None, *, concerned=(): calls.append(agv) or False  # type: ignore[method-assign]
     before = len(m.replay.events)
@@ -1536,7 +1583,7 @@ def test_idle_does_not_review_or_schedule_and_reports_a_stuck_wait_once() -> Non
     so the wait it blocks is reported stuck at once, and only once."""
     policy = Counting()
     m = mission_world(
-        fork(),
+        fork,
         {"A": "S", "B": "M", "G1": "B0", "G2": "SL"},
         clear_service_nodes=False,
         controller_options={"policy": policy},
@@ -1560,7 +1607,7 @@ def test_idle_does_not_review_or_schedule_and_reports_a_stuck_wait_once() -> Non
 
 
 def test_no_clearing_while_an_order_is_pending() -> None:
-    m = mission_world(lane(), {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
+    m = mission_world(lane, {"A": "S"}, bays={"WH-S": "S", "WH-D": "D"})
     first, second = m.order("WH-S", "WH-D"), m.order("WH-S", "WH-D")
     m.env.run()
     assert first.status is second.status is OrderStatus.COMPLETED
@@ -1577,7 +1624,7 @@ def test_no_clearing_while_an_order_is_pending() -> None:
 
 
 def test_a_stalled_first_arc_keeps_the_parking_slot() -> None:
-    m = mission_world(lane(), {"A": "M"}, parking={"P": ("SIDE", 1)})
+    m = mission_world(lane, {"A": "M"}, parking={"P": ("SIDE", 1)})
     a = m.agvs["A"]
     assert m.fleet.make_way(a, m.nodes["SIDE"]) is True
     m.env.run()
@@ -1590,7 +1637,7 @@ def test_a_stalled_first_arc_keeps_the_parking_slot() -> None:
 
 
 def test_a_travel_that_ends_on_the_target_node_keeps_the_slot_whatever_its_outcome() -> None:
-    m = mission_world(lane(), {"A": "M"}, parking={"P": ("SIDE", 1)}, reserve=False)
+    m = mission_world(lane, {"A": "M"}, parking={"P": ("SIDE", 1)}, reserve=False)
     a, target = m.agvs["A"], m.nodes["SIDE"]
 
     def gives_up_on_the_target(agv: AGV, goal: Node, *, loaded: bool, purpose: str = "travel") -> Any:
@@ -1606,8 +1653,8 @@ def test_a_travel_that_ends_on_the_target_node_keeps_the_slot_whatever_its_outco
 
 
 def test_idle_for_an_agv_without_a_fleet_reports_the_stuck_wait() -> None:
-    m = mission_world(fork(), {"B": "D"}, clear_service_nodes=False)
-    outsider = AGV(env=m.env, agv_type=vehicle(), agv_id="X", initial_node=m.nodes["M"])
+    m = mission_world(fork, {"B": "D"}, clear_service_nodes=False)
+    outsider = AGV(env=m.env, agv_type=vehicle(), agv_id="X", initial_node=m.env.layout.node("M"))
     m.controller.place(outsider, m.nodes["M"])  # an AGV that no fleet owns holds M
     m.env.process(_travel(m, "B", "S"))
     m.env.run(until=1.0)
@@ -1630,15 +1677,15 @@ def run_bounded(m: Mission, steps: int = 5000) -> int:
 
 
 def test_a_policy_target_that_the_router_cannot_reach_does_not_loop() -> None:
-    graph_nodes = fork()
-    policy = Choosing(graph_nodes[1]["SL"])
+    policy = Choosing(None)
     m = mission_world(
-        graph_nodes,
+        fork,
         {"A": "S", "B": "D"},
         bays={"WH-S": "S", "WH-M": "M"},
         clear_service_nodes=False,
         controller_options={"policy": policy},
     )
+    policy.node = m.nodes["SL"]
     m.fleet.router = Unreachable(m.nodes["SL"])
     m.order("WH-S", "WH-M")
     m.at(3.0, lambda: m.env.process(_travel(m, "B", "S")))
@@ -1649,7 +1696,7 @@ def test_a_policy_target_that_the_router_cannot_reach_does_not_loop() -> None:
 
 
 def test_make_way_refuses_a_target_the_router_cannot_reach(caplog: pytest.LogCaptureFixture) -> None:
-    w = world(t_layout(), {"A": "C1"}, make_way=True)
+    w = world(t_layout, {"A": "C1"}, make_way=True)
     w.fleet.router = Unreachable(w.nodes["PARK"])
     before = len(w.replay.events)
     assert w.fleet.make_way(w.agvs["A"], w.nodes["PARK"]) is False
@@ -1659,7 +1706,7 @@ def test_make_way_refuses_a_target_the_router_cannot_reach(caplog: pytest.LogCap
 
 
 def test_a_make_way_move_that_ends_at_once_is_not_repeated_at_the_same_instant() -> None:
-    m = mission_world(fork(), {"A": "S"})
+    m = mission_world(fork, {"A": "S"})
     a, sl = m.agvs["A"], m.nodes["SL"]
     m.fleet.router = Scripted(True, False, True, True)  # the check finds a route, the move does not; then both do
     assert m.fleet.make_way(a, sl) is True
@@ -1684,20 +1731,19 @@ def test_the_idle_search_does_not_take_a_node_inside_a_full_zone(capacity: int, 
     in the zone Z, held by R resting on Q. With a zone of one the last leg to Q needs Z, which R makes inadmissible,
     so Q is no free rest although its node has a slot (the first claim, from A to B, does not name Z, even with
     `hold_back`): the search takes P. A zone of two has room, and Q, the cheaper, is taken."""
-    graph, nodes = build(
-        [("A", 0, 0), ("B", 10, 0), ("H", 20, 0), ("Q", 30, 0), ("P", 0, 35)],
-        [("A", "B"), ("B", "H"), ("H", "Q"), ("A", "P")],
-    )
     m = mission_world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [("A", 0, 0), ("B", 10, 0), ("H", 20, 0), ("Q", 30, 0), ("P", 0, 35)],
+            [("A", "B"), ("B", "H"), ("H", "Q"), ("A", "P")],
+            capacities={"Q": 2},
+            zones={"Z": {"members": ["Q"], "capacity": capacity, "hold_back": hold_back}},
+        ),
         {"M": "A", "R": "Q"},
         bays={"WB": "B", "WH": "H"},
-        controller_options={
-            "capacities": {nodes["Q"]: 2},
-            "zones": (Zone("Z", (nodes["Q"],), capacity=capacity, hold_back=hold_back),),
-            "hold_back_dead_ends": False,
-        },
+        controller_options={"hold_back_dead_ends": False},
     )
+    nodes = m.nodes
     m_agv = m.agvs["M"]
     assert standard_target(m.fleet, m_agv, idle=True, purpose="make_way") is nodes[expected]
     assert m.fleet.make_way(m_agv) is True
@@ -1759,15 +1805,24 @@ def test_make_way_moves_into_a_full_zone_do_not_go_on_for_ever() -> None:
         ("s11", "s12"),
         ("s12", "s13"),
     ]
-    graph, nodes = build(points, links)
     env = Environment(seed=206)
+    declared = build(
+        env,
+        points,
+        links,
+        capacities={"s09": 2, "c02": 2},
+        zones={
+            "Z0": {"members": ["c02"], "capacity": 1, "hold_back": True},
+            "Z1": {"members": ["s07", "g1_1"], "capacity": 2},
+        },
+    )
     skus = [SKU(id="s0", weight=1.0, volume=0.1), SKU(id="s1", weight=5.0, volume=0.1)]
     sites = {
         name: Warehouse(
             env=env,
             name=name,
-            input_bays=[nodes[node] for node in inputs],
-            output_bays=[nodes[node] for node in outputs],
+            input_bays=[declared.ref(node) for node in inputs],
+            output_bays=[declared.ref(node) for node in outputs],
             n_slots=2,
             products=skus,
             initial_inventory={sku: 500 for sku in skus},
@@ -1796,21 +1851,18 @@ def test_make_way_moves_into_a_full_zone_do_not_go_on_for_ever() -> None:
     starts = {"agv-c": "s07", "agv-e": "c02", "agv-g": "s12"}
     controller = ReservationController(
         env=env,
-        graph=graph,
-        capacities={nodes["s09"]: 2, nodes["c02"]: 2},
-        zones=(
-            Zone("Z0", (nodes["c02"],), capacity=1, hold_back=True),
-            Zone("Z1", (nodes["s07"], nodes["g1_1"]), capacity=2),
-        ),
+        graph=declared.graph,
         derive_corridors=False,
         priority_fn=lambda agv: float(ord(agv.id[-1]) % 3),
     )
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
-        fleet=[AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes[node]) for name, node in starts.items()],
+        graph=declared.graph,
+        fleet=[
+            AGV(env=env, agv_type=kind, agv_id=name, initial_node=declared.ref(node)) for name, node in starts.items()
+        ],
         warehouses=list(sites.values()),
-        charging_stations=[ChargingStation(env=env, name="C0", node=nodes["c01"], n_slots=1)],
+        charging_stations=[ChargingStation(env=env, name="C0", node=declared.ref("c01"), n_slots=1)],
         traffic_controller=controller,
         repositioning_policy=NearestParkingPolicy(),
         lookahead_margin=2.0,
@@ -1890,14 +1942,14 @@ def stranding_world(*, moving: bool, detour: bool, policy: StandardTrafficPolicy
     nothing then. The world is built and not run."""
     points = [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("N3", 30, 0), ("D1", 0, 10), ("D2", 30, 10)]
     links = [("N0", "N1"), ("N1", "N2"), ("N2", "N3")] + ([("N0", "D1"), ("D1", "D2"), ("D2", "N3")] if detour else [])
-    graph, nodes = build(points if detour else points[:4], links)
     env = Environment(debug=True)
+    declared = build(env, points if detour else points[:4], links)
     site = {
         name: Warehouse(
             env=env,
             name=name,
-            input_bays=[nodes[node]],
-            output_bays=[nodes[node]],
+            input_bays=[declared.ref(node)],
+            output_bays=[declared.ref(node)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: 100},
@@ -1914,12 +1966,12 @@ def stranding_world(*, moving: bool, detour: bool, policy: StandardTrafficPolicy
         volume_capacity=2.0,
         length=12.0 if moving else 0.0,
     )
-    x = AGV(env=env, agv_type=slow, agv_id="X", initial_node=nodes["N1"])
-    w = AGV(env=env, agv_type=vehicle(battery=1e9), agv_id="W", initial_node=nodes["N0"])
-    controller = ReservationController(env=env, graph=graph, policy=policy)
+    x = AGV(env=env, agv_type=slow, agv_id="X", initial_node=declared.ref("N1"))
+    w = AGV(env=env, agv_type=vehicle(battery=1e9), agv_id="W", initial_node=declared.ref("N0"))
+    controller = ReservationController(env=env, graph=declared.graph, policy=policy)
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=[x, w],
         warehouses=list(site.values()),
         charging_stations=[],
@@ -1938,6 +1990,7 @@ def stranding_world(*, moving: bool, detour: bool, policy: StandardTrafficPolicy
         fleet.submit(later)
 
     env.process(submit())
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
     return Stranding(env, replay, nodes, x, w, carried, later)
 
 

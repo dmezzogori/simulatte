@@ -10,6 +10,7 @@ from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.layout import NodeRef
 from simulatte.intralogistics.network import Claim
 from simulatte.intralogistics.traffic import (
     ClaimRequest,
@@ -21,10 +22,10 @@ from simulatte.intralogistics.traffic import (
     TrafficView,
     WaitHooks,
 )
-from tests.intralogistics.traffic_support import line
+from tests.intralogistics.traffic_support import declare, line
 
 
-def _make_agv(env: Environment, node: Node | None = None) -> AGV:
+def _make_agv(env: Environment, node: NodeRef | None = None) -> AGV:
     profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
     agv_type = AGVType(
         name="test",
@@ -38,12 +39,12 @@ def _make_agv(env: Environment, node: Node | None = None) -> AGV:
 
 class TestFreeFlowController:
     def _controller(self) -> tuple[FreeFlowController, Environment, AGV, dict[str, Node]]:
-        graph, nodes = line(4)
         env = Environment()
-        agv = _make_agv(env, nodes["N0"])
+        world = line(env, 4)
+        agv = _make_agv(env, world.ref("N0"))
         controller = FreeFlowController()
-        controller.register_fleet(SimpleNamespace(graph=graph))  # type: ignore[arg-type]
-        return controller, env, agv, nodes
+        controller.register_fleet(SimpleNamespace(graph=world.canonical_graph()))  # type: ignore[arg-type]
+        return controller, env, agv, {f"N{i}": world.node(f"N{i}") for i in range(4)}
 
     def test_satisfies_the_protocols(self) -> None:
         controller = self._controller()[0]
@@ -119,7 +120,7 @@ class TestFreeFlowController:
         controller, _, _, _ = self._controller()
         graph = controller.view.graph
         with pytest.raises(ValueError, match="each graph needs its own FreeFlowController"):
-            controller.register_fleet(SimpleNamespace(graph=line(2)[0]))  # type: ignore[arg-type]
+            controller.register_fleet(SimpleNamespace(graph=line(Environment(), 2).canonical_graph()))  # type: ignore[arg-type]
         assert controller.view.graph is graph
 
     def test_two_built_systems_cannot_share_one_controller(self) -> None:
@@ -134,14 +135,14 @@ class TestFreeFlowController:
     def test_two_fleets_on_one_graph_share_one_controller(self) -> None:
         from simulatte.intralogistics.fleet import FleetCoordinator
 
-        graph, nodes = line(3)
         env = Environment()
+        world = line(env, 3)
         controller = FreeFlowController()
         fleets = [
             FleetCoordinator(
                 env=env,
-                graph=graph,
-                fleet=[_make_agv(env, nodes[start])],
+                graph=world.graph,
+                fleet=[_make_agv(env, world.ref(start))],
                 warehouses=[],
                 charging_stations=[],
                 traffic_controller=controller,
@@ -149,7 +150,7 @@ class TestFreeFlowController:
             for start in ("N0", "N2")
         ]
         processes = [
-            env.process(fleet._executor.travel(fleet.fleet[0], nodes[goal], loaded=False))
+            env.process(fleet._executor.travel(fleet.fleet[0], world.node(goal), loaded=False))
             for fleet, goal in zip(fleets, ("N1", "N1"))
         ]
         env.run()
@@ -158,11 +159,10 @@ class TestFreeFlowController:
     def test_a_layout_fleet_registers_with_its_pending_graph(self) -> None:
         from simulatte import Layout
         from simulatte.intralogistics.fleet import FleetCoordinator
-        from simulatte.layout import Explicit
 
         env = Environment()
         layout = Layout(env)
-        layout.set_network(Explicit(line(2)[0]))
+        line(env, 2)
         controller = FreeFlowController()
         for name in ("a", "b"):  # both graphs are still references to the layout's graph: one graph
             FleetCoordinator(
@@ -183,9 +183,10 @@ class TestFreeFlowController:
 
     def test_view_speed_limit_reads_the_arc(self) -> None:
         a, b = Node("A", 0, 0), Node("B", 10, 0)
+        world = declare(Environment(), LayoutGraph([a, b], [Arc(a, b, speed_limit=1.5)]))
         controller = FreeFlowController()
-        controller.register_fleet(SimpleNamespace(graph=LayoutGraph([a, b], [Arc(a, b, speed_limit=1.5)])))  # type: ignore[arg-type]
-        assert controller.view.speed_limit(a, b) == 1.5
+        controller.register_fleet(SimpleNamespace(graph=world.canonical_graph()))  # type: ignore[arg-type]
+        assert controller.view.speed_limit(world.node("A"), world.node("B")) == 1.5
 
     @pytest.mark.parametrize(
         ("state", "moving", "expected"),

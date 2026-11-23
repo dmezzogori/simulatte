@@ -9,6 +9,7 @@ cause of the interrupt that the travel raised again.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -59,10 +60,12 @@ from tests.intralogistics.traffic_support import (
     StillFleet,
     TrafficInvariants,
     build,
+    declare,
     fake_hooks,
     line,
     t_layout,
 )
+from tests.intralogistics.traffic_support import World as Declared
 from tests.intralogistics.traffic_support import two_junction_corridor
 
 ARC = 8.541666666666668
@@ -184,7 +187,7 @@ class World:
 
 
 def world(
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]],
+    shape: Callable[[Environment], Declared],
     agvs: dict[str, str],
     *,
     reserve: bool = True,
@@ -195,19 +198,22 @@ def world(
     **options: Any,
 ) -> World:
     """An activated world: `agvs` maps each AGV id to its start node id; one fleet with all the AGVs. Idle AGVs make
-    way only with `make_way` (spec §7.10; tests of idle traffic have their own file). `options` go to the
-    ``ReservationController``."""
-    graph, nodes = graph_nodes
+    way only with `make_way` (spec §7.10; tests of idle traffic have their own file). `shape` declares the graph on the
+    environment's layout (a builder of ``traffic_support`` or of this file, its other arguments bound); `options` go to
+    the ``ReservationController``. ``World.nodes`` holds the canonical nodes of the resolved network."""
     env = Environment(debug=True)
     replay = FullReplay(env)
-    controller: Any = ReservationController(env=env, graph=graph, **options) if reserve else FreeFlowController()
+    declared = shape(env)
+    controller: Any = (
+        ReservationController(env=env, graph=declared.graph, **options) if reserve else FreeFlowController()
+    )
     kind = agv_type or vehicle()
     vehicles = {
-        name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=nodes[start]) for name, start in agvs.items()
+        name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=declared.ref(start)) for name, start in agvs.items()
     }
     fleet = (FleetCoordinator if make_way else StillFleet)(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=list(vehicles.values()),
         warehouses=[],
         charging_stations=[],
@@ -219,15 +225,18 @@ def world(
     if reserve:
         TrafficInvariants(env, controller)
     env.activate()
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
     return World(env, fleet, nodes, vehicles, replay, len(replay.events))
 
 
-def diamond() -> tuple[LayoutGraph, dict[str, Node]]:
+def diamond(env: Environment, **network: Any) -> Declared:
     """``S`` to ``E`` through ``P`` (20 m) or through ``Q`` (about 28.3 m), with ``K`` hanging off ``S`` and an
     isolated node ``Z``."""
     return build(
+        env,
         [("S", 0, 0), ("P", 10, 0), ("Q", 10, 10), ("E", 20, 0), ("K", -10, 0), ("Z", 50, 50)],
         [("S", "P"), ("P", "E"), ("S", "Q"), ("Q", "E"), ("S", "K")],
+        **network,
     )
 
 
@@ -236,7 +245,7 @@ def diamond() -> tuple[LayoutGraph, dict[str, Node]]:
 
 def test_free_flow_arrivals_and_events() -> None:
     profile = TrapezoidalProfile(1.5, 0.8, 0.8)  # slowed by the battery level, sampled when the run starts
-    w = world(t_layout(), {"A": "STORE_OUT"}, reserve=False, agv_type=vehicle(profile=profile))
+    w = world(t_layout, {"A": "STORE_OUT"}, reserve=False, agv_type=vehicle(profile=profile))
     w.go("A", "LINE_IN")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -264,7 +273,7 @@ def test_free_flow_arrivals_and_events() -> None:
 
 
 def test_purpose_make_way_and_clear_node_are_the_routed_reason() -> None:
-    w = world(line(3), {"A": "N0"}, reserve=False)
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=False)
     w.go("A", "N1", purpose="make_way")
     w.go("A", "N2", at=50.0, purpose="clear_node")
     w.go("A", "N0", at=100.0, purpose="charge")
@@ -273,7 +282,7 @@ def test_purpose_make_way_and_clear_node_are_the_routed_reason() -> None:
 
 
 def test_goal_equal_to_current_node_arrives_without_events() -> None:
-    w = world(line(2), {"A": "N0"})
+    w = world(lambda env: line(env, 2), {"A": "N0"})
     before = len(w.events)
     outcome = w.env.run(w.env.process(w.fleet._executor.travel(w.agvs["A"], w.nodes["N0"], loaded=False)))
     assert outcome is TravelOutcome.ARRIVED
@@ -284,7 +293,7 @@ def test_goal_equal_to_current_node_arrives_without_events() -> None:
 
 
 def test_a_follower_waits_and_proceeds_when_the_leader_tail_clears() -> None:
-    w = world(line(4), {"L": "N1", "F": "N0"}, agv_type=vehicle(length=2.0))
+    w = world(lambda env: line(env, 4), {"L": "N1", "F": "N0"}, agv_type=vehicle(length=2.0))
     w.go("F", "N2")
     w.go("L", "N3")
     w.env.run()
@@ -299,7 +308,7 @@ def test_a_follower_waits_and_proceeds_when_the_leader_tail_clears() -> None:
 
 
 def test_the_node_behind_is_released_one_extent_after_departure() -> None:
-    w = world(line(3), {"A": "N0"}, agv_type=vehicle(length=2.0))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, agv_type=vehicle(length=2.0))
     w.go("A", "N2")
     w.env.run()
     released = [(e.t, e.resources) for e in w.of(TrafficReleased)]
@@ -310,7 +319,7 @@ def test_the_node_behind_is_released_one_extent_after_departure() -> None:
 
 
 def test_a_profile_with_only_travel_time_releases_at_the_next_arrival() -> None:
-    w = world(line(3), {"A": "N0"}, agv_type=vehicle(length=2.0, profile=Plain()))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, agv_type=vehicle(length=2.0, profile=Plain()))
     w.go("A", "N2")
     w.env.run()
     trace = [
@@ -327,7 +336,7 @@ def test_a_profile_with_only_travel_time_releases_at_the_next_arrival() -> None:
 
 
 def test_extent_longer_than_arc_holds_two_segments() -> None:
-    w = world(line(5), {"A": "N0"}, agv_type=vehicle(length=12.0))
+    w = world(lambda env: line(env, 5), {"A": "N0"}, agv_type=vehicle(length=12.0))
     w.go("A", "N2")
     w.env.run()
     assert w.held("A") == ["N0~N1", "N1", "N1~N2", "N2"]
@@ -342,7 +351,7 @@ def test_extent_longer_than_arc_holds_two_segments() -> None:
 
 def test_reversing_claims_the_trail_again() -> None:
     """A travel back over the trail of the previous one claims those resources again: they lie ahead, not behind."""
-    w = world(line(3), {"A": "N0"}, agv_type=vehicle(length=12.0))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, agv_type=vehicle(length=12.0))
     w.go("A", "N1")
     w.go("A", "N0", at=50.0)
     w.env.run()
@@ -352,7 +361,7 @@ def test_reversing_claims_the_trail_again() -> None:
 
 
 def test_at_the_exit_port_the_corridor_stays_and_gates_a_later_same_direction_claim() -> None:
-    w = world(two_junction_corridor(), {"A": "J1", "W": "y2", "F": "x1"})
+    w = world(two_junction_corridor, {"A": "J1", "W": "y2", "F": "x1"})
     w.go("A", "J2")
     w.go("W", "x1", at=50.0)
     w.go("F", "x2", at=60.0)
@@ -373,7 +382,7 @@ def test_an_interrupt_during_an_arc_takes_effect_where_the_run_comes_to_rest() -
     """At 3 A holds N0 to N2 (the next arc and its braking distance). The arc to N1 keeps its profile, which passes N1
     at speed, so the first node a braking distance beyond it, N2, is where A comes to rest and the interrupt takes
     effect (spec §8.3)."""
-    w = world(line(4), {"A": "N0"})
+    w = world(lambda env: line(env, 4), {"A": "N0"})
     process = w.go("A", "N3")
     w.interrupt(process, 3.0)
     w.interrupt(process, 5.0, "second")
@@ -394,7 +403,7 @@ def test_an_interrupt_during_an_arc_takes_effect_where_the_run_comes_to_rest() -
 
 @pytest.mark.parametrize(("cause", "reason"), [("cancelled", "cancelled"), (None, "interrupted")])
 def test_cancel_while_waiting_leaves_only_current_node_reserved(cause: object, reason: str) -> None:
-    w = world(line(3), {"F": "N0", "L": "N1"})
+    w = world(lambda env: line(env, 3), {"F": "N0", "L": "N1"})
     process = w.go("F", "N2")
     w.interrupt(process, 5.0, cause)
     w.env.run()
@@ -412,10 +421,10 @@ def test_cancel_while_waiting_leaves_only_current_node_reserved(cause: object, r
 
 def test_no_route() -> None:
     env = Environment(log_history_size=100)
-    graph, nodes = build([("A", 0, 0), ("B", 10, 0)], [])
-    agv = AGV(env=env, agv_type=vehicle(), agv_id="V", initial_node=nodes["A"])
-    fleet = FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[])
-    outcome = env.run(env.process(fleet._executor.travel(agv, nodes["B"], loaded=False)))
+    declared = build(env, [("A", 0, 0), ("B", 10, 0)], [])
+    agv = AGV(env=env, agv_type=vehicle(), agv_id="V", initial_node=declared.ref("A"))
+    fleet = FleetCoordinator(env=env, graph=declared.graph, fleet=[agv], warehouses=[], charging_stations=[])
+    outcome = env.run(env.process(fleet._executor.travel(agv, declared.node("B"), loaded=False)))
     assert outcome is TravelOutcome.NO_ROUTE
     (error,) = env.log_history.query(component="FleetCoordinator")
     assert error.message == "No path from A to B for V"
@@ -424,13 +433,13 @@ def test_no_route() -> None:
 def test_no_route_fails_the_order_after_returning_the_cargo() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
-    graph, nodes = build([("ORIGIN", 0, 0), ("DEST", 10, 0)], [])
+    declared = build(env, [("ORIGIN", 0, 0), ("DEST", 10, 0)], [])
     sku = SKU("S", 1.0, 0.1)
     origin = Warehouse(
         env=env,
         name="WH-O",
-        input_bays=[nodes["ORIGIN"]],
-        output_bays=[nodes["ORIGIN"]],
+        input_bays=[declared.ref("ORIGIN")],
+        output_bays=[declared.ref("ORIGIN")],
         n_slots=1,
         products=[sku],
         initial_inventory={sku: 5},
@@ -440,15 +449,17 @@ def test_no_route_fails_the_order_after_returning_the_cargo() -> None:
     dest = Warehouse(
         env=env,
         name="WH-D",
-        input_bays=[nodes["DEST"]],
-        output_bays=[nodes["DEST"]],
+        input_bays=[declared.ref("DEST")],
+        output_bays=[declared.ref("DEST")],
         n_slots=1,
         products=[sku],
         pick_time=1.0,
         put_time=1.0,
     )
-    agv = AGV(env=env, agv_type=vehicle(), agv_id="V", initial_node=nodes["ORIGIN"])
-    fleet = FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[origin, dest], charging_stations=[])
+    agv = AGV(env=env, agv_type=vehicle(), agv_id="V", initial_node=declared.ref("ORIGIN"))
+    fleet = FleetCoordinator(
+        env=env, graph=declared.graph, fleet=[agv], warehouses=[origin, dest], charging_stations=[]
+    )
     order = fleet.create_order(sku=sku, quantity=2, origin=origin, destination=dest)
     fleet.submit(order)
     env.run()
@@ -462,9 +473,9 @@ def test_no_route_fails_the_order_after_returning_the_cargo() -> None:
 
 
 def test_a_staged_reroute_is_executed() -> None:
-    graph_nodes = diamond()
-    policy = Scripted(blocked=(Reroute(frozenset({graph_nodes[1]["P"]})),))
-    w = world(graph_nodes, {"A": "S", "B": "P"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    policy = Scripted()
+    w = world(diamond, {"A": "S", "B": "P"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    policy.blocked = (Reroute(frozenset({w.nodes["P"]})),)
     w.go("A", "E")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -475,7 +486,7 @@ def test_a_staged_reroute_is_executed() -> None:
 
 
 def test_a_staged_step_aside_is_executed_and_the_agv_still_arrives() -> None:
-    w = world(t_layout(), {"A": "C1", "B": "STORE_OUT"}, policy=Scripted(deadlock=("A", StepAside())))
+    w = world(t_layout, {"A": "C1", "B": "STORE_OUT"}, policy=Scripted(deadlock=("A", StepAside())))
     w.go("B", "LINE_IN")
     w.go("A", "STORE_OUT")
     w.env.run()
@@ -495,13 +506,20 @@ def test_no_route_back_after_a_step_aside() -> None:
         nodes.values(),
         [Arc(nodes["S"], nodes["C1"]), Arc(nodes["C1"], nodes["T"]), Arc(nodes["C1"], nodes["D"], bidirectional=False)],
     )
-    policy = Scripted(deadlock=("A", StepAside(nodes["D"])))
-    w = world((graph, nodes), {"A": "C1", "B": "S"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    policy = Scripted()
+    w = world(
+        lambda env: declare(env, graph),
+        {"A": "C1", "B": "S"},
+        derive_corridors=False,
+        hold_back_dead_ends=False,
+        policy=policy,
+    )
+    policy.deadlock = ("A", StepAside(w.nodes["D"]))
     w.go("B", "T")
     w.go("A", "S")
     w.env.run()
     assert w.outcomes == {"B": TravelOutcome.ARRIVED, "A": TravelOutcome.NO_ROUTE}
-    assert w.agvs["A"].current_node == nodes["D"]
+    assert w.agvs["A"].current_node == w.nodes["D"]
 
 
 def test_a_give_up_directive_ends_the_travel() -> None:
@@ -511,7 +529,7 @@ def test_a_give_up_directive_ends_the_travel() -> None:
             event.succeed(GaveUp())
             return ClaimRequest(agv, claim, hooks, event)
 
-    w = world(line(2), {"A": "N0"}, reserve=False)
+    w = world(lambda env: line(env, 2), {"A": "N0"}, reserve=False)
     w.fleet.traffic_controller = GivingUp()
     w.fleet.traffic_controller.register_fleet(w.fleet)
     w.go("A", "N1")
@@ -539,8 +557,9 @@ class BadRouter:
     ],
 )
 def test_an_invalid_route_raises(ids: tuple[str, ...], problem: str) -> None:
-    graph, nodes = line(3)
-    w = world((graph, nodes), {"A": "N0"}, reserve=False, router=BadRouter(tuple(nodes[i] for i in ids)))
+    router = BadRouter(())
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=False, router=router)
+    router.nodes = tuple(w.nodes[i] for i in ids)
     w.go("A", "N2")
     with pytest.raises(ValueError, match=f"BadRouter returned an invalid route from N0 to N2: {problem}"):
         w.env.run()
@@ -550,7 +569,7 @@ def test_an_invalid_route_raises(ids: tuple[str, ...], problem: str) -> None:
 
 
 def test_hooks_of_a_waiting_travel() -> None:
-    w = world(diamond(), {"A": "S", "B": "P"}, derive_corridors=False, hold_back_dead_ends=False, policy=Scripted())
+    w = world(diamond, {"A": "S", "B": "P"}, derive_corridors=False, hold_back_dead_ends=False, policy=Scripted())
     w.go("A", "E")
     w.env.run()
     n = w.nodes
@@ -572,16 +591,16 @@ def test_hooks_of_a_waiting_travel() -> None:
 
 
 def test_step_aside_without_a_standard_target() -> None:
-    w = world(line(2), {"A": "N0", "B": "N1"}, policy=Scripted())
+    w = world(lambda env: line(env, 2), {"A": "N0", "B": "N1"}, policy=Scripted())
     w.go("A", "N1")
     w.env.run()
     assert w.hooks("A").try_step_aside(None) is False
 
 
 def test_resolutions_count_until_arrival_at_the_goal() -> None:
-    graph_nodes = diamond()
-    policy = Scripted(blocked=(Reroute(frozenset({graph_nodes[1]["P"]})),))
-    w = world(graph_nodes, {"A": "S", "B": "P"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    policy = Scripted()
+    w = world(diamond, {"A": "S", "B": "P"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    policy.blocked = (Reroute(frozenset({w.nodes["P"]})),)
     executor = w.fleet._executor
     w.go("A", "E")
     w.env.run()
@@ -595,26 +614,27 @@ def test_resolutions_count_until_arrival_at_the_goal() -> None:
 def star(capacity_p: int = 1) -> tuple[World, dict[str, Node]]:
     """``M`` at ``X``; ``C`` at ``R`` waits to go ``R, X, P``. ``Q`` and ``T`` are 10 m from ``X`` as ``P`` is, ``R2``
     lies behind ``R``, ``FAR`` 20 m away and ``Z`` is isolated."""
-    graph, nodes = build(
-        [
-            ("X", 0, 0),
-            ("P", 10, 0),
-            ("Q", 0, 10),
-            ("T", 0, -10),
-            ("R", -10, 0),
-            ("R2", -20, 0),
-            ("FAR", 20, 0),
-            ("Z", 99, 99),
-        ],
-        [("X", "P"), ("X", "Q"), ("X", "T"), ("X", "R"), ("R", "R2"), ("P", "FAR")],
-    )
     w = world(
-        (graph, nodes),
+        lambda env: build(
+            env,
+            [
+                ("X", 0, 0),
+                ("P", 10, 0),
+                ("Q", 0, 10),
+                ("T", 0, -10),
+                ("R", -10, 0),
+                ("R2", -20, 0),
+                ("FAR", 20, 0),
+                ("Z", 99, 99),
+            ],
+            [("X", "P"), ("X", "Q"), ("X", "T"), ("X", "R"), ("R", "R2"), ("P", "FAR")],
+            capacities={"P": capacity_p},
+        ),
         {"M": "X", "C": "R"},
         derive_corridors=False,
         hold_back_dead_ends=False,
-        capacities={nodes["P"]: capacity_p},
     )
+    nodes = w.nodes
     route = (nodes["R"], nodes["X"], nodes["P"])
     c = w.agvs["C"]
     w.controller.request(c, w.controller.next_claim(c, route, 0), fake_hooks(route))
@@ -637,13 +657,14 @@ def test_a_node_ahead_on_a_concerned_route_needs_a_spare_slot(capacity: int, exp
 
 
 def test_standard_target_none_when_nothing_qualifies() -> None:
-    w = world(line(2), {"A": "N0", "B": "N1"})
+    w = world(lambda env: line(env, 2), {"A": "N0", "B": "N1"})
     assert standard_target(w.fleet, w.agvs["A"]) is None
 
 
 def test_standard_target_checks_the_router() -> None:
-    graph, nodes = line(2)
-    w = world((graph, nodes), {"A": "N0"}, reserve=False, router=BadRouter((nodes["N0"],)))
+    router = BadRouter(())
+    w = world(lambda env: line(env, 2), {"A": "N0"}, reserve=False, router=router)
+    router.nodes = (w.nodes["N0"],)
     with pytest.raises(ValueError, match="does not end at N1"):
         standard_target(w.fleet, w.agvs["A"])
 
@@ -653,9 +674,10 @@ def test_standard_target_checks_the_router() -> None:
 
 def test_coordinator_defaults() -> None:
     env = Environment()
-    graph, nodes = line(2)
-    agv = AGV(env=env, agv_type=vehicle(length=None), initial_node=nodes["N0"])
-    fleet = FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[])
+    declared = line(env, 2)
+    agv = AGV(env=env, agv_type=vehicle(length=None), initial_node=declared.ref("N0"))
+    fleet = FleetCoordinator(env=env, graph=declared.graph, fleet=[agv], warehouses=[], charging_stations=[])
+    graph = declared.canonical_graph()  # prepares the layout
     assert isinstance(fleet.traffic_controller, FreeFlowController)
     assert isinstance(fleet.router, ShortestDistanceRouter)
     assert fleet.traffic_controller.view.graph is graph  # the fleet registered with its controller
@@ -665,17 +687,22 @@ def test_coordinator_defaults() -> None:
 
 def test_coordinator_registers_with_a_reservation_controller() -> None:
     env = Environment()
-    graph, nodes = line(2)
-    controller = ReservationController(env=env, graph=graph)
-    agv = AGV(env=env, agv_type=vehicle(length=None), initial_node=nodes["N0"])
+    declared = line(env, 2)
+    controller = ReservationController(env=env, graph=declared.graph)
+    agv = AGV(env=env, agv_type=vehicle(length=None), initial_node=declared.ref("N0"))
     with pytest.raises(ValueError, match="has no length"):
         FleetCoordinator(
-            env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_controller=controller
+            env=env,
+            graph=declared.graph,
+            fleet=[agv],
+            warehouses=[],
+            charging_stations=[],
+            traffic_controller=controller,
         )
 
 
 def test_initial_placement_goes_through_the_controller() -> None:
-    w = world(line(3), {"A": "N0", "B": "N2"})
+    w = world(lambda env: line(env, 3), {"A": "N0", "B": "N2"})
     assert w.held("A") == ["N0"] and w.held("B") == ["N2"]
     assert math.isclose(w.agvs["A"].battery.level, 1000.0)
 
@@ -689,10 +716,16 @@ def stalled() -> TrapezoidalProfile:
 
 
 def test_a_stalled_arc_is_never_left_and_an_interrupt_takes_effect_at_once() -> None:
-    graph_nodes = build(
-        [("K", -10, 0), ("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0)], [("K", "N0"), ("N0", "N1"), ("N1", "N2")]
+    w = world(
+        lambda env: build(
+            env,
+            [("K", -10, 0), ("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0)],
+            [("K", "N0"), ("N0", "N1"), ("N1", "N2")],
+        ),
+        {"A": "N0", "B": "K"},
+        derive_corridors=False,
+        hold_back_dead_ends=False,
     )
-    w = world(graph_nodes, {"A": "N0", "B": "K"}, derive_corridors=False, hold_back_dead_ends=False)
     a = w.agvs["A"]
     a.agv_type = vehicle(profile=stalled())  # B keeps the moving type
     process = w.go("A", "N2")
@@ -720,7 +753,7 @@ def test_a_trip_stopped_before_departing_keeps_what_the_body_still_overlaps() ->
     """A 12 m vehicle reverses out of the leaf N2 it reached from N1. Its claim back over ``N1~N2`` and ``N1`` lifts
     them out of its trail; when the trip comes to rest without departing onto them (the reversal stalls and is
     interrupted), they go back into the trail, so ``retain`` keeps what the body still stands on."""
-    w = world(line(3), {"A": "N1"}, agv_type=vehicle(length=12.0))
+    w = world(lambda env: line(env, 3), {"A": "N1"}, agv_type=vehicle(length=12.0))
     w.go("A", "N2")
     w.env.run()
     assert w.held("A") == ["N1", "N1~N2", "N2"]  # N1 clears 12 m after departure, N1~N2 at 22
@@ -736,7 +769,7 @@ def test_a_trip_stopped_before_departing_keeps_what_the_body_still_overlaps() ->
 
 
 def test_a_stalled_arc_interrupted_under_free_flow() -> None:
-    w = world(line(3), {"A": "N0"}, reserve=False, agv_type=vehicle(profile=stalled()))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=False, agv_type=vehicle(profile=stalled()))
     process = w.go("A", "N2")
     w.interrupt(process, 5.0, "breakdown")
     w.env.run()
@@ -752,9 +785,9 @@ def test_a_stalled_arc_interrupted_under_free_flow() -> None:
     ]
 
 
-def leaf_line() -> tuple[LayoutGraph, dict[str, Node]]:
+def leaf_line(env: Environment) -> Declared:
     """A leaf ``L`` of capacity 2 at the end of the line ``L, M, N``."""
-    return build([("L", 0, 0), ("M", 10, 0), ("N", 20, 0)], [("L", "M"), ("M", "N")])
+    return build(env, [("L", 0, 0), ("M", 10, 0), ("N", 20, 0)], [("L", "M"), ("M", "N")], capacities={"L": 2})
 
 
 def assert_flowing(w: World) -> None:
@@ -767,12 +800,16 @@ def test_a_head_on_meeting_at_a_passing_place_completes_with_a_length(length: fl
     """A from R to Z, B from Z to R, passing at P (capacity 2). Q and Y lead into dead ends, so each waits at the
     entry for the whole rest of its route: the deadlock is resolved by stepping A aside to P, with a length as
     without one. Before the trail cleared on P, A kept ``P~Q`` there and the second deadlock stood unresolved."""
-    graph_nodes = build(
-        [("R", 0, 0), ("Q", 10, 0), ("P", 20, 0), ("Y", 30, 0), ("Z", 40, 0)],
-        [("R", "Q"), ("Q", "P"), ("P", "Y"), ("Y", "Z")],
+    w = world(
+        lambda env: build(
+            env,
+            [("R", 0, 0), ("Q", 10, 0), ("P", 20, 0), ("Y", 30, 0), ("Z", 40, 0)],
+            [("R", "Q"), ("Q", "P"), ("P", "Y"), ("Y", "Z")],
+            capacities={"P": 2},
+        ),
+        {"A": "R", "B": "Z"},
+        agv_type=vehicle(length=length),
     )
-    nodes = graph_nodes[1]
-    w = world(graph_nodes, {"A": "R", "B": "Z"}, agv_type=vehicle(length=length), capacities={nodes["P"]: 2})
     w.go("A", "Z")
     w.go("B", "R")
     w.env.run()
@@ -782,8 +819,7 @@ def test_a_head_on_meeting_at_a_passing_place_completes_with_a_length(length: fl
 
 
 def test_two_vehicles_at_a_multi_slot_leaf_one_sent_away() -> None:
-    graph_nodes = leaf_line()
-    w = world(graph_nodes, {"A": "M", "B": "N"}, agv_type=vehicle(length=1.0), capacities={graph_nodes[1]["L"]: 2})
+    w = world(leaf_line, {"A": "M", "B": "N"}, agv_type=vehicle(length=1.0))
     w.go("A", "L")
     w.go("B", "L", at=30.0)
     w.env.run()
@@ -796,8 +832,7 @@ def test_two_vehicles_at_a_multi_slot_leaf_one_sent_away() -> None:
 
 
 def test_one_vehicle_enters_a_multi_slot_leaf_while_the_other_leaves() -> None:
-    graph_nodes = leaf_line()
-    w = world(graph_nodes, {"A": "M", "B": "N"}, agv_type=vehicle(length=1.0), capacities={graph_nodes[1]["L"]: 2})
+    w = world(leaf_line, {"A": "M", "B": "N"}, agv_type=vehicle(length=1.0))
     w.go("A", "L")
     w.env.run()
     w.go("B", "L", at=50.0)
@@ -808,7 +843,7 @@ def test_one_vehicle_enters_a_multi_slot_leaf_while_the_other_leaves() -> None:
 
 
 def test_arriving_at_a_single_slot_node_keeps_the_trail() -> None:
-    w = world(line(3), {"A": "N0"}, agv_type=vehicle(length=2.0), capacities={line(3)[1]["N0"]: 2})
+    w = world(lambda env: line(env, 3, capacities={"N0": 2}), {"A": "N0"}, agv_type=vehicle(length=2.0))
     w.go("A", "N1")
     w.env.run()
     assert w.held("A") == ["N0~N1", "N1"]  # N1 has capacity 1: the body still overlaps the segment
@@ -829,7 +864,7 @@ def test_withdraw_is_called_without_occupancy_control() -> None:
         def withdraw(self, request: ClaimRequest) -> None:
             calls.append("withdraw")
 
-    w = world(line(2), {"A": "N0"}, reserve=False)
+    w = world(lambda env: line(env, 2), {"A": "N0"}, reserve=False)
     controller = Deferring()
     controller.register_fleet(w.fleet)
     w.fleet.traffic_controller = controller
@@ -841,7 +876,7 @@ def test_withdraw_is_called_without_occupancy_control() -> None:
 
 
 def test_an_interrupt_at_the_instant_of_a_grant_drops_the_grant() -> None:
-    w = world(line(3), {"W": "N0", "H": "N1"})
+    w = world(lambda env: line(env, 3), {"W": "N0", "H": "N1"})
     process = w.go("W", "N2")
     w.go("H", "N2", at=1.0)  # H leaves N1 at 1: W is granted N1 ...
     w.interrupt(process, 1.0)  # ... and interrupted before its travel resumes
@@ -859,7 +894,7 @@ def test_an_interrupt_at_the_instant_of_a_grant_drops_the_grant() -> None:
 def test_an_interrupt_during_a_multi_leg_claim_drops_the_legs_ahead() -> None:
     """The battery affords one arc, so the run ends at rest at C1 inside the dead-end claim; there the interrupt
     takes effect and the legs ahead go."""
-    w = world(t_layout(), {"A": "STORE_OUT"}, agv_type=vehicle(battery=15.0))
+    w = world(t_layout, {"A": "STORE_OUT"}, agv_type=vehicle(battery=15.0))
     process = w.go("A", "LINE_IN")
     w.interrupt(process, 3.0)
     w.env.run()
@@ -870,9 +905,14 @@ def test_an_interrupt_during_a_multi_leg_claim_drops_the_legs_ahead() -> None:
 
 
 def test_a_staged_reroute_of_a_deadlock_is_executed() -> None:
-    graph_nodes = build([("A0", 0, 0), ("A1", 10, 0), ("X", 5, 5)], [("A0", "A1"), ("A0", "X"), ("X", "A1")])
     policy = Scripted()
-    w = world(graph_nodes, {"A": "A0", "B": "A1"}, derive_corridors=False, hold_back_dead_ends=False, policy=policy)
+    w = world(
+        lambda env: build(env, [("A0", 0, 0), ("A1", 10, 0), ("X", 5, 5)], [("A0", "A1"), ("A0", "X"), ("X", "A1")]),
+        {"A": "A0", "B": "A1"},
+        derive_corridors=False,
+        hold_back_dead_ends=False,
+        policy=policy,
+    )
     policy.deadlock = ("A", Reroute(frozenset({w.controller.network.segment(w.nodes["A0"], w.nodes["A1"])})))
     w.go("A", "A1")
     w.go("B", "A0")
@@ -902,20 +942,22 @@ def test_a_reroute_asked_of_an_agv_on_its_goal_ends_the_travel_as_arrived() -> N
     """A step aside from ``S`` to ``T`` passes through the goal ``G``; at ``G`` the way on is blocked by C and the
     policy asks for a reroute. The AGV has arrived (spec §7.9): the reroute succeeds with the one-node route and the
     travel ends, holding only the node it stands on."""
-    graph_nodes = build(
-        [("S", 0, 0), ("X", 10, 8), ("Y", 10, -9), ("G", 20, 0), ("T", 30, 0)],
-        [("S", "X"), ("X", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
-    )
-    n = graph_nodes[1]
-    policy = Scripted(blocked=(StepAside(n["T"]), Reroute(frozenset({n["T"]}), 0.5)))
+    policy = Scripted()
+    router = ThroughTheGoal({})
     w = world(
-        graph_nodes,
+        lambda env: build(
+            env,
+            [("S", 0, 0), ("X", 10, 8), ("Y", 10, -9), ("G", 20, 0), ("T", 30, 0)],
+            [("S", "X"), ("X", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+        ),
         {"A": "S", "B": "X", "C": "T"},
         derive_corridors=False,
         hold_back_dead_ends=False,
         policy=policy,
-        router=ThroughTheGoal(n),
+        router=router,
     )
+    n = router.nodes = w.nodes
+    policy.blocked = (StepAside(n["T"]), Reroute(frozenset({n["T"]}), 0.5))
     w.go("A", "G")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.ARRIVED}

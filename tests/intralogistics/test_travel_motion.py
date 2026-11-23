@@ -38,7 +38,16 @@ from simulatte.intralogistics.kinematics import Kinematics, plan_run, rest_to_re
 from simulatte.intralogistics.speed import LINEAR_MOTION, TrapezoidalProfile, motion_fraction
 from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics.test_travel import ARC, Plain, World, steady, vehicle, world
-from tests.intralogistics.traffic_support import FullReplay, TrafficInvariants, build, line, t_layout
+from tests.intralogistics.traffic_support import (
+    FullReplay,
+    StillFleet,
+    TrafficInvariants,
+    build,
+    declare,
+    line,
+    t_layout,
+)
+from tests.intralogistics.traffic_support import World as Declared
 
 KIN = Kinematics(1.5, 0.8, 0.8)
 """The limits of :func:`steady`."""
@@ -50,9 +59,10 @@ UNIT = 2 * 1.5 / 0.8
 """One deceleration from ``v_max`` plus one acceleration back to it, at :data:`KIN`."""
 
 
-def straight(pieces: int, length: float = 30.0) -> tuple[LayoutGraph, dict[str, Node]]:
+def straight(env: Environment, pieces: int, length: float = 30.0) -> Declared:
     """A straight line of `length` metres from ``P0`` to ``P<pieces>`` in `pieces` equal arcs."""
     return build(
+        env,
         [(f"P{i}", length * i / pieces, 0) for i in range(pieces + 1)],
         [(f"P{i}", f"P{i + 1}") for i in range(pieces)],
     )
@@ -104,7 +114,7 @@ def test_split_line_arrival_times() -> None:
     single = steady().travel_time(30.0)
     assert rest_to_rest(30.0, 1.5, KIN).duration == pytest.approx(single, rel=1e-12)
     for pieces in (1, 3, 30):
-        w = world(straight(pieces), {"A": "P0"}, reserve=False)
+        w = world(lambda env: straight(env, pieces), {"A": "P0"}, reserve=False)
         w.go("A", f"P{pieces}")
         w.env.run()
         assert w.outcomes == {"A": TravelOutcome.ARRIVED}
@@ -113,7 +123,7 @@ def test_split_line_arrival_times() -> None:
 
 
 def test_the_t_layout_travel_takes_the_single_profile_time_and_passes_its_nodes_at_speed() -> None:
-    w = world(t_layout(), {"A": "STORE_OUT"}, reserve=False)
+    w = world(t_layout, {"A": "STORE_OUT"}, reserve=False)
     w.go("A", "LINE_IN")
     w.env.run()
     ended, started = w.of(AgvMoveEnded), w.of(AgvMoveStarted)
@@ -130,7 +140,7 @@ def test_the_t_layout_travel_takes_the_single_profile_time_and_passes_its_nodes_
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_descriptions_are_valid_at_a_large_simulation_time(reserve: bool) -> None:
-    w = world(straight(30, 45.0), {"A": "P0"}, reserve=reserve)
+    w = world(lambda env: straight(env, 30, 45.0), {"A": "P0"}, reserve=reserve)
     w.env.run(until=1e6)
     w.go("A", "P30", at=1e6 + 0.1)
     w.env.run()
@@ -151,7 +161,7 @@ def test_limits_are_sampled_per_run(reserve: bool) -> None:
         depletion_fn=lambda distance, load, speed: 10.0 * distance,
         length=0.0,
     )
-    w = world(line(5), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    w = world(lambda env: line(env, 5), {"A": "N0"}, reserve=reserve, agv_type=kind)
     w.go("A", "N4")
     w.go("A", "N3", at=100.0)
     w.env.run()
@@ -193,13 +203,13 @@ def test_lone_agv_matches_free_flow(layout: str) -> None:
     if layout == "builder_line":
         runs = [builder_line_arrivals(reserve) for reserve in (True, False)]
     else:
-        graph_nodes, start, goals = {
+        shape, start, goals = {
             "t_layout": (t_layout, "STORE_OUT", ("LINE_IN", "PARK", "STORE_OUT")),
-            "thirty_arcs": (lambda: straight(30), "P0", ("P30", "P0")),
+            "thirty_arcs": (lambda env: straight(env, 30), "P0", ("P30", "P0")),
         }[layout]
         runs = []
         for reserve in (True, False):
-            w = world(graph_nodes(), {"A": start}, reserve=reserve, agv_type=vehicle(length=1.0))
+            w = world(shape, {"A": start}, reserve=reserve, agv_type=vehicle(length=1.0))
             for i, goal in enumerate(goals):
                 w.go("A", goal, at=200.0 * i)
             w.env.run()
@@ -218,7 +228,9 @@ def line_arrivals(v_max: float, accel: float, decel: float, block: float, arcs: 
     nodes = {f"E{i}": Node(f"E{i}", block * i, 0) for i in range(arcs + 1)}
     graph = LayoutGraph(nodes.values(), [Arc(nodes[f"E{i}"], nodes[f"E{i + 1}"], length=block) for i in range(arcs)])
     profile = TrapezoidalProfile(v_max, accel, decel, battery_degradation_fn=lambda level: 1.0)
-    w = world((graph, nodes), {"A": "E0"}, reserve=reserve, agv_type=vehicle(profile=profile, battery=1e9))
+    w = world(
+        lambda env: declare(env, graph), {"A": "E0"}, reserve=reserve, agv_type=vehicle(profile=profile, battery=1e9)
+    )
     w.go("A", f"E{arcs}")
     w.env.run()
     return arrivals(w)
@@ -270,7 +282,7 @@ def test_lone_agv_matches_free_flow_over_blocks_at_fractions_of_the_braking_dist
 def test_the_claims_ahead_cover_the_next_arc_and_the_braking_distance(margin: float) -> None:
     """On a 30 m line of 1 m arcs, at every departure the AGV holds the next arc, then at least the braking distance
     plus the margin beyond it, and not one claim more than that needs; the arrival time does not depend on it."""
-    w = world(straight(30), {"A": "P0"}, lookahead_margin=margin)
+    w = world(lambda env: straight(env, 30), {"A": "P0"}, lookahead_margin=margin)
     held: list[tuple[int, int]] = []  # (node index, furthest node index held) at each departure
     agv = w.agvs["A"]
 
@@ -291,9 +303,10 @@ def test_the_claims_ahead_cover_the_next_arc_and_the_braking_distance(margin: fl
     assert w.of(AgvMoveEnded)[-1].t == pytest.approx(steady().travel_time(30.0), rel=1e-9)
 
 
-def side_line() -> tuple[LayoutGraph, dict[str, Node]]:
+def side_line(env: Environment) -> Declared:
     """A line ``N0 ... N4`` of 10 m arcs with the side node ``S`` 10 m off N3."""
     return build(
+        env,
         [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("N3", 30, 0), ("N4", 40, 0), ("S", 30, 10)],
         [("N0", "N1"), ("N1", "N2"), ("N2", "N3"), ("N3", "N4"), ("N3", "S")],
     )
@@ -301,7 +314,7 @@ def side_line() -> tuple[LayoutGraph, dict[str, Node]]:
 
 def leader_and_follower(leader_leaves: float) -> World:
     """F travels ``N0 -> N4`` while L stands on N3 until `leader_leaves`, then goes to S; one claim per leg."""
-    w = world(side_line(), {"L": "N3", "F": "N0"}, hold_back_dead_ends=False)
+    w = world(side_line, {"L": "N3", "F": "N0"}, hold_back_dead_ends=False)
     w.go("F", "N4")
     w.go("L", "S", at=leader_leaves)
     w.env.run()
@@ -337,7 +350,7 @@ def stream_past_a_leader(leader_leaves: float) -> World:
     one claim per leg."""
     points = [(f"P{i:02d}", i, 0) for i in range(15)] + [("S", 10, 1)]
     links = [(f"P{i:02d}", f"P{i + 1:02d}") for i in range(14)] + [("P10", "S")]
-    w = world(build(points, links), {"L": "P10", "F": "P00"}, hold_back_dead_ends=False)
+    w = world(lambda env: build(env, points, links), {"L": "P10", "F": "P00"}, hold_back_dead_ends=False)
     w.go("F", "P14")
     w.go("L", "S", at=leader_leaves)
     w.env.run()
@@ -364,7 +377,7 @@ def test_grant_at_the_instant_of_a_node_passed_at_speed_is_used() -> None:
 def test_a_claim_granted_on_an_arc_that_already_brakes_ends_in_a_stop_at_its_node() -> None:
     """L leaves at 10, while F brakes on ``N1 -> N2`` for N2. F still stops there (the documented limit of spec
     §9.3), restarts at once without a wait, and loses at most one deceleration and one acceleration."""
-    alone = world(side_line(), {"F": "N0"}, hold_back_dead_ends=False)
+    alone = world(side_line, {"F": "N0"}, hold_back_dead_ends=False)
     alone.go("F", "N4")
     alone.env.run()
     free_time = alone.of(AgvMoveEnded)[-1].t
@@ -382,7 +395,7 @@ def test_a_claim_granted_on_an_arc_that_already_brakes_ends_in_a_stop_at_its_nod
 def test_a_moving_agv_blocked_by_an_idle_one_stops_at_its_horizon_and_the_idle_one_makes_way() -> None:
     """The pending claim of a moving AGV opens no wait, so the idle AGV it needs is not asked to move (and keeps
     its make-way memory) until the AGV comes to rest at its horizon and calls ``stopped``."""
-    w = world(side_line(), {"A": "N0", "B": "N3"}, make_way=True)
+    w = world(side_line, {"A": "N0", "B": "N3"}, make_way=True)
     a, b = w.agvs["A"], w.agvs["B"]
     seen: list[tuple[str, bool, tuple[AGV, ...], int]] = []
 
@@ -407,7 +420,7 @@ def test_a_moving_agv_blocked_by_an_idle_one_stops_at_its_horizon_and_the_idle_o
 
 
 def test_an_interrupt_while_moving_takes_effect_at_the_first_node_where_the_run_can_rest() -> None:
-    w = world(line(5), {"A": "N0"})
+    w = world(lambda env: line(env, 5), {"A": "N0"})
     process = w.go("A", "N4")
     w.interrupt(process, 3.0)
     w.env.run()
@@ -419,7 +432,7 @@ def test_an_interrupt_while_moving_takes_effect_at_the_first_node_where_the_run_
 
 
 def test_an_interrupt_with_a_pending_claim_withdraws_it_at_rest_without_a_wait() -> None:
-    w = world(line(6), {"L": "N3", "F": "N0"})
+    w = world(lambda env: line(env, 6), {"L": "N3", "F": "N0"})
     process = w.go("F", "N4")
     w.interrupt(process, 10.0)  # on N1 -> N2, with the claim of N2 -> N3 pending
     w.env.run()
@@ -445,7 +458,7 @@ def critical_type(depletion: Any = None, threshold: float = 0.9, capacity: float
 def test_the_plan_ends_where_the_estimated_battery_turns_critical(reserve: bool) -> None:
     """10 of 100 per arc and a critical threshold of 0.9: the estimate foresees a critical level at N1, so the run
     ends at rest there and the travel returns there, under both controllers (spec §9.5)."""
-    w = world(line(5), {"A": "N0"}, reserve=reserve, agv_type=critical_type())
+    w = world(lambda env: line(env, 5), {"A": "N0"}, reserve=reserve, agv_type=critical_type())
     w.go("A", "N4")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.RETRY_FROM_CURRENT_POSITION}
@@ -465,7 +478,7 @@ def test_the_plan_ends_at_the_last_affordable_node(reserve: bool) -> None:
         volume_capacity=10.0,
         length=0.0,
     )
-    w = world(line(5), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    w = world(lambda env: line(env, 5), {"A": "N0"}, reserve=reserve, agv_type=kind)
     w.go("A", "N4")
     w.env.run()
     assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
@@ -494,7 +507,7 @@ class Limited:
 
 @pytest.mark.parametrize(("v_max", "accel"), [(0.0, 0.8), (1.5, 0.0), (-1.0, 0.8)])
 def test_non_positive_limits_stall_the_run(v_max: float, accel: float) -> None:
-    w = world(line(3), {"A": "N0"}, agv_type=vehicle(profile=Limited(Kinematics(v_max, accel, 0.8))))
+    w = world(lambda env: line(env, 3), {"A": "N0"}, agv_type=vehicle(profile=Limited(Kinematics(v_max, accel, 0.8))))
     process = w.go("A", "N2")
     w.interrupt(process, 5.0)
     w.env.run()
@@ -511,10 +524,29 @@ def test_non_positive_limits_stall_the_run(v_max: float, accel: float) -> None:
 
 @pytest.mark.parametrize("reserve", [False, True])
 def test_zero_length_arc_is_traversed_in_zero_time(reserve: bool) -> None:
-    graph_nodes = build(
-        [("N0", 0, 0), ("Z1", 10, 0), ("Z2", 10, 0), ("N3", 20, 0)], [("N0", "Z1"), ("Z1", "Z2"), ("Z2", "N3")]
+    # Explicit mode, built here by hand: the layout rejects an arc between two nodes at one position (spec L16), and
+    # this test goes with that support.
+    nodes = {name: Node(name, x, 0) for name, x in (("N0", 0), ("Z1", 10), ("Z2", 10), ("N3", 20))}
+    graph = LayoutGraph(
+        nodes.values(), [Arc(nodes[a], nodes[b]) for a, b in (("N0", "Z1"), ("Z1", "Z2"), ("Z2", "N3"))]
     )
-    w = world(graph_nodes, {"A": "N0"}, reserve=reserve)
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
+    agv = AGV(env=env, agv_type=vehicle(), agv_id="A", initial_node=nodes["N0"])
+    fleet = StillFleet(
+        env=env,
+        graph=graph,
+        fleet=[agv],
+        warehouses=[],
+        charging_stations=[],
+        traffic_controller=controller,
+        default_metrics=False,
+    )
+    if reserve:
+        TrafficInvariants(env, controller)
+    env.activate()
+    w = World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
     w.go("A", "N3")
     w.env.run()
     started = {e.from_node: e for e in w.of(AgvMoveStarted)}
@@ -544,7 +576,7 @@ class NoLimits:
 @pytest.mark.parametrize("profile", ["plain", "no_limits"])
 def test_a_profile_without_limits_keeps_the_rest_to_rest_timings(reserve: bool, profile: str) -> None:
     kind = vehicle(profile=Plain() if profile == "plain" else NoLimits())
-    w = world(line(4), {"A": "N0"}, reserve=reserve, agv_type=kind)
+    w = world(lambda env: line(env, 4), {"A": "N0"}, reserve=reserve, agv_type=kind)
     w.go("A", "N3")
     w.env.run()
     arc = 5.0 if profile == "plain" else ARC
@@ -566,8 +598,7 @@ def test_a_profile_without_limits_keeps_the_rest_to_rest_timings(reserve: bool, 
 
 
 def test_clear_points_follow_the_planned_profiles_and_a_roomy_node_passed_at_speed_keeps_them() -> None:
-    graph, nodes = line(4)
-    w = world((graph, nodes), {"A": "N0"}, agv_type=vehicle(length=2.0), capacities={nodes["N1"]: 2})
+    w = world(lambda env: line(env, 4, capacities={"N1": 2}), {"A": "N0"}, agv_type=vehicle(length=2.0))
     w.go("A", "N3")
     w.env.run()
     profiles = plan_run(0.0, [10.0] * 3, [1.5] * 3, [0.0, 1.5, 1.5, 0.0], KIN)
@@ -576,7 +607,7 @@ def test_clear_points_follow_the_planned_profiles_and_a_roomy_node_passed_at_spe
         (first.time_at(2.0), ("N0",)),
         (first.duration + profiles[1].time_at(2.0), ("N0~N1", "N1")),  # not at the arrival on N1, passed at speed
     ]
-    rest = world((graph, nodes), {"A": "N0"}, agv_type=vehicle(length=2.0), capacities={nodes["N1"]: 2})
+    rest = world(lambda env: line(env, 4, capacities={"N1": 2}), {"A": "N0"}, agv_type=vehicle(length=2.0))
     rest.go("A", "N1")
     rest.env.run()
     assert rest.held("A") == ["N1"]  # at rest on N1: the whole trail clears
@@ -587,8 +618,13 @@ def test_a_grant_taken_while_moving_keeps_the_trail_entries_it_lifts_held() -> N
     so its claim of ``N07~N08, N07`` is pending as it departs; B leaves at 100.5 and the grant arrives while A moves.
     The grant lifts ``N07~N08`` out of A's trail although its departure scheduled that entry's release: the entry lies
     ahead again and stays held. At the end A holds what its body overlaps, the last 3 m of its way to N05."""
-    graph_nodes = build([(f"N{i:02d}", i, 0) for i in range(11)], [(f"N{i:02d}", f"N{i + 1:02d}") for i in range(10)])
-    w = world(graph_nodes, {"A": "N02", "B": "N00"}, agv_type=vehicle(length=3.0))
+    w = world(
+        lambda env: build(
+            env, [(f"N{i:02d}", i, 0) for i in range(11)], [(f"N{i:02d}", f"N{i + 1:02d}") for i in range(10)]
+        ),
+        {"A": "N02", "B": "N00"},
+        agv_type=vehicle(length=3.0),
+    )
     w.agvs["B"].agv_type = vehicle(length=0.0)
     w.go("A", "N10")
     w.go("B", "N07", at=50.0)
@@ -606,7 +642,7 @@ def test_a_grant_taken_while_moving_keeps_the_trail_entries_it_lifts_held() -> N
 
 
 def test_heading_is_the_direction_of_the_last_arc_and_unknown_after_placement() -> None:
-    w = world(t_layout(), {"A": "STORE_OUT"}, reserve=False)  # free flow: the AGV is then placed by hand
+    w = world(t_layout, {"A": "STORE_OUT"}, reserve=False)  # free flow: the AGV is then placed by hand
     agv = w.agvs["A"]
     assert agv.heading is None
     w.go("A", "C2")
@@ -623,11 +659,11 @@ def test_heading_is_the_direction_of_the_last_arc_and_unknown_after_placement() 
 
 def test_the_lookahead_margin_is_a_coordinator_option() -> None:
     env = Environment()
-    graph, nodes = line(2)
-    agv = AGV(env=env, agv_type=vehicle(), initial_node=nodes["N0"])
-    common: dict[str, Any] = {"env": env, "graph": graph, "warehouses": [], "charging_stations": []}
+    declared = line(env, 2)
+    agv = AGV(env=env, agv_type=vehicle(), initial_node=declared.ref("N0"))
+    common: dict[str, Any] = {"env": env, "graph": declared.graph, "warehouses": [], "charging_stations": []}
     assert FleetCoordinator(fleet=[agv], **common).lookahead_margin == 0.0
-    other = AGV(env=env, agv_type=vehicle(), initial_node=nodes["N1"])
+    other = AGV(env=env, agv_type=vehicle(), initial_node=declared.ref("N1"))
     assert FleetCoordinator(fleet=[other], lookahead_margin=2.5, **common).lookahead_margin == 2.5
     for bad in (-1.0, math.inf, math.nan):
         with pytest.raises(ValueError, match="lookahead_margin"):

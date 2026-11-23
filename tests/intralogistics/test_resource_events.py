@@ -109,18 +109,16 @@ from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph
-from tests.intralogistics.traffic_support import FullReplay, StillFleet
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, World, build, declare
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 
 TRAFFIC = (TrafficReserved, TrafficReleased, TrafficWaitStarted, TrafficWaitEnded)
 
 
-def _bound_line(env: Environment) -> tuple[list[Node], LayoutGraph]:
-    nodes, graph = _line_graph()
-    for node in nodes:
-        env.entities.bind_node(node)
-    return nodes, graph
+def _line(env: Environment) -> World:
+    """The line OUT - C1 - C2 - IN of ``test_entities._line_graph``, declared on the layout of `env`."""
+    return declare(env, _line_graph()[1])
 
 
 # --- traffic -----------------------------------------------------------------------------------------------
@@ -133,15 +131,15 @@ def _sized(length: float) -> AGVType:
 def test_node_capacity_two_reservations() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
-    nodes, graph = _bound_line(env)
-    out, c1, _, _ = nodes
-    controller = ReservationController(env=env, graph=graph, node_capacity=2)
-    a, b = (AGV(env=env, agv_type=_sized(0.0), agv_id=name, initial_node=c1) for name in ("A", "B"))
-    c = AGV(env=env, agv_type=_sized(0.0), agv_id="C", initial_node=out)
+    world = _line(env)
+    controller = ReservationController(env=env, graph=world.graph, node_capacity=2)
+    a, b = (AGV(env=env, agv_type=_sized(0.0), agv_id=name, initial_node=world.ref("C1")) for name in ("A", "B"))
+    c = AGV(env=env, agv_type=_sized(0.0), agv_id="C", initial_node=world.ref("OUT"))
     fleet = StillFleet(
-        env=env, graph=graph, fleet=[a, b, c], warehouses=[], charging_stations=[], traffic_controller=controller
+        env=env, graph=world.graph, fleet=[a, b, c], warehouses=[], charging_stations=[], traffic_controller=controller
     )
     env.activate()
+    c1, c2 = world.node("C1"), world.node("C2")
     with pytest.raises(RuntimeError, match="fully reserved"):
         controller.place(c, c1)  # capacity two: A and B hold C1
 
@@ -150,7 +148,7 @@ def test_node_capacity_two_reservations() -> None:
         yield from fleet._executor.travel(agv, goal, loaded=False)
 
     env.process(travel(c, c1, 0.0))
-    env.process(travel(a, nodes[2], 2.0))
+    env.process(travel(a, c2, 2.0))
     env.run()
 
     seen = [
@@ -182,24 +180,24 @@ def test_node_capacity_two_reservations() -> None:
 def test_free_traffic_multiple_agvs_on_node() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
-    nodes, graph = _line_graph()
+    world = _line(env)
     wh_a, wh_b = (
         Warehouse(
             env=env,
             name=name,
-            input_bays=[bay],
-            output_bays=[bay],
+            input_bays=[world.ref(bay)],
+            output_bays=[world.ref(bay)],
             n_slots=1,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
             pick_time=1.0,
             put_time=1.0,
         )
-        for name, bay, level in (("WH-A", nodes[0], 10), ("WH-B", nodes[-1], 0))
+        for name, bay, level in (("WH-A", "OUT", 10), ("WH-B", "IN", 0))
     )
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1]) for _ in range(3)]
+    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("C1")) for _ in range(3)]
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_controller=None
+        env=env, graph=world.graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_controller=None
     )
     assert isinstance(coordinator.traffic_controller, FreeFlowController)
     shared: list[int] = []  # after each event: the most AGVs on one node (replay is subscribed first)
@@ -227,27 +225,27 @@ def test_a_blocked_travel_waits_and_reports_the_idle_blocker() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
     start, choke, end = Node("START", 0.0, 0.0), Node("CHOKE", 5.0, 0.0), Node("END", 10.0, 0.0)
-    graph = LayoutGraph([start, choke, end], [Arc(start, choke), Arc(choke, end)])
-    controller = ReservationController(env=env, graph=graph)
-    blocker = AGV(env=env, agv_type=_sized(1.0), agv_id="blocker", initial_node=choke)
-    traveler = AGV(env=env, agv_type=_sized(1.0), agv_id="traveler", initial_node=start)
+    world = declare(env, LayoutGraph([start, choke, end], [Arc(start, choke), Arc(choke, end)]))
+    controller = ReservationController(env=env, graph=world.graph)
+    blocker = AGV(env=env, agv_type=_sized(1.0), agv_id="blocker", initial_node=world.ref("CHOKE"))
+    traveler = AGV(env=env, agv_type=_sized(1.0), agv_id="traveler", initial_node=world.ref("START"))
     wh_a, wh_b = (
         Warehouse(
             env=env,
             name=name,
-            input_bays=[bay],
-            output_bays=[bay],
+            input_bays=[world.ref(bay)],
+            output_bays=[world.ref(bay)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: 5},
             pick_time=1.0,
             put_time=1.0,
         )
-        for name, bay in (("WH-S", start), ("WH-E", end))
+        for name, bay in (("WH-S", "START"), ("WH-E", "END"))
     )
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=[traveler, blocker],
         warehouses=[wh_a, wh_b],
         charging_stations=[],
@@ -273,12 +271,12 @@ def test_a_blocked_travel_waits_and_reports_the_idle_blocker() -> None:
 def test_inventory_levels_replay() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
-    node = Node("BAY", 0.0, 0.0)
+    world = build(env, [("BAY", 0.0, 0.0)], [])
     wh = Warehouse(
         env=env,
         name="WH",
-        input_bays=[node],
-        output_bays=[node],
+        input_bays=[world.ref("BAY")],
+        output_bays=[world.ref("BAY")],
         n_slots=1,
         products=[SKU_A],
         initial_inventory={SKU_A: 1},
@@ -323,12 +321,12 @@ def test_slot_request_withdrawn_while_waiting_emits_nothing() -> None:
     slot, which changes nothing and emits nothing."""
     env = Environment(debug=True)
     replay = FullReplay(env)
-    node = Node("BAY", 0.0, 0.0)
+    world = build(env, [("BAY", 0.0, 0.0)], [])
     wh = Warehouse(
         env=env,
         name="WH",
-        input_bays=[node],
-        output_bays=[node],
+        input_bays=[world.ref("BAY")],
+        output_bays=[world.ref("BAY")],
         n_slots=1,
         products=[SKU_A],
         pick_time=1.0,
@@ -355,12 +353,12 @@ def test_container_built_like_simpy_reports_nothing() -> None:
     env = Environment(debug=True)
     seen: list[DomainEvent] = []
     env.bus.subscribe(seen.append, (WarehouseInventoryChanged,))
-    nodes, _ = _line_graph()
+    world = _line(env)
     wh = Warehouse(
         env=env,
         name="WH",
-        input_bays=[nodes[0]],
-        output_bays=[nodes[0]],
+        input_bays=[world.ref("OUT")],
+        output_bays=[world.ref("OUT")],
         n_slots=1,
         products=[SKU_A],
         pick_time=1.0,
@@ -384,11 +382,11 @@ def _drained(env: Environment, name: str, level: float) -> AGV:
 
 def test_swap_updates_pool_and_battery() -> None:
     env = Environment(debug=True)
-    nodes, _ = _line_graph()
+    world = _line(env)
     station = ChargingStation(
         env=env,
         name="CS",
-        node=nodes[0],
+        node=world.ref("OUT"),
         n_slots=2,
         supports_swap=True,
         swap_pool_size=1,
@@ -426,9 +424,13 @@ def test_swap_updates_pool_and_battery() -> None:
 
 def test_recharge_slots_and_interruption() -> None:
     env = Environment(debug=True)
-    nodes, _ = _line_graph()
+    world = _line(env)
     station = ChargingStation(
-        env=env, name="CS", node=nodes[0], n_slots=1, recharge_time=lambda level, target: (target - level) / 100.0
+        env=env,
+        name="CS",
+        node=world.ref("OUT"),
+        n_slots=1,
+        recharge_time=lambda level, target: (target - level) / 100.0,
     )
     agvs = [_drained(env, name, 500.0) for name in ("A", "B", "C")]
     replay = FullReplay(env, from_snapshot=True)
@@ -466,8 +468,8 @@ def test_recharge_slots_and_interruption() -> None:
 def test_parking_enter_and_leave() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
-    nodes, _ = _line_graph()
-    area = ParkingArea(env=env, name="PARK", node=nodes[0], capacity=1)
+    world = _line(env)
+    area = ParkingArea(env=env, name="PARK", node=world.ref("OUT"), capacity=1)
     a, b = (AGV(env=env, agv_type=_agv_type(), agv_id=name) for name in ("A", "B"))
 
     def visit(agv: AGV, stay: float) -> Any:
@@ -493,8 +495,8 @@ def test_parking_enter_and_leave() -> None:
 def test_parking_enter_again_keeps_the_place() -> None:
     env = Environment(debug=True)
     replay = FullReplay(env)
-    nodes, _ = _line_graph()
-    area = ParkingArea(env=env, name="PARK", node=nodes[0], capacity=3)
+    world = _line(env)
+    area = ParkingArea(env=env, name="PARK", node=world.ref("OUT"), capacity=3)
     a, b = (AGV(env=env, agv_type=_agv_type(), agv_id=name) for name in ("A", "B"))
 
     def park(*agvs: AGV) -> Any:
@@ -550,15 +552,15 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
     grid = {(i, j): Node(f"N{i}{j}", 10.0 * i, 10.0 * j) for i in range(3) for j in range(3)}
     arcs = [Arc(grid[i, j], grid[i + 1, j]) for i in range(2) for j in range(3)]
     arcs += [Arc(grid[i, j], grid[i, j + 1]) for i in range(3) for j in range(2)]
-    graph = LayoutGraph(grid.values(), arcs)
+    world = declare(env, LayoutGraph(grid.values(), arcs))
     skus = [SKU_A]
 
     def warehouse(name: str, node: Node, level: int) -> Warehouse:
         return Warehouse(
             env=env,
             name=name,
-            input_bays=[node],
-            output_bays=[node],
+            input_bays=[world.ref(node.id)],
+            output_bays=[world.ref(node.id)],
             n_slots=1,
             products=skus,
             initial_inventory={SKU_A: level},
@@ -585,27 +587,30 @@ def _run_congested(monkeypatch: pytest.MonkeyPatch) -> FullReplay:
         length=1.0,
     )
     starts = [grid[1, 1], grid[0, 2], grid[1, 0], grid[2, 1]]
-    agvs = [AGV(env=env, agv_type=agv_type, agv_id=f"V{k}", initial_node=node) for k, node in enumerate(starts)]
+    agvs = [
+        AGV(env=env, agv_type=agv_type, agv_id=f"V{k}", initial_node=world.ref(node.id))
+        for k, node in enumerate(starts)
+    ]
     swap = ChargingStation(
         env=env,
         name="SWAP",
-        node=grid[0, 1],
+        node=world.ref(grid[0, 1].id),
         n_slots=1,
         supports_swap=True,
         swap_pool_size=1,
         swap_time=2.0,
         swap_recharge_time=40.0,
     )
-    plug = ChargingStation(env=env, name="PLUG", node=grid[1, 2], n_slots=1)
-    area = ParkingArea(env=env, name="LOT", node=grid[1, 2], capacity=1)
-    controller = ReservationController(env=env, graph=graph, node_capacity=2)
+    plug = ChargingStation(env=env, name="PLUG", node=world.ref(grid[1, 2].id), n_slots=1)
+    area = ParkingArea(env=env, name="LOT", node=world.ref(grid[1, 2].id), capacity=1)
+    controller = ReservationController(env=env, graph=world.graph, node_capacity=2)
 
     def low_battery(agv: AGV) -> Any:
         return swap.swap(agv) if agv.agv_id in ("V0", "V2") else None  # the others recharge at PLUG
 
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=agvs,
         warehouses=[source, sink, buffer],
         charging_stations=[plug],
@@ -681,11 +686,11 @@ def test_replay_equals_live_full_registry_fleet_example(scenario: Any, monkeypat
 @pytest.mark.parametrize("phase", ["queued", "granted", "active"])
 def test_charging_interruption_replays_resource_cleanup(mode: str, phase: str) -> None:
     env = Environment(debug=True)
-    nodes, _ = _line_graph()
+    world = _line(env)
     station = ChargingStation(
         env=env,
         name="CS",
-        node=nodes[0],
+        node=world.ref("OUT"),
         n_slots=1,
         recharge_time=10.0,
         supports_swap=True,

@@ -1,6 +1,8 @@
-"""Support shared by the traffic tests: graph builders, a full replay checker, the traffic invariants, fake hooks.
+"""Support shared by the traffic tests: worlds declared on the layout, a full replay checker, the traffic invariants,
+fake hooks.
 
-Each builder returns ``(graph, nodes)`` with ``nodes`` the dict of the graph's nodes by id. All arcs are two-way and
+Each builder declares its graph on the environment's layout with ``Explicit`` and returns a `World`; the keyword
+arguments of a builder (``capacities``, ``zones``, ``block_length``, ...) go to ``Explicit``. All arcs are two-way and
 keep the default chord length.
 """
 
@@ -17,33 +19,64 @@ from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node, NodeBinding
 from simulatte.intralogistics.reservation import ReservationController, SegmentBinding, ZoneBinding
 from simulatte.intralogistics.traffic import WaitHooks
+from simulatte.layout import Explicit, GraphRef, NodeRef
+
+
+@dataclass
+class World:
+    """A graph declared on the layout of `env`: handles for constructors, canonical nodes for run time."""
+
+    env: Environment
+    graph: GraphRef
+
+    def ref(self, node_id: str) -> NodeRef:
+        """The handle of node `node_id`, for constructors."""
+        return self.env.layout.node(node_id)
+
+    def node(self, node_id: str) -> Node:
+        """The canonical node `node_id` of the resolved network; prepares the layout if it is not prepared yet."""
+        return self.env.layout.prepare().network.node(self.ref(node_id).address)
+
+    def canonical_graph(self) -> LayoutGraph:
+        """The graph of the resolved network, which holds the canonical nodes; prepares the layout if needed."""
+        return self.env.layout.prepare().network.graph
+
+
+def declare(env: Environment, graph: LayoutGraph, **network: Any) -> World:
+    """Declare `graph` as the network of `env`'s layout, ``Explicit(graph, **network)``."""
+    env.layout.set_network(Explicit(graph, **network))
+    return World(env, env.layout.graph())
 
 
 def build(
-    points: Sequence[tuple[str, float, float]], links: Sequence[tuple[str, str]]
-) -> tuple[LayoutGraph, dict[str, Node]]:
-    """A graph of the given ``(id, x, y)`` nodes in order, joined by two-way arcs."""
+    env: Environment, points: Sequence[tuple[str, float, float]], links: Sequence[tuple[str, str]], **network: Any
+) -> World:
+    """A graph of the given ``(id, x, y)`` nodes in order, joined by two-way arcs, declared on `env`'s layout."""
     nodes = {name: Node(name, x, y) for name, x, y in points}
-    graph = LayoutGraph(nodes.values(), [Arc(nodes[a], nodes[b]) for a, b in links])
-    return graph, nodes
+    return declare(env, LayoutGraph(nodes.values(), [Arc(nodes[a], nodes[b]) for a, b in links]), **network)
 
 
-def t_layout() -> tuple[LayoutGraph, dict[str, Node]]:
+def t_layout(env: Environment, **network: Any) -> World:
     """The layout of spec Appendix A: a line ``STORE_OUT, C1, C2, LINE_IN`` with ``PARK`` hanging off ``C1``."""
     return build(
+        env,
         [("STORE_OUT", 0, 0), ("C1", 10, 0), ("C2", 20, 0), ("LINE_IN", 30, 0), ("PARK", 10, 10)],
         [("STORE_OUT", "C1"), ("C1", "C2"), ("C2", "LINE_IN"), ("C1", "PARK")],
+        **network,
     )
 
 
-def line(n: int) -> tuple[LayoutGraph, dict[str, Node]]:
+def line(env: Environment, n: int, **network: Any) -> World:
     """Nodes ``N0 ... N{n-1}`` at ``(10 * i, 0)`` joined in a row."""
-    return build([(f"N{i}", 10 * i, 0) for i in range(n)], [(f"N{i}", f"N{i + 1}") for i in range(n - 1)])
+    return build(
+        env, [(f"N{i}", 10 * i, 0) for i in range(n)], [(f"N{i}", f"N{i + 1}") for i in range(n - 1)], **network
+    )
 
 
-def two_junction_corridor() -> tuple[LayoutGraph, dict[str, Node]]:
+def two_junction_corridor(env: Environment, **network: Any) -> World:
     """Junctions ``J1`` and ``J2`` with three neighbours each, joined by the chain ``J1, a, b, J2``."""
     return build(
+        env,
         [
             ("J1", 0, 0),
             ("a", 10, 0),
@@ -55,14 +88,17 @@ def two_junction_corridor() -> tuple[LayoutGraph, dict[str, Node]]:
             ("y2", 40, -10),
         ],
         [("J1", "a"), ("a", "b"), ("b", "J2"), ("J1", "x1"), ("J1", "y1"), ("J2", "x2"), ("J2", "y2")],
+        **network,
     )
 
 
-def loop_with_side_node() -> tuple[LayoutGraph, dict[str, Node]]:
+def loop_with_side_node(env: Environment, **network: Any) -> World:
     """Two parallel one-node chains ``J1, U, J2`` and ``J1, L, J2``, with a leaf on each junction."""
     return build(
+        env,
         [("J1", 0, 0), ("U", 10, 10), ("L", 10, -10), ("J2", 20, 0), ("S1", -10, 0), ("S2", 30, 0)],
         [("J1", "U"), ("U", "J2"), ("J1", "L"), ("L", "J2"), ("J1", "S1"), ("J2", "S2")],
+        **network,
     )
 
 
