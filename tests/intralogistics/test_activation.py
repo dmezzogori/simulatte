@@ -115,9 +115,10 @@ def test_placement_conflict_raises_at_activation() -> None:
 def test_a_fleet_built_after_activation_cannot_register_with_a_reservation_controller() -> None:
     """The controller builds its network at once when constructed after activation, so no fleet can register."""
     env = Environment()
-    env.activate()
     nodes, graph = _line_graph()
+    # An explicit graph consumer before activation: the environment gets no layout (until explicit mode is removed).
     agv = AGV(env=env, agv_type=dataclasses.replace(_agv_type(), length=1.0), initial_node=nodes[2])
+    env.activate()
     traffic = ReservationController(graph=graph, env=env)
     with pytest.raises(RuntimeError, match="register before activation"):
         FleetCoordinator(
@@ -127,9 +128,10 @@ def test_a_fleet_built_after_activation_cannot_register_with_a_reservation_contr
 
 def test_placement_after_activation_runs_at_construction() -> None:
     env = Environment()
-    env.activate()
     nodes, graph = _line_graph()
+    # An explicit graph consumer before activation: the environment gets no layout (until explicit mode is removed).
     agv = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[2])
+    env.activate()
     placed: list[tuple[str, str]] = []
 
     class Recording(FreeFlowController):

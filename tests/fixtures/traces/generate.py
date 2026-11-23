@@ -107,7 +107,7 @@ def record(
         )
 
         def resolved():
-            assert env is not None and env.layout is not None
+            assert env is not None  # every environment has a layout (spec §5.1)
             return ResolvedManifest(
                 runtime=request.runtime,
                 dependencies={"hash": "4" * 64},

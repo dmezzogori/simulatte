@@ -483,7 +483,7 @@ def test_preexisting_public_mutation_to_concrete_nodes_blocks_layout_attachment(
     before = env.entities.snapshot()
     with pytest.raises(LayoutError, match="explicit graph consumers"):
         Layout(env)
-    assert env.layout is None and env.entities.snapshot() == before
+    assert env._layout is None and env.entities.snapshot() == before
 
 
 def test_preexisting_empty_bays_seal_and_unplaced_agv_remains_supported():

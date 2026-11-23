@@ -91,7 +91,7 @@ class ChargingStation(Entity, kind="charging_station"):
         self.total_recharges: int = 0
         self.total_swaps: int = 0
         self.total_occupied_time: float = 0.0
-        self._uses_explicit_graph = env.layout is None and True
+        self._uses_explicit_graph = env._layout is None and True
         env.entities.attach(self, name=name, label=label)
         self._recharge_time: Callable[..., float] | None = (
             None

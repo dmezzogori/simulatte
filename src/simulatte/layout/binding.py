@@ -25,7 +25,7 @@ def node_input(env: Environment, value: Any, *, optional: bool = False) -> tuple
 
     if value is None and optional:
         return None, None
-    layout = env.layout
+    layout = env._layout
     if layout is None:
         if not isinstance(value, Node):
             raise LayoutError("node references require their owning Layout environment", code="foreign-handle")
@@ -39,7 +39,7 @@ def node_input(env: Environment, value: Any, *, optional: bool = False) -> tuple
 def graph_input(env: Environment, value: Any) -> tuple[LayoutGraph | None, GraphRef | None]:
     from simulatte.intralogistics.graph import LayoutGraph
 
-    layout = env.layout
+    layout = env._layout
     if layout is None:
         if not isinstance(value, LayoutGraph):
             raise LayoutError("graph references require their owning Layout environment", code="foreign-handle")
@@ -53,7 +53,7 @@ def graph_input(env: Environment, value: Any) -> tuple[LayoutGraph | None, Graph
 def pending(component: Any, field: str) -> None:
     env = getattr(component, "env", None) or component._env
     raise LayoutNotReady(
-        f"{type(component).__name__}.{field} is unresolved while {env.layout._coordinator.state.value}",
+        f"{type(component).__name__}.{field} is unresolved while {env._layout._coordinator.state.value}",
         code="lifecycle-error",
         target=getattr(component, "id", None),
         path=("bindings", field),
@@ -61,7 +61,7 @@ def pending(component: Any, field: str) -> None:
 
 
 def readonly(env: Environment, field: str) -> None:
-    if env.layout is not None:
+    if env._layout is not None:
         raise LayoutError(f"{field} is read-only in layout mode", code="lifecycle-error", path=("bindings", field))
 
 
@@ -75,8 +75,8 @@ def _loaded(module: str, name: str) -> tuple[Any, ...]:
     return () if cls is None else (cls,)
 
 
-def check_existing_endpoints(env: Environment) -> None:
-    """Reject concrete consumers, including mutable no-layout inputs changed later."""
+def has_existing_endpoints(env: Environment) -> bool:
+    """Whether a live AGV or warehouse holds a concrete node, including mutable no-layout inputs changed later."""
     agv: tuple[type[AGV], ...] = _loaded("simulatte.intralogistics.agv", "AGV")
     warehouse: tuple[type[Warehouse], ...] = _loaded("simulatte.intralogistics.warehouse", "Warehouse")
     for entity in env.entities.live():
@@ -87,7 +87,14 @@ def check_existing_endpoints(env: Environment) -> None:
                 for field in ("input_bays", "output_bays")
             )
         if concrete:
-            raise LayoutError("Layout cannot adopt existing explicit graph consumers", code="foreign-handle")
+            return True
+    return False
+
+
+def check_existing_endpoints(env: Environment) -> None:
+    """Reject concrete consumers, including mutable no-layout inputs changed later."""
+    if has_existing_endpoints(env):
+        raise LayoutError("Layout cannot adopt existing explicit graph consumers", code="foreign-handle")
 
 
 def bind_components(layout: Layout) -> None:

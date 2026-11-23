@@ -161,7 +161,7 @@ class AGV(Entity, kind="agv"):
         """The time up to which idle power has been accounted (:meth:`accrue_idle_power`)."""
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
 
-        self._uses_explicit_graph = env.layout is None and initial_node is not None
+        self._uses_explicit_graph = env._layout is None and initial_node is not None
         env.entities.attach(self, name=agv_id, label=label)
         self._load_time = env.bind(agv_type.load_time, kind="scalar", stream=f"{self.id}/load", owner=self.id)
         self._unload_time = env.bind(agv_type.unload_time, kind="scalar", stream=f"{self.id}/unload", owner=self.id)
@@ -249,10 +249,10 @@ class AGV(Entity, kind="agv"):
         return left, entered
 
     def _validate_node(self, node: Node | None) -> None:
-        if self.env.layout is not None:
+        if self.env._layout is not None:
             if self._pending_node is not None:
                 pending(self, "current_node")
-            self.env.layout._validate_node(node)
+            self.env._layout._validate_node(node)
 
     def _node_deltas(self, node: Node | None, left: NodeBinding | None, entered: NodeBinding | None) -> DeltaBuilder:
         """Deltas of a :meth:`_relocate` to `node`: the AGV's ``node`` and the ``agvs`` lists it changed."""

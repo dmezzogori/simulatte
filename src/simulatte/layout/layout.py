@@ -86,7 +86,13 @@ class Layout:
     def __init__(
         self, env: Environment, *, file: str | Path | None = None, limits: LayoutLimits = LayoutLimits()
     ) -> None:
-        if env.layout is not None or env._activation_started or env._explicit_graph_use or env.now != 0:
+        if env._layout is not None:
+            raise LayoutError(
+                "the environment already has a layout: Layout(env, ...) must come before the first use of env.layout "
+                "and before activation",
+                code="lifecycle-error",
+            )
+        if env._activation_started or env._explicit_graph_use or env.now != 0:
             raise LayoutError(
                 "Layout requires an unactivated environment without explicit graph consumers", code="lifecycle-error"
             )

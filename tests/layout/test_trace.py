@@ -9,7 +9,8 @@ from simulatte.server import Server
 from simulatte.trace import ReaderLimits, TraceCorrupted
 from simulatte.trace.format import RecordType, write_preamble, write_record
 from tests.core.test_trace_writer import _read
-from tests.layout.test_binding import line
+from simulatte.intralogistics.graph import Node
+from tests.layout.test_binding import line, vehicle
 from tests.layout.test_hashes import prepared
 
 
@@ -91,6 +92,15 @@ def test_failed_prepare_has_no_layout_initial(tmp_path):
 def test_no_layout_metadata_and_default_limit(tmp_path):
     assert inspect.signature(TraceRecorder).parameters["max_initial_bytes"].default == 64 << 20
     env = Environment()
+    path = tmp_path / "created"
+    TraceRecorder(env, path)
+    env.run()
+    env.close()
+    trace = Trace.open(path)
+    assert trace.layout == env.layout.prepare().bundle and trace.manifest["layout"] == trace.layout.manifest()
+    # Until explicit mode is removed, an environment with an explicit graph consumer has no layout.
+    env = Environment()
+    vehicle(env, Node("A", 0, 0))
     path = tmp_path / "none"
     TraceRecorder(env, path)
     env.run()

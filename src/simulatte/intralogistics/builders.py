@@ -96,7 +96,8 @@ def build_simple_system(
     when a prefix is given; without one their ids are generated (``agv-<n>``). A prefix keeps several systems
     apart in one environment.
 
-    ``layout`` defaults to ``env.layout``. With a Layout attached, all consumers
+    ``layout`` defaults to the environment's layout if it already exists (``Layout(env)`` or ``env.layout`` used
+    before this call); otherwise the builder uses a concrete graph. With a layout, all consumers
     receive handles and the fifth return value is a ``GraphRef``. Physical getters
     become available after ``layout.prepare()`` or environment activation. Without
     a prefix, layout AGVs have explicit names ``vehicle-0``, ``vehicle-1``, etc.
@@ -117,7 +118,7 @@ def build_simple_system(
     Returns:
         ``(coordinator, agvs, warehouse_a, warehouse_b, graph)``
     """
-    layout = env.layout if layout is None else layout
+    layout = env._layout if layout is None else layout
     if layout is not None and layout.env is not env:
         from simulatte.layout import LayoutError
 

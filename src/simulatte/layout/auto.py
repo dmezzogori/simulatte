@@ -238,7 +238,10 @@ def auto_layout(
     consumers must use `.derived_positions` as the authoritative display location.
     """
     if len(targets) > limits.max_placements:
-        raise LayoutError("max_placements exceeded by auto-layout targets")
+        raise LayoutError(
+            f"{len(targets)} layout targets exceed max_placements={limits.max_placements}: every entity created "
+            "before activation is a target; raise the limit with Layout(env, limits=...)"
+        )
     ordered = {key: targets[key] for key in sorted(targets, key=id_key)}
     placements, sizes, pinned, eligible, derived = {}, {}, {}, set(), {}
     diagnostics = []

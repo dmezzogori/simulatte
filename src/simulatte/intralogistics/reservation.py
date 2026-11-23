@@ -123,8 +123,8 @@ class ReservationController:
     ) -> None:
         self._env = env
         self._graph, self._pending_graph = graph_input(env, graph)
-        if env.layout is not None:
-            env.layout._register_manager(self)
+        if env._layout is not None:
+            env._layout._register_manager(self)
         else:
             env._register_graph_use()
         self._node_capacity = node_capacity

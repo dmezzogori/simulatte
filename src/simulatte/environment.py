@@ -36,6 +36,7 @@ from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed,
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.kpi import Collector
+    from simulatte.layout.layout import Layout
     from simulatte.trace.writer import TraceRecorder
 
 SEED_LIMIT = 2**63
@@ -143,7 +144,7 @@ class Environment(simpy.Environment):
         self._projection_listeners: list[Callable[[InitialState], None]] = []
         self._initializers: list[Callable[[], object]] = []
         self._commands: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = []
-        self._layout = None
+        self._layout: Layout | None = None  # created by Layout(env), env.layout or activation
         self._explicit_graph_use = False
         self._activation_started = False
         self._initializers_done = False  # set once the initializer loop of activate() finished
@@ -360,13 +361,32 @@ class Environment(simpy.Environment):
         self._projection_listeners.append(on_initial_state)
 
     @property
-    def layout(self):
-        """The attached Layout, or None (layout is imported only on explicit use)."""
-        return self._layout
+    def layout(self) -> Layout:
+        """The layout of this environment, created on first use (spec §5.1).
+
+        ``Layout(env, file=..., limits=...)`` creates it with a file layer or limits; it must come before the first
+        use of this property. Without either, activation creates the layout. The layout package is imported only
+        when the layout is created. An environment with an explicit graph consumer (a concrete ``LayoutGraph`` or
+        ``Node`` given to a component) has no layout: this raises `LayoutError`.
+        """
+        layout = self._layout
+        if layout is None:
+            from simulatte.layout.layout import Layout
+
+            layout = Layout(self)
+        return layout
 
     def _register_graph_use(self) -> None:
         """Record a validated explicit graph consumer before its publication."""
         self._explicit_graph_use = True
+
+    def _has_explicit_consumers(self) -> bool:
+        """Whether a component of this environment took a concrete graph or node: such an environment has no layout."""
+        if self._explicit_graph_use:
+            return True
+        from simulatte.layout.binding import has_existing_endpoints
+
+        return has_existing_endpoints(self)
 
     def _guard_layout_advance(self) -> None:
         # Activation finalized the layout for good (prepare() succeeded before it, and a finalized layout stays
@@ -396,6 +416,10 @@ class Environment(simpy.Environment):
             return
         if self._activation_started:
             raise RuntimeError("activation is in progress or failed; the environment cannot be activated again")
+        if self._layout is None and not self._has_explicit_consumers():
+            from simulatte.layout.layout import Layout
+
+            Layout(self)  # no layout was asked for: activation creates it (spec §5.5)
         self._activation_started = True
         if self._layout is not None:
             self._layout.prepare()
@@ -642,11 +666,11 @@ class Environment(simpy.Environment):
         as ``cancelled``.
         """
 
-        if not self._activated and self._layout is not None:
+        if not self._activated and (self._layout is not None or not self._has_explicit_consumers()):
             self._guard_layout_advance()
             from simulatte.layout.errors import LayoutError
 
-            raise LayoutError("call env.activate() before env.step() with a layout", code="lifecycle-error")
+            raise LayoutError("call env.activate() before env.step()", code="lifecycle-error")
         try:
             super().step()
         except KeyboardInterrupt:

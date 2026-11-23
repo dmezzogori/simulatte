@@ -575,10 +575,11 @@ def test_pending_redispatch_replay_at_intermediate_cursors() -> None:
 def test_agv_fleet_owner_set_on_coordinator_construction(after_activation: bool) -> None:
     env = Environment(debug=True)
     replay = FleetReplay(env)
+    nodes, graph = _line_graph()
+    # Explicit graph consumers before activation: the environment gets no layout (until explicit mode is removed).
+    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[i]) for i in (1, 2)]
     if after_activation:
         env.activate()
-    nodes, graph = _line_graph()
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[i]) for i in (1, 2)]
     assert [replay.state[agv.id]["fleet"] for agv in agvs] == [None, None]
     added: list[FleetAgvAdded] = []
     env.bus.subscribe(added.append, (FleetAgvAdded,))
@@ -615,10 +616,11 @@ def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: boo
     """Node ``agvs`` replay matches when an AGV is created at a bound node or moved by assignment (carried T14)."""
     env = Environment(debug=True)
     replay = FleetReplay(env, FLEET_KINDS | {"node"})  # free traffic: no reservations to replay
-    if after_activation:
-        env.activate()
     nodes, graph = _line_graph()
     first = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[0])  # before the binding: in its create delta
+    # An explicit graph consumer before activation: the environment gets no layout (until explicit mode is removed).
+    if after_activation:
+        env.activate()
     FleetCoordinator(env=env, graph=graph, fleet=[first], warehouses=[], charging_stations=[])
     placed: list[AgvPlaced] = []
     env.bus.subscribe(placed.append, (AgvPlaced,))

@@ -64,7 +64,10 @@ def test_manifest_requested_is_fixed_by_activation_and_deterministic() -> None:
     before = env.manifest()
     env.activate()
     after = env.manifest()
-    assert before.requested == after.requested
+    # The layout is created at activation (spec §5.5): before it the manifest has none, after it the layout's.
+    assert before.requested["layout"] is None
+    assert after.requested["layout"] == env.layout.prepare().bundle.manifest()
+    assert {**before.requested, "layout": None} == {**after.requested, "layout": None}
     assert after.requested is env.manifest().requested
     assert before.final is None
     assert Environment(seed=9, provenance=FULL).manifest().requested == before.requested
@@ -150,7 +153,9 @@ def test_volatile_metadata_is_separate() -> None:
     assert volatile.wall_clock_start is not None
     assert volatile.run_seconds >= 0.0
     assert volatile.host
-    assert Environment(seed=1).manifest().requested == env.manifest().requested  # unaffected by the execution
+    activated = Environment(seed=1)
+    activated.activate()  # creates the layout, as the run did (spec §5.5)
+    assert activated.manifest().requested == env.manifest().requested  # unaffected by the execution
 
 
 def test_activation_does_not_scan_installed_distributions(monkeypatch: pytest.MonkeyPatch) -> None:

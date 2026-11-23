@@ -353,7 +353,7 @@ def test_facade_file_roundtrip_load_once_flows_and_validation(tmp_path):
             {"schema_version": "1.0", "placements": {"a": {"kind": "server"}, "b": {"kind": "server"}}},
             limits=LayoutLimits(max_placements=1),
         )
-    assert empty.layout is None
+    assert empty._layout is None
 
 
 @pytest.mark.parametrize("change", ["existing_target", "obstacle_after_barrier", "network_after_barrier"])

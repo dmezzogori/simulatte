@@ -378,8 +378,8 @@ class EntityRegistry:
         `ValueError` for a different `Node` with the id of a bound one, and for a node id that is not a valid,
         unused entity name.
         """
-        if self._env.layout is not None:
-            self._env.layout._validate_node(node)
+        if self._env._layout is not None:
+            self._env._layout._validate_node(node)
         binding = self._nodes.get(node.id)
         if binding is None:
             from simulatte.intralogistics.graph import NodeBinding  # lazy: the intralogistics subsystem is optional

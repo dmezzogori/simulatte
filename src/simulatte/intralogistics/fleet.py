@@ -176,8 +176,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         """The traffic controller that grants the claims of this fleet's travels (spec §7)."""
         self.router: Router = ShortestDistanceRouter() if router is None else router
         """The router of this fleet's travels (spec §10)."""
-        if env.layout is not None:
-            env.layout._validate_fleet(
+        if env._layout is not None:
+            env._layout._validate_fleet(
                 (*self.fleet, *self.warehouses, *self.charging_stations, *self.parking_areas), self.traffic_controller
             )
             if any(agv.fleet is not None for agv in self.fleet) or len(set(self.fleet)) != len(self.fleet):
@@ -234,14 +234,14 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
-        self._uses_explicit_graph = env.layout is None and True
+        self._uses_explicit_graph = env._layout is None and True
         env.entities.attach(self, name=name, label=label)
         self.metrics: OrderEMACollector | None = (
             OrderEMACollector(self, alpha=ema_alpha).attach(env) if default_metrics else None
         )
         """The default :class:`OrderEMACollector` (``ema_*`` averages of delivered orders), or None when built with
         ``default_metrics=False``."""
-        if env.layout is None:
+        if env._layout is None:
             for node in sorted(self.graph.nodes, key=lambda node: node.id):
                 env.entities.bind_node(node)
         for agv in self.fleet:

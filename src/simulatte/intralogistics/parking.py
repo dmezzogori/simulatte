@@ -55,7 +55,7 @@ class ParkingArea(Entity, kind="parking_area"):
         self._resource = simpy.Resource(env, capacity=capacity)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
         self._pending_entries: dict[AGV, _PendingEntry] = {}
-        self._uses_explicit_graph = env.layout is None and True
+        self._uses_explicit_graph = env._layout is None and True
         env.entities.attach(self, name=name, label=label)
 
     @property

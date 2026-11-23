@@ -64,7 +64,7 @@ class Warehouse(Entity, kind="warehouse"):
             checked = [node_input(env, node) for node in supplied]
             nodes = [node for node, _ in checked]
             refs = tuple(ref for _, ref in checked if ref is not None)
-            setattr(self, "_" + field, tuple(nodes) if env.layout is not None else nodes)
+            setattr(self, "_" + field, tuple(nodes) if env._layout is not None else nodes)
             setattr(self, "_pending_" + field, refs or None)
         self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
 
@@ -83,7 +83,7 @@ class Warehouse(Entity, kind="warehouse"):
         self.total_puts: int = 0
         self._total_pick_time: float = 0.0
         self._total_put_time: float = 0.0
-        self._uses_explicit_graph = env.layout is None and bool(input_bays or output_bays)
+        self._uses_explicit_graph = env._layout is None and bool(input_bays or output_bays)
         env.entities.attach(self, name=name, label=label)
         self._pick_time = env.bind(pick_time, kind="contextual", stream=f"{self.id}/pick", owner=self.id)
         self._put_time = env.bind(put_time, kind="contextual", stream=f"{self.id}/put", owner=self.id)
