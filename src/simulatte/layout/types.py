@@ -95,6 +95,41 @@ def _node_capacities(capacities: Mapping[str, int] | None, known: set[str]) -> M
     return capacities
 
 
+def _zone_members(
+    zones: Mapping[str, Any] | None, ids: set[str], arcs: set[tuple[str, str]]
+) -> Mapping[str, Any] | None:
+    """The zones of an explicit graph with node ids and id pairs turned into the addresses the schema has.
+
+    A ``str`` member is the node of that id. A pair of ids (a 2-tuple or 2-list of ``str``) is the segment between the
+    two nodes, as the pair of a controller ``Zone`` is, whichever way the arc runs: the address of ``a -> b`` when the
+    graph has that arc, else of ``b -> a``. Address mappings pass through, so the forms may be mixed.
+    """
+    if not isinstance(zones, Mapping):
+        return zones
+    converted = {}
+    for zone_id, zone in zones.items():
+        members = zone.get("members") if isinstance(zone, Mapping) else None
+        if not isinstance(members, (list, tuple)):
+            converted[zone_id] = zone
+            continue
+        found: list[Any] = []
+        for member in members:
+            if isinstance(member, str):
+                if member not in ids:
+                    raise LayoutError(f"zones/{zone_id}: member {member!r} is not a node of the explicit graph")
+                found.append({"kind": "explicit", "id": member})
+            elif isinstance(member, (list, tuple)) and len(member) == 2 and all(type(end) is str for end in member):
+                a, b = member
+                if (a, b) not in arcs and (b, a) not in arcs:
+                    raise LayoutError(f"zones/{zone_id}: member {tuple(member)!r} is not an arc of the explicit graph")
+                source, target = (a, b) if (a, b) in arcs else (b, a)
+                found.append({"kind": "explicit_arc", "source": source, "target": target})
+            else:
+                found.append(member)
+        converted[zone_id] = {**zone, "members": found}
+    return converted
+
+
 def _passing(value: bool | None) -> None:
     if value is not None and type(value) is not bool:
         raise LayoutError("passing must be a bool")
@@ -349,7 +384,7 @@ class Explicit:
         object.__setattr__(self, "blocked", _definition(dict(blocked or {}), "blocked"))
         object.__setattr__(self, "capacity", capacity)
         object.__setattr__(self, "block_length", _block_length(block_length))
-        object.__setattr__(self, "zones", _zones(zones))
+        object.__setattr__(self, "zones", _zones(_zone_members(zones, set(ids), {(a.source, a.target) for a in arcs})))
 
 
 @dataclass(frozen=True)

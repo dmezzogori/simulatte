@@ -1700,19 +1700,25 @@ def test_the_capacity_fallback_order_is_unchanged():
     }
 
 
+ZONE_MEMBERS = {
+    "addresses": [{"kind": "explicit", "id": "N3"}, {"kind": "explicit_arc", "source": "N1", "target": "N2"}],
+    "ids": ["N3", ("N1", "N2")],
+    "reversed pair": ["N3", ["N2", "N1"]],
+    "mixed": ["N3", {"kind": "explicit_arc", "source": "N1", "target": "N2"}],
+}
+
+
+@pytest.mark.parametrize("form", sorted(ZONE_MEMBERS))
 @pytest.mark.parametrize("hold_back", [False, True])
 @pytest.mark.parametrize("capacity", [1, 2])
 def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_given_to_the_controller(
-    hold_back, capacity
+    hold_back, capacity, form
 ):
     """Node and pair members, in a five-node world: every leg claims the same resources either way."""
     graph, nodes = five_nodes()
     declared = {
         "z": {
-            "members": [
-                {"kind": "explicit", "id": "N3"},
-                {"kind": "explicit_arc", "source": "N1", "target": "N2"},
-            ],
+            "members": ZONE_MEMBERS[form],
             "capacity": capacity,
             "hold_back": hold_back,
         }
@@ -1741,3 +1747,56 @@ def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_give
     assert any("z" in {name for name, _ in claim} for claim in legs(from_layout).values())
     (zone,) = from_layout.zones
     assert (zone.capacity, zone.hold_back) == (capacity, hold_back)
+
+
+def zone_hashes(graph: LayoutGraph, members: list[Any]) -> tuple[str, str, Any]:
+    layout = Layout(Environment())
+    layout.set_network(Explicit(graph, zones={"z": {"members": members, "capacity": 2}}))
+    result = layout.prepare()
+    return result.physical_hash, result.full_hash, result.bundle["network"]
+
+
+def test_zone_members_by_id_give_the_bundle_and_hashes_of_the_same_zone_by_address():
+    graph, _ = five_nodes()
+    by_address = zone_hashes(graph, ZONE_MEMBERS["addresses"])
+    assert zone_hashes(graph, ZONE_MEMBERS["ids"]) == by_address
+    assert zone_hashes(graph, ZONE_MEMBERS["mixed"]) == by_address
+
+
+def test_a_pair_member_of_a_one_way_arc_names_the_arc_that_exists():
+    a, b, c = Node("A", 0, 0), Node("B", 10, 0), Node("C", 20, 0)
+    graph = LayoutGraph([a, b, c], [Arc(a, b, bidirectional=False), Arc(c, b, bidirectional=False)])
+    for pair in (("A", "B"), ("B", "A")):
+        layout = Layout(Environment())
+        layout.set_network(Explicit(graph, zones={"z": {"members": [pair, ("C", "B")]}}))
+        (zone,) = layout.prepare().network.zones
+        assert {(x.id, y.id) for x, y in (m for m in zone.members if isinstance(m, tuple))} == {("A", "B"), ("B", "C")}
+    assert Explicit(graph, zones={"z": {"members": [("B", "A")]}}).zones["z"]["members"][0] == {
+        "kind": "explicit_arc",
+        "source": "A",
+        "target": "B",
+    }
+
+
+@pytest.mark.parametrize(
+    "member, named",
+    [("N9", "N9"), (("N0", "N2"), "N0"), (("N1", "N9"), "N9"), (("N1", "N1"), "N1")],
+)
+def test_a_zone_member_that_is_not_in_the_graph_names_the_zone_and_the_member(member, named):
+    graph, _ = five_nodes()
+    with pytest.raises(LayoutError, match=rf"zones/z: member .*{named}"):
+        Explicit(graph, zones={"z": {"members": ["N3", member]}})
+
+
+def test_a_zone_member_of_another_shape_is_left_to_the_schema_and_the_other_networks_take_no_shorthand():
+    graph, _ = five_nodes()
+    with pytest.raises(LayoutError):
+        Explicit(graph, zones={"z": {"members": [("N1", "N2", "N3")]}})
+    with pytest.raises(LayoutError):
+        Explicit(graph, zones={"z": {"members": [3]}})
+    with pytest.raises(LayoutError):
+        Explicit(graph, zones={"z": {}})
+    with pytest.raises(LayoutError):
+        Lanes({}, zones={"z": {"members": ["N1"]}})
+    with pytest.raises(LayoutError):
+        Lattice((0, 0, 1, 1), zones={"z": {"members": ["N1"]}})

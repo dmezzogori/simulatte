@@ -528,14 +528,6 @@ def reference_graph(spec: WorldSpec) -> LayoutGraph:
     return graph if spec.block_length is None else graph.subdivide(spec.block_length)
 
 
-def _arc_direction(spec: WorldSpec, a: str, b: str) -> tuple[str, str]:
-    """The declared direction of the arc between `a` and `b`."""
-    for arc in spec.arcs:
-        if (arc.source, arc.target) in ((a, b), (b, a)):
-            return arc.source, arc.target
-    raise KeyError((a, b))
-
-
 def zone_members(spec: WorldSpec, zone: ZoneSpec, graph: LayoutGraph) -> tuple[Any, ...]:
     """The members of `zone` in `graph` (the world's graph, subdivided when the world has a block length).
 
@@ -557,16 +549,13 @@ def zone_members(spec: WorldSpec, zone: ZoneSpec, graph: LayoutGraph) -> tuple[A
 
 
 def _layout_zones(spec: WorldSpec) -> dict[str, Any] | None:
+    """The zones as ``Explicit`` takes them: node ids and pairs of ids as members."""
     if not spec.zones:
         return None
-    zones = {}
-    for zone in spec.zones:
-        members: list[dict[str, Any]] = [{"kind": "explicit", "id": node} for node in zone.nodes]
-        for a, b in zone.pairs:
-            source, target = _arc_direction(spec, a, b)
-            members.append({"kind": "explicit_arc", "source": source, "target": target})
-        zones[zone.id] = {"members": members, "capacity": zone.capacity, "hold_back": zone.hold_back}
-    return zones
+    return {
+        zone.id: {"members": [*zone.nodes, *zone.pairs], "capacity": zone.capacity, "hold_back": zone.hold_back}
+        for zone in spec.zones
+    }
 
 
 @dataclass

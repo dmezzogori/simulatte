@@ -341,6 +341,10 @@ closure and the physical hash.
   without `block_length`. A member that matches nothing is a `stale-zone-member` warning. The resolved zones are
   `ResolvedNetwork.zones` (concrete nodes and node pairs), and a `ReservationController` on the layout graph adds
   them to its own `zones`; one id defined in both raises `ValueError`.
+  In `Explicit(zones=...)`, a member may also be a node id (`"N3"`) or a pair of ids (`("N1", "N2")`), which is the
+  segment between the two nodes whichever way the arc runs; they are converted to the addresses above, may be mixed
+  with them, and name an unknown id or a pair that is not an arc in a `LayoutError`. `Lattice` and `Lanes` take
+  addresses only.
 
 Readers accept `1.0` and `1.1`; a `1.0` file with a `1.1` field is an error that names the field, and `save()`
 writes `1.1` only when a `1.1` field is present. Code declarations (`Lanes`, `Lattice`, `Explicit`, `Connector`,
