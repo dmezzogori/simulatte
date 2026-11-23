@@ -7,8 +7,11 @@ the same traffic controller. No two nodes share a position. `build_world` builds
 (``mode="explicit"``) or through ``Explicit`` and the handles of the environment's layout (``mode="layout"``); AGVs
 are constructed with ``agv_id=`` and every component is named, so ids are equal in both modes. `run_world` runs a
 world with a `Monitor` and a `StreamRecorder` and returns a `RunRecord`, which compares equal for equal runs.
+`present` and `exercised` name the features a spec contains and those a recorded run used.
 
-The `Monitor` keeps its own body model of every vehicle, driven by the motion events only, and checks after every
+The `Monitor` takes its geometry from the spec (`reference_graph`), not from the graph the run built, and reports a
+built graph that differs from it. It keeps its own body model of every vehicle, driven by the motion events only, and
+checks after every
 domain event that the replayed deltas equal the live entities (from the first event and from the initial state), and,
 under a `ReservationController`, that the bodies respect node, segment, zone and corridor admission, that the
 holdings cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and that the entities
@@ -45,7 +48,21 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
-from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveStarted
+from simulatte.intralogistics.events import (
+    AgvMoveEnded,
+    AgvMoveInterrupted,
+    AgvMoveStarted,
+    AgvRouted,
+    AgvStranded,
+    ChargingStarted,
+    OrderStatusChanged,
+    ParkingEntered,
+    TrafficDeadlock,
+    TrafficReleased,
+    TrafficReserved,
+    TrafficWaitStarted,
+    TrafficWaitStuck,
+)
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.network import Corridor, Segment, Zone
 from simulatte.intralogistics.order import TransferOrder
@@ -105,6 +122,7 @@ class VehicleSpec:
     critical_battery_threshold: float = 0.05
     corner_speed: bool = False
     turn_time: bool = False
+    idle_power: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -267,7 +285,11 @@ def _zones(rnd: random.Random, draw: _Draw, arcs: Sequence[ArcSpec]) -> list[Zon
 
 
 def world_spec(seed: int) -> WorldSpec:
-    """The world of `seed`; the same seed always gives an equal spec."""
+    """The world of `seed`; the same seed always gives an equal spec.
+
+    The AGVs take their start nodes first, so every world has at least two AGVs in its first fleet and at least one in
+    its second fleet when it has one; warehouses, chargers and parking areas take the nodes left, then any node.
+    """
     rnd = random.Random(seed)
     draw = _Draw(rnd)
     arcs, leaves, spacing, size = _network(rnd, draw)
@@ -278,6 +300,17 @@ def world_spec(seed: int) -> WorldSpec:
     capacities = {rnd.choice(everything): 2 for _ in range(rnd.randint(0, 3))}
     zones = _zones(rnd, draw, arcs)
     skus = tuple(rnd.choice([[1.0, 5.0], [0.5, 12.0, 20.0], [3.0]]))
+    if rnd.random() < 0.6:
+        profile: tuple[Any, ...] = (
+            "trapezoidal",
+            rnd.choice([1.5, 2.0]),
+            rnd.choice([0.8, 0.3]),
+            rnd.choice([0.8, 0.4]),
+        )
+    else:
+        profile = ("plain", rnd.uniform(0.8, 1.6))
+    starts = _starts(draw, zones, rnd.randint(2, 6))
+    second = _second_fleet(seed, draw, skus, profile[0] == "trapezoidal", zones, starts) if rnd.random() < 0.3 else None
     warehouses = []
     for w in range(rnd.randint(3, 4)):
         inputs = [draw.pick() for _ in range(rnd.randint(1, 2))]
@@ -295,31 +328,22 @@ def world_spec(seed: int) -> WorldSpec:
         )
     chargers = tuple((f"C{c}", draw.pick(), rnd.randint(1, 2)) for c in range(rnd.randint(1, 2)))
     parking = tuple((f"P{p}", draw.pick(), rnd.randint(1, 2)) for p in range(rnd.randint(0, 3)))
-    if rnd.random() < 0.6:
-        profile: tuple[Any, ...] = (
-            "trapezoidal",
-            rnd.choice([1.5, 2.0]),
-            rnd.choice([0.8, 0.3]),
-            rnd.choice([0.8, 0.4]),
-        )
-    else:
-        profile = ("plain", rnd.uniform(0.8, 1.6))
     corner_speed, turn_time = rnd.random() < 0.25, rnd.random() < 0.2
-    total = math.fsum(math.hypot(*_delta(draw.nodes, arc)) for arc in arcs)
-    low = rnd.random() >= 0.5
+    # A low battery holds 1 to 5 times the span of the grid: missions drain it, so AGVs charge and some strand. The
+    # span is at least four grid spacings, so a full battery always covers the longest arc (1.3 spacings).
+    low = rnd.random() < 0.5
     vehicle = VehicleSpec(
         "t",
         profile,
-        rnd.uniform(3.0, 8.0) * max(total, 4 * spacing * size) if low else 1e9,
+        rnd.uniform(1.0, 5.0) * spacing * size if low else 1e9,
         rnd.choice([0.0, 0.0, 1.0, 3.0, 6.0]),
         rnd.choice([0.0, 0.0, 0.5]),
         rnd.choice([0.2, 0.35, 0.5]),
-        0.02,
+        rnd.choice([0.02, 0.05, 0.15]),
         corner_speed,
         turn_time,
+        rnd.choice([0.0, 0.0, 0.02, 0.05]) if low else 0.0,
     )
-    n_agv = rnd.randint(2, 6)
-    starts = _starts(draw, zones, n_agv)
     ids = rnd.sample(["a", "b", "c", "d", "e", "f", "g"], len(starts))
     options = {
         "capacities": tuple(sorted(capacities.items())),
@@ -357,8 +381,8 @@ def world_spec(seed: int) -> WorldSpec:
             disturbances,
         )
     ]
-    if rnd.random() < 0.3:
-        fleets.append(_second_fleet(seed, draw, skus, profile[0] == "trapezoidal", zones, starts))
+    if second is not None:
+        fleets.append(second)
     return WorldSpec(
         seed,
         tuple((node, x, y) for node, (x, y) in draw.nodes.items()),
@@ -376,9 +400,9 @@ def world_spec(seed: int) -> WorldSpec:
     )
 
 
-def _starts(draw: _Draw, zones: Sequence[ZoneSpec], count: int, placed: list[str] | None = None) -> list[str]:
+def _starts(draw: _Draw, zones: Sequence[ZoneSpec], count: int, placed: Sequence[str] = ()) -> list[str]:
     """Up to `count` start nodes from the pool, never more in one zone than its capacity (with those `placed`)."""
-    taken = list(placed or ())
+    taken = list(placed)
     starts: list[str] = []
     while len(starts) < count and draw.pool:
         node = draw.pool.pop()
@@ -389,14 +413,9 @@ def _starts(draw: _Draw, zones: Sequence[ZoneSpec], count: int, placed: list[str
     return starts
 
 
-def _delta(nodes: Mapping[str, tuple[float, float]], arc: ArcSpec) -> tuple[float, float]:
-    (ax, ay), (bx, by) = nodes[arc.source], nodes[arc.target]
-    return bx - ax, by - ay
-
-
 def _second_fleet(
     seed: int, draw: _Draw, skus: Sequence[float], trapezoidal: bool, zones: Sequence[ZoneSpec], placed: list[str]
-) -> FleetSpec:
+) -> FleetSpec | None:
     rnd = random.Random(seed * 7919 + 1)
     everything = sorted(draw.nodes)
     warehouses = tuple(
@@ -410,6 +429,8 @@ def _second_fleet(
         rnd.choice([0.0, 0.3]),
     )
     starts = _starts(draw, zones, rnd.randint(1, 3), placed)
+    if not starts:  # every node left is in a full zone
+        return None
     chargers, parking = rnd.random() < 0.5, rnd.random() < 0.5
     parking_policy = rnd.random() < 0.5
     orders = tuple(
@@ -483,6 +504,7 @@ def vehicle_type(spec: VehicleSpec) -> AGVType:
         critical_battery_threshold=spec.critical_battery_threshold,
         corner_speed=_corner_speed if spec.corner_speed else None,
         turn_time=_turn_time if spec.turn_time else None,
+        idle_power=spec.idle_power,
     )
 
 
@@ -496,6 +518,12 @@ def graph_of(spec: WorldSpec) -> LayoutGraph:
             options["length"] = arc.length
         arcs.append(Arc(nodes[arc.source], nodes[arc.target], arc.bidirectional, **options))
     return LayoutGraph(list(nodes.values()), arcs)
+
+
+def reference_graph(spec: WorldSpec) -> LayoutGraph:
+    """The graph `spec` describes, built without the layout: `graph_of`, subdivided by the block length if any."""
+    graph = graph_of(spec)
+    return graph if spec.block_length is None else graph.subdivide(spec.block_length)
 
 
 def _arc_direction(spec: WorldSpec, a: str, b: str) -> tuple[str, str]:
@@ -578,8 +606,7 @@ def build_world(
         values = {n.id: n for n in graph.nodes}
         zones: tuple[Zone, ...] = ()
     elif mode == "explicit":
-        if spec.block_length is not None:
-            graph = graph.subdivide(spec.block_length)
+        graph = reference_graph(spec)
         supplied_graph = graph
         values = {n.id: n for n in graph.nodes}
         node = values.__getitem__
@@ -720,6 +747,8 @@ class RunRecord:
     quiescent: bool
     """Whether the event queue was empty when the run ended (always true without ``until``)."""
     violations: tuple[tuple[Any, ...], ...]
+    fingerprint: str
+    """``env.fingerprint()`` at the end of the run, as the parity tests of ``tests/layout`` compare it."""
 
 
 def run_world(
@@ -736,6 +765,7 @@ def run_world(
         world = build_world(env, spec, mode=mode, router=router, controller=controller)
         monitor = Monitor(world)
         recorder = StreamRecorder(env)
+        env.enable_digest()
         # The horizon is an event that can be recognised: SimPy puts it back into the queue when it stops the run, so
         # the run ended on its own when nothing else is left there.
         horizon = None if until is None else env.timeout(until)
@@ -750,7 +780,178 @@ def run_world(
             float(env.now),
             quiescent,
             tuple(monitor.violations),
+            env.fingerprint(),
         )
+
+
+# --- what a run exercised ----------------------------------------------------------------------------------------
+
+FEATURES = (
+    "an AGV moves",
+    "the second fleet moves",
+    "a recorded length traversed",
+    "a block piece traversed",
+    "a one-way arc traversed",
+    "a passing segment traversed",
+    "a passing segment held by two",
+    "a node of capacity 2 held by two",
+    "a zone reserved",
+    "a zone waited for",
+    "a zone held by two",
+    "a hold-back zone reserved",
+    "a corridor reserved",
+    "parking entered",
+    "an order cancelled",
+    "a breakdown",
+    "charging",
+    "stranding",
+    "a traffic wait",
+    "a stuck wait",
+    "a deadlock",
+    "a make-way move",
+)
+"""What `present` and `exercised` name; waits, deadlocks and moves of the fleet have no counterpart in a spec."""
+
+
+def _recorded(spec: WorldSpec, graph: LayoutGraph) -> set[frozenset[str]]:
+    """The node pairs of `graph` (the reference graph) that carry a recorded length: the arcs declared with one, or
+    their pieces under a block length."""
+    pairs = set()
+    for arc in spec.arcs:
+        if arc.length is None:
+            continue
+        low, high = sorted((arc.source, arc.target))
+        inner = sorted(
+            (node.id for node in graph.nodes if node.id.startswith(f"{low}~{high}#")),
+            key=lambda node: int(node.rsplit("#", 1)[1]),
+        )
+        chain = [low, *inner, high]
+        pairs.update(frozenset(piece) for piece in zip(chain, chain[1:]))
+    return pairs
+
+
+def present(spec: WorldSpec) -> frozenset[str]:
+    """The features of `FEATURES` that `spec` contains, whether or not a run uses them."""
+    found = {"an AGV moves"}
+    graph = reference_graph(spec)
+    if _recorded(spec, graph):
+        found.add("a recorded length traversed")
+    for node in graph.nodes:
+        for other in graph.neighbors(node):
+            arc = graph.arc_between(node, other)
+            if "#" in node.id or "#" in other.id:
+                found.add("a block piece traversed")
+            if graph.arc_between(other, node) is None:
+                found.add("a one-way arc traversed")
+            if arc.passing:
+                found.update(("a passing segment traversed", "a passing segment held by two"))
+    if len(spec.fleets) > 1:
+        found.add("the second fleet moves")
+    if spec.capacities:
+        found.add("a node of capacity 2 held by two")
+    if spec.zones:
+        found.update(("a zone reserved", "a zone waited for", "a zone held by two"))
+    if any(zone.hold_back for zone in spec.zones):
+        found.add("a hold-back zone reserved")
+    if spec.derive_corridors:
+        found.add("a corridor reserved")
+    if spec.parking:
+        found.add("parking entered")
+    disturbances = [cancel for fleet in spec.fleets for _, _, cancel in fleet.disturbances]
+    if any(disturbances):
+        found.add("an order cancelled")
+    if not all(disturbances):
+        found.add("a breakdown")
+    if any(fleet.vehicle.battery_capacity < 1e9 for fleet in spec.fleets):
+        found.update(("charging", "stranding"))
+    return frozenset(found)
+
+
+def exercised(spec: WorldSpec, events: Sequence[tuple[type, tuple[tuple[str, Any], ...]]]) -> frozenset[str]:
+    """The features of `FEATURES` that the recorded `events` of a run of `spec` show."""
+    graph = reference_graph(spec)
+    nodes = {node.id: node for node in graph.nodes}
+    recorded = _recorded(spec, graph)
+    capacities = dict(spec.capacities)
+    recovered: set[str] = set()  # orders that went through mission recovery: after a breakdown or a cancellation
+    cancelled: set[str] = set()
+    zones = {zone.id: zone for zone in spec.zones}
+    holders: dict[str, set[str]] = {}
+    found: set[str] = set()
+    for kind, payload in events:
+        e = dict(payload)
+        if kind is AgvMoveStarted:
+            found.add("an AGV moves")
+            if e["agv"].startswith("bot-"):
+                found.add("the second fleet moves")
+            a, b = nodes[e["from_node"]], nodes[e["to_node"]]
+            if frozenset((a.id, b.id)) in recorded:
+                found.add("a recorded length traversed")
+            if "#" in a.id or "#" in b.id:
+                found.add("a block piece traversed")
+            if graph.arc_between(b, a) is None:
+                found.add("a one-way arc traversed")
+            if graph.arc_between(a, b).passing:
+                found.add("a passing segment traversed")
+        elif kind is TrafficReserved:
+            for resource in e["resources"]:
+                held = holders.setdefault(resource, set())
+                held.add(e["agv"])
+                if resource in zones:
+                    found.add("a zone reserved")
+                    if zones[resource].hold_back:
+                        found.add("a hold-back zone reserved")
+                    if len(held) > 1:
+                        found.add("a zone held by two")
+                elif resource.startswith("corridor:"):
+                    found.add("a corridor reserved")
+                elif len(held) > 1 and capacities.get(resource, 1) > 1:
+                    found.add("a node of capacity 2 held by two")
+                elif len(held) > 1 and resource not in nodes:
+                    a, b = (nodes[end] for end in _segment_ends(resource, nodes))
+                    arc = graph.arc_between(a, b) or graph.arc_between(b, a)
+                    if arc is not None and arc.passing:
+                        found.add("a passing segment held by two")
+        elif kind is TrafficReleased:
+            for resource in e["resources"]:
+                holders.get(resource, set()).discard(e["agv"])
+        elif kind is TrafficWaitStarted:
+            found.add("a traffic wait")
+            if any(resource in zones for resource in e["resources"]):
+                found.add("a zone waited for")
+        elif kind is OrderStatusChanged:
+            if e["reason"] == "cancelled":
+                found.add("an order cancelled")
+                cancelled.add(e["order"])
+            elif e["reason"] in ("interrupted", "load_recovery"):
+                recovered.add(e["order"])
+        elif kind is AgvMoveInterrupted and e["reason"] == "breakdown":
+            found.add("a breakdown")
+        elif kind is ParkingEntered:
+            found.add("parking entered")
+        elif kind is ChargingStarted:
+            found.add("charging")
+        elif kind is AgvStranded:
+            found.add("stranding")
+        elif kind is TrafficWaitStuck:
+            found.add("a stuck wait")
+        elif kind is TrafficDeadlock:
+            found.add("a deadlock")
+        elif kind is AgvRouted and e["reason"] == "make_way":
+            found.add("a make-way move")
+    if recovered - cancelled:
+        found.add("a breakdown")
+    return frozenset(found)
+
+
+def _segment_ends(segment: str, nodes: Mapping[str, Node]) -> tuple[str, str]:
+    """The two node ids of a segment id ``"<a>~<b>"`` whose ends may themselves contain ``~`` (block nodes)."""
+    parts = segment.split("~")
+    for cut in range(1, len(parts)):
+        a, b = "~".join(parts[:cut]), "~".join(parts[cut:])
+        if a in nodes and b in nodes:
+            return a, b
+    raise KeyError(segment)
 
 
 # --- the monitor ------------------------------------------------------------------------------------------------
@@ -873,8 +1074,9 @@ class Monitor:
 
     def _setup(self) -> None:
         world = self.world
-        graph = world.fleets[0].graph if world.fleets else self.controller.graph
+        graph = reference_graph(world.spec)
         self.graph = graph
+        self._compare_geometry(world.fleets[0].graph)
         self.nodes = {node.id: node for node in graph.nodes}
         facilities: dict[str, int] = {}
         for area in world.parking:
@@ -897,6 +1099,30 @@ class Monitor:
             self.zone_members[zone.id] = (ids, zone.capacity)
         self.corridors = self._corridors() if world.spec.derive_corridors else []
         self._ready = True
+
+    def _compare_geometry(self, built: LayoutGraph) -> None:
+        """The graph the mode under test built against the one the spec describes, node by node and arc by arc."""
+
+        def arcs(graph: LayoutGraph) -> dict[tuple[str, str], tuple[float, float | None, bool]]:
+            found = {}
+            for node in graph.nodes:
+                for other in graph.neighbors(node):
+                    arc = graph.arc_between(node, other)
+                    found[node.id, other.id] = (graph.length(node, other), arc.speed_limit, arc.passing)
+            return found
+
+        expected = {(n.id, n.x, n.y) for n in self.graph.nodes}
+        found = {(n.id, n.x, n.y) for n in built.nodes}
+        if found != expected:
+            self.violation("built nodes differ from the spec", sorted(found ^ expected)[:4])
+        expected_arcs, found_arcs = arcs(self.graph), arcs(built)
+        if found_arcs != expected_arcs:
+            keys = sorted(
+                k for k in expected_arcs.keys() | found_arcs.keys() if expected_arcs.get(k) != found_arcs.get(k)
+            )
+            self.violation(
+                "built arcs differ from the spec", [(k, expected_arcs.get(k), found_arcs.get(k)) for k in keys[:4]]
+            )
 
     def _corridors(self) -> list[tuple[list[str], set[str]]]:
         """Maximal two-way chains of interior nodes (two neighbours, capacity 1) between two ports, without passing."""
@@ -1164,9 +1390,9 @@ class Monitor:
         ledger = self.controller.ledger
         network = self.controller.network
         entities = self.env.entities
-        for node in self.graph.nodes:
+        for node in self.controller.graph.nodes:
             holders = ledger.holders(node)
-            if len(holders) > self.cap[node.id]:
+            if len(holders) > self.cap.get(node.id, 1):
                 self.violation("LEDGER node over capacity", node.id)
             binding = entities.node_binding(node)
             if binding is not None and binding.reserved_by != [h.id for h in holders]:

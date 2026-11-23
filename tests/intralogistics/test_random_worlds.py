@@ -3,6 +3,7 @@ detects a violation."""
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import subprocess
 import sys
@@ -12,12 +13,18 @@ import pytest
 
 from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
-from tests.intralogistics.random_worlds import run_world, world_spec
+from tests.intralogistics.random_worlds import FEATURES, exercised, present, run_world, world_spec
 
 ROOT = Path(__file__).resolve().parents[2]
-SEEDS = (45, 54, 82, 88, 110)
-"""Between them: block lengths, recorded arc lengths, zones with and without hold-back, nodes of capacity 2, parking,
-low batteries, cancellations and interruptions, one-way arcs, passing segments and two fleets on one controller."""
+NOT_IN_A_SPEC = {"a traffic wait", "a stuck wait", "a deadlock", "a make-way move"}
+EXERCISED = {
+    26: {"charging", "stranding", "a zone held by two", "a hold-back zone reserved", "the second fleet moves"},
+    88: {"a zone held by two", "a recorded length traversed", "a block piece traversed", "an order cancelled"},
+    182: {"charging", "stranding", "the second fleet moves", "a node of capacity 2 held by two", "parking entered"},
+    236: {"charging", "stranding", "a block piece traversed", "a one-way arc traversed", "a make-way move"},
+    272: {"a passing segment held by two", "stranding", "a recorded length traversed", "a deadlock"},
+}
+"""Five worlds and some of what their run under ``ReservationController`` and the default router exercises."""
 
 
 def test_world_spec_is_deterministic_per_seed():
@@ -38,13 +45,20 @@ def test_no_world_has_two_nodes_at_one_position():
         assert len(set(positions)) == len(positions), seed
 
 
-@pytest.mark.parametrize("seed", SEEDS)
+def test_every_world_has_vehicles_in_every_fleet():
+    for seed in range(1000):
+        fleets = world_spec(seed).fleets
+        assert len(fleets[0].agvs) >= 2 and all(fleet.agvs for fleet in fleets), seed
+
+
+@pytest.mark.parametrize("seed", sorted(EXERCISED))
 def test_a_world_runs_alike_built_explicitly_and_through_the_layout(seed):
     spec = world_spec(seed)
     explicit = run_world(spec, mode="explicit", controller="reservation")
     layout = run_world(spec, mode="layout", controller="reservation")
     assert layout.events and layout.quiescent and not layout.violations
     assert explicit == layout
+    assert EXERCISED[seed] <= exercised(spec, layout.events) <= present(spec) | NOT_IN_A_SPEC
 
 
 def test_the_monitor_reports_an_admission_that_ignores_node_capacity(monkeypatch):
@@ -59,3 +73,22 @@ def test_the_monitor_reports_an_admission_that_ignores_node_capacity(monkeypatch
     record = run_world(world_spec(88), mode="layout", controller="reservation")
     found = {violation[1] for violation in record.violations}
     assert {"PHYSICAL node over capacity", "LEDGER node over capacity"} <= found
+
+
+def test_the_monitor_reports_a_built_network_that_differs_from_the_spec(monkeypatch):
+    """The monitor's geometry comes from the spec, so a layout that loses a recorded length is noticed."""
+    from simulatte.layout import types
+
+    declare = types.Explicit.__init__
+
+    def without_lengths(self, graph, **options):
+        declare(self, graph, **options)
+        object.__setattr__(self, "arcs", tuple(dataclasses.replace(arc, length=None) for arc in self.arcs))
+
+    monkeypatch.setattr(types.Explicit, "__init__", without_lengths)
+    record = run_world(world_spec(88), mode="layout", controller="reservation")
+    assert "built arcs differ from the spec" in {violation[1] for violation in record.violations}
+
+
+def test_the_features_are_named_once():
+    assert len(set(FEATURES)) == len(FEATURES) and NOT_IN_A_SPEC <= set(FEATURES)

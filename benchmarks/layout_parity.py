@@ -7,9 +7,10 @@ Each world of ``tests/intralogistics/random_worlds.py`` (seeds ``--first`` to ``
 with concrete graph objects and through ``Explicit`` and layout handles, and run under both traffic controllers and
 the three routers: twelve runs and six compared pairs per world. A pair is equal when the two `RunRecord`s are: the
 events after the prelude (without ``seq`` and ``ordinal``), the initial and final states, the end time, whether the
-run ended on its own, and the monitor's violations. The script prints the counts, then for each differing pair its
+run ended on its own, the monitor's violations and ``env.fingerprint()``. The script prints the counts, then for each differing pair its
 seed and first difference, and the seeds of runs that raised, did not end within the wall-clock limit, or show a
-monitor violation, with what each mode did.
+monitor violation, with what each mode did, and, per feature of the worlds, how many worlds contain it and how many
+runs exercised it. The exit status is 1 when a pair differs, a run failed or a violation was found.
 
 `first_difference` and `compare` are importable: they compare two recorded streams, or two run records.
 This script exists while explicit mode does.
@@ -35,10 +36,13 @@ if str(ROOT) not in sys.path:
 
 from tests.intralogistics.random_worlds import (  # noqa: E402
     CONTROLLERS,
+    FEATURES,
     ROUTERS,
     RunRecord,
     StreamRecorder,
+    exercised,
     normalize,
+    present,
     run_world,
     world_spec,
 )
@@ -64,7 +68,7 @@ def compare(a: RunRecord, b: RunRecord) -> str | None:
     found = first_difference(a.events, b.events)
     if found is not None:
         return found
-    for name in ("initial_state", "final_state", "now", "quiescent", "violations"):
+    for name in ("initial_state", "final_state", "now", "quiescent", "violations", "fingerprint"):
         left, right = getattr(a, name), getattr(b, name)
         if left != right:
             if isinstance(left, dict) and isinstance(right, dict):
@@ -107,9 +111,9 @@ def _run(spec: Any, mode: str, router: str, controller: str, until: float, limit
 
 
 def world(seed: int, until: float, limit: int) -> list[dict[str, Any]]:
-    """The six compared pairs of world `seed`."""
+    """The six compared pairs of world `seed`; the first row also lists the features the spec contains."""
     spec = world_spec(seed)
-    rows = []
+    rows: list[dict[str, Any]] = []
     for controller in CONTROLLERS:
         for router in ROUTERS:
             explicit = _run(spec, "explicit", router, controller, until, limit)
@@ -126,11 +130,14 @@ def world(seed: int, until: float, limit: int) -> list[dict[str, Any]]:
                 row["events"] = len(explicit.events)
                 row["quiescent"] = explicit.quiescent and layout.quiescent
                 row["violations"] = (explicit.violations[:3], layout.violations[:3])
+                row["exercised"] = exercised(spec, explicit.events)
             rows.append(row)
+    rows[0]["present"] = present(spec)
     return rows
 
 
-def main() -> None:
+def main() -> int:
+    """Run the comparison; the exit status is 1 when a pair differs, a run failed or the monitor found a violation."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--worlds", type=int, default=1000)
     parser.add_argument("--first", type=int, default=0, help="the first seed")
@@ -155,17 +162,27 @@ def main() -> None:
     print(f"worlds {len(seeds)} (seeds {seeds.start}..{seeds.stop - 1}), runs {2 * len(rows)}, pairs {len(rows)}")
     print(", ".join(f"{name} {counts[name]}" for name in COUNTS))
     print(f"until {args.until}, wall-clock limit {args.limit} s per run, {time.perf_counter() - started:.0f} s")
+    print("feature: worlds that contain it, worlds where a run exercised it, pairs that exercised it")
+    for feature in FEATURES:
+        contain = sum(feature in row.get("present", ()) for row in rows)
+        pairs = [row for row in rows if feature in row.get("exercised", ())]
+        print(f"  {feature}: {contain}, {len({row['seed'] for row in pairs})}, {len(pairs)}")
+    bad = False
     for row in rows:
         tag = f"seed {row['seed']} {row['controller']} {row['router']}"
         if row["difference"] is not None:
             print(f"DIFFERS {tag}: {row['difference']}")
+            bad = True
         if "failed" in row:
             print(f"FAILED {tag}: explicit {row['failed'][0]!r}; layout {row['failed'][1]!r}")
+            bad = True
         elif row.get("quiescent") is False:
             print(f"HORIZON {tag}: the run did not end on its own before {args.until}")
         if row.get("violations") and any(row["violations"]):
             print(f"VIOLATION {tag}: explicit {row['violations'][0]!r}; layout {row['violations'][1]!r}")
+            bad = True
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
