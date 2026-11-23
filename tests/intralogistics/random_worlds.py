@@ -11,11 +11,11 @@ world with a `Monitor` and a `StreamRecorder` and returns a `RunRecord`, which c
 
 The `Monitor` takes its geometry from the spec (`reference_graph`), not from the graph the run built, and reports a
 built graph that differs from it. It keeps its own body model of every vehicle, driven by the motion events only, and
-checks after every
-domain event that the replayed deltas equal the live entities (from the first event and from the initial state), and,
-under a `ReservationController`, that the bodies respect node, segment, zone and corridor admission, that the
-holdings cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and that the entities
-agree with the holdings ledger. It records violations instead of raising, so a run always ends.
+checks after every domain event that the replayed deltas equal the live entities (from the first event and from the
+initial state), and, under a `ReservationController`, that the bodies respect node, segment, zone and corridor
+admission, that the holdings cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and
+that the entities agree with the holdings ledger. It records violations instead of raising, so a run always ends. One
+behaviour of the fleet, `KNOWN_LIMIT`, is recognised from its own events and recorded apart as a known limit.
 """
 
 from __future__ import annotations
@@ -54,9 +54,11 @@ from simulatte.intralogistics.events import (
     AgvMoveStarted,
     AgvRouted,
     AgvStranded,
+    ChargingEnded,
     ChargingStarted,
     OrderStatusChanged,
     ParkingEntered,
+    ParkingLeft,
     TrafficDeadlock,
     TrafficReleased,
     TrafficReserved,
@@ -747,6 +749,8 @@ class RunRecord:
     quiescent: bool
     """Whether the event queue was empty when the run ended (always true without ``until``)."""
     violations: tuple[tuple[Any, ...], ...]
+    known_limits: tuple[tuple[Any, ...], ...]
+    """The cases of `KNOWN_LIMIT` the monitor recognised, apart from the violations."""
     fingerprint: str
     """``env.fingerprint()`` at the end of the run, as the parity tests of ``tests/layout`` compare it."""
 
@@ -771,6 +775,7 @@ def run_world(
         horizon = None if until is None else env.timeout(until)
         env.run(until=horizon)
         quiescent = all(entry[-1] is horizon for entry in env._queue)
+        monitor.finish()
         if quiescent:
             monitor.final()
         return RunRecord(
@@ -780,6 +785,7 @@ def run_world(
             float(env.now),
             quiescent,
             tuple(monitor.violations),
+            tuple(monitor.known_limits),
             env.fingerprint(),
         )
 
@@ -1047,10 +1053,29 @@ class Body:
         return sure_n, maybe_n - sure_n, sure_s, maybe_s
 
 
+@dataclass
+class _Slot:
+    """A parking slot an AGV took, with what the monitor saw of its trip since (for the known limit)."""
+
+    entered: float
+    to_park: bool = False  # routed to the area's node
+    arrived: bool = False  # reached the area's node since
+    diverted: bool = False  # started a charge on the way, before arriving
+    charge_ended: float | None = None
+    flagged: list[tuple[Any, ...]] = field(default_factory=list)  # "resting elsewhere" while charging after a diversion
+
+
+KNOWN_LIMIT = "parking slot kept while charging on the way to park"
+"""The known limit: an AGV takes a parking slot when it sets off to park, starts a charge before it gets there (at a
+charger it turned to, or one on its route), and keeps the slot while it charges, until the charge ends (fleet behaviour,
+the same in both modes)."""
+
+
 class Monitor:
     """Checks a run of a built world after every domain event; see the module docstring. ``violations`` lists
-    ``(time, what, *details)``; ``events`` counts the domain events seen and ``checked`` those checked against the
-    body model."""
+    ``(time, what, *details)``; ``known_limits`` lists the cases of `KNOWN_LIMIT` as ``(time, KNOWN_LIMIT, area, agv,
+    entered, released)``; ``events`` counts the domain events seen and ``checked`` those checked against the body
+    model."""
 
     def __init__(self, world: BuiltWorld, *, replay: bool = True) -> None:
         self.world = world
@@ -1059,6 +1084,7 @@ class Monitor:
         self.reservation = isinstance(world.controller, ReservationController)
         self.replay = replay
         self.violations: list[tuple[Any, ...]] = []
+        self.known_limits: list[tuple[Any, ...]] = []
         self.events = 0
         self.checked = 0
         self.state = {entity: dict(fields) for entity, fields in self.env.entities.snapshot().items()}
@@ -1066,6 +1092,9 @@ class Monitor:
         self.bodies: dict[str, Body] | None = None
         self._ready = False
         self._park_seen: dict[tuple[str, str], float] = {}
+        self._slots: dict[tuple[str, str], _Slot] = {}
+        self._chargers = {node for _, node, _ in world.spec.chargers}
+        self._areas = {name: node for name, node, _ in world.spec.parking}
         self.env.bus.subscribe(self.on, "*")
         if self.reservation:
             self._patch_exits()
@@ -1197,6 +1226,7 @@ class Monitor:
             return
         if not self._ready:
             self._setup()
+        self._track_slots(event, float(env.now))
         if self.bodies is None:
             if self.reservation and len(self.controller.ledger.placed()) < len(self.world.agvs):
                 return
@@ -1277,6 +1307,40 @@ class Monitor:
         for s in [s for s, (clear, _) in body.segs.items() if clear <= front - tol]:
             del body.segs[s]
 
+    def _track_slots(self, event: Any, t: float) -> None:
+        """Follow each parking slot from ``parking.entered`` to ``parking.left`` for the evidence of the known limit."""
+        if isinstance(event, ParkingEntered):
+            self._slots[event.area, event.agv] = _Slot(t)
+        elif isinstance(event, AgvRouted):
+            for (area, agv), slot in self._slots.items():
+                if agv == event.agv and event.destination == self._areas.get(area):
+                    slot.to_park = True
+        elif isinstance(event, AgvMoveEnded):
+            for (area, agv), slot in self._slots.items():
+                if agv == event.agv and event.node == self._areas.get(area):
+                    slot.arrived = True
+        elif isinstance(event, ChargingStarted):
+            for (_, agv), slot in self._slots.items():
+                if agv == event.agv and slot.to_park and not slot.arrived:
+                    slot.diverted = True
+        elif isinstance(event, ChargingEnded):
+            for (_, agv), slot in self._slots.items():
+                if agv == event.agv:
+                    slot.charge_ended = t
+        elif isinstance(event, ParkingLeft):
+            slot = self._slots.pop((event.area, event.agv), None)
+            if slot is not None and slot.flagged:
+                if slot.charge_ended == t:  # released as the charge ends: the known limit
+                    self.known_limits.append((slot.flagged[0][0], KNOWN_LIMIT, event.area, event.agv, slot.entered, t))
+                else:
+                    self.violations.extend(slot.flagged)
+
+    def finish(self) -> None:
+        """At the end of any run: a slot still held after a charge it was kept through is a violation after all."""
+        for slot in self._slots.values():
+            self.violations.extend(slot.flagged)
+            slot.flagged.clear()
+
     def _check_parking(self, t: float) -> None:
         for area in self.world.parking:
             parked = list(area._agv_requests)
@@ -1287,7 +1351,13 @@ class Monitor:
                 if agv.current_node != area.node and agv.state.name not in TRAVELING:
                     first = self._park_seen.setdefault(key, t)
                     if t > first:
-                        self.violation("parking slot of an AGV resting elsewhere", area.name, agv.id, agv.state.name)
+                        found = ("parking slot of an AGV resting elsewhere", area.name, agv.id, agv.state.name)
+                        slot = self._slots.get(key)
+                        charging = agv.state.name == "CHARGING" and agv.current_node.id in self._chargers
+                        if slot is not None and slot.diverted and charging:
+                            slot.flagged.append((t, *found))  # the known limit if released as the charge ends
+                        else:
+                            self.violation(*found)
                 else:
                     self._park_seen.pop(key, None)
 

@@ -7,10 +7,12 @@ Each world of ``tests/intralogistics/random_worlds.py`` (seeds ``--first`` to ``
 with concrete graph objects and through ``Explicit`` and layout handles, and run under both traffic controllers and
 the three routers: twelve runs and six compared pairs per world. A pair is equal when the two `RunRecord`s are: the
 events after the prelude (without ``seq`` and ``ordinal``), the initial and final states, the end time, whether the
-run ended on its own, the monitor's violations and ``env.fingerprint()``. The script prints the counts, then for each differing pair its
-seed and first difference, and the seeds of runs that raised, did not end within the wall-clock limit, or show a
-monitor violation, with what each mode did, and, per feature of the worlds, how many worlds contain it and how many
-runs exercised it. The exit status is 1 when a pair differs, a run failed or a violation was found.
+run ended on its own, the monitor's violations and known limits, and ``env.fingerprint()``. The script prints the
+counts, then for each differing pair its seed and first difference, and the seeds of runs that raised, did not end
+within the wall-clock limit, or show a monitor violation, with what each mode did, and, per feature of the worlds, how
+many worlds contain it and how many runs exercised it. Cases of the monitor's known limit (``KNOWN_LIMIT``) are counted
+and listed apart. The exit status is 1 when a pair differs, a run failed or a violation was found; known limits
+alone leave it 0.
 
 `first_difference` and `compare` are importable: they compare two recorded streams, or two run records.
 This script exists while explicit mode does.
@@ -37,6 +39,7 @@ if str(ROOT) not in sys.path:
 from tests.intralogistics.random_worlds import (  # noqa: E402
     CONTROLLERS,
     FEATURES,
+    KNOWN_LIMIT,
     ROUTERS,
     RunRecord,
     StreamRecorder,
@@ -68,7 +71,7 @@ def compare(a: RunRecord, b: RunRecord) -> str | None:
     found = first_difference(a.events, b.events)
     if found is not None:
         return found
-    for name in ("initial_state", "final_state", "now", "quiescent", "violations", "fingerprint"):
+    for name in ("initial_state", "final_state", "now", "quiescent", "violations", "known_limits", "fingerprint"):
         left, right = getattr(a, name), getattr(b, name)
         if left != right:
             if isinstance(left, dict) and isinstance(right, dict):
@@ -85,6 +88,8 @@ COUNTS = (
     "failed in both modes",
     "ended at the horizon",
     "with monitor violations",
+    "with a known limit",
+    "known-limit cases",
 )
 
 
@@ -130,6 +135,7 @@ def world(seed: int, until: float, limit: int) -> list[dict[str, Any]]:
                 row["events"] = len(explicit.events)
                 row["quiescent"] = explicit.quiescent and layout.quiescent
                 row["violations"] = (explicit.violations[:3], layout.violations[:3])
+                row["known limits"] = len(explicit.known_limits)
                 row["exercised"] = exercised(spec, explicit.events)
             rows.append(row)
     rows[0]["present"] = present(spec)
@@ -159,6 +165,8 @@ def main() -> int:
         counts["failed in both modes"] += "failed" in row and row["difference"] is None
         counts["ended at the horizon"] += row.get("quiescent") is False
         counts["with monitor violations"] += bool(row.get("violations") and any(row["violations"]))
+        counts["with a known limit"] += bool(row.get("known limits"))
+        counts["known-limit cases"] += row.get("known limits", 0)
     print(f"worlds {len(seeds)} (seeds {seeds.start}..{seeds.stop - 1}), runs {2 * len(rows)}, pairs {len(rows)}")
     print(", ".join(f"{name} {counts[name]}" for name in COUNTS))
     print(f"until {args.until}, wall-clock limit {args.limit} s per run, {time.perf_counter() - started:.0f} s")
@@ -181,6 +189,8 @@ def main() -> int:
         if row.get("violations") and any(row["violations"]):
             print(f"VIOLATION {tag}: explicit {row['violations'][0]!r}; layout {row['violations'][1]!r}")
             bad = True
+        if row.get("known limits"):
+            print(f"KNOWN LIMIT {tag}: {row['known limits']} case(s) of {KNOWN_LIMIT!r}")
     return 1 if bad else 0
 
 

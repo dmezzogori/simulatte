@@ -12,8 +12,9 @@ from pathlib import Path
 import pytest
 
 from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
-from tests.intralogistics.random_worlds import FEATURES, exercised, present, run_world, world_spec
+from tests.intralogistics.random_worlds import KNOWN_LIMIT, FEATURES, exercised, present, run_world, world_spec
 
 ROOT = Path(__file__).resolve().parents[2]
 NOT_IN_A_SPEC = {"a traffic wait", "a stuck wait", "a deadlock", "a make-way move"}
@@ -92,3 +93,22 @@ def test_the_monitor_reports_a_built_network_that_differs_from_the_spec(monkeypa
 
 def test_the_features_are_named_once():
     assert len(set(FEATURES)) == len(FEATURES) and NOT_IN_A_SPEC <= set(FEATURES)
+
+
+def test_a_parking_slot_kept_while_charging_on_the_way_to_park_is_the_known_limit_not_a_violation():
+    """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0, charges from
+    148.6 to 220.1 and leaves P0 as the charge ends. Fleet behaviour, the same in both modes."""
+    spec = world_spec(619)
+    explicit = run_world(spec, mode="explicit", controller="free", router="shortest")
+    layout = run_world(spec, mode="layout", controller="free", router="shortest")
+    assert explicit == layout and not layout.violations
+    (case,) = layout.known_limits
+    assert case[1:4] == (KNOWN_LIMIT, "P0", "agv-a")
+    assert case[4] == pytest.approx(97.003, abs=1e-3) and case[5] == pytest.approx(220.061, abs=1e-3)
+
+
+def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation(monkeypatch):
+    monkeypatch.setattr(ParkingArea, "leave", lambda self, agv: None)  # slots are never given back
+    record = run_world(world_spec(619), mode="layout", controller="free", router="shortest")
+    assert not record.known_limits
+    assert "parking slot of an AGV resting elsewhere" in {violation[1] for violation in record.violations}
