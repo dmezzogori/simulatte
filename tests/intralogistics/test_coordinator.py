@@ -24,7 +24,7 @@ from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.routing import FastestRouter, Route, Router, RouteRequest, ShortestDistanceRouter
 from simulatte.intralogistics.traffic import TrafficView
 from simulatte.intralogistics.warehouse import Warehouse
-from tests.intralogistics.traffic_support import StillFleet
+from tests.intralogistics.traffic_support import StillFleet, declare
 
 
 # ---------------------------------------------------------------------------
@@ -106,12 +106,13 @@ def _build_simple_system(
         Arc(source=node_corridor, target=node_b_in),
     ]
     graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+    world = declare(env, graph)
 
     wh_a = Warehouse(
         env=env,
         name="WH-A",
-        input_bays=[node_a_out],
-        output_bays=[node_a_out],
+        input_bays=[world.ref("WH_A_OUT")],
+        output_bays=[world.ref("WH_A_OUT")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: origin_inventory},
@@ -122,8 +123,8 @@ def _build_simple_system(
     wh_b = Warehouse(
         env=env,
         name="WH-B",
-        input_bays=[node_b_in],
-        output_bays=[node_b_in],
+        input_bays=[world.ref("WH_B_IN")],
+        output_bays=[world.ref("WH_B_IN")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 0},
@@ -142,13 +143,13 @@ def _build_simple_system(
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
-    agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
+    agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
     if initial_battery is not None:
         agv.battery.level = initial_battery
 
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=[agv],
         warehouses=[wh_a, wh_b],
         charging_stations=[],
@@ -286,12 +287,13 @@ def _build_system_with_charger(
         Arc(source=node_corridor, target=node_b_in),
     ]
     graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+    world = declare(env, graph)
 
     wh_a = Warehouse(
         env=env,
         name="WH-A",
-        input_bays=[node_a_out],
-        output_bays=[node_a_out],
+        input_bays=[world.ref("WH_A_OUT")],
+        output_bays=[world.ref("WH_A_OUT")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: origin_inventory},
@@ -302,8 +304,8 @@ def _build_system_with_charger(
     wh_b = Warehouse(
         env=env,
         name="WH-B",
-        input_bays=[node_b_in],
-        output_bays=[node_b_in],
+        input_bays=[world.ref("WH_B_IN")],
+        output_bays=[world.ref("WH_B_IN")],
         n_slots=2,
         products=[sku],
         initial_inventory={sku: 0},
@@ -314,7 +316,7 @@ def _build_system_with_charger(
     charger = ChargingStation(
         env=env,
         name="CS-1",
-        node=node_corridor,
+        node=world.ref("CORRIDOR"),
         n_slots=1,
     )
 
@@ -329,13 +331,13 @@ def _build_system_with_charger(
         low_battery_threshold=0.2,
         critical_battery_threshold=0.05,
     )
-    agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
+    agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
     if initial_battery is not None:
         agv.battery.level = initial_battery
 
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=[agv],
         warehouses=[wh_a, wh_b],
         charging_stations=[charger],
@@ -376,12 +378,13 @@ class TestCancellation:
             Arc(source=node_a_out, target=node_b_in),
         ]
         graph = LayoutGraph([node_far, node_a_out, node_b_in], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a_out],
-            output_bays=[node_a_out],
+            input_bays=[world.ref("WH_A_OUT")],
+            output_bays=[world.ref("WH_A_OUT")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -391,8 +394,8 @@ class TestCancellation:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b_in],
-            output_bays=[node_b_in],
+            input_bays=[world.ref("WH_B_IN")],
+            output_bays=[world.ref("WH_B_IN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -408,11 +411,11 @@ class TestCancellation:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("FAR"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -531,12 +534,13 @@ class TestBattery:
             Arc(source=node_corridor, target=node_b_in),
         ]
         graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a_out],
-            output_bays=[node_a_out],
+            input_bays=[world.ref("WH_A_OUT")],
+            output_bays=[world.ref("WH_A_OUT")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -546,8 +550,8 @@ class TestBattery:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b_in],
-            output_bays=[node_b_in],
+            input_bays=[world.ref("WH_B_IN")],
+            output_bays=[world.ref("WH_B_IN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -559,7 +563,7 @@ class TestBattery:
         charger = ChargingStation(
             env=env,
             name="CS-1",
-            node=node_a_out,
+            node=world.ref("WH_A_OUT"),
             n_slots=1,
         )
 
@@ -573,12 +577,12 @@ class TestBattery:
             unload_time=1.0,
         )
         # Battery starts at 3.0 — enough for nothing (5-unit arc costs 5 energy)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
         agv.battery.level = 3.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[charger],
@@ -781,12 +785,13 @@ class TestTravelCorrectness:
 
         # No arcs connecting them — they are disconnected
         graph = LayoutGraph([node_a_out, node_b_in], [])
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a_out],
-            output_bays=[node_a_out],
+            input_bays=[world.ref("WH_A_OUT")],
+            output_bays=[world.ref("WH_A_OUT")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -796,8 +801,8 @@ class TestTravelCorrectness:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b_in],
-            output_bays=[node_b_in],
+            input_bays=[world.ref("WH_B_IN")],
+            output_bays=[world.ref("WH_B_IN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -806,11 +811,11 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -830,12 +835,13 @@ class TestTravelCorrectness:
         node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
         node_dest = Node(id="DEST", x=10.0, y=0.0)
         graph = LayoutGraph([node_origin, node_dest], [])
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -845,8 +851,8 @@ class TestTravelCorrectness:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -854,10 +860,10 @@ class TestTravelCorrectness:
             put_time=0.0,
         )
 
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -882,12 +888,13 @@ class TestTravelCorrectness:
         node_b = Node(id="B", x=5.0, y=0.0)
         node_c = Node(id="C", x=10.0, y=0.0)
         graph = LayoutGraph([node_a, node_b, node_c], [Arc(source=node_a, target=node_b), Arc(node_b, node_c)])
-        traffic = ReservationController(graph=graph, env=env, node_capacity=2)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env, node_capacity=2)
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 200},
@@ -897,8 +904,8 @@ class TestTravelCorrectness:
         wh_c = Warehouse(
             env=env,
             name="WH-C",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -906,11 +913,11 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=world.ref("A"))
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_c],
             charging_stations=[],
@@ -933,13 +940,14 @@ class TestTravelCorrectness:
         node_b = Node(id="B", x=10.0, y=0.0)
         node_c = Node(id="C", x=20.0, y=0.0)
         graph = LayoutGraph([node_a, node_b, node_c], [Arc(source=node_a, target=node_b), Arc(node_b, node_c)])
-        traffic = ReservationController(graph=graph, env=env)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -949,8 +957,8 @@ class TestTravelCorrectness:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -958,11 +966,11 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
-        other = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_b)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
+        other = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=world.ref("B"))
         coordinator = StillFleet(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv, other],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -971,7 +979,7 @@ class TestTravelCorrectness:
 
         def leave_later():
             yield env.timeout(5.0)
-            yield from coordinator._executor.travel(other, node_c, loaded=False)
+            yield from coordinator._executor.travel(other, world.node("C"), loaded=False)
 
         env.process(leave_later())
         order = coordinator.create_order(sku=sku_a, quantity=1, origin=wh_a, destination=wh_b)
@@ -992,12 +1000,13 @@ class TestTravelCorrectness:
         node_a = Node(id="A", x=0.0, y=0.0)
         node_b = Node(id="B", x=10.0, y=0.0)
         graph = LayoutGraph([node_a, node_b], [Arc(source=node_a, target=node_b)])
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1007,18 +1016,18 @@ class TestTravelCorrectness:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
             pick_time=1.0,
             put_time=1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_b)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=world.ref("B"))
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -1044,13 +1053,13 @@ class TestTravelCorrectness:
 
         # Run 1: No speed limit
         arcs_unlimited = [Arc(source=node_a, target=node_b)]
-        graph_unlimited = LayoutGraph([node_a, node_b], arcs_unlimited)
+        world = declare(env, LayoutGraph([node_a, node_b], arcs_unlimited))
 
         wh_a1 = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1060,18 +1069,18 @@ class TestTravelCorrectness:
         wh_b1 = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
             pick_time=1.0,
             put_time=1.0,
         )
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         coordinator1 = FleetCoordinator(
             env=env,
-            graph=graph_unlimited,
+            graph=world.graph,
             fleet=[agv1],
             warehouses=[wh_a1, wh_b1],
             charging_stations=[],
@@ -1085,13 +1094,13 @@ class TestTravelCorrectness:
         # Run 2: Speed limit = 2.0 (much slower than max_speed 10.0)
         env2 = Environment()
         arcs_limited = [Arc(source=node_a, target=node_b, speed_limit=2.0)]
-        graph_limited = LayoutGraph([node_a, node_b], arcs_limited)
+        world2 = declare(env2, LayoutGraph([node_a, node_b], arcs_limited))
 
         wh_a2 = Warehouse(
             env=env2,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world2.ref("A")],
+            output_bays=[world2.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1101,18 +1110,18 @@ class TestTravelCorrectness:
         wh_b2 = Warehouse(
             env=env2,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world2.ref("B")],
+            output_bays=[world2.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
             pick_time=1.0,
             put_time=1.0,
         )
-        agv2 = AGV(env=env2, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a)
+        agv2 = AGV(env=env2, agv_type=agv_type, agv_id="AGV-2", initial_node=world2.ref("A"))
         coordinator2 = FleetCoordinator(
             env=env2,
-            graph=graph_limited,
+            graph=world2.graph,
             fleet=[agv2],
             warehouses=[wh_a2, wh_b2],
             charging_stations=[],
@@ -1135,14 +1144,15 @@ class TestTravelCorrectness:
 
         arcs = [Arc(source=node_start, target=node_end)]
         graph = LayoutGraph([node_start, node_end], arcs)
+        world = declare(env, graph)
 
-        traffic = ReservationController(graph=graph, env=env)
+        traffic = ReservationController(graph=world.graph, env=env)
 
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node_start],
-            output_bays=[node_start],
+            input_bays=[world.ref("START")],
+            output_bays=[world.ref("START")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1151,11 +1161,11 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed, length=1.0)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_start)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("START"))
 
         _coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[],
@@ -1164,8 +1174,8 @@ class TestTravelCorrectness:
 
         env.run(until=0.001)
 
-        assert traffic.view.holders(node_start) == (agv,)
-        assert env.entities.bind_node(node_start).reserved_by == ["AGV-1"]
+        assert traffic.view.holders(world.node("START")) == (agv,)
+        assert env.entities.bind_node(world.node("START")).reserved_by == ["AGV-1"]
 
     def test_mid_travel_charging_diversion_completes_from_charger(self, env: Environment, sku_a: SKU) -> None:
         """H6: An AGV that diverts to a charger mid-travel should re-plan
@@ -1184,14 +1194,15 @@ class TestTravelCorrectness:
             Arc(source=node_b, target=node_c),
         ]
         graph = LayoutGraph([node_a, node_charger, node_b, node_c], arcs)
+        world = declare(env, graph)
 
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1201,8 +1212,8 @@ class TestTravelCorrectness:
         wh_c = Warehouse(
             env=env,
             name="WH-C",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1210,7 +1221,7 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_charger, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CHARGER"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -1226,12 +1237,12 @@ class TestTravelCorrectness:
         # Battery at 7.0: enough for the first 5-unit arc (costs 5.0) but
         # after arriving at charger_node, battery=2.0 is not enough for the
         # next 5-unit arc (costs 5.0) -- triggers charging diversion.
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 7.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_c],
             charging_stations=[charger],
@@ -1244,7 +1255,7 @@ class TestTravelCorrectness:
         assert order.status == OrderStatus.COMPLETED
         assert agv.state == AGVState.IDLE
         # AGV should have ended at the destination
-        assert agv.current_node == node_c
+        assert agv.current_node == world.node("C")
 
     def test_two_agvs_share_the_bays_of_a_diamond(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
@@ -1267,14 +1278,15 @@ class TestTravelCorrectness:
             Arc(source=node_c, target=node_d),
         ]
         graph = LayoutGraph([node_a0, node_a, node_b, node_c, node_d], arcs)
+        world = declare(env, graph, capacities={"A": 2, "D": 2})
 
-        traffic = ReservationController(graph=graph, env=env, capacities={node_a: 2, node_d: 2})
+        traffic = ReservationController(graph=world.graph, env=env)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 200},
@@ -1284,8 +1296,8 @@ class TestTravelCorrectness:
         wh_d = Warehouse(
             env=env,
             name="WH-D",
-            input_bays=[node_d],
-            output_bays=[node_d],
+            input_bays=[world.ref("D")],
+            output_bays=[world.ref("D")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1294,12 +1306,12 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=node_a0)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-2", initial_node=world.ref("A0"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_d],
             charging_stations=[],
@@ -1335,13 +1347,14 @@ class TestTravelCorrectness:
             Arc(source=node_choke, target=node_end),
         ]
         graph = LayoutGraph([node_start, node_choke, node_end], arcs)
-        traffic = ReservationController(graph=graph, env=env)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env)
 
         wh_start = Warehouse(
             env=env,
             name="WH-START",
-            input_bays=[node_start],
-            output_bays=[node_start],
+            input_bays=[world.ref("START")],
+            output_bays=[world.ref("START")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1351,8 +1364,8 @@ class TestTravelCorrectness:
         wh_end = Warehouse(
             env=env,
             name="WH-END",
-            input_bays=[node_end],
-            output_bays=[node_end],
+            input_bays=[world.ref("END")],
+            output_bays=[world.ref("END")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1361,12 +1374,12 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed, length=1.0)
-        agv_blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
-        agv_traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
+        agv_blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=world.ref("CHOKE"))
+        agv_traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=world.ref("START"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv_traveler, agv_blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
@@ -1381,7 +1394,7 @@ class TestTravelCorrectness:
 
         assert env.now == 32.0  # loaded at 2, reviewed at 32
         assert order.status == OrderStatus.IN_TRANSIT
-        assert agv_traveler.current_node == node_start
+        assert agv_traveler.current_node == world.node("START")
         assert [(event.t, event.agv) for event in stuck] == [(32.0, "traveler")]
 
     def test_a_review_reroutes_when_an_alternative_exists(
@@ -1401,13 +1414,14 @@ class TestTravelCorrectness:
                 Arc(source=node_alt, target=node_end),
             ],
         )
-        traffic = ReservationController(graph=graph, env=env, derive_corridors=False)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env, derive_corridors=False)
 
         wh_start = Warehouse(
             env=env,
             name="WH-START",
-            input_bays=[node_start],
-            output_bays=[node_start],
+            input_bays=[world.ref("START")],
+            output_bays=[world.ref("START")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1417,8 +1431,8 @@ class TestTravelCorrectness:
         wh_end = Warehouse(
             env=env,
             name="WH-END",
-            input_bays=[node_end],
-            output_bays=[node_end],
+            input_bays=[world.ref("END")],
+            output_bays=[world.ref("END")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1426,12 +1440,12 @@ class TestTravelCorrectness:
             put_time=1.0,
         )
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_blocked)
-        traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=node_start)
+        blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=world.ref("BLOCKED"))
+        traveler = AGV(env=env, agv_type=agv_type, agv_id="traveler", initial_node=world.ref("START"))
 
         coordinator = StillFleet(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[traveler, blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
@@ -1448,7 +1462,7 @@ class TestTravelCorrectness:
 
         assert order.status == OrderStatus.COMPLETED
         assert traveler.state == AGVState.IDLE
-        assert traveler.current_node == node_end
+        assert traveler.current_node == world.node("END")
         # The standard policy keeps waiting 30, then reroutes around BLOCKED (13.4 m against 10, within 1.5).
         assert [(event.t, event.reason, event.nodes) for event in routed if event.agv == "traveler"][:2] == [
             (2.001, "travel", ("START", "BLOCKED", "END")),
@@ -1471,8 +1485,9 @@ class TestTravelCorrectness:
                 Arc(source=node_choke, target=node_side),
             ],
         )
+        world = declare(env, graph)
         traffic = ReservationController(
-            graph=graph,
+            graph=world.graph,
             env=env,
             priority_fn=lambda agv: 10.0 if agv.agv_id == "high" else 0.0,
         )
@@ -1480,8 +1495,8 @@ class TestTravelCorrectness:
         wh_start = Warehouse(
             env=env,
             name="WH-START",
-            input_bays=[node_start],
-            output_bays=[node_start],
+            input_bays=[world.ref("START")],
+            output_bays=[world.ref("START")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1491,8 +1506,8 @@ class TestTravelCorrectness:
         wh_end = Warehouse(
             env=env,
             name="WH-END",
-            input_bays=[node_end],
-            output_bays=[node_end],
+            input_bays=[world.ref("END")],
+            output_bays=[world.ref("END")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1501,12 +1516,12 @@ class TestTravelCorrectness:
         )
 
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=node_choke)
-        high = AGV(env=env, agv_type=agv_type, agv_id="high", initial_node=node_start)
+        blocker = AGV(env=env, agv_type=agv_type, agv_id="blocker", initial_node=world.ref("CHOKE"))
+        high = AGV(env=env, agv_type=agv_type, agv_id="high", initial_node=world.ref("START"))
 
         coordinator = StillFleet(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[high, blocker],
             warehouses=[wh_start, wh_end],
             charging_stations=[],
@@ -1517,7 +1532,7 @@ class TestTravelCorrectness:
 
         def release_blocker():
             yield env.timeout(4.0)
-            yield from coordinator._executor.travel(blocker, node_side, loaded=False)
+            yield from coordinator._executor.travel(blocker, world.node("SIDE"), loaded=False)
 
         env.process(release_blocker())
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_start, destination=wh_end)
@@ -1525,7 +1540,7 @@ class TestTravelCorrectness:
         env.run(until=200.0)
 
         assert order.status == OrderStatus.COMPLETED
-        assert high.current_node == node_end
+        assert high.current_node == world.node("END")
         assert env.now >= 4.0
 
 
@@ -1555,15 +1570,16 @@ class TestInterruptSafety:
             Arc(source=node_next, target=node_end),
         ]
         graph = LayoutGraph([node_far, node_next, node_end], arcs)
+        world = declare(env, graph)
 
-        traffic = ReservationController(graph=graph, env=env)
+        traffic = ReservationController(graph=world.graph, env=env)
 
         # Origin warehouse is at END so the AGV must travel FAR -> NEXT -> END
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_end],
-            output_bays=[node_end],
+            input_bays=[world.ref("END")],
+            output_bays=[world.ref("END")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1573,8 +1589,8 @@ class TestInterruptSafety:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_far],
-            output_bays=[node_far],
+            input_bays=[world.ref("FAR")],
+            output_bays=[world.ref("FAR")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1583,11 +1599,11 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("FAR"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -1596,7 +1612,7 @@ class TestInterruptSafety:
 
         # Let initial placement complete
         env.run(until=0.001)
-        assert traffic.view.holders(node_far) == (agv,)
+        assert traffic.view.holders(world.node("FAR")) == (agv,)
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
         coordinator.submit(order)
@@ -1609,9 +1625,9 @@ class TestInterruptSafety:
         env.process(cancel_later())
         env.run()
 
-        assert agv.current_node == node_end
+        assert agv.current_node == world.node("END")
         assert [resource.id for resource in traffic.ledger.held(agv)] == ["END"]
-        assert traffic.view.holders(node_far) == traffic.view.holders(node_next) == ()
+        assert traffic.view.holders(world.node("FAR")) == traffic.view.holders(world.node("NEXT")) == ()
         assert order.status == OrderStatus.CANCELLED
         assert agv.state == AGVState.IDLE
 
@@ -1632,12 +1648,13 @@ class TestInterruptSafety:
             Arc(source=node_mid, target=node_dest),
         ]
         graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1647,8 +1664,8 @@ class TestInterruptSafety:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1657,11 +1674,11 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -1685,7 +1702,7 @@ class TestInterruptSafety:
         assert agv.state == AGVState.IDLE
         assert agv.current_load is None
         # AGV should have navigated back to origin
-        assert agv.current_node == node_origin
+        assert agv.current_node == world.node("ORIGIN")
         # Inventory should be returned to origin synchronously.
         assert wh_origin.get_inventory_level(sku_a) == 100
         assert wh_dest.get_inventory_level(sku_a) == 0
@@ -1706,12 +1723,13 @@ class TestInterruptSafety:
 
         arcs = [Arc(source=node_origin, target=node_dest)]
         graph = LayoutGraph([node_origin, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1721,8 +1739,8 @@ class TestInterruptSafety:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1731,11 +1749,11 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -1793,13 +1811,14 @@ class TestInterruptSafety:
         node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
         node_dest = Node(id="DEST", x=10.0, y=0.0)
         graph = LayoutGraph([node_origin, node_dest], [Arc(source=node_origin, target=node_dest)])
-        traffic = ReservationController(graph=graph, env=env)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1809,18 +1828,20 @@ class TestInterruptSafety:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
             pick_time=0.0,
             put_time=0.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed, length=0.0), agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(
+            env=env, agv_type=_make_agv_type(simple_speed, length=0.0), agv_id="AGV-1", initial_node=world.ref("ORIGIN")
+        )
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -1832,9 +1853,9 @@ class TestInterruptSafety:
         env.run()
 
         assert order.status == OrderStatus.COMPLETED
-        assert agv.current_node == node_dest
-        assert traffic.view.holders(node_origin) == ()
-        assert traffic.view.holders(node_dest) == (agv,)
+        assert agv.current_node == world.node("DEST")
+        assert traffic.view.holders(world.node("ORIGIN")) == ()
+        assert traffic.view.holders(world.node("DEST")) == (agv,)
 
     def test_cancel_keeps_only_what_the_body_overlaps(
         self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile
@@ -1854,14 +1875,15 @@ class TestInterruptSafety:
             Arc(source=node_mid, target=node_c),
         ]
         graph = LayoutGraph([node_far, node_mid, node_c], arcs)
+        world = declare(env, graph)
 
-        traffic = ReservationController(graph=graph, env=env)
+        traffic = ReservationController(graph=world.graph, env=env)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1871,8 +1893,8 @@ class TestInterruptSafety:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_far],
-            output_bays=[node_far],
+            input_bays=[world.ref("FAR")],
+            output_bays=[world.ref("FAR")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1881,11 +1903,11 @@ class TestInterruptSafety:
         )
 
         agv_type = _make_agv_type(simple_speed, length=1.0)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("FAR"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -1895,7 +1917,7 @@ class TestInterruptSafety:
         # Let initial placement complete
         env.run(until=0.001)
         # AGV placed at FAR
-        assert traffic.view.holders(node_far) == (agv,)
+        assert traffic.view.holders(world.node("FAR")) == (agv,)
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
         coordinator.submit(order)
@@ -1909,9 +1931,9 @@ class TestInterruptSafety:
         env.run()
 
         assert agv not in traffic._pending
-        assert agv.current_node == node_c
+        assert agv.current_node == world.node("C")
         assert [resource.id for resource in traffic.ledger.held(agv)] == ["C~MID", "C"]
-        assert traffic.view.holders(node_far) == traffic.view.holders(node_mid) == ()
+        assert traffic.view.holders(world.node("FAR")) == traffic.view.holders(world.node("MID")) == ()
 
 
 # ===========================================================================
@@ -1940,14 +1962,15 @@ class TestCriticalBatteryInterruption:
             Arc(source=node_b, target=node_c),
         ]
         graph = LayoutGraph([node_a, node_b, node_c], arcs)
+        world = declare(env, graph)
 
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -1957,8 +1980,8 @@ class TestCriticalBatteryInterruption:
         wh_c = Warehouse(
             env=env,
             name="WH-C",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -1966,7 +1989,7 @@ class TestCriticalBatteryInterruption:
             put_time=1.0,
         )
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("B"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -1979,12 +2002,12 @@ class TestCriticalBatteryInterruption:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 7.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_c],
             charging_stations=[charger],
@@ -2008,21 +2031,22 @@ class TestCriticalBatteryInterruption:
             [node_a, node_b, node_c, node_d],
             [Arc(source=node_a, target=node_b), Arc(source=node_b, target=node_c), Arc(source=node_c, target=node_d)],
         )
+        world = declare(env, graph)
         wh_c, wh_d = (
             Warehouse(
                 env=env,
                 name=name,
-                input_bays=[node],
-                output_bays=[node],
+                input_bays=[world.ref(node)],
+                output_bays=[world.ref(node)],
                 n_slots=1,
                 products=[sku_a],
                 initial_inventory={sku_a: level},
                 pick_time=1.0,
                 put_time=1.0,
             )
-            for name, node, level in (("WH-C", node_c, 100), ("WH-D", node_d, 0))
+            for name, node, level in (("WH-C", "C", 100), ("WH-D", "D", 0))
         )
-        charger = ChargingStation(env=env, name="CS-B", node=node_b, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-B", node=world.ref("B"), n_slots=1)
         agv_type = AGVType(
             name="test-type",
             speed_profile=TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0),
@@ -2031,10 +2055,10 @@ class TestCriticalBatteryInterruption:
             volume_capacity=10.0,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 7.0  # 2 left at B: critical
         coordinator = FleetCoordinator(
-            env=env, graph=graph, fleet=[agv], warehouses=[wh_c, wh_d], charging_stations=[charger]
+            env=env, graph=world.graph, fleet=[agv], warehouses=[wh_c, wh_d], charging_stations=[charger]
         )
         order = coordinator.create_order(sku=sku_a, quantity=1, origin=wh_c, destination=wh_d)
         coordinator.submit(order)
@@ -2042,7 +2066,7 @@ class TestCriticalBatteryInterruption:
 
         assert order.status == OrderStatus.COMPLETED
         assert charger.total_recharges == 1
-        assert agv.current_node == node_d
+        assert agv.current_node == world.node("D")
 
 
 class TestCriticalBatteryAtTheGoal:
@@ -2056,12 +2080,13 @@ class TestCriticalBatteryAtTheGoal:
         """Nodes at the given x, joined by the pairs of `arcs`; the AGV starts at ``S`` with 7 units left."""
         nodes = {name: Node(id=name, x=x, y=0.0) for name, x in xs.items()}
         graph = LayoutGraph(nodes.values(), [Arc(nodes[pair[0]], nodes[pair[1]]) for pair in arcs.split()])
+        world = declare(env, graph)
         wh_o, wh_d = (
             Warehouse(
                 env=env,
                 name=name,
-                input_bays=[nodes[node]],
-                output_bays=[nodes[node]],
+                input_bays=[world.ref(node)],
+                output_bays=[world.ref(node)],
                 n_slots=1,
                 products=[sku],
                 initial_inventory={sku: level},
@@ -2070,7 +2095,7 @@ class TestCriticalBatteryAtTheGoal:
             )
             for name, node, level in (("WH-O", origin, 100), ("WH-D", destination, 0))
         )
-        station = ChargingStation(env=env, name="CS", node=nodes[charger], n_slots=1)
+        station = ChargingStation(env=env, name="CS", node=world.ref(charger), n_slots=1)
         agv_type = AGVType(
             name="test-type",
             speed_profile=TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0),
@@ -2079,10 +2104,10 @@ class TestCriticalBatteryAtTheGoal:
             volume_capacity=10.0,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=nodes["S"])
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("S"))
         agv.battery.level = 7.0
         coordinator = FleetCoordinator(
-            env=env, graph=graph, fleet=[agv], warehouses=[wh_o, wh_d], charging_stations=[station]
+            env=env, graph=world.graph, fleet=[agv], warehouses=[wh_o, wh_d], charging_stations=[station]
         )
         log: list[str] = []
         env.bus.subscribe(
@@ -2178,12 +2203,13 @@ class TestOnLowBatteryOverride:
             Arc(source=node_corridor, target=node_b_in),
         ]
         graph = LayoutGraph([node_a_out, node_corridor, node_b_in], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a_out],
-            output_bays=[node_a_out],
+            input_bays=[world.ref("WH_A_OUT")],
+            output_bays=[world.ref("WH_A_OUT")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2193,8 +2219,8 @@ class TestOnLowBatteryOverride:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b_in],
-            output_bays=[node_b_in],
+            input_bays=[world.ref("WH_B_IN")],
+            output_bays=[world.ref("WH_B_IN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2205,7 +2231,7 @@ class TestOnLowBatteryOverride:
         charger = ChargingStation(
             env=env,
             name="CS-1",
-            node=node_corridor,
+            node=world.ref("CORRIDOR"),
             n_slots=1,
         )
 
@@ -2229,12 +2255,12 @@ class TestOnLowBatteryOverride:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a_out)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
         agv.battery.level = 25.0  # Will be low after mission
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[charger],
@@ -2333,15 +2359,16 @@ class TestResumeDeliveryRecovery:
         from simulatte.intralogistics.policies import ResumeDelivery
 
         node_origin, node_mid, node_dest, graph = _four_arc_line()
-        traffic = ReservationController(graph=graph, env=env)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env)
         routed: list[AgvRouted] = []
         env.bus.subscribe(routed.append, (AgvRouted,))
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2351,8 +2378,8 @@ class TestResumeDeliveryRecovery:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2361,11 +2388,11 @@ class TestResumeDeliveryRecovery:
         )
 
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -2421,12 +2448,13 @@ class TestEventDrivenReplenishment:
             Arc(source=node_b, target=node_c),
         ]
         graph = LayoutGraph([node_a, node_b, node_c], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2436,8 +2464,8 @@ class TestEventDrivenReplenishment:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2447,8 +2475,8 @@ class TestEventDrivenReplenishment:
         wh_c = Warehouse(
             env=env,
             name="WH-C",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 500},
@@ -2457,11 +2485,11 @@ class TestEventDrivenReplenishment:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b, wh_c],
             charging_stations=[],
@@ -2514,11 +2542,12 @@ class TestFleetEdgeCases:
         """fleet_utilization returns 0.0 when fleet is empty (line 220)."""
         node = Node(id="A", x=0.0, y=0.0)
         graph = LayoutGraph([node], [])
+        world = declare(env, graph)
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node],
-            output_bays=[node],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2527,7 +2556,7 @@ class TestFleetEdgeCases:
         )
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[],
             warehouses=[wh],
             charging_stations=[],
@@ -2540,11 +2569,12 @@ class TestFleetEdgeCases:
         """fleet_time_allocation returns zeros dict when fleet is empty (line 226)."""
         node = Node(id="A", x=0.0, y=0.0)
         graph = LayoutGraph([node], [])
+        world = declare(env, graph)
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node],
-            output_bays=[node],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2553,7 +2583,7 @@ class TestFleetEdgeCases:
         )
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[],
             warehouses=[wh],
             charging_stations=[],
@@ -2588,11 +2618,12 @@ class TestInitialPlacementSkipsNodelessAGV:
     def test_agv_without_node_skipped(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         node = Node(id="A", x=0.0, y=0.0)
         graph = LayoutGraph([node], [])
+        world = declare(env, graph)
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node],
-            output_bays=[node],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2602,13 +2633,13 @@ class TestInitialPlacementSkipsNodelessAGV:
 
         agv_type = _make_agv_type(simple_speed, length=1.0)
         agv_no_node = AGV(env=env, agv_type=agv_type, agv_id="no-node", initial_node=None)
-        agv_with_node = AGV(env=env, agv_type=agv_type, agv_id="with-node", initial_node=node)
+        agv_with_node = AGV(env=env, agv_type=agv_type, agv_id="with-node", initial_node=world.ref("A"))
 
-        traffic = ReservationController(graph=graph, env=env, node_capacity=2)
+        traffic = ReservationController(graph=world.graph, env=env, node_capacity=2)
 
         FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv_no_node, agv_with_node],
             warehouses=[wh],
             charging_stations=[],
@@ -2617,7 +2648,7 @@ class TestInitialPlacementSkipsNodelessAGV:
         env.run(until=0.001)
 
         # Only with_node should be placed
-        assert traffic.view.holders(node) == (agv_with_node,)
+        assert traffic.view.holders(world.node("A")) == (agv_with_node,)
 
 
 class TestRepositioningAfterDelivery:
@@ -2639,12 +2670,13 @@ class TestRepositioningAfterDelivery:
             Arc(source=node_b, target=node_park),
         ]
         graph = LayoutGraph([node_a, node_b, node_park], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2654,8 +2686,8 @@ class TestRepositioningAfterDelivery:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2663,14 +2695,14 @@ class TestRepositioningAfterDelivery:
             put_time=1.0,
         )
 
-        parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
+        parking = ParkingArea(env=env, name="P1", node=world.ref("PARK"), capacity=2)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -2685,7 +2717,7 @@ class TestRepositioningAfterDelivery:
         assert order.status == OrderStatus.COMPLETED
         assert agv.state == AGVState.IDLE
         # AGV should have traveled to parking area after delivery
-        assert agv.current_node == node_park
+        assert agv.current_node == world.node("PARK")
 
 
 class TestRepositioningFailure:
@@ -2707,12 +2739,13 @@ class TestRepositioningFailure:
             # No arc from B to PARK — repositioning travel will fail
         ]
         graph = LayoutGraph([node_a, node_b, node_park], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2722,8 +2755,8 @@ class TestRepositioningFailure:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2731,14 +2764,14 @@ class TestRepositioningFailure:
             put_time=1.0,
         )
 
-        parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
+        parking = ParkingArea(env=env, name="P1", node=world.ref("PARK"), capacity=2)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -2754,7 +2787,7 @@ class TestRepositioningFailure:
         assert order.status == OrderStatus.COMPLETED
         assert agv.state == AGVState.IDLE
         # AGV should remain at B (repositioning failed)
-        assert agv.current_node == node_b
+        assert agv.current_node == world.node("B")
 
 
 class TestResumeDeliveryChargingRetry:
@@ -2777,14 +2810,15 @@ class TestResumeDeliveryChargingRetry:
             Arc(source=node_charger, target=node_dest),
         ]
         graph = LayoutGraph([node_origin, node_mid, node_charger, node_dest], arcs)
+        world = declare(env, graph)
 
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2794,8 +2828,8 @@ class TestResumeDeliveryChargingRetry:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -2803,7 +2837,7 @@ class TestResumeDeliveryChargingRetry:
             put_time=1.0,
         )
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_charger, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CHARGER"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -2846,12 +2880,12 @@ class TestResumeDeliveryChargingRetry:
         # With level=12: ORIGIN->MID costs 5 (7 remaining), MID->CHARGER costs 5 (2 remaining).
         # pct=2/100=0.02 critical. S3 fires. _travel returns False.
         # Resume retry: not stranded, is_critical, has stations -> line 441-443!
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
         agv.battery.level = 12.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[charger],
@@ -2889,11 +2923,12 @@ class TestResumeDeliveryChargingRetry:
         }
         names = list(nodes)
         graph = LayoutGraph(nodes.values(), [Arc(source=nodes[u], target=nodes[v]) for u, v in zip(names, names[1:])])
+        world = declare(env, graph)
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[nodes["ORIGIN"]],
-            output_bays=[nodes["ORIGIN"]],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -2903,15 +2938,15 @@ class TestResumeDeliveryChargingRetry:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[nodes["DEST"]],
-            output_bays=[nodes["DEST"]],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
             pick_time=1.0,
             put_time=1.0,
         )
-        charger = ChargingStation(env=env, name="CS-1", node=nodes["CHARGER"], n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CHARGER"), n_slots=1)
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
         agv_type = AGVType(
             name="test-type",
@@ -2924,11 +2959,11 @@ class TestResumeDeliveryChargingRetry:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=nodes["ORIGIN"])
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
         agv.battery.level = 17.0
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[charger],
@@ -2964,6 +2999,8 @@ class TestResumeDeliveryStranded:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
+        # explicit mode: the test severs arcs of the graph during the run, which the frozen graph of a layout does not
+        # allow; Task 9 decides this test
         # Graph: ORIGIN -- A -- MID -- B -- DEST, under reservation: at ORIGIN the AGV claims up to MID, so the
         # interrupt takes effect at MID. The arcs out of MID are then removed: neither the resumed delivery nor the
         # return to the origin has a route, and the cargo is dropped at MID.
@@ -3066,6 +3103,8 @@ class TestResumeDeliveryFallbackToReturn:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
+        # explicit mode: the test severs arcs of the graph during the run, which the frozen graph of a layout does not
+        # allow; Task 9 decides this test
         speed_profile: Any
         if kinematic:
             # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID, the
@@ -3166,6 +3205,8 @@ class TestResumeDeliveryFallbackChain:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
+        # explicit mode: the test severs arcs of the graph during the run, which the frozen graph of a layout does not
+        # allow; Task 9 decides this test
         speed_profile: Any
         if kinematic:
             # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID.
@@ -3270,15 +3311,16 @@ class TestResumeDeliveryWithHooksAndCollector:
         # Four 25 m arcs under reservation: the interrupt at 4 takes effect at MID, the horizon held then, so the
         # resumed delivery travels MID -> DEST.
         node_origin, node_mid, node_dest, graph = _four_arc_line()
-        traffic = ReservationController(graph=graph, env=env)
+        world = declare(env, graph)
+        traffic = ReservationController(graph=world.graph, env=env)
         routed: list[AgvRouted] = []
         env.bus.subscribe(routed.append, (AgvRouted,))
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3288,8 +3330,8 @@ class TestResumeDeliveryWithHooksAndCollector:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3298,13 +3340,13 @@ class TestResumeDeliveryWithHooksAndCollector:
         )
 
         agv_type = _make_agv_type(simple_speed, length=0.0)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         delivery_hooks: list[tuple[TransferOrder, AGV]] = []
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -3351,12 +3393,13 @@ class TestInterruptBeforePickup:
             Arc(source=node_origin, target=node_dest),
         ]
         graph = LayoutGraph([node_far, node_origin, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3366,8 +3409,8 @@ class TestInterruptBeforePickup:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3376,11 +3419,11 @@ class TestInterruptBeforePickup:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("FAR"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -3420,12 +3463,13 @@ class TestOnIdleHookAfterInterrupt:
             Arc(source=node_origin, target=node_dest),
         ]
         graph = LayoutGraph([node_far, node_origin, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3435,8 +3479,8 @@ class TestOnIdleHookAfterInterrupt:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3445,11 +3489,11 @@ class TestOnIdleHookAfterInterrupt:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("FAR"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -3488,14 +3532,15 @@ class TestStrandedAfterCharging:
             Arc(source=node_b, target=node_c),
         ]
         graph = LayoutGraph([node_a, node_b, node_c], arcs)
+        world = declare(env, graph)
 
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3505,8 +3550,8 @@ class TestStrandedAfterCharging:
         wh_c = Warehouse(
             env=env,
             name="WH-C",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3514,7 +3559,7 @@ class TestStrandedAfterCharging:
             put_time=1.0,
         )
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_b, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("B"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -3530,11 +3575,11 @@ class TestStrandedAfterCharging:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_c],
             charging_stations=[charger],
@@ -3560,12 +3605,13 @@ class TestChargeAgvNoStation:
 
         arcs = [Arc(source=node_a, target=node_b)]
         graph = LayoutGraph([node_a, node_b, node_cs], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3575,8 +3621,8 @@ class TestChargeAgvNoStation:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3584,7 +3630,7 @@ class TestChargeAgvNoStation:
             put_time=1.0,
         )
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -3597,12 +3643,12 @@ class TestChargeAgvNoStation:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 25.0  # Low after mission
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[charger],
@@ -3631,12 +3677,13 @@ class TestChargeTravelFailure:
             Arc(source=node_b, target=node_cs),
         ]
         graph = LayoutGraph([node_a, node_b, node_cs], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3646,8 +3693,8 @@ class TestChargeTravelFailure:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3655,7 +3702,7 @@ class TestChargeTravelFailure:
             put_time=1.0,
         )
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -3669,12 +3716,12 @@ class TestChargeTravelFailure:
             critical_battery_threshold=0.05,
         )
         # Battery just enough for mission (10 units) but not for travel to charger (100 units)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 20.0  # Enough for 10+10=20 (mission + return), low after
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[charger],
@@ -3735,12 +3782,13 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
             Arc(source=node_b, target=node_c),
         ]
         graph = LayoutGraph([node_a, node_b, node_c], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3750,8 +3798,8 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3762,8 +3810,8 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
         wh_c = Warehouse(
             env=env,
             name="WH-C",
-            input_bays=[node_c],
-            output_bays=[node_c],
+            input_bays=[world.ref("C")],
+            output_bays=[world.ref("C")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 500},
@@ -3772,11 +3820,11 @@ class TestEventDrivenReplenishmentUnrelatedWarehouse:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b, wh_c],
             charging_stations=[],
@@ -3817,14 +3865,15 @@ class TestCriticalBatteryDuringLoadedTravel:
             Arc(source=node_c, target=node_d),
         ]
         graph = LayoutGraph([node_a, node_b, node_c, node_d], arcs)
+        world = declare(env, graph)
 
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3834,8 +3883,8 @@ class TestCriticalBatteryDuringLoadedTravel:
         wh_d = Warehouse(
             env=env,
             name="WH-D",
-            input_bays=[node_d],
-            output_bays=[node_d],
+            input_bays=[world.ref("D")],
+            output_bays=[world.ref("D")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3844,7 +3893,7 @@ class TestCriticalBatteryDuringLoadedTravel:
         )
 
         # Charger co-located at C
-        charger = ChargingStation(env=env, name="CS-1", node=node_c, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("C"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -3862,12 +3911,12 @@ class TestCriticalBatteryDuringLoadedTravel:
         # Loaded: B->C: cost 5, level=2, pct=0.02 <= 0.05. Critical.
         # _travel returns False. AGV now at C. Retry: critical -> charges at C.
         # After charge: full. Resume loaded travel from C->D.
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 12.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_d],
             charging_stations=[charger],
@@ -3903,14 +3952,15 @@ class TestChargingDiversionDuringEmptyTravel:
             Arc(source=node_origin, target=node_dest),
         ]
         graph = LayoutGraph([node_far, node_charger, node_origin, node_dest], arcs)
+        world = declare(env, graph)
 
         speed = TrapezoidalProfile(max_speed=10.0, acceleration=1000.0, deceleration=1000.0)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3920,8 +3970,8 @@ class TestChargingDiversionDuringEmptyTravel:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3930,7 +3980,7 @@ class TestChargingDiversionDuringEmptyTravel:
         )
 
         # Charger co-located at FAR so the diversion doesn't need travel
-        charger = ChargingStation(env=env, name="CS-1", node=node_far, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("FAR"), n_slots=1)
 
         agv_type = AGVType(
             name="test-type",
@@ -3947,12 +3997,12 @@ class TestChargingDiversionDuringEmptyTravel:
         # _find_reachable_charger: charger at FAR. Distance=0, cost=0, reachable.
         # Charge at FAR. Level=100. Return False from _travel via H6.
         # Retry loop: not stranded, not critical -> 317->319 (skip charging).
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_far)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("FAR"))
         agv.battery.level = 4.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[charger],
@@ -3981,12 +4031,13 @@ class TestReturnToOriginRecoveryPath:
             Arc(source=node_mid, target=node_dest),
         ]
         graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3996,8 +4047,8 @@ class TestReturnToOriginRecoveryPath:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4006,12 +4057,12 @@ class TestReturnToOriginRecoveryPath:
         )
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         # ReturnToOrigin is the default load_recovery_strategy
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -4048,18 +4099,19 @@ class TestFindReachableChargerEdgeCases:
         node_cs = Node(id="CS", x=100.0, y=100.0)  # Disconnected
 
         graph = LayoutGraph([node_a, node_cs], [])
+        world = declare(env, graph)
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 1.0
 
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4069,12 +4121,13 @@ class TestFindReachableChargerEdgeCases:
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[charger],
         )
 
+        env.layout.prepare()  # the search reads the resolved graph
         result = coordinator._find_reachable_charger(agv)
         assert result is None
 
@@ -4087,18 +4140,19 @@ class TestFindReachableChargerEdgeCases:
 
         arcs = [Arc(source=node_a, target=node_cs)]
         graph = LayoutGraph([node_a, node_cs], arcs)
+        world = declare(env, graph)
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 1.0  # Distance 50, depletion 50. level=1 < 50
 
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4108,12 +4162,13 @@ class TestFindReachableChargerEdgeCases:
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[charger],
         )
 
+        env.layout.prepare()  # the search reads the resolved graph
         result = coordinator._find_reachable_charger(agv)
         assert result is None
 
@@ -4123,7 +4178,8 @@ class TestFindReachableChargerEdgeCases:
         """AGV with current_node=None returns None."""
         node_cs = Node(id="CS", x=0.0, y=0.0)
         graph = LayoutGraph([node_cs], [])
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        world = declare(env, graph)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=None)
@@ -4131,8 +4187,8 @@ class TestFindReachableChargerEdgeCases:
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node_cs],
-            output_bays=[node_cs],
+            input_bays=[world.ref("CS")],
+            output_bays=[world.ref("CS")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4142,7 +4198,7 @@ class TestFindReachableChargerEdgeCases:
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[charger],
@@ -4157,7 +4213,8 @@ class TestFindReachableChargerEdgeCases:
         """_find_nearest_charger with current_node=None returns None (line 741)."""
         node_cs = Node(id="CS", x=0.0, y=0.0)
         graph = LayoutGraph([node_cs], [])
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        world = declare(env, graph)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
         agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=None)
@@ -4165,8 +4222,8 @@ class TestFindReachableChargerEdgeCases:
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node_cs],
-            output_bays=[node_cs],
+            input_bays=[world.ref("CS")],
+            output_bays=[world.ref("CS")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4176,7 +4233,7 @@ class TestFindReachableChargerEdgeCases:
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[charger],
@@ -4193,17 +4250,18 @@ class TestFindReachableChargerEdgeCases:
         node_cs = Node(id="CS", x=100.0, y=100.0)
 
         graph = LayoutGraph([node_a, node_cs], [])  # No arcs
+        world = declare(env, graph)
 
-        charger = ChargingStation(env=env, name="CS-1", node=node_cs, n_slots=1)
+        charger = ChargingStation(env=env, name="CS-1", node=world.ref("CS"), n_slots=1)
 
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
 
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4213,12 +4271,13 @@ class TestFindReachableChargerEdgeCases:
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh],
             charging_stations=[charger],
         )
 
+        env.layout.prepare()  # the search reads the resolved graph
         result = coordinator._find_nearest_charger(agv)
         assert result is None
 
@@ -4234,6 +4293,7 @@ class TestDropCargo:
     def test_drop_cargo_records_inventory(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
         agv.current_load = {sku_a: 5}
+        env.layout.prepare()  # the AGV's node is resolved at preparation
 
         coordinator._drop_cargo(agv)
 
@@ -4247,6 +4307,7 @@ class TestDropCargo:
     def test_on_cargo_dropped_hook_fires(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         coordinator, agv, wh_a, wh_b = _build_simple_system(env, sku_a, simple_speed)
         agv.current_load = {sku_a: 3}
+        env.layout.prepare()  # the AGV's node is resolved at preparation
 
         events: list[tuple] = []
         coordinator.on_cargo_dropped(lambda a, n, s, q: events.append((a, n, s, q)))
@@ -4264,12 +4325,13 @@ class TestReturnCargoToOrigin:
         node_mid = Node(id="MID", x=5.0, y=0.0)
         arcs = [Arc(source=node_origin, target=node_mid)]
         graph = LayoutGraph([node_origin, node_mid], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-O",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 90},
@@ -4279,8 +4341,8 @@ class TestReturnCargoToOrigin:
         wh_dest = Warehouse(
             env=env,
             name="WH-D",
-            input_bays=[node_mid],
-            output_bays=[node_mid],
+            input_bays=[world.ref("MID")],
+            output_bays=[world.ref("MID")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4297,12 +4359,12 @@ class TestReturnCargoToOrigin:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_mid)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("MID"))
         agv.current_load = {sku_a: 10}
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -4325,7 +4387,7 @@ class TestReturnCargoToOrigin:
         env.run()
 
         assert agv.current_load is None
-        assert agv.current_node == node_origin
+        assert agv.current_node == world.node("ORIGIN")
         assert wh_origin.get_inventory_level(sku_a) == 100  # 90 + 10
 
     def test_travel_fails_drops_cargo(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
@@ -4335,12 +4397,13 @@ class TestReturnCargoToOrigin:
         # One-way only -- can't get back from MID to ORIGIN
         arcs = [Arc(source=node_origin, target=node_mid, bidirectional=False)]
         graph = LayoutGraph([node_origin, node_mid], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-O",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 90},
@@ -4350,8 +4413,8 @@ class TestReturnCargoToOrigin:
         wh_dest = Warehouse(
             env=env,
             name="WH-D",
-            input_bays=[node_mid],
-            output_bays=[node_mid],
+            input_bays=[world.ref("MID")],
+            output_bays=[world.ref("MID")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4368,12 +4431,12 @@ class TestReturnCargoToOrigin:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_mid)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("MID"))
         agv.current_load = {sku_a: 10}
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -4398,7 +4461,7 @@ class TestReturnCargoToOrigin:
         assert agv.current_load is None
         assert order.status == OrderStatus.FAILED
         assert len(coordinator._dropped_cargo) == 1
-        assert coordinator._dropped_cargo[0][1] == node_mid
+        assert coordinator._dropped_cargo[0][1] == world.node("MID")
 
     def test_no_cargo_early_return(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         """When AGV has no cargo, _return_cargo_to_origin returns immediately."""
@@ -4449,14 +4512,15 @@ class TestUnfulfillableOrderAllBusy:
             Arc(source=node_corridor, target=node_b),
         ]
         graph = LayoutGraph([node_a, node_corridor, node_b], arcs)
+        world = declare(env, graph)
 
         sku_b = SKU(id="SKU-B", weight=5.0, volume=0.1)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("WH_A_OUT")],
+            output_bays=[world.ref("WH_A_OUT")],
             n_slots=2,
             products=[sku_a, sku_b],
             initial_inventory={sku_a: 100, sku_b: 100},
@@ -4466,8 +4530,8 @@ class TestUnfulfillableOrderAllBusy:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("WH_B_IN")],
+            output_bays=[world.ref("WH_B_IN")],
             n_slots=2,
             products=[sku_a, sku_b],
             initial_inventory={sku_a: 0, sku_b: 0},
@@ -4488,11 +4552,11 @@ class TestUnfulfillableOrderAllBusy:
             low_battery_threshold=0.2,
             critical_battery_threshold=0.05,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -4528,12 +4592,13 @@ class TestUnfulfillableOrderAllBusy:
         node_agv = Node(id="AGV_ISLAND", x=50.0, y=0.0)
         node_dest = Node(id="DEST", x=10.0, y=0.0)
         graph = LayoutGraph([node_origin, node_agv, node_dest], [Arc(source=node_origin, target=node_dest)])
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -4543,18 +4608,18 @@ class TestUnfulfillableOrderAllBusy:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
             pick_time=1.0,
             put_time=1.0,
         )
-        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=node_agv)
+        agv = AGV(env=env, agv_type=_make_agv_type(simple_speed), agv_id="AGV-1", initial_node=world.ref("AGV_ISLAND"))
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -4576,11 +4641,12 @@ class TestConfigurableRetryDelay:
     def test_custom_retry_delay(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         node = Node(id="A", x=0.0, y=0.0)
         graph = LayoutGraph([node], [])
+        world = declare(env, graph)
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node],
-            output_bays=[node],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4589,7 +4655,7 @@ class TestConfigurableRetryDelay:
         )
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[],
             warehouses=[wh],
             charging_stations=[],
@@ -4600,11 +4666,12 @@ class TestConfigurableRetryDelay:
     def test_default_retry_delay(self, env: Environment, sku_a: SKU, simple_speed: TrapezoidalProfile) -> None:
         node = Node(id="A", x=0.0, y=0.0)
         graph = LayoutGraph([node], [])
+        world = declare(env, graph)
         wh = Warehouse(
             env=env,
             name="WH",
-            input_bays=[node],
-            output_bays=[node],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=1,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4613,7 +4680,7 @@ class TestConfigurableRetryDelay:
         )
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[],
             warehouses=[wh],
             charging_stations=[],
@@ -4636,12 +4703,13 @@ class TestReturnToOriginPhysicalReturn:
             Arc(source=node_mid, target=node_dest),
         ]
         graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 90},
@@ -4651,8 +4719,8 @@ class TestReturnToOriginPhysicalReturn:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4669,13 +4737,13 @@ class TestReturnToOriginPhysicalReturn:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         from simulatte.intralogistics.policies import ReturnToOrigin
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -4701,7 +4769,7 @@ class TestReturnToOriginPhysicalReturn:
         assert wh_origin.total_puts == 1
         assert order.status == OrderStatus.COMPLETED
         assert not env.entities.is_live(order)
-        assert agv.current_node == node_dest
+        assert agv.current_node == world.node("DEST")
         assert wh_origin.get_inventory_level(sku_a) == 80
         assert wh_dest.get_inventory_level(sku_a) == 10
         assert agv.current_load is None
@@ -4722,12 +4790,13 @@ class TestCancelWithCargoReturn:
             Arc(source=node_mid, target=node_dest),
         ]
         graph = LayoutGraph([node_origin, node_mid, node_dest], arcs)
+        world = declare(env, graph)
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -4737,8 +4806,8 @@ class TestCancelWithCargoReturn:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4755,11 +4824,11 @@ class TestCancelWithCargoReturn:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
@@ -4783,7 +4852,7 @@ class TestCancelWithCargoReturn:
         assert order.status == OrderStatus.CANCELLED
         assert agv.current_load is None
         # AGV should have navigated back to origin
-        assert agv.current_node == node_origin
+        assert agv.current_node == world.node("ORIGIN")
         # Inventory conservation
         assert wh_origin.get_inventory_level(sku_a) == 100
 
@@ -4816,12 +4885,13 @@ class TestRepositioningStranded:
             Arc(source=node_b, target=node_park),
         ]
         graph = LayoutGraph([node_a, node_b, node_park], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -4831,8 +4901,8 @@ class TestRepositioningStranded:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("B")],
+            output_bays=[world.ref("B")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4840,7 +4910,7 @@ class TestRepositioningStranded:
             put_time=1.0,
         )
 
-        parking = ParkingArea(env=env, name="P1", node=node_park, capacity=2)
+        parking = ParkingArea(env=env, name="P1", node=world.ref("PARK"), capacity=2)
 
         # Battery: capacity=1000, initial_level=250.
         # Default depletion = distance * 1.0.
@@ -4848,12 +4918,12 @@ class TestRepositioningStranded:
         # 240/1000 = 24% > low_threshold (20%) -> no charging diversion.
         # Reposition B->PARK costs 300 > 240 -> STRANDED.
         agv_type = _make_agv_type(simple_speed)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("A"))
         agv.battery.level = 250.0
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],  # No chargers -> _find_reachable_charger returns None
@@ -4870,7 +4940,7 @@ class TestRepositioningStranded:
         # AGV must stay STRANDED (not IDLE) — the M2 fix returns before IDLE transition
         assert agv.state == AGVState.STRANDED
         # AGV remains at B (could not reach parking)
-        assert agv.current_node == node_b
+        assert agv.current_node == world.node("B")
 
 
 # ===========================================================================
@@ -4888,12 +4958,13 @@ class TestSubmitBeforeRun:
         node_b = Node(id="WH_B_IN", x=10.0, y=0.0)
         arcs = [Arc(source=node_a, target=node_b)]
         graph = LayoutGraph([node_a, node_b], arcs)
+        world = declare(env, graph)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("WH_A_OUT")],
+            output_bays=[world.ref("WH_A_OUT")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -4903,8 +4974,8 @@ class TestSubmitBeforeRun:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_b],
-            output_bays=[node_b],
+            input_bays=[world.ref("WH_B_IN")],
+            output_bays=[world.ref("WH_B_IN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -4922,12 +4993,12 @@ class TestSubmitBeforeRun:
             unload_time=1.0,
             length=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_a)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("WH_A_OUT"))
 
-        tm = ReservationController(graph=graph, env=env, node_capacity=2)
+        tm = ReservationController(graph=world.graph, env=env, node_capacity=2)
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_a, wh_b],
             charging_stations=[],
@@ -5094,7 +5165,7 @@ class TestReleaseLifecycleRegressions:
         env = Environment()
         coordinator = FleetCoordinator(
             env=env,
-            graph=LayoutGraph([], []),
+            graph=declare(env, LayoutGraph([], [])).graph,
             fleet=[],
             warehouses=[],
             charging_stations=[],
@@ -5135,7 +5206,8 @@ def _slow_arm_world(
     """An AGV at ``S``; ``P`` is 10 m away behind a 0.5 m/s limit (20 s), ``Q`` 15 m away (1.5 s at 10 m/s), ``E`` is
     10 m beyond ``P`` and 25 m beyond ``Q``, and ``R`` 25 m beyond ``E``. Warehouse ``WH-O`` has output bays ``P`` and
     ``Q`` (in that order), ``WH-D`` input bays ``E`` and ``R``; chargers ``CS-P`` and ``CS-Q`` stand on ``P`` and ``Q``.
-    `extra` adds nodes by id at ``(x, y)``, each joined to the node named, or to none."""
+    `extra` adds nodes by id at ``(x, y)``, each joined to the node named, or to none. The layout is prepared: the
+    nodes returned are the canonical ones."""
     points = [("S", 0, 0), ("P", 10, 0), ("Q", 0, 15), ("E", 20, 0), ("R", 20, 25)]
     points += [(name, x, y) for name, (x, y, _) in (extra or {}).items()]
     nodes = {name: Node(id=name, x=x, y=y) for name, x, y in points}
@@ -5143,11 +5215,12 @@ def _slow_arm_world(
     arcs = [Arc(s, p, speed_limit=0.5), Arc(s, q), Arc(p, e), Arc(q, e, length=25.0), Arc(e, r)]
     arcs += [Arc(nodes[name], nodes[to]) for name, (_, _, to) in (extra or {}).items() if to is not None]
     graph = LayoutGraph(nodes.values(), arcs)
+    world = declare(env, graph)
     origin = Warehouse(
         env=env,
         name="WH-O",
-        input_bays=[p],
-        output_bays=[p, q],
+        input_bays=[world.ref("P")],
+        output_bays=[world.ref("P"), world.ref("Q")],
         n_slots=1,
         products=[sku],
         initial_inventory={sku: 10},
@@ -5157,25 +5230,25 @@ def _slow_arm_world(
     destination = Warehouse(
         env=env,
         name="WH-D",
-        input_bays=[e, r],
-        output_bays=[e],
+        input_bays=[world.ref("E"), world.ref("R")],
+        output_bays=[world.ref("E")],
         n_slots=1,
         products=[sku],
         initial_inventory={sku: 0},
         pick_time=1.0,
         put_time=1.0,
     )
-    agv = AGV(env=env, agv_type=_make_agv_type(speed), agv_id="AGV-1", initial_node=s)
-    chargers = [ChargingStation(env=env, name=name, node=nodes[name[-1]], n_slots=1) for name in ("CS-P", "CS-Q")]
+    agv = AGV(env=env, agv_type=_make_agv_type(speed), agv_id="AGV-1", initial_node=world.ref("S"))
+    chargers = [ChargingStation(env=env, name=name, node=world.ref(name[-1]), n_slots=1) for name in ("CS-P", "CS-Q")]
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=[agv],
         warehouses=[origin, destination],
         charging_stations=chargers,
         router=router,
     )
-    return coordinator, agv, nodes
+    return coordinator, agv, {node.id: node for node in world.canonical_graph().nodes}
 
 
 class TestRouteCostRankings:
@@ -5265,7 +5338,7 @@ class TestRouteCostRankings:
         coordinator, agv, nodes = _slow_arm_world(env, sku_a, simple_speed, extra={"T": (30.0, 0.0, "E")})
         agv.current_node = nodes["E"]  # P is 10 m away, and so is the charger added on T
         on_p, on_q = coordinator.charging_stations
-        on_t = ChargingStation(env=env, name="CS-T", node=nodes["T"], n_slots=1)
+        on_t = ChargingStation(env=env, name="CS-T", node=env.layout.node("T"), n_slots=1)
         for stations, expected in (((on_t, on_p, on_q), on_t), ((on_q, on_p, on_t), on_p)):
             coordinator.charging_stations = stations
             assert coordinator._find_nearest_charger(agv) is expected
