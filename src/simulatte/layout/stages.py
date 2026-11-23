@@ -9,6 +9,17 @@ from typing import Any
 from .dependencies import MISSING
 from .errors import LayoutError
 from .refs import GraphRef, NodeRef, PortRef, ValueRef
+from .schema import validate_definition
+
+
+def _valid_id(name: object) -> bool:
+    """Whether `name` is an id of the layout schema: a nonempty string without NUL or lone surrogates. A stage or
+    binder name is saved in the bundle, so it is checked where it is declared (spec §9: the bundle is built later)."""
+    try:
+        validate_definition(name, "id")
+    except LayoutError:
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -29,6 +40,9 @@ class StageSpec:
             raise LayoutError(
                 "stage name must be nonempty and cannot be declare", code="lifecycle-error", path=("stages",)
             )
+        for name in (self.name, *self.after):
+            if not _valid_id(name):
+                raise LayoutError(f"invalid stage name: {name!r}", code="lifecycle-error", path=("stages",))
 
     def to_dict(self) -> dict[str, Any]:
         """Persist grants and topology without callbacks or process-local owner ids."""

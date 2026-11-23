@@ -9,7 +9,9 @@ from simulatte.layout import bundle as bundle_module
 from simulatte.layout import identity, lifecycle
 from simulatte.layout import layout as facade_module
 from simulatte.layout.lifecycle import PreparationCoordinator
+from simulatte.builders import build_immediate_release_system
 from simulatte.job import ProductionJob
+from simulatte.scenario import Scenario
 from simulatte.server import Server
 from tests.layout.test_binding import SKU_A, line, system, vehicle
 import pytest
@@ -581,13 +583,22 @@ def test_d30_identical_file_predicate_restatements_still_require_names(named, pr
 # --- cost of a layout (spec §9) ---------------------------------------------------------------------------------
 
 
-def test_step_after_activation_reads_nothing_of_the_layout(monkeypatch):
-    env = Environment()
-    layout = line(env)
-    vehicle(env, layout.node("A"), "cart")
-    for delay in range(1, 6):
-        env.timeout(delay)
+@pytest.mark.parametrize("model", ["timeouts", "shop"])
+def test_step_after_activation_reads_nothing_of_the_layout(monkeypatch, model):
+    if model == "timeouts":
+        env = Environment()
+        layout = line(env)
+        vehicle(env, layout.node("A"), "cart")
+        for delay in range(1, 6):
+            env.timeout(delay)
+        steps = 5
+    else:  # jobs arrive and are created during the steps (spec §5.5: they cost nothing)
+        env = Environment(seed=1)
+        layout = Layout(env)
+        build_immediate_release_system(env=env, scenario=Scenario.pure_job_shop(n_servers=4))
+        steps = 2_000
     env.activate()
+    jobs = env.entities._counters.get("job", 0)
     reads = []
 
     class Counted:
@@ -612,13 +623,17 @@ def test_step_after_activation_reads_nothing_of_the_layout(monkeypatch):
         if event == "call" and "/simulatte/layout/" in frame.f_code.co_filename.replace("\\", "/"):
             calls.append(frame.f_code.co_name)
 
+    previous = sys.getprofile()
     sys.setprofile(profile)
     try:
-        for _ in range(5):
+        for _ in range(steps):
             env.step()
     finally:
-        sys.setprofile(None)
-    assert env.now == 5
+        sys.setprofile(previous)
+    if model == "timeouts":
+        assert env.now == 5
+    else:
+        assert env.entities._counters["job"] > jobs + 10  # jobs were created during the steps
     assert calls == [] and reads == []
     assert not [name for name in layout_modules if name in sys.modules]
     assert layout._coordinator.state == "finalized" and reads == [layout._coordinator]  # the counter counts
@@ -758,3 +773,20 @@ def test_model_errors_still_raise_at_prepare(monkeypatch):
     layout.place("ghost", kind="bogus", position=Point(0, 0))
     result = layout.prepare()  # an unknown kind is a diagnostic, available without the bundle
     assert [item.code for item in result.diagnostics] == ["orphan-placement"]
+
+
+@pytest.mark.unchecked_bundles
+@pytest.mark.parametrize("name", [5, ("a", "b"), "s\ud800", "a\0b"])
+@pytest.mark.parametrize("kind", ["stage", "binder", "after"])
+def test_an_invalid_stage_or_binder_name_raises_where_it_is_declared(monkeypatch, kind, name):
+    """The names are saved in the bundle, which is built on first read: they are checked when declared (spec §9)."""
+    monkeypatch.setattr(bundle_module, "_build_bundle", lambda resolved: pytest.fail("bundle built"))
+    layout = Layout(Environment())
+    with pytest.raises(LayoutError, match="invalid stage name"):
+        if kind == "stage":
+            layout.stage(name, reads=())(lambda ctx: None)
+        elif kind == "binder":
+            layout.on_bind(name, lambda ctx: None)
+        else:
+            layout.stage("valid", reads=(), after=(name,))(lambda ctx: None)
+    layout.prepare()

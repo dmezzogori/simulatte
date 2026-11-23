@@ -77,8 +77,9 @@ class LayerBundle:
     file_layer: FileLayer
     auto_layer: Mapping[str, Any] | None = None
     auto_checked: bool = field(default=False, repr=False, compare=False)
-    """Whether ``auto_layer`` is the output of the auto layout of a preparation: it is not checked against the schema
-    again (spec §9 of ``specs/2026-11-23-layout-only-models-design.md``); the tests check it."""
+    """Whether ``auto_layer`` is the output of the auto layout of a preparation, already normalized and frozen: it is
+    taken as it is, not checked against the schema again (spec §9 of
+    ``specs/2026-11-23-layout-only-models-design.md``); the tests check it."""
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -89,8 +90,9 @@ class LayerBundle:
         if self.auto_layer is not None:
             if set(self.auto_layer) - {"schema_version", "placements"}:
                 raise LayoutError("auto layer may only fill presentation placements")
-            layer = self.auto_layer if self.auto_checked else parse_patch(self.auto_layer)
-            object.__setattr__(self, "auto_layer", _freeze(normalize(layer, canonical=False)))
+            if not self.auto_checked:  # the auto layout's own output is already normalized and frozen
+                layer = _freeze(normalize(parse_patch(self.auto_layer), canonical=False))
+                object.__setattr__(self, "auto_layer", layer)
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,31 @@ class ResolvedValues:
         for name in ("data", "explicit_data", "leaves", "explicit_leaves", "targets"):
             object.__setattr__(self, name, _freeze(getattr(self, name)))
         object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
+
+    @classmethod
+    def _settled(
+        cls,
+        data: Mapping[str, Any],
+        explicit_data: Mapping[str, Any],
+        leaves: Mapping[Path, LeafValue],
+        explicit_leaves: Mapping[Path, LeafValue],
+        bundle: LayerBundle,
+        targets: Mapping[str, str],
+        diagnostics: tuple[LayoutDiagnostic, ...],
+    ) -> ResolvedValues:
+        """Values whose data and leaves are already frozen (`_Merge.frozen`): they are kept, not copied again."""
+        values = object.__new__(cls)
+        for name, value in (
+            ("data", data),
+            ("explicit_data", explicit_data),
+            ("leaves", leaves),
+            ("explicit_leaves", explicit_leaves),
+            ("bundle", bundle),
+            ("targets", _freeze(targets)),
+            ("diagnostics", tuple(diagnostics)),
+        ):
+            object.__setattr__(values, name, value)
+        return values
 
     def at(self, path: Sequence[str], *, explicit: bool = False) -> LeafValue:
         """Return immutable state; an unset ancestor keeps descendants unset."""
@@ -252,8 +279,9 @@ class _Merge:
                         {"approach_margin": 0.01, "enabled": True, "direction": "both"},
                     )
 
-    def leaves(self) -> Mapping[Path, LeafValue]:
-        frozen = _freeze(self.data)  # once: each leaf shares its subtree rather than copying it again (spec §9)
+    def frozen(self) -> tuple[Mapping[str, Any], Mapping[Path, LeafValue]]:
+        """The data frozen once, and the leaves, which share its subtrees rather than copying them (spec §9)."""
+        frozen = _freeze(self.data)
 
         def value_at(path: Path) -> Any:
             value: Any = frozen
@@ -261,7 +289,7 @@ class _Merge:
                 value = value[int(part)] if isinstance(value, tuple) else value[part]
             return value
 
-        return MappingProxyType(
+        return frozen, MappingProxyType(
             {
                 path: LeafValue._shared(
                     None if unset else value_at(path), "unset" if unset else "present", source, default
@@ -281,7 +309,8 @@ def _known(bundle: LayerBundle, targets: Mapping[str, str]) -> dict[str, str]:
 
 
 def _applicable(data: Mapping[str, Any], targets: Mapping[str, str]) -> dict[str, Any]:
-    copied = _thaw(data)
+    """`data` without the placements of no target of their kind; shallow: the merge copies what it keeps."""
+    copied = dict(data)
     if "placements" in copied:
         copied["placements"] = {
             target: placement
@@ -337,17 +366,12 @@ def resolve_layers(
         merged.merge(merged.data, _applicable(data, known), (), LayerSource("code", stage))
     merged.merge(merged.data, _applicable(file_layer.data, known), (), LayerSource("file"))
     merged.physical_defaults()
-    explicit_data, explicit_leaves = _freeze(merged.data), merged.leaves()
+    explicit_data, explicit_leaves = data, leaves = merged.frozen()
     if bundle.auto_layer is not None:
         merged.merge(merged.data, _applicable(bundle.auto_layer, known), (), LayerSource("auto"), fill=True)
-    return ResolvedValues(
-        merged.data,
-        explicit_data,
-        merged.leaves(),
-        explicit_leaves,
-        bundle,
-        known,
-        _diagnostics(bundle, known, final=final),
+        data, leaves = merged.frozen()
+    return ResolvedValues._settled(
+        data, explicit_data, leaves, explicit_leaves, bundle, known, _diagnostics(bundle, known, final=final)
     )
 
 

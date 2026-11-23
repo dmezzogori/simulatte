@@ -17,11 +17,12 @@ minimum of the repetitions in milliseconds. The cases:
   ``layout.prepare()`` timed together.
 - ``run``: a 10-server immediate-release pure job shop (``Scenario.pure_job_shop(n_servers=10)``, no default
   metrics, no subscriber, seed 7) built, activated outside the timing and run to a horizon of about 30,000 domain
-  events (counted once, in a separate run with a counting subscriber), with and without ``Layout(env)``; reported
-  also as nanoseconds per domain event and as a ratio.
+  events (counted once, in a separate run with a counting subscriber), with and without ``Layout(env)``, the two
+  variants timed in alternating order; reported also as nanoseconds per domain event and as a ratio.
 
 Nobody observes these runs: no recorder, no digest, no manifest read (L14). ``--json`` writes the results with the
-commit, the interpreter and the machine.
+commit (or ``external`` and the package path when another tree is measured through ``PYTHONPATH``), the interpreter
+and the machine.
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import simulatte
 from simulatte import Environment, Layout
 from simulatte.builders import build_immediate_release_system
 from simulatte.events import DomainEvent
@@ -125,13 +127,44 @@ def _summary(times: list[float]) -> dict[str, float]:
     return {"median_ms": statistics.median(times), "min_ms": min(times)}
 
 
+def _interleaved(
+    setups: tuple[Callable[[], Any], Callable[[], Any]], measure: Callable[[Any], object], repeat: int
+) -> tuple[list[float], list[float]]:
+    """Milliseconds of `measure` on the two setups in alternating order (ABBA), so that a change of the machine's load
+    falls on both; one warm-up pair, then `repeat` timed pairs."""
+    times: tuple[list[float], list[float]] = ([], [])
+    for index in range(repeat + 1):
+        for side in (0, 1) if index % 2 else (1, 0):
+            state = setups[side]()
+            gc.collect()
+            started = time.perf_counter()
+            measure(state)
+            elapsed = (time.perf_counter() - started) * 1000
+            if index:
+                times[side].append(elapsed)
+    return times
+
+
 def _commit() -> str:
+    """The commit of this checkout when its ``src`` is the simulatte measured (with ``+changes`` when ``src`` differs
+    from it), else ``external`` and the path of the measured package."""
+    package = Path(simulatte.__file__).resolve().parent
+    if package != ROOT / "src" / "simulatte":
+        return f"external {package}"
     try:
-        return subprocess.run(
+        head = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.strip()
+        changes = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no", "--", "src"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+    return head + ("+changes" if changes else "")
 
 
 def measure(repeat: int) -> dict[str, Any]:
@@ -161,8 +194,9 @@ def measure(repeat: int) -> dict[str, Any]:
     results["jobs_before_layout/1600"] = _summary(_timed(_jobs_model, _jobs_measure, repeat))
     events = _count_events()
     results["run/events"] = events
-    for variant, with_layout in (("none", False), ("layout", True)):
-        summary = _summary(_timed(lambda w=with_layout: _shop(w), lambda env: env.run(until=HORIZON), repeat))
+    runs = _interleaved((lambda: _shop(False), lambda: _shop(True)), lambda env: env.run(until=HORIZON), repeat)
+    for variant, times in zip(("none", "layout"), runs, strict=True):
+        summary = _summary(times)
         summary["median_ns_per_event"] = summary["median_ms"] * 1e6 / events
         results[f"run/{variant}"] = summary
     results["run/ratio"] = results["run/layout"]["median_ms"] / results["run/none"]["median_ms"]

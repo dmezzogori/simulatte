@@ -171,6 +171,9 @@ def package_smoke(guide):
     import simulatte.intralogistics
     import simulatte.trace
 
+    for name in simulatte.intralogistics.__all__:  # the package imports its names on first use
+        getattr(simulatte.intralogistics, name)
+
     for name in ("matplotlib", "numpy", "gymnasium", "jsonschema"):
         assert importlib.util.find_spec(name) is None, f"unexpected optional package: {name}"
     assert str(Path(simulatte.__file__).resolve()).startswith(str(Path(sys.prefix).resolve()))

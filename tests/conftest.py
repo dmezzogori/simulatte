@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
 from simulatte.environment import Environment
@@ -20,18 +22,20 @@ def env() -> Environment:
 
 
 @pytest.fixture(autouse=True)
-def check_bundles(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+def check_bundles(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Check every layout bundle the code builds, as the reader checks a saved one.
 
     Preparation does not build the bundle and the bundle does not validate itself: it is built on first read from data
     that preparation validated (spec §9 of ``specs/2026-11-23-layout-only-models-design.md``). In the tests, every
-    prepared layout builds its bundle once more right after preparation, without caching it on the result, and every
-    bundle built, then or on a read, must pass the checks of ``LayoutBundle.from_dict`` (every field), be equal to the
-    bundle read back, and carry the hashes of its data (``LayoutBundle.check``). The auto layer that preparation took
-    without checking it against the schema again must be the one a checked layer gives. Tests that count what
-    preparation builds opt out with ``@pytest.mark.unchecked_bundles``.
+    bundle built on a read, and at the end of the test the bundle of every layout the test prepared (built again,
+    without caching it on the result), must pass the checks of ``LayoutBundle.from_dict`` (every field), be equal to
+    the bundle read back, and carry the hashes of its data (``LayoutBundle.check``). The auto layer that preparation
+    took without checking it against the schema again must be the one a checked layer gives. Nothing is checked inside
+    ``prepare()``, so an error that moved from preparation to the first read fails the test that expects it at
+    ``prepare()``. Tests that count what preparation builds opt out with ``@pytest.mark.unchecked_bundles``.
     """
     if request.node.get_closest_marker("unchecked_bundles") is not None:
+        yield
         return
     from simulatte.layout import bundle as module
     from simulatte.layout.layers import LayerBundle
@@ -39,6 +43,7 @@ def check_bundles(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatc
 
     build = module._build_bundle
     finalize = Layout._finalize
+    prepared = []
 
     def checked(resolved):
         layers = resolved.values.bundle
@@ -51,8 +56,11 @@ def check_bundles(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatc
 
     def finalized(layout, coordinator):
         result = finalize(layout, coordinator)
-        checked(result)
+        prepared.append(result)
         return result
 
     monkeypatch.setattr(module, "_build_bundle", checked)
     monkeypatch.setattr(Layout, "_finalize", finalized)
+    yield
+    for result in prepared:
+        checked(result)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 import simulatte
 from simulatte.environment import Environment
@@ -52,9 +53,29 @@ def test_component_classes_stay_in_their_modules() -> None:
 
 
 def test_importing_a_submodule_first_does_not_cycle() -> None:
-    for module in ("simulatte.server", "simulatte.intralogistics", "simulatte.trace", "simulatte.logsinks"):
+    import simulatte.intralogistics
+
+    # The intralogistics package imports its names on first use: each of its modules is imported first, then every
+    # name of the package is read, in a fresh interpreter.
+    folder = Path(simulatte.intralogistics.__file__).parent
+    intralogistics = [
+        f"simulatte.intralogistics.{path.stem}" for path in sorted(folder.glob("*.py")) if path.stem != "__init__"
+    ]
+    assert len(intralogistics) > 20
+    read = "import simulatte.intralogistics as p; [getattr(p, name) for name in p.__all__]"
+    for module in (
+        "simulatte.server",
+        "simulatte.intralogistics",
+        "simulatte.trace",
+        "simulatte.logsinks",
+        *intralogistics,
+    ):
         result = subprocess.run(
-            [sys.executable, "-c", f"import {module}"], capture_output=True, text=True, check=False, timeout=120
+            [sys.executable, "-c", f"import {module}; {read}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
         )
         assert result.returncode == 0, result.stderr
 

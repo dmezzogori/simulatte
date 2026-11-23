@@ -30,7 +30,9 @@ sys.meta_path.insert(0, WithoutExtras())
 from simulatte import Environment, Runner, Trace, TraceRecorder
 import simulatte.builders
 import simulatte.collectors
-import simulatte.intralogistics
+import simulatte.intralogistics as intralogistics
+for name in intralogistics.__all__:  # the package imports its names on first use
+    getattr(intralogistics, name)
 import simulatte.experimental as experimental
 assert 'SimulatteEnv' in dir(experimental)
 assert not hasattr(experimental, 'unknown')

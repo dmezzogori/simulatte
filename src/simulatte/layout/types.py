@@ -6,6 +6,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
+from functools import lru_cache
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -379,6 +380,7 @@ class PlacementDefaults:
     visual: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
+@lru_cache(maxsize=256)  # a pure function of its arguments, called once per target and per placement
 def placement_defaults(kind: str, *, explicitly_placed: bool = False) -> PlacementDefaults:
     if kind in ("shopfloor", "router", "fleet", "job", "order"):
         return PlacementDefaults(False, False, None)

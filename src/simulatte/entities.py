@@ -309,8 +309,10 @@ class EntityRegistry:
         else:
             self._check_name(name)
             entity_id = name
-        if self._env.layout is not None:
-            self._env.layout._before_attach(obj, entity_id)
+        layout = self._env._layout
+        if layout is not None:
+            if not self._env._activated:  # after activation the layout is final and new entities are no targets
+                layout._before_attach(obj, entity_id)
         elif getattr(obj, "_uses_explicit_graph", False):
             self._env._register_graph_use()
         if name is None:

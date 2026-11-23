@@ -224,13 +224,15 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str) -> Any:
-    module = _MODULES.get(name)
-    if module is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    value = getattr(import_module(f"{__name__}.{module}"), name)
-    globals()[name] = value
-    return value
+if not TYPE_CHECKING:  # pragma: no branch  (type checkers see the imports above and report unknown names)
+
+    def __getattr__(name: str) -> Any:
+        module = _MODULES.get(name)
+        if module is None:
+            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+        value = getattr(import_module(f"{__name__}.{module}"), name)
+        globals()[name] = value
+        return value
 
 
 def __dir__() -> list[str]:

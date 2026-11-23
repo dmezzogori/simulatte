@@ -299,3 +299,26 @@ def test_connector_address_unset_and_later_replacement_keep_provenance():
     assert Address(replaced.require(target)).to_dict() == {"kind": "lattice", "i": 1, "j": 2}
     assert replaced.at(target).source == LayerSource("file")
     assert replaced.at((*target, "id")).state == "absent"
+
+
+def test_resolved_values_built_directly_equal_the_resolved_ones():
+    """`resolve_layers` keeps the frozen data and leaves it built; the public constructor freezes what it gets."""
+    from simulatte.layout.layers import ResolvedValues, _thaw
+
+    code = {"schema_version": "1.0", "placements": {"m": {"kind": "server", "position": [1, 2, 0]}}}
+    auto = {"schema_version": "1.0", "placements": {"m": {"kind": "server", "rotation": 0.0}}}
+    values = resolve_layers(
+        (("declare", code),), FileLayer({"schema_version": "1.0"}), auto, targets={"m": "server"}, final=True
+    )
+    built = ResolvedValues(
+        _thaw(values.data),
+        _thaw(values.explicit_data),
+        dict(values.leaves),
+        dict(values.explicit_leaves),
+        values.bundle,
+        dict(values.targets),
+        list(values.diagnostics),
+    )
+    assert built == values
+    assert values.leaves[("placements", "m", "rotation")].value == 0.0
+    assert ("placements", "m", "rotation") not in values.explicit_leaves

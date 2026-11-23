@@ -399,7 +399,7 @@ class LayoutBundle(Mapping[str, Any]):
 
 @dataclass(frozen=True)
 class ResolvedLayout:
-    """The result of preparation. Its `bundle` and the three hashes are built on first read and then kept (L14).
+    """The result of preparation. Its `bundle` and the three hashes are built on first read and then kept.
 
     Every field is immutable once preparation finished (frozen values and auto layer, a frozen graph, a sealed
     dependency closure, names read at preparation), so a bundle built late, after the run or from another thread,
