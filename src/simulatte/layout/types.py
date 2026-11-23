@@ -37,7 +37,12 @@ def normalize_rotation(value: float) -> float:
     return number(value, "rotation") % 360
 
 
+_SCALARS = frozenset({str, int, float, bool, type(None)})
+
+
 def _freeze(value: Any) -> Any:
+    if type(value) in _SCALARS:  # most leaves; spares the slower check against the Mapping ABC
+        return value
     if isinstance(value, Mapping):
         return MappingProxyType({key: _freeze(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):

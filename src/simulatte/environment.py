@@ -369,7 +369,9 @@ class Environment(simpy.Environment):
         self._explicit_graph_use = True
 
     def _guard_layout_advance(self) -> None:
-        if self._layout is not None:
+        # Activation finalized the layout for good (prepare() succeeded before it, and a finalized layout stays
+        # finalized), so an activated environment reads this one field and nothing of the layout (spec §9).
+        if not self._activated and self._layout is not None:
             from simulatte.layout.lifecycle import PreparationState
             from simulatte.layout.errors import LayoutError
 
@@ -640,8 +642,8 @@ class Environment(simpy.Environment):
         as ``cancelled``.
         """
 
-        self._guard_layout_advance()
-        if self._layout is not None and not self._activated:
+        if not self._activated and self._layout is not None:
+            self._guard_layout_advance()
             from simulatte.layout.errors import LayoutError
 
             raise LayoutError("call env.activate() before env.step() with a layout", code="lifecycle-error")

@@ -7,8 +7,9 @@ network for model inspection, which is never serialized into a trace.
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import re
+from threading import Lock
 from typing import Any
 
 from simulatte._wire import freeze
@@ -316,6 +317,20 @@ def _validate_details(data: Mapping[str, Any]) -> None:
                 raise LayoutError("invalid zone member")
 
 
+def _settle(data: Any, *, check: bool) -> Any:
+    """The frozen, normalized form of bundle data; ``check`` validates every field of a known version first."""
+    data = _thaw(data)
+    if not isinstance(data, Mapping) or not isinstance(data.get("schema_version"), str):
+        raise LayoutError("layout bundle requires a schema_version string")
+    if data["schema_version"] in _VERSIONS:
+        if check:
+            _validate(data)
+        data = normalize(data, canonical=False)
+        for query in data["dependencies"]["queries"]:
+            query.update(normalized_query(query["descriptor"], query["observed"]))
+    return freeze(data)
+
+
 @dataclass(frozen=True)
 class LayoutBundle(Mapping[str, Any]):
     """Deeply immutable layout-v1 data; unknown versions remain opaque and inspectable."""
@@ -323,19 +338,21 @@ class LayoutBundle(Mapping[str, Any]):
     _data: Mapping[str, Any]
 
     def __post_init__(self) -> None:
-        data = _thaw(self._data)
-        if not isinstance(data, Mapping) or not isinstance(data.get("schema_version"), str):
-            raise LayoutError("layout bundle requires a schema_version string")
-        if data["schema_version"] in _VERSIONS:
-            _validate(data)
-            data = normalize(data, canonical=False)
-            for query in data["dependencies"]["queries"]:
-                query.update(normalized_query(query["descriptor"], query["observed"]))
-        object.__setattr__(self, "_data", freeze(data))
+        object.__setattr__(self, "_data", _settle(self._data, check=True))
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> LayoutBundle:
         return cls(data)
+
+    @classmethod
+    def _built(cls, data: Mapping[str, Any]) -> LayoutBundle:
+        """The bundle of data that preparation built from its validated inputs.
+
+        It is not validated again (spec §9): the tests check every bundle the code builds, as ``from_dict`` checks a
+        saved one."""
+        bundle = object.__new__(cls)
+        object.__setattr__(bundle, "_data", _settle(data, check=False))
+        return bundle
 
     def to_dict(self) -> dict[str, Any]:
         return _thaw(self._data)
@@ -382,7 +399,13 @@ class LayoutBundle(Mapping[str, Any]):
 
 @dataclass(frozen=True)
 class ResolvedLayout:
-    bundle: LayoutBundle
+    """The result of preparation. Its `bundle` and the three hashes are built on first read and then kept (L14).
+
+    Every field is immutable once preparation finished (frozen values and auto layer, a frozen graph, a sealed
+    dependency closure, names read at preparation), so a bundle built late, after the run or from another thread,
+    describes the layout as prepared; concurrent first reads get the same bundle.
+    """
+
     values: Any
     auto: Any
     network: Any
@@ -391,6 +414,18 @@ class ResolvedLayout:
     required_paths: Any
     diagnostics: Any
     explicitly_named: frozenset[str]
+    _lock: Any = field(default_factory=Lock, init=False, repr=False, compare=False)
+
+    @property
+    def bundle(self) -> LayoutBundle:
+        bundle = self.__dict__.get("_bundle")
+        if bundle is None:
+            with self._lock:
+                bundle = self.__dict__.get("_bundle")
+                if bundle is None:
+                    bundle = _build_bundle(self)
+                    object.__setattr__(self, "_bundle", bundle)
+        return bundle
 
     @property
     def full_hash(self) -> str:
@@ -525,6 +560,21 @@ def _version(values: Any) -> str:
 
 
 def finalize_layout(prepared: Any) -> ResolvedLayout:
+    """The result of preparation; its bundle is built on first read (:func:`_build_bundle`)."""
+    return ResolvedLayout(
+        prepared.values,
+        prepared.auto,
+        prepared.network,
+        prepared.closure,
+        prepared.stage_records,
+        prepared.required_paths,
+        prepared.diagnostics,
+        prepared.explicitly_named,
+    )
+
+
+def _build_bundle(prepared: Any) -> LayoutBundle:
+    """The bundle of a prepared layout, with its hashes."""
     values, auto, network = prepared.values, prepared.auto, prepared.network
     version = _version(values)
     data = {
@@ -559,18 +609,7 @@ def finalize_layout(prepared: Any) -> ResolvedLayout:
     for query in data["dependencies"]["queries"]:
         query.update(normalized_query(query["descriptor"], query["observed"]))
     data.update(hashes(data))
-    bundle = LayoutBundle.from_dict(data)
-    return ResolvedLayout(
-        bundle,
-        values,
-        auto,
-        network,
-        prepared.closure,
-        prepared.stage_records,
-        prepared.required_paths,
-        prepared.diagnostics,
-        prepared.explicitly_named,
-    )
+    return LayoutBundle._built(data)
 
 
 def validate_file_eligibility(

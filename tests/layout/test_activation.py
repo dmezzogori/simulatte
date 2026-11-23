@@ -1,8 +1,17 @@
-from simulatte import Environment, Layout
+import sys
+import threading
+
+from simulatte import Environment, Layout, TraceRecorder
 from simulatte.layout import LayoutError
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.layout import Footprint, Grid, Lattice, Point
-from tests.layout.test_binding import line, system, vehicle
+from simulatte.layout import bundle as bundle_module
+from simulatte.layout import identity, lifecycle
+from simulatte.layout import layout as facade_module
+from simulatte.layout.lifecycle import PreparationCoordinator
+from simulatte.job import ProductionJob
+from simulatte.server import Server
+from tests.layout.test_binding import SKU_A, line, system, vehicle
 import pytest
 from typing import Any
 
@@ -567,3 +576,185 @@ def test_d30_identical_file_predicate_restatements_still_require_names(named, pr
     else:
         with pytest.raises(LayoutError, match="explicitly named"):
             layout.prepare()
+
+
+# --- cost of a layout (spec §9) ---------------------------------------------------------------------------------
+
+
+def test_step_after_activation_reads_nothing_of_the_layout(monkeypatch):
+    env = Environment()
+    layout = line(env)
+    vehicle(env, layout.node("A"), "cart")
+    for delay in range(1, 6):
+        env.timeout(delay)
+    env.activate()
+    reads = []
+
+    class Counted:
+        """Count the reads of the coordinator's state; data descriptors take precedence over the instance field."""
+
+        def __get__(self, coordinator, owner):
+            reads.append(coordinator)
+            return coordinator.__dict__["state"]
+
+        def __set__(self, coordinator, value):
+            coordinator.__dict__["state"] = value
+
+    monkeypatch.setattr(PreparationCoordinator, "state", Counted(), raising=False)
+    layout_modules = [
+        name for name in sys.modules if name == "simulatte.layout" or name.startswith("simulatte.layout.")
+    ]
+    for name in layout_modules:
+        monkeypatch.delitem(sys.modules, name)  # an import during the steps would load them again
+    calls = []
+
+    def profile(frame, event, arg):
+        if event == "call" and "/simulatte/layout/" in frame.f_code.co_filename.replace("\\", "/"):
+            calls.append(frame.f_code.co_name)
+
+    sys.setprofile(profile)
+    try:
+        for _ in range(5):
+            env.step()
+    finally:
+        sys.setprofile(None)
+    assert env.now == 5
+    assert calls == [] and reads == []
+    assert not [name for name in layout_modules if name in sys.modules]
+    assert layout._coordinator.state == "finalized" and reads == [layout._coordinator]  # the counter counts
+
+
+@pytest.mark.parametrize("layout_first", [True, False])
+def test_attaching_entities_resolves_the_layers_a_number_of_times_that_does_not_grow(monkeypatch, layout_first):
+    calls = []
+    for module in (lifecycle, facade_module):
+        resolve = module.resolve_layers
+
+        def counted(*args, resolve=resolve, **kwargs):
+            calls.append(1)
+            return resolve(*args, **kwargs)
+
+        monkeypatch.setattr(module, "resolve_layers", counted)
+
+    def counts(n):
+        calls.clear()
+        env = Environment()
+        layout = Layout(env) if layout_first else None
+        servers = [Server(env=env, capacity=1) for _ in range(n)]
+        for server in servers:
+            ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+        if layout is None:
+            layout = Layout(env)
+        attached = len(calls)
+        result = layout.prepare()
+        assert len(result.values.targets) == 2 * n
+        return attached, len(calls) - attached
+
+    assert counts(400) == counts(40)
+
+
+@pytest.mark.unchecked_bundles
+def test_an_unobserved_run_builds_no_bundle_and_a_read_builds_it_once(monkeypatch, tmp_path):
+    built = []
+    hashed = []
+    build, hashes = bundle_module._build_bundle, identity.hashes
+
+    def counted_build(resolved):
+        built.append(resolved)
+        return build(resolved)
+
+    def counted_hashes(data):
+        hashed.append(1)
+        return hashes(data)
+
+    monkeypatch.setattr(bundle_module, "_build_bundle", counted_build)
+    monkeypatch.setattr(bundle_module, "hashes", counted_hashes)
+
+    def model(env):
+        layout = line(env)
+        fleet, _, origin, destination, *_ = system(env, layout)
+        fleet.submit(fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination))
+        return layout
+
+    env = Environment()
+    layout = model(env)
+    env.run(until=50)
+    result = layout.prepare()
+    assert built == [] and hashed == []
+    manifest = env.manifest().requested["layout"]
+    assert len(built) == 1 and built[0] is result and hashed == [1]
+    assert manifest == result.bundle.manifest() and result.full_hash == result.bundle.full_hash
+    assert len(built) == 1 and hashed == [1]
+
+    recorded = Environment()
+    TraceRecorder(recorded, tmp_path / "run.trace")
+    model(recorded)
+    built.clear()
+    recorded.run(until=50)
+    recorded.close()
+    assert len(built) == 1 and built[0] is recorded.layout.prepare()
+
+
+def test_a_bundle_read_late_describes_the_layout_as_prepared():
+    def model():
+        env = Environment(seed=3)
+        layout = line(env)
+        fleet, _, origin, destination, *_ = system(env, layout)
+        for _ in range(3):
+            fleet.submit(fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination))
+        Server(env=env, capacity=1, name="machine")
+        return env, layout
+
+    _, early_layout = model()
+    early = early_layout.prepare().bundle.to_dict()
+    late_env, late_layout = model()
+    late_env.run()  # AGVs move, orders are created and finish, entities are created during the run
+    late_layout.prepare().network  # the result is read, the bundle is not
+    assert late_env.now > 0
+    assert late_layout.prepare().bundle.to_dict() == early
+
+
+def test_concurrent_first_reads_get_the_same_bundle():
+    result = line(Environment()).prepare()
+    barrier = threading.Barrier(4)
+    seen = []
+
+    def read():
+        barrier.wait()
+        seen.append(result.bundle)
+
+    threads = [threading.Thread(target=read) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(seen) == 4 and all(bundle is result.bundle for bundle in seen)
+
+
+@pytest.mark.unchecked_bundles
+def test_model_errors_still_raise_at_prepare(monkeypatch):
+    monkeypatch.setattr(bundle_module, "_build_bundle", lambda resolved: pytest.fail("bundle built"))
+    env = Environment()
+    layout = line(env)
+    vehicle(env, layout.node("absent"), "cart")
+    with pytest.raises(LayoutError, match="missing or disabled required node") as caught:
+        layout.prepare()
+    assert caught.value.diagnostics[0].code == "missing-handle"
+
+    env = Environment()
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.0",
+            "placements": {"layout_test_area-0": {"kind": "layout_test_area", "obstacle": False}},
+        },
+    )
+    layout.place(Area(env), obstacle=False)  # a physical file override of an auto-named entity
+    with pytest.raises(LayoutError, match="explicitly named"):
+        layout.prepare()
+
+    env = Environment()
+    layout = Layout(env)
+    layout.place("ghost", kind="bogus", position=Point(0, 0))
+    result = layout.prepare()  # an unknown kind is a diagnostic, available without the bundle
+    assert [item.code for item in result.diagnostics] == ["orphan-placement"]

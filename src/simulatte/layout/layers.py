@@ -7,7 +7,7 @@ Callers supply attached/definition targets and require inputs when they use them
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal
 
@@ -58,12 +58,27 @@ class LeafValue:
     def __post_init__(self) -> None:
         object.__setattr__(self, "value", _freeze(self.value))
 
+    @classmethod
+    def _shared(
+        cls, value: Any, state: Literal["present", "absent", "unset"], source: LayerSource, schema_default: bool
+    ) -> LeafValue:
+        """A leaf of an already frozen `value`, which it shares instead of copying."""
+        leaf = object.__new__(cls)
+        object.__setattr__(leaf, "value", value)
+        object.__setattr__(leaf, "state", state)
+        object.__setattr__(leaf, "source", source)
+        object.__setattr__(leaf, "schema_default", schema_default)
+        return leaf
+
 
 @dataclass(frozen=True)
 class LayerBundle:
     code_stages: tuple[tuple[str, Mapping[str, Any]], ...]
     file_layer: FileLayer
     auto_layer: Mapping[str, Any] | None = None
+    auto_checked: bool = field(default=False, repr=False, compare=False)
+    """Whether ``auto_layer`` is the output of the auto layout of a preparation: it is not checked against the schema
+    again (spec §9 of ``specs/2026-11-23-layout-only-models-design.md``); the tests check it."""
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -74,7 +89,8 @@ class LayerBundle:
         if self.auto_layer is not None:
             if set(self.auto_layer) - {"schema_version", "placements"}:
                 raise LayoutError("auto layer may only fill presentation placements")
-            object.__setattr__(self, "auto_layer", _freeze(normalize(parse_patch(self.auto_layer), canonical=False)))
+            layer = self.auto_layer if self.auto_checked else parse_patch(self.auto_layer)
+            object.__setattr__(self, "auto_layer", _freeze(normalize(layer, canonical=False)))
 
 
 @dataclass(frozen=True)
@@ -237,15 +253,19 @@ class _Merge:
                     )
 
     def leaves(self) -> Mapping[Path, LeafValue]:
+        frozen = _freeze(self.data)  # once: each leaf shares its subtree rather than copying it again (spec §9)
+
         def value_at(path: Path) -> Any:
-            value: Any = self.data
+            value: Any = frozen
             for part in path:
-                value = value[int(part)] if isinstance(value, list) else value[part]
+                value = value[int(part)] if isinstance(value, tuple) else value[part]
             return value
 
         return MappingProxyType(
             {
-                path: LeafValue(None if unset else value_at(path), "unset" if unset else "present", source, default)
+                path: LeafValue._shared(
+                    None if unset else value_at(path), "unset" if unset else "present", source, default
+                )
                 for path, (source, default, unset) in self.records.items()
             }
         )
@@ -298,6 +318,7 @@ def resolve_layers(
     *,
     targets: Mapping[str, str] | None = None,
     final: bool = False,
+    auto_checked: bool = False,
 ) -> ResolvedValues:
     """Resolve code in call order, then file; optionally fill presentation gaps.
 
@@ -305,11 +326,11 @@ def resolve_layers(
     or supplies authoritative kinds. Unknown file targets remain pending in the bundle.
     ``final=True`` requires authoritative targets and excludes unmatched code as well
     as file placements. Stage ownership/freezing and physical eligibility are enforced
-    by the stage engine.
+    by the stage engine. ``auto_checked`` marks ``auto_layer`` as the auto layout's own output (`LayerBundle`).
     """
     if final and targets is None:
         raise LayoutError("final layer resolution requires authoritative targets")
-    bundle = LayerBundle(tuple(code_stages), file_layer, auto_layer)
+    bundle = LayerBundle(tuple(code_stages), file_layer, auto_layer, auto_checked)
     known = dict(targets or {}) if final else _known(bundle, targets or {})
     merged = _Merge()
     for stage, data in bundle.code_stages:

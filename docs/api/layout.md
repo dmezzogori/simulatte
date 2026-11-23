@@ -13,8 +13,9 @@ stages, migration, diagnostics and saved presentation reuse. APIs remain unstabl
 
 `prepare()` returns a cached `ResolvedLayout` after all component and custom binders finish. Its `values`,
 `auto`, `network`, `closure`, `stage_records`, `required_paths` and `diagnostics` describe the prepared model;
-`bundle`, `full_hash`, `physical_hash` and `layers_hash` are the final stored identity. `network.graph` is the
-single canonical runtime graph. `bundle["network"]` is null when no network was declared.
+`bundle`, `full_hash`, `physical_hash` and `layers_hash` are the final stored identity, built on first read and then
+kept: a run that nobody records and whose manifest nobody reads never builds them, and a model error still raises at
+`prepare()`. `network.graph` is the single canonical runtime graph. `bundle["network"]` is null when no network was declared.
 
 ::: simulatte.layout.ResolvedLayout
 

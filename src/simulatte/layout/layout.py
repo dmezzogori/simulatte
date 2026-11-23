@@ -61,6 +61,13 @@ def _data(value: Any, owner: object) -> Any:
     return value
 
 
+def _binds(obj: Entity, node: Node) -> bool:
+    """Whether `obj` is the binding of `node` (imported here: only a model with a network binds nodes)."""
+    from simulatte.intralogistics.graph import NodeBinding
+
+    return type(obj) is NodeBinding and obj.node is node
+
+
 @dataclass(frozen=True)
 class _PreparedLayout:
     """Internal Task 9 finalizer input; no provisional hashes or bundle format."""
@@ -278,13 +285,11 @@ class Layout:
             raise LayoutError("AGV movement requires an exact canonical enabled graph node")
 
     def _before_attach(self, obj: Entity, entity_id: str) -> None:
-        from simulatte.intralogistics.graph import NodeBinding
-
         coordinator = self._coordinator
-        if type(obj) is NodeBinding and obj.node is self._binding_node:
-            return
         if coordinator.state is PreparationState.FINALIZED:
-            return  # constructor preflight already resolved frozen graph refs
+            return  # constructor preflight already resolved frozen graph refs; run-time entities are not targets
+        if self._binding_node is not None and _binds(obj, self._binding_node):
+            return
         coordinator._mutable()
         if obj.kind in _BUILTINS or entity_id in self._placed:
             self._attaching_target = (entity_id, obj.kind)
@@ -390,6 +395,7 @@ class Layout:
             self._auto.data,
             targets=self._targets(),
             final=True,
+            auto_checked=True,
         )
 
     def _finalize(self, coordinator: PreparationCoordinator) -> ResolvedLayout:

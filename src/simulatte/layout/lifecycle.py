@@ -82,8 +82,26 @@ class PreparationCoordinator:
         self._barrier = False
         self.network: Any = None
         self._result: Any = None
+        self._stale = False
         self.values = self._resolve()
         self._network_values = self.values
+
+    @property
+    def values(self) -> ResolvedValues:
+        """The layers resolved with the current declarations and targets.
+
+        Attaching a target while declaring only marks them stale (spec §9): they are resolved again on the next read,
+        so attaching many entities before preparation resolves the layers once, not once per entity.
+        """
+        if self._stale:
+            self._values = self._resolve()
+            self._stale = False
+        return self._values
+
+    @values.setter
+    def values(self, values: ResolvedValues) -> None:
+        self._values = values
+        self._stale = False
 
     def stage_records(self) -> dict[str, Any]:
         """Copy registration-ordered author records for the saved layer bundle."""
@@ -161,6 +179,13 @@ class PreparationCoordinator:
                     stage=self._stage,
                     target=entity_id,
                 )
+        if self.state is PreparationState.DECLARING:
+            # Before preparation nothing is frozen or recorded, and a new target cannot make the resolution fail (it
+            # only decides which placements apply): resolve on the next read of the values instead of now.
+            self._targets[entity_id] = kind
+            self._owners.setdefault(path, self._stage)
+            self._stale = True
+            return
         old_targets = dict(self._targets)
         self._targets[entity_id] = kind
         try:
