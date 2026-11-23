@@ -37,7 +37,7 @@ from simulatte.layout.refs import Address
 from simulatte.layout.schema import parse_patch, schema
 from simulatte.layout.types import LayoutLimits
 from simulatte.server import Server
-from tests.intralogistics.traffic_support import StillFleet
+from tests.intralogistics.traffic_support import StillFleet, declare
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "layout"
 
@@ -675,11 +675,12 @@ def test_a_mission_runs_the_same_on_the_subdivided_graph_and_on_its_layout_twin(
         if layout:
             arcs = [{"source": a, "target": b, "direction": "forward"} for a, b in links]
             built = Layout.from_dict(env, {"schema_version": "1.1", **explicit_patch(arcs, ring, block_length=1.1)})
-            graph, at = built.graph(), built.node
+            handle, at = built.graph(), built.node
         else:
             by_id = {name: Node(name, x, y) for name, x, y in ring}
-            graph = LayoutGraph(by_id.values(), [Arc(by_id[a], by_id[b], bidirectional=False) for a, b in links])
-            graph, at = graph.subdivide(1.1), by_id.__getitem__
+            plain = LayoutGraph(by_id.values(), [Arc(by_id[a], by_id[b], bidirectional=False) for a, b in links])
+            world = declare(env, plain.subdivide(1.1))  # the subdivided graph, declared as it is
+            handle, at = world.graph, world.ref
         sku = SKU("stock", 1, 0.1)
         sites = [
             Warehouse(
@@ -705,14 +706,14 @@ def test_a_mission_runs_the_same_on_the_subdivided_graph_and_on_its_layout_twin(
         )
         fleet = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=handle,
             fleet=[
                 AGV(env=env, agv_type=kind, agv_id=name, initial_node=at(node))
                 for name, node in (("a", "P1"), ("b", "P6"))
             ],
             warehouses=sites,
             charging_stations=[],
-            traffic_controller=ReservationController(env=env, graph=graph),
+            traffic_controller=ReservationController(env=env, graph=handle),
             default_metrics=False,
         )
         orders = [
@@ -1157,7 +1158,9 @@ def _line_with_zone(env, authored: tuple[Zone, ...] = ()):
             ),
         },
     )
-    return layout, ReservationController(env=env, graph=layout.graph(), zones=authored)
+    # the controller's own zones (`authored`) only for the test of both kinds of zones, which Task 9 decides
+    options = {"zones": authored} if authored else {}
+    return layout, ReservationController(env=env, graph=layout.graph(), **options)
 
 
 def test_the_controller_reads_the_layout_zones_at_bind():
@@ -1234,7 +1237,7 @@ POINTS = (("P", 0, 0), ("M", 10, 0), ("Q", 20, 0), ("R", 30, 0))
 LINKS = (("P", "M"), ("M", "Q"), ("Q", "R"))
 
 
-def run_twin(env: Environment, graph: Any, start: Any, nodes: Any, controller: Any) -> list[Any]:
+def run_twin(env: Environment, handle: Any, start: Any, nodes: Any, controller: Any) -> list[Any]:
     """Two carts on the line: a1 from P to Q and a2 from M to R, leaving at 10, so a1 comes to rest before M and waits
     for it, and both pass through the zone."""
     from simulatte.intralogistics.agv import AGVState
@@ -1245,7 +1248,7 @@ def run_twin(env: Environment, graph: Any, start: Any, nodes: Any, controller: A
     }
     fleet = StillFleet(
         env=env,
-        graph=graph,
+        graph=handle,
         fleet=list(carts.values()),
         warehouses=[],
         charging_stations=[],
@@ -1275,16 +1278,21 @@ def test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream():
     plain = {name: Node(name, x, y) for name, x, y in POINTS}
     arcs = [Arc(plain[a], plain[b], passing=a == "Q") for a, b in LINKS]
     arcs += [Arc(plain[b], plain[a], passing=a == "Q") for a, b in LINKS]
-    graph = LayoutGraph(plain.values(), arcs).subdivide(5)
-    by_id = {node.id: node for node in graph.nodes}
-    gate = Zone(
-        "gate",
-        (by_id["M~Q#1"], by_id["Q"], (by_id["M"], by_id["M~Q#1"]), (by_id["M~Q#1"], by_id["Q"])),
-        capacity=1,
-    )
     env = Environment(debug=True)
-    controller = ReservationController(env=env, graph=graph, zones=[gate])
-    explicit = run_twin(env, graph, lambda at: by_id[at], lambda: by_id, controller)
+    world = declare(
+        env,
+        LayoutGraph(plain.values(), arcs).subdivide(5),  # declared as it is: the zone names a node of the split
+        zones={"gate": {"members": ["M~Q#1", "Q", ("M", "M~Q#1"), ("M~Q#1", "Q")], "capacity": 1}},
+    )
+    by_id = {node.id: node for node in LayoutGraph(plain.values(), arcs).subdivide(5).nodes}
+    controller = ReservationController(env=env, graph=world.graph)
+    explicit = run_twin(
+        env,
+        world.graph,
+        world.ref,
+        lambda: {node.id: node for node in world.canonical_graph().nodes},
+        controller,
+    )
 
     lay_env = Environment(debug=True)
     layout = Layout.from_dict(
@@ -1597,9 +1605,10 @@ def declared_network(graph: LayoutGraph, *, controller: dict[str, Any] | None = 
 
 
 def five_nodes() -> tuple[LayoutGraph, dict[str, Node]]:
-    from tests.intralogistics.traffic_support import line
-
-    return line(5)
+    """The graph of ``traffic_support.line(env, 5)``, ``N0 ... N4`` 10 m apart, with its nodes by id: the tests
+    declare it themselves."""
+    nodes = {f"N{i}": Node(f"N{i}", 10 * i, 0) for i in range(5)}
+    return LayoutGraph(nodes.values(), [Arc(nodes[f"N{i}"], nodes[f"N{i + 1}"]) for i in range(4)]), nodes
 
 
 def test_explicit_capacities_give_the_declared_nodes_their_capacity_and_the_default_elsewhere():
