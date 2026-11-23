@@ -33,6 +33,7 @@ _GEOMETRY = frozenset(
         "approach_margin",
         "max_distance",
         "block_length",
+        "length",
     }
 )
 

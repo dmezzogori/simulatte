@@ -438,6 +438,13 @@ def _travelled(edge: EdgeDefinition, low: NodeDefinition, high: NodeDefinition) 
     return chord_length(low.position.x, low.position.y, high.position.x, high.position.y)
 
 
+def _coincident(parent: Address, block_length: float) -> LayoutError:
+    return LayoutError(
+        f"block_length {block_length} puts two nodes of the edge {parent.to_dict()} at one position "
+        "(a declared length far above the distance of its nodes); raise block_length or shorten the length"
+    )
+
+
 def split_blocks(
     definitions: NetworkDefinitions, block_length: float, *, capacity: int | None, limits: LayoutLimits
 ) -> NetworkDefinitions:
@@ -498,10 +505,14 @@ def split_blocks(
                 low.position.x + (high.position.x - low.position.x) * k / count,
                 low.position.y + (high.position.y - low.position.y) * k / count,
             )
+            if point == new_nodes[chain[-1]].position:
+                raise _coincident(parent, block_length)
             blockers = tuple(o.id for o in definitions.obstacles if o.blocks_point(point, definitions.clearance))
             new_nodes[address] = NodeDefinition(address, f"{low.id}~{high.id}#{k}", point, True, capacity, blockers)
             aliases[address] = address
             chain.append(address)
+        if new_nodes[chain[-1]].position == high.position:
+            raise _coincident(parent, block_length)
         chain.append(high_address)
         for edge in members:
             forward = edge.source == low_address

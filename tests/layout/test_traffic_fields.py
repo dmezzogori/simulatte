@@ -1511,3 +1511,56 @@ def test_a_repeated_directed_arc_with_another_length_conflicts():
     arcs = [{"source": "A", "target": "B", "length": 25.0}, {"source": "A", "target": "B", "length": 26.0}]
     with pytest.raises(LayoutError, match="conflicting"):
         resolve(explicit_patch(arcs))
+
+
+def test_a_recorded_length_is_hashed_and_resolved_by_value_not_by_spelling():
+    arcs = [{"source": "A", "target": "B", "direction": "both"}]
+    integer = prepared(explicit_patch([{**arcs[0], "length": 25}]))
+    real = prepared(explicit_patch([{**arcs[0], "length": 25.0}]))
+    assert (integer.physical_hash, integer.full_hash) == (real.physical_hash, real.full_hash)
+    for result in (integer, real):
+        assert {type(arc["length"]) for arc in result.bundle["network"]["graph"]["arcs"]} == {float}
+    graph = resolve(explicit_patch([{**arcs[0], "length": 25}])).graph
+    assert type(graph.length(*graph.nodes)) is float
+
+
+def test_explicit_hashes_a_recorded_length_by_value():
+    def hashes(length: float) -> tuple[str, str]:
+        layout = Layout(Environment())
+        a, b = Node("A", 0, 0), Node("B", 10, 0)
+        layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, length=length)])))
+        result = layout.prepare()
+        return result.physical_hash, result.full_hash
+
+    assert hashes(25) == hashes(25.0)
+
+
+def test_explicit_accepts_a_float_subclass_length_and_names_a_bad_one():
+    class Metres(float):
+        """What a numpy float64 is to Python: a float of another type."""
+
+    a, b = Node("A", 0, 0), Node("B", 10, 0)
+    graph = LayoutGraph([a, b], [Arc(a, b, length=Metres(25.0))])
+    assert {type(arc.length) for arc in Explicit(graph).arcs} == {float}
+    layout = Layout(Environment())
+    layout.set_network(Explicit(graph))
+    resolved = layout.prepare().network.graph
+    assert resolved.length(*resolved.nodes) == 25.0
+    broken = LayoutGraph([a, b], [Arc(a, b)])
+    object.__setattr__(broken._adjacency[a][b], "length", "far")
+    with pytest.raises(LayoutError, match="length"):
+        Explicit(broken)
+
+
+def test_block_length_on_a_recorded_length_may_not_generate_coincident_nodes():
+    """A declared length far above the nodes' distance makes pieces whose points coincide: a chord of 0 (L16)."""
+    arcs = [{"source": "A", "target": "B", "direction": "both", "length": 20.0}]
+    nodes = [("A", 1000.0, 0.0), ("B", 1000.0 + 1e-12, 0.0)]
+    with pytest.raises(LayoutError, match=r"block_length 0\.5 .*explicit_arc"):
+        resolve(explicit_patch(arcs, nodes, block_length=0.5))
+    # The last generated node against the end node.
+    near_end = [("A", 1000.0 - math.ulp(1000.0), 0.0), ("B", 1000.0, 0.0)]  # the one generated node lands on B
+    with pytest.raises(LayoutError, match="block_length"):
+        resolve(explicit_patch(arcs, near_end, block_length=10))
+    spread = resolve(explicit_patch(arcs, [("A", 0.0, 0.0), ("B", 10.0, 0.0)], block_length=5))
+    assert len(spread.graph.nodes) == 2 + 3  # distinct points: four pieces of 5.0

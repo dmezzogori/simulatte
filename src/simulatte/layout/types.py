@@ -309,7 +309,9 @@ class Explicit:
                 speed = None if arc.speed_limit is None else number(arc.speed_limit, "speed_limit", positive=True)
                 # An arc cannot tell whether its length was given, so it is recorded when it is not the chord, which
                 # the resolver would otherwise use (an exact comparison: it computes the chord the same way).
-                length = None if arc.length == chord_length(source.x, source.y, target.x, target.y) else arc.length
+                length = number(arc.length, "length", positive=True)
+                if length == chord_length(source.x, source.y, target.x, target.y):
+                    length = None
                 arcs.append(
                     ExplicitArc(source.id, target.id, speed, passing=True if arc.passing else None, length=length)
                 )
