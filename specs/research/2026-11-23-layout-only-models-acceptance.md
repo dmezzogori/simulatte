@@ -329,3 +329,97 @@ equal 600, differing 0, events compared 1180604, failed in both modes 0, ended a
 ```
 
 The script exited with status 0.
+
+## Every environment owns a layout (Task 4)
+
+### Result
+
+`env.layout` returns the environment's layout and creates it on first access; activation creates it when neither
+`env.layout` nor `Layout(env, ...)` did. A production-only model therefore gets its layout at activation, and its trace
+carries it in INITIAL and in the manifest. Until explicit mode is removed, an environment with an explicit graph consumer
+has no layout (`env.layout` raises, activation creates none).
+
+- The G1 reference shop (`tests/core/test_g1_acceptance.py`) has the ids, the 10,700 domain events and the fingerprint
+  (digest `e8a442d2…`, no KPI scalars) it had at `8957ddb`; the pinned G1 digest and trace content are unchanged
+  (`tests/layout/test_environment_layout.py::test_a_production_model_keeps_its_ids_events_and_fingerprint`).
+- The generated trace fixtures `shop_small`, `lumscor` and `cell_ops` were regenerated: their canonical content differs
+  from `8957ddb` only in `layout` (now the bundle) and in the manifest's `layout` (now its metadata); events, states,
+  chunks and fingerprints are equal. The four fixtures that already had a layout are unchanged. `frozen/` is untouched.
+- The CI overhead gate passes with its present limits; this change costs nothing measurable on its workload.
+- `benchmarks/layout_parity.py --worlds 100`: 600 pairs equal, 1,180,604 events, as after Task 3; exit status 0.
+
+### CI overhead gate
+
+Run as `benchmarks/README.md` describes, mode `none`, `--warmup 1 --repeat 5 --processes 3`, CPython 3.14.3 on the
+Apple M4 Pro, at `051ac30`. The branch side ran from the checkout's `.venv` (the source of `051ac30`; a wheel of the
+checkout cannot be built without the Studio assets), 0.12.0 in its own environment with the checkout's dependency
+versions as constraints, and the stripped copy made by `strip_debug.py` from it.
+
+| Baseline | Workload | Baseline median | Branch median | Overhead | Limit | Verdict |
+|---|---|---|---|---|---|---|
+| released 0.12.0 | `jobshop10-u90-5k` | 0.642 s | 0.479 s | −25.4 % | +5.0 % (3.0 + 2.0) | pass |
+| released 0.12.0 | `jobshop10-u95-5k` | 0.678 s | 0.519 s | −23.4 % | +5.0 % (3.0 + 2.0) | pass |
+| 0.12.0 without `env.debug` calls | `jobshop10-u90-5k` | 0.449 s | 0.479 s | +6.8 % | +8.5 % (6.5 + 2.0) | pass |
+| 0.12.0 without `env.debug` calls | `jobshop10-u95-5k` | 0.486 s | 0.519 s | +6.9 % | +8.5 % (6.5 + 2.0) | pass |
+
+The margin against the stripped copy is 1.6 to 1.7 points. Measured in the same session, `8957ddb` against `051ac30` on the same workloads: 0.480 s against 0.480 s (u90, ratio 1.000) and
+0.513 s against 0.516 s (u95, ratio 1.005, within the spread of the processes); `8957ddb` against the stripped copy:
++7.0 % and +5.7 %, a second branch run +7.0 % and +6.2 %: the margin is the one the branch had before this task. The
+gate's shop creates its jobs during the run, so its layout has twelve targets (ten servers, the shop floor and the
+pre-shop pool) and activation costs about half a millisecond of a run of half a second.
+
+### What a layout costs now
+
+`benchmarks/layout_overhead.py --repeat 15`, two runs at `051ac30`. The `none` variants no longer mean a model without a
+layout: they do not call `Layout(env)`, and activation creates the layout. So `activate/*/none` now includes creating,
+preparing and finalizing it, and `run/none` runs with a layout created at activation.
+
+```
+commit 051ac30, CPython 3.14.3, arm64, repeat 15 (median / min, ms)
+construct/100/none               0.116 /      0.109
+construct/100/layout             0.176 /      0.162
+construct/100/ratio              1.515
+construct/1600/none              2.499 /      2.463
+construct/1600/layout            3.023 /      3.000
+construct/1600/ratio             1.210
+prepare/10                       0.482 /      0.470
+activate/10/layout               0.491 /      0.483
+activate/10/none                 0.514 /      0.504
+first_bundle/10                  2.516 /      2.490
+prepare/1600                    47.782 /     47.486
+activate/1600/layout            49.240 /     49.010
+activate/1600/none              49.769 /     49.370
+first_bundle/1600              269.436 /    267.816
+jobs_before_layout/1600          4.986 /      4.943
+run/events                       30204
+run/none                        40.227 /     39.843   1331.9 ns per event (median)
+run/layout                      40.247 /     40.072   1332.5 ns per event (median)
+run/ratio                        1.000
+```
+
+The second run: `activate/10/none` 0.518 ms, `activate/1600/layout` 50.2 ms, `activate/1600/none` 50.5 ms,
+`prepare/1600` 47.3 ms, `run/ratio` 1.000.
+
+| | `3a01414` (Task 3) | `051ac30` |
+|---|---|---|
+| activation of a model without `Layout(env)`, 10 servers | 0.012 ms (no layout) | 0.51 to 0.52 ms (layout created) |
+| activation of a model without `Layout(env)`, 1,600 servers | 2.2 ms (no layout) | 49.8 to 50.5 ms (layout created) |
+| activation with `Layout(env)`, 1,600 servers | 48.9 to 49.2 ms | 49.2 to 50.2 ms |
+| run per event, layout created at activation against `Layout(env)` | (no layout: ratio 1.002 to 1.005) | ratio 1.000 |
+
+Creating the layout at activation costs what `Layout(env)` costs: 0.5 ms at 10 servers, under the 5 ms target. At 1,600
+servers activation is at the 50 ms target, as recorded for Task 3 (ruling T3-c): 49.2 to 50.5 ms in these runs. The
+gate above decides, and it passes. The per-event path is unchanged.
+
+### Imports
+
+`import simulatte`, `Environment()` and building a production model import no layout module; activation imports the
+layout package, `simulatte.intralogistics`, `.graph` and `.network`, and none of the fleet, traffic, reservation or AGV
+modules (`tests/layout/test_environment_layout.py::test_a_layout_created_at_activation_imports_no_fleet_traffic_or_agv_module`,
+besides the tests of `tests/core/test_public_api.py`).
+
+### The test suite
+
+Every activated environment of the suite now prepares a layout, and the autouse fixture `check_bundles` builds and checks
+the bundle of each at teardown. The full suite took 378 s (4,829 passed, 1 skipped), against 375 to 377 s after Task 3:
+no measurable change.
