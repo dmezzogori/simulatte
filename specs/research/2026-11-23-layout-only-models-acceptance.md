@@ -429,12 +429,12 @@ no measurable change.
 ### Result
 
 `Explicit(graph, capacities={node_id: n})` declares the capacity of single nodes of an explicit network. The 200 random
-worlds, built with `Explicit(capacities=..., zones=...)` in layout mode and with the controller's `capacities=` and
+worlds, built with `Explicit(capacities=..., zones=...)` (zone members as node ids and id pairs) in layout mode and with the controller's `capacities=` and
 `zones=` in explicit mode, run alike: 1,200 pairs equal, none differing, no violation, exit status 0.
 
 ### The run
 
-Commit `5b4469c`, from the repository root:
+Commit `f28b89f` (the worlds declare capacities and, from this commit, zones by node id and id pair), from the repository root:
 
 ```
 uv run --all-extras python benchmarks/layout_parity.py --worlds 200
@@ -443,10 +443,10 @@ uv run --all-extras python benchmarks/layout_parity.py --worlds 200
 ```
 worlds 200 (seeds 0..199), runs 2400, pairs 1200
 equal 1200, differing 0, events compared 2433672, failed in both modes 0, ended at the horizon 0, with monitor violations 0, with a known limit 0, known-limit cases 0
-until 20000.0, wall-clock limit 120 s per run, 68 s
+until 20000.0, wall-clock limit 120 s per run, 71 s
 ```
 
-The worlds that declare a node of capacity 2 are 152 of the 200 (99 of them ran two vehicles on such a node), and 124
+The same run with the zones declared by address (`5b4469c`) gave the same counts, 68 s. The worlds that declare a node of capacity 2 are 152 of the 200 (99 of them ran two vehicles on such a node), and 124
 contain a zone, as in Task 2. The monitor now also compares, from the `WorldSpec`, the node capacities and the zones
 (members, capacity, hold-back) that the controller's network resolved, in both modes; it found no difference.
 
@@ -456,8 +456,8 @@ A per-node capacity of an explicit node could already be declared: the schema's 
 `capacity`, the resolver reads it, and a `NetworkOverride` on the node address sets it too. Only the code-side
 `ExplicitNode` did not carry it. `capacities` fills that field, so no schema field is added and the bundles of networks
 that declare no capacity are unchanged (the pinned hashes of `tests/layout/test_traffic_fields.py` hold). The zones of
-schema 1.1 were already declarable on `Explicit`; a test compares `network.leg(u, v)` of every leg of a five-node world
-for a zone with node and pair members, declared and given to the controller.
+schema 1.1 were already declarable on `Explicit`, by address; `Explicit(zones=...)` now also takes a node id and a pair of ids as a member (see below). A test compares `network.leg(u, v)` of every leg of a five-node world
+for a zone with node and pair members, declared by address, by id, with a reversed pair and mixed, and given to the controller.
 
 ### Both places at once
 
@@ -472,3 +472,14 @@ The monitor reports `built node capacities differ from the spec` and `built zone
 an arc the spec's graph lacks as `move on an arc the spec does not have` instead of raising; a test for each cuts the
 built side in a scratch monkeypatch (a lost node capacity, a zone with another capacity, hold-back or fewer members, a
 missing zone, a reference graph without an arc the vehicles use) and checks the violation is reported.
+
+### Zone members by id
+
+A member of `Explicit(zones=...)` may be a node id or a pair of ids (2-tuple or 2-list of `str`); the constructor turns
+them into the `explicit` and `explicit_arc` addresses of schema 1.1, so the bundle and the hashes are those of the same
+zone declared by address (tested), and `Lattice` and `Lanes` take addresses only. A pair is the segment between the two
+nodes, as the pair of a controller `Zone` is (`TrafficNetwork` accepts it when the nodes are adjacent in either
+direction): it becomes the address of `a -> b` when the graph has that arc, else of `b -> a`; with both directions the
+two addresses resolve to the same pair. An unknown id, or a pair that is not an arc in either direction, raises
+`LayoutError` naming the zone and the member at declaration. (The address form never raises for the same mistakes: it
+gives a `stale-zone-member` warning at resolution, and the shorthand is stricter because the graph is at hand.)
