@@ -423,3 +423,52 @@ besides the tests of `tests/core/test_public_api.py`).
 Every activated environment of the suite now prepares a layout, and the autouse fixture `check_bundles` builds and checks
 the bundle of each at teardown. The full suite took 378 s (4,829 passed, 1 skipped), against 375 to 377 s after Task 3:
 no measurable change.
+
+## Capacities declared on the network (Task 5)
+
+### Result
+
+`Explicit(graph, capacities={node_id: n})` declares the capacity of single nodes of an explicit network. The 200 random
+worlds, built with `Explicit(capacities=..., zones=...)` in layout mode and with the controller's `capacities=` and
+`zones=` in explicit mode, run alike: 1,200 pairs equal, none differing, no violation, exit status 0.
+
+### The run
+
+Commit `5b4469c`, from the repository root:
+
+```
+uv run --all-extras python benchmarks/layout_parity.py --worlds 200
+```
+
+```
+worlds 200 (seeds 0..199), runs 2400, pairs 1200
+equal 1200, differing 0, events compared 2433672, failed in both modes 0, ended at the horizon 0, with monitor violations 0, with a known limit 0, known-limit cases 0
+until 20000.0, wall-clock limit 120 s per run, 68 s
+```
+
+The worlds that declare a node of capacity 2 are 152 of the 200 (99 of them ran two vehicles on such a node), and 124
+contain a zone, as in Task 2. The monitor now also compares, from the `WorldSpec`, the node capacities and the zones
+(members, capacity, hold-back) that the controller's network resolved, in both modes; it found no difference.
+
+### What was there
+
+A per-node capacity of an explicit node could already be declared: the schema's `explicitNode` has an optional
+`capacity`, the resolver reads it, and a `NetworkOverride` on the node address sets it too. Only the code-side
+`ExplicitNode` did not carry it. `capacities` fills that field, so no schema field is added and the bundles of networks
+that declare no capacity are unchanged (the pinned hashes of `tests/layout/test_traffic_fields.py` hold). The zones of
+schema 1.1 were already declarable on `Explicit`; a test compares `network.leg(u, v)` of every leg of a five-node world
+for a zone with node and pair members, declared and given to the controller.
+
+### Both places at once
+
+While `ReservationController(capacities=)` exists, a capacity for the same node in both places is not rejected: the
+controller's value wins silently (`{**layout, **controller}` in `_install_layout_graph`). With `Explicit(capacities=
+{"N1": 2})` and `capacities={N1: 3}` on the controller, the node has capacity 3, and the other way round 2. A zone id
+defined in both places raises. Task 9 removes the second place.
+
+### Monitor checks added
+
+The monitor reports `built node capacities differ from the spec` and `built zones differ from the spec`, and a move on
+an arc the spec's graph lacks as `move on an arc the spec does not have` instead of raising; a test for each cuts the
+built side in a scratch monkeypatch (a lost node capacity, a zone with another capacity, hold-back or fewer members, a
+missing zone, a reference graph without an arc the vehicles use) and checks the violation is reported.
