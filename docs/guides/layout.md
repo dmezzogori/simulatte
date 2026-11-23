@@ -321,6 +321,10 @@ closure and the physical hash.
   nodes. Without it an arc is as long as its chord. `Explicit(graph)` records an arc's length exactly when it differs
   from its chord, so a graph from `LayoutGraph.subdivide` keeps the lengths of its pieces; the two directions of a
   pair must agree, and `block_length` splits an arc by its recorded length.
+- `capacities` on `Explicit` (a mapping from node id to capacity): the capacity of single nodes of the graph. It is
+  the `capacity` of the explicit node of schema 1.0, so it overrides the network's default `capacity` for that
+  node, and an override of the node's `capacity` still applies after it. An id that is not a node of the graph, or a
+  capacity below 1, raises `LayoutError`.
 - `network.block_length` (positive number): after the overrides, every enabled edge longer than it is split into
   `ceil(length / block_length)` equal pieces, so that a vehicle holds a shorter stretch of lane at a time. A
   generated node has the address kind `block_node` (the parent edge's address and the piece index `k`, counted

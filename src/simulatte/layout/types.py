@@ -81,6 +81,20 @@ def _capacity(value: int | None) -> None:
         raise LayoutError("capacity must be a positive safe integer")
 
 
+def _node_capacities(capacities: Mapping[str, int] | None, known: set[str]) -> Mapping[str, int]:
+    """The per-node capacities of an explicit graph, by node id: each node must exist and its capacity be valid."""
+    if capacities is None:
+        return {}
+    if not isinstance(capacities, Mapping) or not all(type(node_id) is str for node_id in capacities):
+        raise LayoutError("capacities must be a mapping from node id to capacity")
+    for node_id, value in capacities.items():
+        if node_id not in known:
+            raise LayoutError(f"capacities names {node_id!r}, which is not a node of the explicit graph")
+        if type(value) is not int or not 0 < value <= MAX_SAFE_INT:
+            raise LayoutError(f"capacities of node {node_id!r}: capacity must be a positive safe integer")
+    return capacities
+
+
 def _passing(value: bool | None) -> None:
     if value is not None and type(value) is not bool:
         raise LayoutError("passing must be a bool")
@@ -259,6 +273,8 @@ class Lanes:
 class ExplicitNode:
     id: str
     position: Point
+    capacity: int | None = None
+    """The node's own capacity, which wins over the network's ``capacity``; ``None`` leaves the default."""
 
 
 @dataclass(frozen=True)
@@ -289,6 +305,7 @@ class Explicit:
         clearance: float = 0,
         blocked: Mapping[str, Any] | None = None,
         capacity: int | None = None,
+        capacities: Mapping[str, int] | None = None,
         block_length: float | None = None,
         zones: Mapping[str, Any] | None = None,
     ) -> None:
@@ -299,7 +316,8 @@ class Explicit:
         ids = [node.id for node in nodes]
         if len(set(ids)) != len(ids):
             raise LayoutError("explicit graph contains duplicate node ids")
-        definitions = tuple(ExplicitNode(node.id, Point(node.x, node.y)) for node in nodes)
+        own = _node_capacities(capacities, set(ids))
+        definitions = tuple(ExplicitNode(node.id, Point(node.x, node.y), own.get(node.id)) for node in nodes)
         positions = {node.id: node.position for node in definitions}
         for node in definitions:
             _definition({"id": node.id, "position": [node.position.x, node.position.y, 0]}, "explicitNode")

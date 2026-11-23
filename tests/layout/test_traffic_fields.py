@@ -1564,3 +1564,180 @@ def test_block_length_on_a_recorded_length_may_not_generate_coincident_nodes():
         resolve(explicit_patch(arcs, near_end, block_length=10))
     spread = resolve(explicit_patch(arcs, [("A", 0.0, 0.0), ("B", 10.0, 0.0)], block_length=5))
     assert len(spread.graph.nodes) == 2 + 3  # distinct points: four pieces of 5.0
+
+
+# --- node capacities and zones declared with an explicit network (spec 5.2, L13) ------------------------------------
+
+
+def declared_network(graph: LayoutGraph, *, controller: dict[str, Any] | None = None, facilities=(), **declaration):
+    """The traffic network of a ``ReservationController`` on ``graph``, declared with ``Explicit(graph, ...)``."""
+    from simulatte.intralogistics.parking import ParkingArea
+
+    env = Environment()
+    env.layout.set_network(Explicit(graph, **declaration))
+    controller_ = ReservationController(env=env, graph=env.layout.graph(), **(controller or {}))
+    for name, node_id, capacity in facilities:
+        ParkingArea(env=env, name=name, node=env.layout.node(node_id), capacity=capacity)
+    fleet_areas = [entity for entity in env.entities.live() if isinstance(entity, ParkingArea)]
+    if fleet_areas:  # a registered fleet is what hands its facilities to the controller
+        controller_.register_fleet(
+            StillFleet(
+                env=env,
+                graph=env.layout.graph(),
+                fleet=[],
+                warehouses=[],
+                charging_stations=[],
+                parking_areas=fleet_areas,
+                traffic_controller=controller_,
+                default_metrics=False,
+            )
+        )
+    env.activate()
+    return controller_.network
+
+
+def five_nodes() -> tuple[LayoutGraph, dict[str, Node]]:
+    from tests.intralogistics.traffic_support import line
+
+    return line(5)
+
+
+def test_explicit_capacities_give_the_declared_nodes_their_capacity_and_the_default_elsewhere():
+    graph, _ = five_nodes()
+    network = declared_network(graph, capacities={"N1": 2, "N3": 4})
+    assert {node.id: network.capacity(node) for node in network.graph.nodes} == {
+        "N0": 1,
+        "N1": 2,
+        "N2": 1,
+        "N3": 4,
+        "N4": 1,
+    }
+    # A node's own capacity wins over the network default; the default still fills the other nodes.
+    network = declared_network(graph, capacity=3, capacities={"N1": 2})
+    assert {node.id: network.capacity(node) for node in network.graph.nodes} == {
+        "N0": 3,
+        "N1": 2,
+        "N2": 3,
+        "N3": 3,
+        "N4": 3,
+    }
+
+
+def test_a_declared_capacity_is_the_one_the_resolved_network_holds():
+    graph, _ = five_nodes()
+    layout = Layout(Environment())
+    layout.set_network(Explicit(graph, capacities={"N2": 2}))
+    result = layout.prepare()
+    assert {node.id: capacity for node, capacity in result.network.capacities.items()} == {
+        "N0": None,
+        "N1": None,
+        "N2": 2,
+        "N3": None,
+        "N4": None,
+    }
+    assert {n["id"]: n["capacity"] for n in result.bundle["network"]["graph"]["nodes"]}["N2"] == 2
+
+
+def test_declaring_a_capacity_changes_the_hash_and_declaring_none_changes_nothing():
+    graph, _ = five_nodes()
+
+    def hashes(**declaration: Any) -> tuple[str, str]:
+        layout = Layout(Environment())
+        layout.set_network(Explicit(graph, **declaration))
+        result = layout.prepare()
+        return result.physical_hash, result.full_hash
+
+    assert hashes(capacities={}) == hashes() == hashes(capacities=None)
+    assert hashes(capacities={"N2": 2}) != hashes()
+    assert hashes(capacities={"N2": 2}) == hashes(capacities={"N2": 2})
+
+
+def test_a_capacity_override_still_applies_after_the_declaration():
+    graph, _ = five_nodes()
+    env = Environment()
+    env.layout.set_network(Explicit(graph, capacities={"N1": 2}))
+    env.layout.override(NetworkOverride("o", Address({"kind": "explicit", "id": "N1"}), {"capacity": 3}))
+    result = env.layout.prepare()
+    assert {node.id: capacity for node, capacity in result.network.capacities.items()}["N1"] == 3
+
+
+@pytest.mark.parametrize("capacities, named", [({"N9": 2}, "N9"), ({"N1": 2, "Z": 2}, "Z")])
+def test_a_capacity_for_an_unknown_node_names_it(capacities, named):
+    graph, _ = five_nodes()
+    with pytest.raises(LayoutError, match=named):
+        Explicit(graph, capacities=capacities)
+
+
+@pytest.mark.parametrize("value", [0, -1, True, 1.5, "2", 2**53])
+def test_a_node_capacity_must_be_a_positive_safe_integer_and_names_the_node(value):
+    graph, _ = five_nodes()
+    with pytest.raises(LayoutError, match="N2.*capacity|capacity.*N2"):
+        Explicit(graph, capacities={"N2": value})
+
+
+@pytest.mark.parametrize("capacities", [[("N1", 2)], {1: 2}, "N1"])
+def test_capacities_are_a_mapping_by_node_id(capacities):
+    graph, _ = five_nodes()
+    with pytest.raises(LayoutError, match="capacities"):
+        Explicit(graph, capacities=capacities)
+
+
+def test_the_capacity_fallback_order_is_unchanged():
+    """Declared capacity, then the facilities on the node, then ``node_capacity``."""
+    graph, _ = five_nodes()
+    network = declared_network(
+        graph,
+        controller={"node_capacity": 2},
+        facilities=[("p1", "N1", 3), ("p2", "N2", 3)],
+        capacities={"N2": 5},
+    )
+    assert {node.id: network.capacity(node) for node in network.graph.nodes} == {
+        "N0": 2,
+        "N1": 3,
+        "N2": 5,
+        "N3": 2,
+        "N4": 2,
+    }
+
+
+@pytest.mark.parametrize("hold_back", [False, True])
+@pytest.mark.parametrize("capacity", [1, 2])
+def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_given_to_the_controller(
+    hold_back, capacity
+):
+    """Node and pair members, in a five-node world: every leg claims the same resources either way."""
+    graph, nodes = five_nodes()
+    declared = {
+        "z": {
+            "members": [
+                {"kind": "explicit", "id": "N3"},
+                {"kind": "explicit_arc", "source": "N1", "target": "N2"},
+            ],
+            "capacity": capacity,
+            "hold_back": hold_back,
+        }
+    }
+    from_layout = declared_network(graph, zones=declared)
+    env = Environment()
+    env.layout.set_network(Explicit(graph))
+    controller = ReservationController(
+        env=env,
+        graph=env.layout.graph(),
+        zones=[Zone("z", (nodes["N3"], (nodes["N1"], nodes["N2"])), capacity, hold_back)],
+    )
+    env.activate()
+    from_controller = controller.network
+    assert [zone.id for zone in from_layout.zones] == ["z"]
+
+    def legs(network) -> dict[tuple[str, str], list[tuple[str, str | None]]]:
+        found = {}
+        for u in network.graph.nodes:
+            for v in network.graph.neighbors(u):
+                found[u.id, v.id] = [(item.resource.id, item.direction) for item in network.leg(u, v)]
+        return found
+
+    assert legs(from_layout) == legs(from_controller)
+    assert len(legs(from_layout)) == 8  # four two-way arcs
+    assert any("z" in {name for name, _ in claim} for claim in legs(from_layout).values())
+    (zone,) = from_layout.zones
+    assert (zone.capacity, zone.hold_back) == (capacity, hold_back)

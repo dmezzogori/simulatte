@@ -594,24 +594,27 @@ def build_world(
 ) -> BuiltWorld:
     """Build `spec` in `env` with concrete objects (``"explicit"``) or through ``Explicit`` and handles (``"layout"``).
 
-    Per-node capacities go to the controller's ``capacities=`` in both modes; zones go to the controller in explicit
-    mode and to ``Explicit(zones=...)`` in layout mode. The order and disturbance processes are started here.
+    Per-node capacities and zones go to the controller's ``capacities=`` and ``zones=`` in explicit mode and to
+    ``Explicit(capacities=..., zones=...)`` in layout mode. The order and disturbance processes are started here.
     """
     graph = graph_of(spec)
     if mode == "layout":
         from simulatte.layout import Explicit, Layout
 
         layout = Layout(env)
-        layout.set_network(Explicit(graph, block_length=spec.block_length, zones=_layout_zones(spec)))
+        layout.set_network(
+            Explicit(graph, block_length=spec.block_length, capacities=dict(spec.capacities), zones=_layout_zones(spec))
+        )
         supplied_graph: Any = layout.graph()
         node: Callable[[str], Any] = layout.node
-        values = {n.id: n for n in graph.nodes}
+        capacities: dict[Node, int] = {}
         zones: tuple[Zone, ...] = ()
     elif mode == "explicit":
         graph = reference_graph(spec)
         supplied_graph = graph
         values = {n.id: n for n in graph.nodes}
         node = values.__getitem__
+        capacities = {values[n]: capacity for n, capacity in spec.capacities}
         zones = tuple(
             Zone(zone.id, zone_members(spec, zone, graph), zone.capacity, zone.hold_back) for zone in spec.zones
         )
@@ -621,7 +624,7 @@ def build_world(
         traffic: Any = ReservationController(
             env=env,
             graph=supplied_graph,
-            capacities={values[n]: capacity for n, capacity in spec.capacities},
+            capacities=capacities,
             zones=zones,
             derive_corridors=spec.derive_corridors,
             hold_back_dead_ends=spec.hold_back_dead_ends,
@@ -1127,6 +1130,8 @@ class Monitor:
             ids = {m.id if isinstance(m, Node) else seg_id(m[0].id, m[1].id) for m in members}
             self.zone_members[zone.id] = (ids, zone.capacity)
         self.corridors = self._corridors() if world.spec.derive_corridors else []
+        if self.reservation:
+            self._compare_traffic()
         self._ready = True
 
     def _compare_geometry(self, built: LayoutGraph) -> None:
@@ -1152,6 +1157,35 @@ class Monitor:
             self.violation(
                 "built arcs differ from the spec", [(k, expected_arcs.get(k), found_arcs.get(k)) for k in keys[:4]]
             )
+
+    def _compare_traffic(self) -> None:
+        """The capacities and zones the controller's network resolved against the ones the spec describes.
+
+        A layout that resolves a capacity or a zone wrongly is noticed here even when the run does not misbehave.
+        """
+        network = self.controller.network
+        found_caps = {node.id: network.capacity(node) for node in network.graph.nodes}
+        if found_caps != self.cap:
+            keys = sorted(k for k in found_caps.keys() | self.cap.keys() if found_caps.get(k) != self.cap.get(k))
+            self.violation(
+                "built node capacities differ from the spec",
+                [(k, self.cap.get(k), found_caps.get(k)) for k in keys[:4]],
+            )
+        expected = {
+            zone.id: (frozenset(self.zone_members[zone.id][0]), zone.capacity, zone.hold_back)
+            for zone in self.world.spec.zones
+        }
+        found = {
+            zone.id: (
+                frozenset(m.id if isinstance(m, Node) else seg_id(m[0].id, m[1].id) for m in zone.members),
+                zone.capacity,
+                zone.hold_back,
+            )
+            for zone in network.zones
+        }
+        if found != expected:
+            keys = sorted(k for k in expected.keys() | found.keys() if expected.get(k) != found.get(k))
+            self.violation("built zones differ from the spec", [(k, expected.get(k), found.get(k)) for k in keys[:4]])
 
     def _corridors(self) -> list[tuple[list[str], set[str]]]:
         """Maximal two-way chains of interior nodes (two neighbours, capacity 1) between two ports, without passing."""
@@ -1268,7 +1302,11 @@ class Monitor:
     def _move_started(self, event: AgvMoveStarted, t: float) -> None:
         assert self.bodies is not None
         body = self.bodies[event.agv]
-        length = self.graph.length(self.nodes[event.from_node], self.nodes[event.to_node])
+        try:
+            length = self.graph.length(self.nodes[event.from_node], self.nodes[event.to_node])
+        except (KeyError, ValueError):  # a move the spec's graph cannot make: report it, and let the run go on
+            self.violation("move on an arc the spec does not have", event.agv, event.from_node, event.to_node)
+            return
         stalled = event.t_end == math.inf
         if body.at != event.from_node:
             self.violation("move started from a node the body is not at", event.agv, body.at, event.from_node)

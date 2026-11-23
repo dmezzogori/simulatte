@@ -11,9 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics import events as logistics_events
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
+from tests.intralogistics import random_worlds
 from tests.intralogistics.random_worlds import KNOWN_LIMIT, FEATURES, exercised, present, run_world, world_spec
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -89,6 +91,86 @@ def test_the_monitor_reports_a_built_network_that_differs_from_the_spec(monkeypa
     monkeypatch.setattr(types.Explicit, "__init__", without_lengths)
     record = run_world(world_spec(88), mode="layout", controller="reservation")
     assert "built arcs differ from the spec" in {violation[1] for violation in record.violations}
+
+
+def test_the_monitor_reports_a_move_on_an_arc_the_spec_lacks_and_goes_on(monkeypatch):
+    """The reference graph loses the first arc a vehicle uses: the geometry violation is kept, then the move is
+    reported, and the run is not cut short by an exception."""
+    spec = world_spec(88)
+    probe = run_world(spec, mode="layout", controller="reservation")
+    moves = [dict(fields) for kind, fields in probe.events if kind is logistics_events.AgvMoveStarted]
+    used = {moves[0]["from_node"], moves[0]["to_node"]}
+    reference = random_worlds.reference_graph
+
+    def without_the_used_arc(spec):
+        graph = reference(spec)
+        arcs = [
+            Arc(a, b, False, speed_limit=arc.speed_limit, length=arc.length, passing=arc.passing)
+            for a in graph.nodes
+            for b in graph.neighbors(a)
+            if {a.id, b.id} != used
+            for arc in (graph.arc_between(a, b),)
+        ]
+        return LayoutGraph(list(graph.nodes), arcs)
+
+    monkeypatch.setattr(random_worlds, "reference_graph", without_the_used_arc)
+    record = run_world(spec, mode="layout", controller="reservation")
+    found = {violation[1] for violation in record.violations}
+    assert {"built arcs differ from the spec", "move on an arc the spec does not have"} <= found
+    assert record.quiescent and len(record.events) == len(probe.events)
+
+
+def _declared_with(monkeypatch, change):
+    """Make every ``Explicit`` carry what `change` turns its capacities and zones into (a scratch layout bug)."""
+    from simulatte.layout import types
+
+    declare = types.Explicit.__init__
+
+    def wrong(self, graph, **options):
+        declare(self, graph, **options)
+        change(self)
+
+    monkeypatch.setattr(types.Explicit, "__init__", wrong)
+
+
+def test_the_monitor_reports_a_node_capacity_the_layout_resolves_wrongly(monkeypatch):
+    spec = world_spec(182)
+    assert spec.capacities
+    node_id = spec.capacities[0][0]
+
+    def lose_one(explicit):
+        nodes = tuple(
+            dataclasses.replace(node, capacity=None) if node.id == node_id else node for node in explicit.nodes
+        )
+        object.__setattr__(explicit, "nodes", nodes)
+
+    _declared_with(monkeypatch, lose_one)
+    record = run_world(spec, mode="layout", controller="reservation")
+    assert "built node capacities differ from the spec" in {violation[1] for violation in record.violations}
+
+
+@pytest.mark.parametrize("what", ["capacity", "hold_back", "members", "missing"])
+def test_the_monitor_reports_a_zone_the_layout_resolves_wrongly(monkeypatch, what):
+    spec = world_spec(26)
+    assert spec.zones and any(zone.hold_back for zone in spec.zones)
+
+    def alter(explicit):
+        zones = {zone_id: dict(zone) for zone_id, zone in explicit.zones.items()}
+        first = sorted(zones, key=lambda zone_id: -len(zones[zone_id]["members"]))[0]  # the zone with most members
+        assert len(zones[first]["members"]) > 1
+        if what == "capacity":
+            zones[first]["capacity"] = zones[first].get("capacity", 1) + 1
+        elif what == "hold_back":
+            zones[first]["hold_back"] = not zones[first].get("hold_back", False)
+        elif what == "members":
+            zones[first]["members"] = list(zones[first]["members"])[:-1]
+        else:
+            del zones[first]
+        object.__setattr__(explicit, "zones", zones)
+
+    _declared_with(monkeypatch, alter)
+    record = run_world(spec, mode="layout", controller="reservation")
+    assert "built zones differ from the spec" in {violation[1] for violation in record.violations}
 
 
 def test_the_features_are_named_once():
