@@ -53,6 +53,7 @@ from simulatte.intralogistics.traffic import (
 from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from tests.intralogistics.test_reservation import cart
 from tests.intralogistics.traffic_support import FakeHooks, FullReplay, TrafficInvariants, fake_hooks, line
+from tests.intralogistics.traffic_support import World as Declared
 
 ACTIONS = ("try_reroute", "try_step_aside", "give_up")
 
@@ -221,25 +222,27 @@ class World:
 def world(
     agvs: dict[str, str | tuple[str, str]],
     *,
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]] | None = None,
+    shape: Callable[[Environment], Declared] | None = None,
     refuse: Sequence[str] = (),
     **options: Any,
 ) -> World:
-    """An activated world on `graph_nodes` (default ``line(5)``): `agvs` maps each AGV id to its start node id, or to
-    ``(node id, fleet id)`` for an AGV of a stub fleet (fleets in `refuse` refuse ``make_way``)."""
-    graph, nodes = graph_nodes or line(5)
+    """An activated world on the graph `shape` declares on the environment's layout (default ``line(5)``), with the
+    capacities and zones of the network: `agvs` maps each AGV id to its start node id, or to ``(node id, fleet id)``
+    for an AGV of a stub fleet (fleets in `refuse` refuse ``make_way``). The layout binds every node; ``World.nodes``
+    holds the canonical nodes."""
     env = Environment(debug=True)
     replay = FullReplay(env)
-    for node in graph.nodes:
-        env.entities.bind_node(node)
-    controller = ReservationController(env=env, graph=graph, derive_corridors=False, **options)
+    declared = line(env, 5) if shape is None else shape(env)
+    controller = ReservationController(env=env, graph=declared.graph, derive_corridors=False, **options)
     vehicles: dict[str, AGV] = {}
     fleets: dict[str, StubFleet] = {}
     members: dict[str, list[AGV]] = {}
     for name, start in agvs.items():
         node, fleet_id = (start, "") if isinstance(start, str) else start
-        agv = vehicles[name] = AGV(env=env, agv_type=cart(), agv_id=name, initial_node=nodes[node])
+        agv = vehicles[name] = AGV(env=env, agv_type=cart(), agv_id=name, initial_node=declared.ref(node))
         members.setdefault(fleet_id, []).append(agv)
+    graph = declared.canonical_graph()  # prepares the layout: the stub fleets' graph is the resolved one
+    nodes = {node.id: node for node in graph.nodes}
     for fleet_id, group in members.items():
         fleet = StubFleet(fleet_id or "F", graph, tuple(group), accept=fleet_id not in refuse)
         controller.register_fleet(fleet)  # type: ignore[arg-type]
@@ -332,10 +335,10 @@ class TestWaits:
 
     def test_blockers_by_claim_order_then_grant_order(self) -> None:
         policy = Scripted()
-        graph_nodes = line(5)
-        capacities = {graph_nodes[1]["N1"]: 2}
         w = world(
-            {"D": "N1", "A": "N1", "C": "N2", "B": "N3"}, graph_nodes=graph_nodes, capacities=capacities, policy=policy
+            {"D": "N1", "A": "N1", "C": "N2", "B": "N3"},
+            shape=lambda env: line(env, 5, capacities={"N1": 2}),
+            policy=policy,
         )
         w.wait("B", "N2", "N1")
         (wait,) = policy.of("on_blocked")
@@ -650,11 +653,9 @@ class TestReviews:
         (capacity 2), held by A and by X, which is idle: C is not in the deadlocked set, and its wait is stuck. It is
         reported once, at its review, and not again when X becomes idle; the members of the set are never reported
         stuck, and the deadlock is reported as before, once."""
-        graph, nodes = line(5)
         w = world(
             {"A": "N1", "X": "N1", "B": "N2", "C": "N0"},
-            graph_nodes=(graph, nodes),
-            capacities={nodes["N1"]: 2},
+            shape=lambda env: line(env, 5, capacities={"N1": 2}),
             policy=Scripted(blocked=(KeepWaiting(30.0),)),
         )
         assert w.ask("A", (w.seg("N1", "N2"), "forward")).granted
@@ -806,7 +807,7 @@ class TestMakeWay:
 class TestDetection:
     def test_two_agvs_swapping_are_deadlocked_when_the_second_stops(self) -> None:
         policy = Scripted()
-        w = world({"A": "N0", "B": "N1"}, graph_nodes=line(2), policy=policy)
+        w = world({"A": "N0", "B": "N1"}, shape=lambda env: line(env, 2), policy=policy)
         w.wait("A", (w.seg("N0", "N1"), "forward"), "N1")
         assert policy.of("on_deadlock") == []
         w.wait("B", (w.seg("N0", "N1"), "backward"), "N0")
@@ -832,9 +833,9 @@ class TestDetection:
 
     def test_a_free_slot_held_by_a_moving_agv_is_not_a_deadlock(self) -> None:
         policy = Scripted()
-        graph_nodes = line(5)
-        capacities = {graph_nodes[1]["N1"]: 2}
-        w = world({"A": "N1", "M": "N1", "B": "N2"}, graph_nodes=graph_nodes, capacities=capacities, policy=policy)
+        w = world(
+            {"A": "N1", "M": "N1", "B": "N2"}, shape=lambda env: line(env, 5, capacities={"N1": 2}), policy=policy
+        )
         w.state("M", AGVState.TRAVELING_EMPTY)
         w.wait("A", "N2")
         w.wait("B", "N1")
@@ -895,7 +896,7 @@ class TestDetection:
 
 class TestResolution:
     def test_the_victim_is_rerouted(self) -> None:
-        w = world({"A": "N0", "B": "N1"}, graph_nodes=line(2), policy=Scripted())
+        w = world({"A": "N0", "B": "N1"}, shape=lambda env: line(env, 2), policy=Scripted())
         seg = w.seg("N0", "N1")
         w.wait("A", (seg, "forward"), "N1")
         run_to(w, 5.0)
@@ -1031,16 +1032,18 @@ class TestResolution:
         assert len(w.logged("ERROR")) == 1
 
     def test_without_observers_the_outcomes_are_the_same(self) -> None:
-        graph, nodes = line(3)
         env = Environment()
-        controller = ReservationController(env=env, graph=graph, derive_corridors=False)
+        declared = line(env, 3)
+        controller = ReservationController(env=env, graph=declared.graph, derive_corridors=False)
         a, b = (
-            AGV(env=env, agv_type=cart(), agv_id=name, initial_node=nodes[node])
+            AGV(env=env, agv_type=cart(), agv_id=name, initial_node=declared.ref(node))
             for name, node in (("A", "N0"), ("B", "N1"))
         )
+        graph = declared.canonical_graph()  # prepares the layout
         controller.register_fleet(StubFleet("F", graph, (a, b)))  # type: ignore[arg-type]
         env.on_activate(lambda: [controller.place(agv, agv.current_node) for agv in (a, b)])
         env.activate()
+        nodes = {node.id: node for node in graph.nodes}
         claim = Claim((ClaimItem(nodes["N1"]),), 1)
         controller.stopped(waiting := controller.request(a, claim, fake_hooks()))
         refused = controller.request(b, Claim((ClaimItem(nodes["N0"]),), 1), fake_hooks())
@@ -1167,7 +1170,8 @@ class TestStandardTrafficPolicy:
 class TestRequestAndRelease:
     def test_request_and_place_check_the_extent_first(self) -> None:
         w = world({"A": "N1", "B": "N0"})
-        vehicle = AGV(env=w.env, agv_type=cart(length=None, name="ghost"), agv_id="G", initial_node=w.nodes["N3"])
+        ghost = cart(length=None, name="ghost")
+        vehicle = AGV(env=w.env, agv_type=ghost, agv_id="G", initial_node=w.env.layout.node("N3"))
         with pytest.raises(ValueError, match="'ghost'"):
             w.controller.request(vehicle, Claim((ClaimItem(w.nodes["N1"]),), 1), fake_hooks())
         assert w.controller._queue == []
@@ -1183,11 +1187,7 @@ class TestRequestAndRelease:
         assert [e.resources for e in w.replay.of(TrafficReserved)][-1] == ("N2",)
 
     def test_release_ignores_a_container_with_held_members(self) -> None:
-        from simulatte.intralogistics.network import Zone
-
-        graph_nodes = line(4)
-        nodes = graph_nodes[1]
-        w = world({"A": "N0"}, graph_nodes=graph_nodes, zones=(Zone("Z", (nodes["N1"], nodes["N2"])),))
+        w = world({"A": "N0"}, shape=lambda env: line(env, 4, zones={"Z": {"members": ["N1", "N2"]}}))
         (zone,) = w.controller.network.zones
         assert w.ask("A", zone, "N1").granted
         w.release("A", zone)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
@@ -35,12 +36,14 @@ from tests.intralogistics.traffic_support import (
     FullReplay,
     TrafficInvariants,
     build,
+    declare,
     fake_hooks,
     line,
     loop_with_side_node,
     t_layout,
     two_junction_corridor,
 )
+from tests.intralogistics.traffic_support import World as Declared
 
 
 def cart(length: float | None = 4.0, min_gap: float = 0.0, name: str = "cart") -> AGVType:
@@ -70,6 +73,11 @@ class World:
     def corridor(self) -> Corridor:
         (corridor,) = self.controller.network.corridors
         return corridor
+
+    def zone(self, zone_id: str) -> Zone:
+        """The zone `zone_id` of the network, declared with the graph."""
+        (zone,) = [zone for zone in self.controller.network.zones if zone.id == zone_id]
+        return zone
 
     def ask(self, agv: str, *items: tuple[Any, str | None] | Any) -> ClaimRequest:
         """Request a hand-made claim: each item a resource, or a ``(resource, direction)`` pair."""
@@ -105,6 +113,35 @@ class World:
 
 
 def world(
+    shape: Callable[[Environment], Declared],
+    agvs: dict[str, str | tuple[str, AGVType]],
+    *,
+    place: bool = True,
+    **options: Any,
+) -> World:
+    """An activated world: `agvs` maps each AGV id to its start node id (or ``(node id, type)``), all placed. `shape`
+    declares the graph on the environment's layout (a builder of ``traffic_support`` or of this file, its other
+    arguments bound), with the capacities and zones of the network; `options` go to the ``ReservationController``.
+    Every node is bound, as the layout binds them; ``World.nodes`` holds the canonical nodes."""
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    declared = shape(env)
+    controller = ReservationController(env=env, graph=declared.graph, **options)
+    vehicles: dict[str, AGV] = {}
+    for name, start in agvs.items():
+        node, agv_type = (start, cart()) if isinstance(start, str) else start
+        vehicles[name] = AGV(env=env, agv_type=agv_type, agv_id=name, initial_node=declared.ref(node))
+    graph = declared.canonical_graph()  # prepares the layout: the fleet's graph is the resolved one
+    fleet = SimpleNamespace(fleet=tuple(vehicles.values()), parking_areas=(), charging_stations=(), graph=graph)
+    controller.register_fleet(fleet)  # type: ignore[arg-type]
+    invariants = TrafficInvariants(env, controller)
+    if place:
+        env.on_activate(lambda: [controller.place(agv, agv.current_node) for agv in vehicles.values()])
+    env.activate()
+    return World(env, controller, {node.id: node for node in graph.nodes}, vehicles, replay, invariants)
+
+
+def explicit_world(
     graph_nodes: tuple[LayoutGraph, dict[str, Node]],
     agvs: dict[str, str | tuple[str, AGVType]],
     *,
@@ -112,7 +149,8 @@ def world(
     place: bool = True,
     **options: Any,
 ) -> World:
-    """An activated world: `agvs` maps each AGV id to its start node id (or ``(node id, type)``), all placed."""
+    """`world` in explicit mode, on a graph of concrete nodes, for the tests of explicit-mode behaviour (nodes without
+    a binding) that Task 9 removes with that mode."""
     graph, nodes = graph_nodes
     env = Environment(debug=True)
     replay = FullReplay(env)
@@ -133,6 +171,12 @@ def world(
     return World(env, controller, nodes, vehicles, replay, invariants)
 
 
+def explicit_line(n: int) -> tuple[LayoutGraph, dict[str, Node]]:
+    """The graph of ``traffic_support.line`` with concrete nodes, for `explicit_world`."""
+    nodes = {f"N{i}": Node(f"N{i}", 10 * i, 0) for i in range(n)}
+    return LayoutGraph(nodes.values(), [Arc(nodes[f"N{i}"], nodes[f"N{i + 1}"]) for i in range(n - 1)]), nodes
+
+
 def step(w: World, agv: str, route: str, index: int) -> None:
     """Leg `index` of `route` for an extent-0 vehicle: granted at once, the AGV arrives and frees what is behind."""
     nodes = route.split()
@@ -142,11 +186,11 @@ def step(w: World, agv: str, route: str, index: int) -> None:
     w.release(agv, here, w.seg(here, there))
 
 
-def passing_line() -> tuple[LayoutGraph, dict[str, Node]]:
+def passing_line(env: Environment) -> Declared:
     """``N0, N1, N2`` with a passing arc between ``N1`` and ``N2``."""
     nodes = {name: Node(name, 10 * i, 0) for i, name in enumerate(("N0", "N1", "N2"))}
     arcs = [Arc(nodes["N0"], nodes["N1"]), Arc(nodes["N1"], nodes["N2"], passing=True)]
-    return LayoutGraph(nodes.values(), arcs), nodes
+    return declare(env, LayoutGraph(nodes.values(), arcs))
 
 
 # --- admission (spec §7.3) ---------------------------------------------------------------------------------
@@ -154,7 +198,7 @@ def passing_line() -> tuple[LayoutGraph, dict[str, Node]]:
 
 class TestAdmission:
     def test_full_node_pends_and_is_granted_on_release(self) -> None:
-        w = world(line(3), {"A": "N1", "B": "N0"})
+        w = world(lambda env: line(env, 3), {"A": "N1", "B": "N0"})
         waiting = w.leg("B", "N0 N1")
         assert not waiting.event.triggered
         assert w.controller.view.pending(w.nodes["N1"]) == 1
@@ -169,14 +213,14 @@ class TestAdmission:
         assert w.invariants.checked > 0
 
     def test_all_or_nothing(self) -> None:
-        w = world(line(3), {"A": "N1", "B": "N0"})
+        w = world(lambda env: line(env, 3), {"A": "N1", "B": "N0"})
         w.leg("B", "N0 N1")  # the segment is free, the node is not
         assert w.holders(w.seg("N0", "N1")) == []
         assert w.held("B") == ["N0"]
         assert w.replay.state["N0~N1"]["forward"] == ()
 
     def test_opposite_direction_on_a_single_lane_pends(self) -> None:
-        w = world(line(4), {"A": "N1", "B": "N3"})
+        w = world(lambda env: line(env, 4), {"A": "N1", "B": "N3"})
         assert w.ask("A", (w.seg("N1", "N2"), "forward")).granted
         waiting = w.ask("B", (w.seg("N1", "N2"), "backward"))
         assert not waiting.event.triggered
@@ -185,7 +229,7 @@ class TestAdmission:
         assert w.replay.state["N1~N2"]["backward"] == ("B",)
 
     def test_same_direction_admitted_while_extents_fit(self) -> None:
-        w = world(line(2), {"A": "N0", "B": "N0", "C": "N0"}, place=False)
+        w = world(lambda env: line(env, 2), {"A": "N0", "B": "N0", "C": "N0"}, place=False)
         segment = w.seg("N0", "N1")
         assert segment.length == 10
         assert w.ask("A", (segment, "forward")).granted
@@ -197,14 +241,18 @@ class TestAdmission:
         assert third.granted
 
     def test_empty_segment_admits_one_whatever_its_extent(self) -> None:
-        w = world(line(2), {"L": ("N0", cart(length=15.0)), "M": ("N0", cart(length=1.0, min_gap=0.5))}, place=False)
+        w = world(
+            lambda env: line(env, 2),
+            {"L": ("N0", cart(length=15.0)), "M": ("N0", cart(length=1.0, min_gap=0.5))},
+            place=False,
+        )
         segment = w.seg("N0", "N1")
         assert w.ask("L", (segment, "forward")).granted
         assert not w.ask("M", (segment, "forward")).event.triggered
 
     def test_min_gap_counts_in_the_extent(self) -> None:
         long_gap = cart(length=4.0, min_gap=2.5)
-        w = world(line(2), {"A": ("N0", long_gap), "B": ("N0", long_gap)}, place=False)
+        w = world(lambda env: line(env, 2), {"A": ("N0", long_gap), "B": ("N0", long_gap)}, place=False)
         segment = w.seg("N0", "N1")
         assert w.ask("A", (segment, "forward")).granted
         assert not w.ask("B", (segment, "forward")).event.triggered  # 6.5 + 6.5 > 10
@@ -212,7 +260,7 @@ class TestAdmission:
     def test_passing_admits_both_directions(self) -> None:
         big = cart(length=8.0)
         agvs: dict[str, str | tuple[str, AGVType]] = {"A": ("N1", big), "B": ("N2", big), "C": ("N1", cart(4.0))}
-        w = world(passing_line(), agvs, place=False)
+        w = world(passing_line, agvs, place=False)
         segment = w.seg("N1", "N2")
         assert segment.passing
         assert w.ask("A", (segment, "forward")).granted
@@ -225,9 +273,9 @@ class TestAdmission:
         assert third.granted
 
     def test_zone_capacity(self) -> None:
-        graph, nodes = line(4)
-        zone = Zone("Z", (nodes["N1"], (nodes["N2"], nodes["N3"])), capacity=2)
-        w = world((graph, nodes), {"A": "N0", "B": "N0", "C": "N0"}, place=False, zones=[zone])
+        zones = {"Z": {"members": ["N1", ("N2", "N3")], "capacity": 2}}
+        w = world(lambda env: line(env, 4, zones=zones), {"A": "N0", "B": "N0", "C": "N0"}, place=False)
+        zone = w.zone("Z")
         assert w.ask("A", zone).granted
         assert w.ask("B", zone).granted
         third = w.ask("C", zone)
@@ -240,7 +288,7 @@ class TestAdmission:
 
 class TestCorridorAdmission:
     def test_opposite_orientation_pends_and_same_is_admitted(self) -> None:
-        w = world(two_junction_corridor(), {"A": "x1", "B": "x2", "C": "y1"})
+        w = world(two_junction_corridor, {"A": "x1", "B": "x2", "C": "y1"})
         corridor = w.corridor()
         assert corridor.id == "corridor:a"
         assert w.ask("A", (corridor, "forward")).granted
@@ -250,14 +298,14 @@ class TestCorridorAdmission:
         assert w.replay.state["corridor:a"]["reserved_by"] == ("A", "C")
 
     def test_an_unoriented_holder_blocks_nobody(self) -> None:
-        w = world(two_junction_corridor(), {"P": "a", "X": "x2"})
+        w = world(two_junction_corridor, {"P": "a", "X": "x2"})
         corridor = w.corridor()
         assert w.holders(corridor) == ["P"]
         assert w.ask("X", (corridor, "backward")).granted
         assert w.replay.state["corridor:a"]["orientation"] == "backward"
 
     def test_a_holder_sets_its_orientation_when_no_other_holder_opposes_it(self) -> None:
-        w = world(two_junction_corridor(), {"P": "a"})
+        w = world(two_junction_corridor, {"P": "a"})
         corridor = w.corridor()
         request = w.ask("P", (corridor, "forward"))  # held without orientation: claimed again
         assert request.granted
@@ -269,13 +317,13 @@ class TestCorridorAdmission:
         assert len(w.replay.of(TrafficReserved)) == 2  # the placement and the orientation
 
     def test_setting_an_orientation_against_another_holder_pends(self) -> None:
-        w = world(two_junction_corridor(), {"P": "a", "X": "x2"})
+        w = world(two_junction_corridor, {"P": "a", "X": "x2"})
         corridor = w.corridor()
         assert w.ask("X", (corridor, "backward")).granted
         assert not w.ask("P", (corridor, "forward")).event.triggered
 
     def test_reversal_with_a_same_orientation_co_holder_pends(self) -> None:
-        w = world(two_junction_corridor(), {"A": "x1", "C": "y1"})
+        w = world(two_junction_corridor, {"A": "x1", "C": "y1"})
         corridor = w.corridor()
         assert w.ask("A", (corridor, "forward")).granted
         assert w.ask("C", (corridor, "forward")).granted
@@ -288,7 +336,7 @@ class TestCorridorAdmission:
 
 
 def test_own_holdings_never_block() -> None:
-    w = world(line(4), {"A": "N1", "B": "N3"})
+    w = world(lambda env: line(env, 4), {"A": "N1", "B": "N3"})
     segment = w.seg("N1", "N2")
     assert w.ask("A", (segment, "forward")).granted
     backward = Claim((ClaimItem(segment, "backward"),), 1)
@@ -302,7 +350,7 @@ class TestSegmentReversal:
     """A leg over a segment the AGV still holds in the other direction claims it again (spec §7.2)."""
 
     def test_alone_the_reversal_is_granted_at_once(self) -> None:
-        w = world(line(4), {"A": "N1"})
+        w = world(lambda env: line(env, 4), {"A": "N1"})
         segment = w.seg("N1", "N2")
         assert w.ask("A", (segment, "forward")).granted
         assert w.ask("A", (segment, "backward")).granted
@@ -316,7 +364,7 @@ class TestSegmentReversal:
         assert w.replay.state["N1~N2"]["backward"] == ()
 
     def test_a_same_direction_follower_holds_the_reversal_back(self) -> None:
-        w = world(line(4), {"A": "N1", "F": "N0"})
+        w = world(lambda env: line(env, 4), {"A": "N1", "F": "N0"})
         segment = w.seg("N1", "N2")
         assert w.ask("A", (segment, "forward")).granted
         assert w.ask("F", (segment, "forward")).granted  # extents 4 + 4 fit in 10
@@ -329,7 +377,7 @@ class TestSegmentReversal:
         assert w.replay.state["N1~N2"]["backward"] == ("A",)
 
     def test_after_a_reversal_the_reverser_counts_in_its_new_direction(self) -> None:
-        w = world(line(4), {"A": "N1", "N": "N0"})
+        w = world(lambda env: line(env, 4), {"A": "N1", "N": "N0"})
         segment = w.seg("N1", "N2")
         assert w.ask("A", (segment, "forward")).granted
         assert w.ask("A", (segment, "backward")).granted
@@ -337,7 +385,7 @@ class TestSegmentReversal:
 
     def test_on_a_passing_segment_the_reversal_needs_room_in_the_new_lane(self) -> None:
         agvs: dict[str, str | tuple[str, AGVType]] = {"A": "N1", "F": "N1", "B": "N2", "C": "N2"}
-        w = world(passing_line(), agvs, place=False)
+        w = world(passing_line, agvs, place=False)
         segment = w.seg("N1", "N2")
         assert w.ask("A", (segment, "forward")).granted
         assert w.ask("F", (segment, "forward")).granted
@@ -350,7 +398,7 @@ class TestSegmentReversal:
 
 
 def test_own_holdings_never_block_a_long_vehicle() -> None:
-    w = world(line(4), {"A": ("N0", cart(length=12.0))})
+    w = world(lambda env: line(env, 4), {"A": ("N0", cart(length=12.0))})
     for index, there in enumerate(("N1", "N2", "N3")):
         assert w.leg("A", "N0 N1 N2 N3", index).granted
         w.move("A", there)
@@ -363,10 +411,10 @@ def test_own_holdings_never_block_a_long_vehicle() -> None:
 # --- order and gate (spec §7.4) ----------------------------------------------------------------------------
 
 
-def star() -> tuple[LayoutGraph, dict[str, Node]]:
+def star(env: Environment) -> Declared:
     """A hub ``H`` with the leaves ``L1 ... L5``."""
     names = [f"L{i}" for i in range(1, 6)]
-    return build([("H", 0, 0), *((name, 10 * i, 10) for i, name in enumerate(names))], [("H", n) for n in names])
+    return build(env, [("H", 0, 0), *((name, 10 * i, 10) for i, name in enumerate(names))], [("H", n) for n in names])
 
 
 class TestOrder:
@@ -378,7 +426,7 @@ class TestOrder:
             reads.append(agv.id)
             return priorities[agv.id]
 
-        w = world(star(), {"A": "H", "B": "L1", "C": "L2", "D": "L3"}, priority_fn=priority)
+        w = world(star, {"A": "H", "B": "L1", "C": "L2", "D": "L3"}, priority_fn=priority)
         hub = w.nodes["H"]
         requests = {name: w.ask(name, hub) for name in ("B", "C", "D")}
         assert reads == ["B", "C", "D"]
@@ -396,13 +444,13 @@ class TestOrder:
         assert reads == ["B", "C", "D", "A"]
 
     def test_request_while_pending_raises(self) -> None:
-        w = world(line(2), {"A": "N0", "B": "N1"})
+        w = world(lambda env: line(env, 2), {"A": "N0", "B": "N1"})
         w.ask("A", w.nodes["N1"])
         with pytest.raises(RuntimeError, match="A already has a pending"):
             w.ask("A", w.nodes["N1"])
 
     def test_withdraw_removes_the_claim_and_scans(self) -> None:
-        w = world(line(3), {"A": "N1", "B": "N0", "C": "N2"})
+        w = world(lambda env: line(env, 3), {"A": "N1", "B": "N0", "C": "N2"})
         first = w.ask("B", w.nodes["N1"])
         w.controller.withdraw(first)
         assert w.controller.view.pending(w.nodes["N1"]) == 0
@@ -413,7 +461,7 @@ class TestOrder:
     def test_a_grant_later_in_a_scan_can_open_the_gate_of_an_earlier_claim(self) -> None:
         # W (first) waits on the corridor and gates F; G (last) is granted J2, which then blocks W by an AGV that does
         # not hold the corridor: the gate opens and F is granted in the same scan.
-        w = world(two_junction_corridor(), {"H": "J1", "W": "x2", "F": "x1", "G": "y2"})
+        w = world(two_junction_corridor, {"H": "J1", "W": "x2", "F": "x1", "G": "y2"})
         assert w.leg("H", "J1 a b J2").granted
         w.move("H", "a")
         w.release("H", "J1", w.seg("J1", "a"))
@@ -432,7 +480,7 @@ class TestGate:
     def _waiting(self, *extra: tuple[str, str]) -> World:
         """H holds the corridor forward from ``a``; W waits at ``x2`` to enter it backward."""
         agvs = {"H": "J1", "W": "x2", "F": "x1", **dict(extra)}
-        w = world(two_junction_corridor(), agvs)
+        w = world(two_junction_corridor, agvs)
         assert w.leg("H", "J1 a b J2").granted
         w.move("H", "a")
         w.release("H", "J1", w.seg("J1", "a"))
@@ -457,7 +505,7 @@ class TestGate:
         assert w.leg("F", "x1 J1 a").granted
 
     def test_a_stream_does_not_reopen_the_gate_at_the_waiters_port(self) -> None:
-        w = world(two_junction_corridor(), {"H": "J1", "W": "x2", "F": "x1"})
+        w = world(two_junction_corridor, {"H": "J1", "W": "x2", "F": "x1"})
         step(w, "H", "J1 a b J2", 0)
         waiter = w.leg("W", "x2 J2 b a J1")
         follower = w.leg("F", "x1 J1 a b J2")
@@ -493,7 +541,7 @@ class TestGate:
         assert w.leg("F", "x1 J1 a").granted
 
     def test_an_earlier_claim_admissible_on_the_resource_does_not_gate(self) -> None:
-        w = world(line(3), {"A": "N1", "B": "N0", "C": "N2"})
+        w = world(lambda env: line(env, 3), {"A": "N1", "B": "N0", "C": "N2"})
         waiting = w.leg("B", "N0 N1")  # admissible on N0~N1, waits for N1
         assert not waiting.event.triggered
         assert w.ask("C", (w.seg("N0", "N1"), "forward")).granted
@@ -504,7 +552,7 @@ class TestGate:
 
 class TestRelease:
     def test_release_and_retain(self) -> None:
-        w = world(line(4), {"A": "N0"})
+        w = world(lambda env: line(env, 4), {"A": "N0"})
         assert w.leg("A", "N0 N1 N2 N3").granted
         w.move("A", "N1")
         before = len(w.replay.events)
@@ -524,7 +572,7 @@ class TestRelease:
         assert w.events()[-1] == ("traffic.released", "A", ("N1", "N1~N2"))
 
     def test_events_carry_every_resource_and_delta(self) -> None:
-        w = world(two_junction_corridor(), {"A": "x1"})
+        w = world(two_junction_corridor, {"A": "x1"})
         assert w.leg("A", "x1 J1 a b J2").granted
         reserved = w.replay.of(TrafficReserved)[-1]
         assert reserved.resources == ("corridor:a", "J1~x1", "J1")
@@ -547,7 +595,7 @@ class TestRelease:
         assert w.replay.seeded == w.replay.state
 
     def test_one_event_per_grant_and_per_call(self) -> None:
-        w = world(line(3), {"A": "N0", "B": "N2"})
+        w = world(lambda env: line(env, 3), {"A": "N0", "B": "N2"})
         assert w.leg("A", "N0 N1 N2").granted
         w.move("A", "N1")
         w.release("A", "N0", w.seg("N0", "N1"))
@@ -559,9 +607,7 @@ class TestRelease:
         ]
 
     def test_a_zone_goes_with_its_last_member(self) -> None:
-        graph, nodes = line(5)
-        zone = Zone("Z", (nodes["N1"], nodes["N2"]))
-        w = world((graph, nodes), {"A": "N0"}, zones=[zone])
+        w = world(lambda env: line(env, 5, zones={"Z": {"members": ["N1", "N2"]}}), {"A": "N0"})
         route = "N0 N1 N2 N3 N4"
         for index in range(3):
             assert w.leg("A", route, index).granted
@@ -575,7 +621,7 @@ class TestRelease:
         assert w.replay.state["Z"]["reserved_by"] == ()
 
     def test_a_corridor_left_through_a_port_goes_with_the_port(self) -> None:
-        w = world(two_junction_corridor(), {"A": "J1", "B": "x1"})
+        w = world(two_junction_corridor, {"A": "J1", "B": "x1"})
         for index in range(3):
             step(w, "A", "J1 a b J2", index)
         assert w.held("A") == ["corridor:a", "J2"]
@@ -606,8 +652,8 @@ class TestRelease:
         exit record; W, held back before J2 by the corridor A holds forward, keeps waiting while A waits on J2 for its
         next claim. The record goes with the port when A moves on (one event), or, while A keeps J2, by the ``retain``
         that ends A's travel there, which frees the corridor."""
-        graph, nodes = two_junction_corridor()
-        w = world((graph, nodes), {"A": "J1", "B": "x1", "W": "x2"}, capacities={nodes["J2"]: 2})
+        w = world(lambda env: two_junction_corridor(env, capacities={"J2": 2}), {"A": "J1", "B": "x1", "W": "x2"})
+        nodes = w.nodes
         a = w.agvs["A"]
         step(w, "A", "J1 a b J2", 0)
         step(w, "A", "J1 a b J2", 1)
@@ -643,7 +689,7 @@ class TestRelease:
         assert waiter.granted
 
     def test_retain_at_the_entry_port_drops_the_corridor(self) -> None:
-        w = world(two_junction_corridor(), {"A": "x1"})
+        w = world(two_junction_corridor, {"A": "x1"})
         step(w, "A", "x1 J1 a b J2", 0)
         assert w.leg("A", "x1 J1 a b J2", 1).granted  # the first leg into the corridor
         w.retain("A", "J1")  # cancelled before departure: members go, the port stays, no exit record
@@ -653,7 +699,7 @@ class TestRelease:
 
     @pytest.mark.parametrize("variant", ["withdrawn", "granted"])
     def test_an_exit_record_goes_with_its_port_under_a_pending_claim(self, variant: str) -> None:
-        w = world(loop_with_side_node(), {"A": "J1", "X": "S1", "W": "S2"})
+        w = world(loop_with_side_node, {"A": "J1", "X": "S1", "W": "S2"})
         a = w.agvs["A"]
         step(w, "A", "J1 U J2", 0)
         step(w, "A", "J1 U J2", 1)
@@ -688,9 +734,8 @@ class TestRelease:
         assert w.leg("W", "S2 J2 U J1").granted
 
     def test_a_claim_is_determined_when_granted(self) -> None:
-        graph, nodes = line(5)
-        zone = Zone("Z", (nodes["N0"], nodes["N2"]))
-        w = world((graph, nodes), {"A": "N0", "B": "N4", "C": "N3"}, zones=[zone])
+        w = world(lambda env: line(env, 5, zones={"Z": {"members": ["N0", "N2"]}}), {"A": "N0", "B": "N4", "C": "N3"})
+        zone = w.zone("Z")
         assert w.ask("C", (w.seg("N1", "N2"), "backward")).granted
         assert w.leg("A", "N0 N1 N2 N3").granted
         w.move("A", "N1")
@@ -705,7 +750,7 @@ class TestRelease:
         assert w.events()[-1] == ("traffic.reserved", "A", ("Z", "N1~N2", "N2"))
 
     def test_a_corridor_goes_with_its_last_member_when_the_port_goes_too(self) -> None:
-        w = world(two_junction_corridor(), {"C": "x2"})
+        w = world(two_junction_corridor, {"C": "x2"})
         step(w, "C", "x2 J2 b", 0)
         step(w, "C", "x2 J2 b", 1)
         assert w.leg("C", "b J2").granted  # back out, the corridor turned forward
@@ -718,9 +763,8 @@ class TestRelease:
 
     @pytest.mark.parametrize("how", ["release", "retain"])
     def test_a_pending_claim_keeps_its_zone(self, how: str) -> None:
-        graph, nodes = line(5)
-        zone = Zone("Z", (nodes["N0"], nodes["N2"]))
-        w = world((graph, nodes), {"A": "N0", "B": "N4", "C": "N3"}, zones=[zone])
+        w = world(lambda env: line(env, 5, zones={"Z": {"members": ["N0", "N2"]}}), {"A": "N0", "B": "N4", "C": "N3"})
+        zone = w.zone("Z")
         assert w.held("A") == ["Z", "N0"]
         assert w.ask("C", (w.seg("N1", "N2"), "backward")).granted
         assert w.leg("A", "N0 N1 N2 N3").granted
@@ -741,16 +785,14 @@ class TestRelease:
         assert not other.event.triggered
 
     def test_retain_keeps_a_zone_with_a_kept_member(self) -> None:
-        graph, nodes = line(3)
-        zone = Zone("Z", ((nodes["N0"], nodes["N1"]), nodes["N1"]))
-        w = world((graph, nodes), {"A": "N0"}, zones=[zone])
+        w = world(lambda env: line(env, 3, zones={"Z": {"members": [("N0", "N1"), "N1"]}}), {"A": "N0"})
         assert w.leg("A", "N0 N1 N2").granted
         w.move("A", "N1")
         w.retain("A", "N1")
         assert w.held("A") == ["Z", "N1"]
 
     def test_a_hold_back_corridor_survives_until_entry(self) -> None:
-        w = world(two_junction_corridor(), {"A": "x1"})
+        w = world(two_junction_corridor, {"A": "x1"})
         assert w.leg("A", "x1 J1 a b J2").granted  # the corridor ahead of entry
         w.move("A", "J1")
         w.release("A", "x1", w.seg("J1", "x1"))
@@ -763,7 +805,7 @@ class TestRelease:
         assert w.held("A") == ["corridor:a", "a"]
 
     def test_retain_drops_a_corridor_held_ahead(self) -> None:
-        w = world(two_junction_corridor(), {"A": "x1"})
+        w = world(two_junction_corridor, {"A": "x1"})
         assert w.leg("A", "x1 J1 a b J2").granted
         w.move("A", "J1")
         w.release("A", "x1", w.seg("J1", "x1"))
@@ -773,9 +815,7 @@ class TestRelease:
         assert w.replay.state["corridor:a"]["orientation"] is None
 
     def test_hold_back_zone_is_claimed_a_leg_early(self) -> None:
-        graph, nodes = line(4)
-        zone = Zone("Z", (nodes["N2"],), hold_back=True)
-        w = world((graph, nodes), {"A": "N0"}, zones=[zone])
+        w = world(lambda env: line(env, 4, zones={"Z": {"members": ["N2"], "hold_back": True}}), {"A": "N0"})
         assert w.leg("A", "N0 N1 N2 N3").granted
         assert w.held("A") == ["N0", "Z", "N0~N1", "N1"]
         w.move("A", "N1")
@@ -788,15 +828,18 @@ class TestRelease:
 
 class TestLifecycle:
     def test_satisfies_the_protocols(self) -> None:
-        w = world(line(2), {"A": "N0"})
+        w = world(lambda env: line(env, 2), {"A": "N0"})
         assert isinstance(w.controller, TrafficController)
         assert isinstance(w.controller.view, TrafficView)
         assert w.controller.controls_occupancy is True
 
     def test_place_reports_resource_and_capacity(self) -> None:
-        graph, nodes = line(4)
-        zone = Zone("Z", (nodes["N2"], nodes["N3"]))
-        w = world((graph, nodes), {"A": "N1", "B": "N2", "C": "N1", "D": "N3"}, place=False, zones=[zone])
+        w = world(
+            lambda env: line(env, 4, zones={"Z": {"members": ["N2", "N3"]}}),
+            {"A": "N1", "B": "N2", "C": "N1", "D": "N3"},
+            place=False,
+        )
+        nodes = w.nodes
         w.controller.place(w.agvs["A"], nodes["N1"])
         with pytest.raises(RuntimeError, match=r"cannot place C at node N1: N1 .*\(capacity 1\)"):
             w.controller.place(w.agvs["C"], nodes["N1"])
@@ -808,7 +851,7 @@ class TestLifecycle:
         assert w.held("A") == ["N1"]
 
     def test_placed_inside_a_corridor_holds_it_without_orientation(self) -> None:
-        w = world(two_junction_corridor(), {"P": "a", "Q": "b"})
+        w = world(two_junction_corridor, {"P": "a", "Q": "b"})
         assert w.held("P") == ["corridor:a", "a"]
         assert w.held("Q") == ["corridor:a", "b"]
         assert w.replay.state["corridor:a"]["orientation"] is None
@@ -819,7 +862,13 @@ class TestLifecycle:
         ]
 
     def test_entities_are_attached_at_activation_in_id_order(self) -> None:
-        graph, nodes = two_junction_corridor()
+        # explicit mode: a layout binds every node of its network at preparation, so a controller without a fleet does
+        # not have only its segments and zones there (reported to the controller); Task 9 decides this test
+        points = [("J1", 0, 0), ("a", 10, 0), ("b", 20, 0), ("J2", 30, 0)]
+        points += [("x1", -10, 10), ("y1", -10, -10), ("x2", 40, 10), ("y2", 40, -10)]
+        nodes = {name: Node(name, x, y) for name, x, y in points}
+        links = [("J1", "a"), ("a", "b"), ("b", "J2"), ("J1", "x1"), ("J1", "y1"), ("J2", "x2"), ("J2", "y2")]
+        graph = LayoutGraph(nodes.values(), [Arc(nodes[u], nodes[v]) for u, v in links])
         zone = Zone("B-zone", (nodes["x1"],))
         env = Environment(debug=True)
         controller = ReservationController(env=env, graph=graph, zones=[zone])
@@ -862,36 +911,36 @@ class TestLifecycle:
         assert env.entities.get("B-zone").snapshot()["rule"] == "exclusive"
 
     def test_place_before_activation_raises(self) -> None:
-        graph, nodes = line(2)
         env = Environment()
-        controller = ReservationController(env=env, graph=graph)
-        agv = AGV(env=env, agv_type=cart(), agv_id="A", initial_node=nodes["N0"])
+        declared = line(env, 2)
+        controller = ReservationController(env=env, graph=declared.graph)
+        agv = AGV(env=env, agv_type=cart(), agv_id="A", initial_node=declared.ref("N0"))
         with pytest.raises(RuntimeError, match="activate"):
-            controller.place(agv, nodes["N0"])
+            controller.place(agv, declared.node("N0"))  # prepared, not activated
 
     def test_register_fleet_after_activation_raises(self) -> None:
-        w = world(line(2), {"A": "N0"})
+        w = world(lambda env: line(env, 2), {"A": "N0"})
         with pytest.raises(RuntimeError, match="register_fleet"):
             w.controller.register_fleet(SimpleNamespace(fleet=(), parking_areas=(), charging_stations=()))  # type: ignore[arg-type]
 
     def test_a_vehicle_type_without_length_cannot_register(self) -> None:
-        graph, nodes = line(2)
         env = Environment()
-        controller = ReservationController(env=env, graph=graph)
-        agv = AGV(env=env, agv_type=cart(length=None, name="tug"), agv_id="T", initial_node=nodes["N0"])
+        declared = line(env, 2)
+        controller = ReservationController(env=env, graph=declared.graph)
+        agv = AGV(env=env, agv_type=cart(length=None, name="tug"), agv_id="T", initial_node=declared.ref("N0"))
         with pytest.raises(ValueError, match="'tug' has no length"):
             controller.register_fleet(SimpleNamespace(fleet=(agv,), parking_areas=(), charging_stations=()))  # type: ignore[arg-type]
         assert controller._fleets == []
 
     def test_a_vehicle_without_length_has_no_extent(self) -> None:
-        w = world(line(2), {"A": "N0"}, place=False)
-        stray = AGV(env=w.env, agv_type=cart(length=None, name="tug"), agv_id="T", initial_node=w.nodes["N1"])
+        w = world(lambda env: line(env, 2), {"A": "N0"}, place=False)
+        stray = AGV(env=w.env, agv_type=cart(length=None, name="tug"), agv_id="T", initial_node=w.env.layout.node("N1"))
         assert w.ask("A", (w.seg("N0", "N1"), "forward")).granted
         with pytest.raises(ValueError, match="'tug' has no length"):
             w.controller.request(stray, Claim((ClaimItem(w.seg("N0", "N1"), "forward"),), 1), fake_hooks())
 
     def test_a_node_without_binding_records_nothing(self) -> None:
-        w = world(line(3), {"A": "N0"}, bind=False)
+        w = explicit_world(explicit_line(3), {"A": "N0"}, bind=False)  # explicit mode: Task 9 removes this test
         assert w.held("A") == ["N0"]
         assert w.replay.of(TrafficReserved) == []
         assert w.leg("A", "N0 N1 N2").granted
@@ -913,13 +962,13 @@ class TestLifecycle:
             cart(length=length, min_gap=min_gap)
 
     def test_facility_capacities_and_warnings(self) -> None:
-        graph, nodes = line(4)
         env = Environment(debug=True)
         replay = FullReplay(env)
-        area = ParkingArea(env=env, name="P", node=nodes["N1"], capacity=2)
-        station = ChargingStation(env=env, name="CS", node=nodes["N1"], n_slots=2)
-        small = ParkingArea(env=env, name="Q", node=nodes["N2"], capacity=3)
-        controller = ReservationController(env=env, graph=graph, capacities={nodes["N2"]: 1})
+        declared = line(env, 4, capacities={"N2": 1})
+        area = ParkingArea(env=env, name="P", node=declared.ref("N1"), capacity=2)
+        station = ChargingStation(env=env, name="CS", node=declared.ref("N1"), n_slots=2)
+        small = ParkingArea(env=env, name="Q", node=declared.ref("N2"), capacity=3)
+        controller = ReservationController(env=env, graph=declared.graph)
         fleet = SimpleNamespace(fleet=(), parking_areas=(area, small), charging_stations=(station,))
         controller.register_fleet(fleet)  # type: ignore[arg-type]
         controller.register_fleet(SimpleNamespace(fleet=(), parking_areas=(area,), charging_stations=()))  # type: ignore[arg-type]
@@ -928,7 +977,7 @@ class TestLifecycle:
         env.bus.subscribe(warnings.append, "**")
         env.activate()
         view = controller.view
-        assert [view.capacity(nodes[n]) for n in ("N0", "N1", "N2", "N3")] == [1, 4, 1, 1]  # P counted once
+        assert [view.capacity(declared.node(n)) for n in ("N0", "N1", "N2", "N3")] == [1, 4, 1, 1]  # P counted once
         logged = [(e.message, e.component) for e in warnings if e.type_name == "log"]
         assert logged == [("node N2: capacity 1 is below the capacity 3 of its facilities", "ReservationController")]
         assert replay.events
@@ -941,16 +990,17 @@ class TestLifecycle:
         layout = Layout(env)
         a, b = Node("A", 0, 0), Node("B", 2, 0)
         layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b)])))
-        controller = ReservationController(env=env, graph=layout.graph(), capacities={})
+        controller = ReservationController(env=env, graph=layout.graph())
         with pytest.raises(LayoutNotReady):
             controller.graph
         prepared = layout.prepare()
         assert controller.graph is prepared.network.graph
 
     def test_install_layout_graph_takes_explicit_capacities(self) -> None:
-        graph, nodes = line(3)
+        # explicit mode (the controller's own capacities): Task 9 removes this test with them
+        graph, nodes = explicit_line(3)
         env = Environment()
-        controller = ReservationController(env=env, graph=line(2)[0], capacities={nodes["N2"]: 4})
+        controller = ReservationController(env=env, graph=explicit_line(2)[0], capacities={nodes["N2"]: 4})
         network = SimpleNamespace(graph=graph, capacities={nodes["N0"]: 3, nodes["N1"]: None, nodes["N2"]: 2}, zones=())
         controller._install_layout_graph(network)  # type: ignore[arg-type]
         env.activate()
@@ -963,14 +1013,14 @@ class TestLifecycle:
 
 class TestView:
     def test_static_queries(self) -> None:
-        graph, nodes = line(3)
+        nodes = {f"N{i}": Node(f"N{i}", 10 * i, 0) for i in range(3)}
         limited = LayoutGraph(
-            graph.nodes, [Arc(nodes["N0"], nodes["N1"], speed_limit=1.5), Arc(nodes["N1"], nodes["N2"])]
+            nodes.values(), [Arc(nodes["N0"], nodes["N1"], speed_limit=1.5), Arc(nodes["N1"], nodes["N2"])]
         )
-        w = world((limited, nodes), {"A": "N0"})
+        w = world(lambda env: declare(env, limited), {"A": "N0"})
         view = w.controller.view
-        n0, n1, n2 = nodes["N0"], nodes["N1"], nodes["N2"]
-        assert view.graph is limited
+        n0, n1, n2 = w.nodes["N0"], w.nodes["N1"], w.nodes["N2"]
+        assert view.graph is w.env.layout.prepare().network.graph
         assert view.length(n0, n1) == 10.0
         assert view.speed_limit(n0, n1) == 1.5
         assert view.speed_limit(n1, n2) is None
@@ -981,22 +1031,24 @@ class TestView:
         assert view.mean_hold(n1) == 0.0
 
     def test_branch_root_is_the_root_of_a_dead_end_branch_only(self) -> None:
-        graph, nodes = t_layout()  # C1 roots the three branches; the other nodes are members
-        view = world((graph, nodes), {"A": "C1"}).controller.view
-        assert [node.id for node in graph.nodes if view.branch_root(node)] == ["C1"]
-        off = world((graph, nodes), {"A": "C1"}, hold_back_dead_ends=False).controller.view
-        assert not any(off.branch_root(node) for node in graph.nodes)
-        graph, nodes = line(3)  # a plain line has no branch
-        view = world((graph, nodes), {"A": "N0"}).controller.view
-        assert not any(view.branch_root(node) for node in graph.nodes)
-        roomy = world((graph, nodes), {"A": "N0"}, capacities={nodes["N0"]: 2}).controller.view  # rooted at N0
-        assert [node.id for node in graph.nodes if roomy.branch_root(node)] == ["N0"]
-        graph, nodes = two_junction_corridor()  # the junctions root the leaves
-        view = world((graph, nodes), {"A": "x1"}).controller.view
-        assert [node.id for node in graph.nodes if view.branch_root(node)] == ["J1", "J2"]
+        w = world(t_layout, {"A": "C1"})  # C1 roots the three branches; the other nodes are members
+        view = w.controller.view
+        assert [node.id for node in w.nodes.values() if view.branch_root(node)] == ["C1"]
+        w = world(t_layout, {"A": "C1"}, hold_back_dead_ends=False)
+        off = w.controller.view
+        assert not any(off.branch_root(node) for node in w.nodes.values())
+        w = world(lambda env: line(env, 3), {"A": "N0"})  # a plain line has no branch
+        view = w.controller.view
+        assert not any(view.branch_root(node) for node in w.nodes.values())
+        w = world(lambda env: line(env, 3, capacities={"N0": 2}), {"A": "N0"})
+        roomy = w.controller.view  # rooted at N0
+        assert [node.id for node in w.nodes.values() if roomy.branch_root(node)] == ["N0"]
+        w = world(two_junction_corridor, {"A": "x1"})  # the junctions root the leaves
+        view = w.controller.view
+        assert [node.id for node in w.nodes.values() if view.branch_root(node)] == ["J1", "J2"]
 
     def test_dynamic_queries(self) -> None:
-        w = world(line(3), {"A": "N1", "B": "N0"})
+        w = world(lambda env: line(env, 3), {"A": "N1", "B": "N0"})
         view = w.controller.view
         a, b = w.agvs["A"], w.agvs["B"]
         assert view.holders(w.nodes["N1"]) == (a,)
@@ -1017,9 +1069,7 @@ class TestView:
 
     def test_admissible_ranks_a_new_claim_by_priority(self) -> None:
         priorities = {"H": 0.0, "W": 0.0, "F": 0.0}
-        w = world(
-            two_junction_corridor(), {"H": "J1", "W": "x2", "F": "x1"}, priority_fn=lambda agv: priorities[agv.id]
-        )
+        w = world(two_junction_corridor, {"H": "J1", "W": "x2", "F": "x1"}, priority_fn=lambda agv: priorities[agv.id])
         assert w.leg("H", "J1 a b J2").granted
         w.move("H", "a")
         w.release("H", "J1", w.seg("J1", "a"))
@@ -1032,7 +1082,7 @@ class TestView:
 
 class TestBlockers:
     def test_blockers_name_the_holders_that_make_a_resource_of_the_leg_inadmissible(self) -> None:
-        w = world(line(3), {"A": "N1", "B": "N0"}, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(lambda env: line(env, 3), {"A": "N1", "B": "N0"}, derive_corridors=False, hold_back_dead_ends=False)
         view = w.controller.view
         a, b = w.agvs["A"], w.agvs["B"]
         n0, n1, n2 = (w.nodes[name] for name in ("N0", "N1", "N2"))
@@ -1043,7 +1093,12 @@ class TestBlockers:
         assert view.blockers(b, n2, n1) == ((w.seg("N1", "N2"), (a,)), (n1, (a,)))  # in the leg's resource order
 
     def test_blockers_ignore_the_queue(self) -> None:
-        w = world(line(3), {"A": "N1", "W": "N0", "F": "N2"}, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(
+            lambda env: line(env, 3),
+            {"A": "N1", "W": "N0", "F": "N2"},
+            derive_corridors=False,
+            hold_back_dead_ends=False,
+        )
         n1, n2 = w.nodes["N1"], w.nodes["N2"]
         assert not w.ask("W", n1).event.triggered  # W queues for N1, which A holds: it is not a holder
         assert w.controller.view.blockers(w.agvs["F"], n2, n1) == ((n1, (w.agvs["A"],)),)
@@ -1051,7 +1106,7 @@ class TestBlockers:
 
 class TestMeanHold:
     def test_an_exponential_average_of_the_durations_of_the_holds(self) -> None:
-        w = world(line(3), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(lambda env: line(env, 3), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
         view, n1 = w.controller.view, w.nodes["N1"]
         assert view.mean_hold(n1) == 0.0
         for until, expected in ((10.0, 10.0), (30.0, 11.0), (60.0, 12.9)):  # holds of 10, 20 and 30
@@ -1061,7 +1116,7 @@ class TestMeanHold:
             assert view.mean_hold(n1) == expected
 
     def test_an_unobserved_resource_reports_the_average_of_its_kind(self) -> None:
-        w = world(line(4), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(lambda env: line(env, 4), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
         view = w.controller.view
         n0, n1, n2, n3 = (w.nodes[name] for name in ("N0", "N1", "N2", "N3"))
         for node, duration in ((n0, 4.0), (n1, 9.0)):
@@ -1080,17 +1135,20 @@ class TestMeanHold:
         assert view.mean_hold(n2) == 6.5  # the kinds do not mix
 
     def test_zones_and_corridors_are_kinds_of_their_own(self) -> None:
-        graph, nodes = two_junction_corridor()
-        w = world((graph, nodes), {"A": "a"}, place=False)
+        w = world(two_junction_corridor, {"A": "a"}, place=False)
         view = w.controller.view
-        corridor, a = w.corridor(), nodes["a"]
+        corridor, a = w.corridor(), w.nodes["a"]
         assert w.ask("A", (corridor, "forward")).granted
         w.env.run(until=7.0)
         w.release("A", corridor)
         assert view.mean_hold(corridor) == 7.0
         assert view.mean_hold(a) == 0.0
-        zone = Zone("Z", (nodes["x1"], nodes["y1"]), capacity=1)
-        z = world((graph, nodes), {"A": "a"}, place=False, zones=[zone])
+        z = world(
+            lambda env: two_junction_corridor(env, zones={"Z": {"members": ["x1", "y1"], "capacity": 1}}),
+            {"A": "a"},
+            place=False,
+        )
+        zone = z.zone("Z")
         assert z.ask("A", zone).granted
         z.env.run(until=5.0)
         z.release("A", zone)
@@ -1098,7 +1156,7 @@ class TestMeanHold:
         assert z.controller.view.mean_hold(z.corridor()) == 0.0
 
     def test_a_claim_in_a_new_direction_is_not_a_new_hold(self) -> None:
-        w = world(line(3), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(lambda env: line(env, 3), {"A": "N0"}, place=False, derive_corridors=False, hold_back_dead_ends=False)
         segment = w.seg("N0", "N1")
         assert w.ask("A", (segment, "forward")).granted
         w.env.run(until=5.0)
@@ -1108,7 +1166,10 @@ class TestMeanHold:
         assert w.controller.view.mean_hold(segment) == 12.0
 
     def test_a_node_without_an_entity_is_still_observed(self) -> None:
-        w = world(line(2), {"A": "N0"}, place=False, bind=False, derive_corridors=False, hold_back_dead_ends=False)
+        # explicit mode: Task 9 removes this test
+        w = explicit_world(
+            explicit_line(2), {"A": "N0"}, place=False, bind=False, derive_corridors=False, hold_back_dead_ends=False
+        )
         n1 = w.nodes["N1"]
         assert w.ask("A", n1).granted
         w.env.run(until=8.0)
@@ -1120,13 +1181,17 @@ class TestMeanHold:
             env = Environment()
             if subscribed:
                 env.bus.subscribe(lambda event: None, "*")
-            graph, nodes = line(3)
-            controller = ReservationController(env=env, graph=graph, derive_corridors=False, hold_back_dead_ends=False)
-            agv = AGV(env=env, agv_type=cart(), agv_id="A", initial_node=nodes["N0"])
+            declared = line(env, 3)
+            controller = ReservationController(
+                env=env, graph=declared.graph, derive_corridors=False, hold_back_dead_ends=False
+            )
+            agv = AGV(env=env, agv_type=cart(), agv_id="A", initial_node=declared.ref("N0"))
+            graph = declared.canonical_graph()  # prepares the layout
             controller.register_fleet(
                 SimpleNamespace(fleet=(agv,), parking_areas=(), charging_stations=(), graph=graph)
             )  # type: ignore[arg-type]
             env.activate()
+            nodes = {node.id: node for node in graph.nodes}
             seen = []
             for node, duration in ((nodes["N1"], 10.0), (nodes["N2"], 4.0), (nodes["N1"], 20.0), (nodes["N1"], 30.0)):
                 controller.request(agv, Claim((ClaimItem(node),), 1), fake_hooks())
@@ -1146,7 +1211,13 @@ class TestPendingIndex:
         of the queue says, for every node and segment."""
         rng = random.Random(20261121)
         names = ["A", "B", "C", "D", "E"]
-        w = world(line(5), dict.fromkeys(names, "N0"), place=False, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(
+            lambda env: line(env, 5),
+            dict.fromkeys(names, "N0"),
+            place=False,
+            derive_corridors=False,
+            hold_back_dead_ends=False,
+        )
         controller, view = w.controller, w.controller.view
         nodes = list(w.nodes.values())
         segments = [w.seg(f"N{i}", f"N{i + 1}") for i in range(4)]
@@ -1186,7 +1257,7 @@ class TestPendingIndex:
 
 def test_route_claims_end_to_end_on_a_line() -> None:
     """Two AGVs on a line, one behind the other, each releasing behind it: the follower waits one node back."""
-    w = world(line(4), {"A": "N1", "B": "N0"})
+    w = world(lambda env: line(env, 4), {"A": "N1", "B": "N0"})
     route_a, route_b = "N1 N2 N3", "N0 N1 N2"
     behind = w.leg("B", route_b)
     assert not behind.event.triggered
