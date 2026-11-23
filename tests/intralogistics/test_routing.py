@@ -31,6 +31,7 @@ from tests.intralogistics.traffic_support import (
     StillFleet,
     TrafficInvariants,
     build,
+    declare,
     fake_hooks,
     line,
     two_junction_corridor,
@@ -64,14 +65,16 @@ def free_view(graph: LayoutGraph) -> TrafficView:
     return controller.view
 
 
-def reservation_view(graph: LayoutGraph, **options: Any) -> TrafficView:
+def reservation_view(graph: LayoutGraph, **network: Any) -> tuple[TrafficView, dict[str, Node]]:
+    """The view of an activated ``ReservationController`` on `graph`, declared on the layout with `network` (capacities,
+    zones), and the canonical nodes by id."""
     env = Environment(debug=True)
-    for node in graph.nodes:
-        env.entities.bind_node(node)
-    controller = ReservationController(env=env, graph=graph, **options)
-    controller.register_fleet(SimpleNamespace(fleet=(), parking_areas=(), charging_stations=(), graph=graph))  # type: ignore[arg-type]
+    declared = declare(env, graph, **network)
+    controller = ReservationController(env=env, graph=declared.graph)
+    resolved = declared.canonical_graph()  # prepares the layout, which binds every node
+    controller.register_fleet(SimpleNamespace(fleet=(), parking_areas=(), charging_stations=(), graph=resolved))  # type: ignore[arg-type]
     env.activate()
-    return controller.view
+    return controller.view, {node.id: node for node in resolved.nodes}
 
 
 def ask(algorithm: str, view: TrafficView, origin: Node, destination: Node, **fields: Any) -> Route | None:
@@ -87,7 +90,8 @@ class TestShortestDistanceRouter:
         assert route == Route((nodes["A"], nodes["B"], nodes["D"]), 2.0)
 
     def test_no_path(self, algorithm: str) -> None:
-        graph, nodes = build([("A", 0, 0), ("B", 1, 0)], [])
+        graph = build(Environment(), [("A", 0, 0), ("B", 1, 0)], []).canonical_graph()
+        nodes = {node.id: node for node in graph.nodes}
         assert ask(algorithm, free_view(graph), nodes["A"], nodes["B"]) is None
 
     def test_same_node(self, algorithm: str) -> None:
@@ -140,8 +144,7 @@ class TestShortestDistanceRouter:
         assert route.cost == graph.path_length(route.nodes) == 0.6
 
     def test_avoid_segment(self, algorithm: str) -> None:
-        nodes, graph = grid()
-        view = reservation_view(graph)
+        view, nodes = reservation_view(grid()[1])
         segment = view.resources(nodes["A"], nodes["B"])[0]
         assert isinstance(segment, Segment)
         route = ask(algorithm, view, nodes["A"], nodes["D"], avoid=frozenset({segment}))
@@ -149,16 +152,14 @@ class TestShortestDistanceRouter:
         assert route.nodes == (nodes["A"], nodes["C"], nodes["D"])
 
     def test_avoid_zone(self, algorithm: str) -> None:
-        nodes, graph = grid()
-        zone = Zone("z", ((nodes["A"], nodes["B"]),))
-        view = reservation_view(graph, zones=[zone])
+        view, nodes = reservation_view(grid()[1], zones={"z": {"members": [("A", "B")]}})
+        (zone,) = [resource for resource in view.resources(nodes["A"], nodes["B"]) if isinstance(resource, Zone)]
         route = ask(algorithm, view, nodes["A"], nodes["D"], avoid=frozenset({zone}))
         assert route is not None
         assert route.nodes == (nodes["A"], nodes["C"], nodes["D"])
 
     def test_avoid_corridor(self, algorithm: str) -> None:
-        graph, nodes = two_junction_corridor()
-        view = reservation_view(graph)
+        view, nodes = reservation_view(two_junction_corridor(Environment()).canonical_graph())
         corridor = view.resources(nodes["a"], nodes["b"])[0]
         assert isinstance(corridor, Corridor)
         assert ask(algorithm, view, nodes["J1"], nodes["J2"]) is not None
@@ -408,10 +409,10 @@ class TestFastestRouter:
         agv_type = cart(turn_time=turn_time)
         route = fastest(graph, nodes["A"], nodes["D"], agv_type, avoid=frozenset({nodes["B"]}))
         assert route is not None and route.nodes == (nodes["A"], nodes["C"], nodes["D"])
-        view = reservation_view(graph)
-        segment = view.resources(nodes["A"], nodes["B"])[0]
-        route = fastest(graph, nodes["A"], nodes["D"], agv_type, view=view, avoid=frozenset({segment}))
-        assert route is not None and route.nodes == (nodes["A"], nodes["C"], nodes["D"])
+        view, resolved = reservation_view(graph)
+        segment = view.resources(resolved["A"], resolved["B"])[0]
+        route = fastest(graph, resolved["A"], resolved["D"], agv_type, view=view, avoid=frozenset({segment}))
+        assert route is not None and route.nodes == (resolved["A"], resolved["C"], resolved["D"])
         both = frozenset({nodes["B"], nodes["C"]})
         assert fastest(graph, nodes["A"], nodes["D"], agv_type, avoid=both) is None
         assert fastest(graph, nodes["A"], nodes["B"], agv_type, avoid=frozenset({nodes["A"]})) is not None
@@ -593,7 +594,7 @@ def test_avoid_can_make_destination_unreachable() -> None:
 
     policy = Scripted()
     w = world(
-        diamond(),
+        diamond,
         {"A": "S", "B": "P"},
         derive_corridors=False,
         hold_back_dead_ends=False,
@@ -617,8 +618,8 @@ def test_the_fastest_router_samples_the_limits_at_the_battery_level_now(router: 
     (``TrapezoidalProfile`` at 2 m/s), so 20 m cost 20 / (2 * 0.2) = 50 s, not the 10 s of the level as last
     accounted; routing accounts nothing."""
     a, b = Node("A", 0.0, 0.0), Node("B", 20.0, 0.0)
-    graph = LayoutGraph([a, b], [Arc(a, b)])
     env = Environment()
+    declared = declare(env, LayoutGraph([a, b], [Arc(a, b)]))
     kind = AGVType(
         name="drained",
         speed_profile=TrapezoidalProfile(2.0, 1.0, 1.0),
@@ -627,10 +628,11 @@ def test_the_fastest_router_samples_the_limits_at_the_battery_level_now(router: 
         volume_capacity=1.0,
         idle_power=0.1,
     )
-    agv = AGV(env=env, agv_type=kind, initial_node=a)
+    agv = AGV(env=env, agv_type=kind, initial_node=declared.ref("A"))
     env.run(until=800.0)
     assert (agv.battery.level, agv.battery_level_now()) == (100.0, 20.0)
-    route = router.route(RouteRequest(agv=agv, origin=a, destination=b), free_view(graph))
+    a, b = declared.node("A"), declared.node("B")
+    route = router.route(RouteRequest(agv=agv, origin=a, destination=b), free_view(declared.canonical_graph()))
     assert route is not None and route.cost == pytest.approx(50.0, rel=1e-12)
     assert agv.battery.level == 100.0
 
@@ -638,7 +640,11 @@ def test_the_fastest_router_samples_the_limits_at_the_battery_level_now(router: 
 def test_a_travel_follows_the_fastest_route() -> None:
     """On a real AGV: the 26 m direct arc takes 17.3 s, the corner 10 m + 10 m with a stop 19.2 s."""
     w = world(
-        corner(direct=26.0), {"V": "A"}, reserve=False, router=FastestRouter(), agv_type=cart(turn_time=lambda a: 4.0)
+        lambda env: declare(env, corner(direct=26.0)[0]),
+        {"V": "A"},
+        reserve=False,
+        router=FastestRouter(),
+        agv_type=cart(turn_time=lambda a: 4.0),
     )
     w.go("V", "C")
     w.env.run()
@@ -655,10 +661,9 @@ def test_a_travel_follows_the_fastest_route() -> None:
     ],
 )
 def test_executor_rejects_invalid_routes(name: str, ids: tuple[str, ...], problem: str) -> None:
-    graph, nodes = line(3)
-    route = Route(tuple(nodes[i] for i in ids), 1.0)
-    router = type(name, (), {"route": lambda self, request, view: route})()
-    w = world((graph, nodes), {"A": "N0"}, reserve=False, router=router)
+    router = type(name, (), {"route": lambda self, request, view: route})()  # `route` is read when it is called
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=False, router=router)
+    route = Route(tuple(w.nodes[i] for i in ids), 1.0)
     w.go("A", "N2")
     with pytest.raises(ValueError, match=f"{name} returned an invalid route from N0 to N2: {problem}"):
         w.env.run()
@@ -741,7 +746,12 @@ def two_arms(q_arm: float) -> tuple[LayoutGraph, dict[str, Node]]:
 
 def occupied_arm(q_arm: float, state: AGVState) -> tuple[World, Route | None]:
     """``V`` at ``S`` asks for a route to ``E`` while ``B`` is in `state` on ``P``, where a hold of 40 s was seen."""
-    w = world(two_arms(q_arm), {"V": "S", "T": "K", "B": "Z"}, derive_corridors=False, hold_back_dead_ends=False)
+    w = world(
+        lambda env: declare(env, two_arms(q_arm)[0]),
+        {"V": "S", "T": "K", "B": "Z"},
+        derive_corridors=False,
+        hold_back_dead_ends=False,
+    )
     p = w.nodes["P"]
     w.controller.request(w.agvs["T"], Claim((ClaimItem(p),), 1), fake_hooks())
     w.env.run(until=40.0)
@@ -909,10 +919,10 @@ class TestCongestionAwareRouter:
         """Whatever the view reports, as long as nothing is inadmissible the route and its cost are the base's."""
         nodes, graph = grid()
         agv_type = cart(turn_time=lambda angle: 2.0 if angle > 0.1 else 0.0) if turning else cart()
-        views = [free_view(graph), reservation_view(graph), Crowd(graph)]
-        for view in views:
-            plain = fastest(graph, nodes["A"], nodes["D"], agv_type, view=view, router=base)
-            wrapped = fastest(graph, nodes["A"], nodes["D"], agv_type, view=view, router=CongestionAwareRouter(base))
+        views = [(free_view(graph), nodes), reservation_view(graph), (Crowd(graph), nodes)]
+        for view, ns in views:
+            plain = fastest(graph, ns["A"], ns["D"], agv_type, view=view, router=base)
+            wrapped = fastest(graph, ns["A"], ns["D"], agv_type, view=view, router=CongestionAwareRouter(base))
             assert plain is not None and wrapped == plain
         octa, (a, x, y) = octagon()
         sharp = cart(Plain(), turn_time=lambda angle: 100.0 if angle > 1.0 else 0.0)
@@ -952,7 +962,7 @@ class TestCongestionAwareRouter:
         w, route = occupied_arm(50.0, AGVState.STRANDED)
         assert route is not None and route.nodes == (w.nodes["S"], w.nodes["Q"], w.nodes["E"])
         assert route.cost == pytest.approx(2 * 50.0 / 1.5, rel=1e-12)
-        w = world(line(3), {"V": "N0", "B": "N1"}, derive_corridors=False, hold_back_dead_ends=False)
+        w = world(lambda env: line(env, 3), {"V": "N0", "B": "N1"}, derive_corridors=False, hold_back_dead_ends=False)
         request = RouteRequest(w.agvs["V"], w.nodes["N0"], w.nodes["N2"])
         assert CongestionAwareRouter().route(request, w.controller.view) is not None  # B is not stranded
         w.agvs["B"]._state = AGVState.STRANDED
@@ -963,18 +973,18 @@ class TestCongestionAwareRouter:
 def congested_run(*, probe: bool = False, check: bool = False, router: Router | None = None) -> str:
     """The digest of a small run in which the congestion router meets traffic: three AGVs on the two-arm world. With
     `check` every event is replayed against the live state and the traffic invariants are asserted."""
-    graph, nodes = two_arms(15.0)
     env = Environment(debug=True)
     env.enable_digest()
     replay = FullReplay(env) if check else None
-    controller = ReservationController(env=env, graph=graph, derive_corridors=False, hold_back_dead_ends=False)
+    declared = declare(env, two_arms(15.0)[0])
+    controller = ReservationController(env=env, graph=declared.graph, derive_corridors=False, hold_back_dead_ends=False)
     vehicles = {
-        name: AGV(env=env, agv_type=vehicle(), agv_id=name, initial_node=nodes[start])
+        name: AGV(env=env, agv_type=vehicle(), agv_id=name, initial_node=declared.ref(start))
         for name, start in {"A": "S", "B": "K", "C": "Q"}.items()
     }
     fleet = StillFleet(
         env=env,
-        graph=graph,
+        graph=declared.graph,
         fleet=list(vehicles.values()),
         warehouses=[],
         charging_stations=[],
@@ -985,6 +995,8 @@ def congested_run(*, probe: bool = False, check: bool = False, router: Router | 
     if check:
         TrafficInvariants(env, controller)
     env.activate()
+    graph = declared.canonical_graph()
+    nodes = {node.id: node for node in graph.nodes}
     if probe:
         view = controller.view
 
