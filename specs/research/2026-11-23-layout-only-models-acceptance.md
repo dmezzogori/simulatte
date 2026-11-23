@@ -192,31 +192,36 @@ elsewhere` and no known limit.
 
 Against the targets of spec §9, at 1,600 servers and at 10:
 
-| Target (spec §9) | Before (`2946ebb`) | After (`e0f4dde`) | Met |
+| Target (spec §9) | Before (`2946ebb`) | After (`3a01414`) | Met |
 |---|---|---|---|
-| Construction with `Layout(env)` within 1.5 times construction without, at 1,600 servers | 75 to 77 times (198 to 200 ms against 2.6 ms) | 1.20 to 1.23 times (3.07 to 3.10 ms against 2.52 to 2.56 ms) | yes |
-| Activation under 5 ms at 10 servers | 5.8 to 5.9 ms | 0.67 ms | yes |
-| Activation under 50 ms at 1,600 servers | 729 ms | 77 to 80 ms | no: floor below |
-| No measurable difference per event | 13.5 to 14.0 % slower (1,546 against 1,356 to 1,363 ns per domain event) | 0.4 to 0.5 % (interleaved: 0.4 and 0.9 %), within the spread of repeated runs | yes |
+| Construction with `Layout(env)` within 1.5 times construction without, at 1,600 servers | 75 to 77 times (198 to 200 ms against 2.6 ms) | 1.21 times (3.01 to 3.03 ms against 2.49 to 2.50 ms) | yes |
+| Activation under 5 ms at 10 servers | 5.8 to 5.9 ms | 0.49 ms | yes |
+| Activation under 50 ms at 1,600 servers | 729 ms | 48.9 to 49.2 ms | yes, by about 1 ms |
+| No measurable difference per event | 13.5 to 14.0 % slower (1,546 against 1,356 to 1,363 ns per domain event) | 0.2 to 0.5 % (1,328 to 1,341 against 1,321 to 1,339 ns), within the spread of repeated runs | yes |
 
-Jobs created before `Layout(env)` are linear: `Layout(env)` and `prepare()` with 10 servers and 1,600 jobs take 5.7 to
-6.0 ms, 239 to 240 ms before. The bundle and its hashes now cost their time when first read: 2.5 ms at 10 servers,
-267 to 276 ms at 1,600 (a recorded run pays it once, at INITIAL; `env.manifest()` pays it once). The bundles and the
-three hashes are those of `2946ebb`: `tests/layout/test_hashes.py` pins a digest of the whole bundle of eleven layout
+Jobs created before `Layout(env)` are linear: `Layout(env)` and `prepare()` with 10 servers and 1,600 jobs take 4.9 to
+5.0 ms, 239 to 240 ms before. The bundle and its hashes now cost their time when first read: 2.5 ms at 10 servers,
+266 ms at 1,600 (a recorded run pays it once, at INITIAL; `env.manifest()` pays it once). The bundles and the three
+hashes are those of `2946ebb`: `tests/layout/test_hashes.py` pins a digest of the whole bundle of eleven layout
 fixtures and four code-built models read at `2946ebb` (`PINNED_BUNDLES`), besides the pinned hashes of
 `tests/layout/test_traffic_fields.py`.
 
+The activation target at 1,600 servers is met with little margin: on a loaded machine a run can exceed it.
+
 ### The run
 
-CPython 3.14.3 on an Apple M4 Pro (macOS), a machine shared with other sessions; every number is the median of nine
+CPython 3.14.3 on an Apple M4 Pro (macOS), a machine shared with other sessions. Every number is the median of the
 repetitions after one warm-up, each on a fresh model with `gc.collect()` outside the timing (the script also prints the
-minimum). Two runs on each side; the table gives the range of their medians.
+minimum); the `run` case times its two variants in alternating order (none, layout, then layout, none, and so on), so
+that a change of the machine's load falls on both. Two runs on each side; the table gives the range of their medians.
+Before: nine repetitions; after: fifteen.
 
 ```
-uv run --all-extras python benchmarks/layout_overhead.py --repeat 9
+uv run --all-extras python benchmarks/layout_overhead.py --repeat 15
 ```
 
-Before, at `2946ebb` (the script was not yet committed; the source measured is that commit's), first run:
+Before, at `2946ebb` (the script was not yet committed; the source measured is that commit's; `--repeat 9`, the `run`
+variants not yet interleaved), first run:
 
 ```
 construct/100/none               0.113 /      0.112
@@ -240,72 +245,79 @@ run/layout                      46.682 /     46.524   1545.6 ns per event (media
 run/ratio                        1.140
 ```
 
-After, at `e0f4dde`, first run:
+After, at `3a01414`, first run:
 
 ```
-construct/100/none               0.120 /      0.113
-construct/100/layout             0.180 /      0.173
-construct/100/ratio              1.496
-construct/1600/none              2.558 /      2.535
-construct/1600/layout            3.073 /      3.035
-construct/1600/ratio             1.201
-prepare/10                       0.662 /      0.644
-activate/10/layout               0.667 /      0.654
-activate/10/none                 0.012 /      0.012
-first_bundle/10                  2.479 /      2.444
-prepare/1600                    74.989 /     74.561
-activate/1600/layout            76.851 /     76.568
-activate/1600/none               2.269 /      2.203
-first_bundle/1600              266.877 /    264.403
-jobs_before_layout/1600          5.695 /      5.652
+commit 3a01414, CPython 3.14.3, arm64, repeat 15 (median / min, ms)
+construct/100/none               0.117 /      0.110
+construct/100/layout             0.168 /      0.160
+construct/100/ratio              1.434
+construct/1600/none              2.489 /      2.464
+construct/1600/layout            3.009 /      2.976
+construct/1600/ratio             1.209
+prepare/10                       0.480 /      0.467
+activate/10/layout               0.485 /      0.465
+activate/10/none                 0.012 /      0.011
+first_bundle/10                  2.499 /      2.465
+prepare/1600                    47.443 /     47.125
+activate/1600/layout            48.918 /     48.633
+activate/1600/none               2.233 /      2.208
+first_bundle/1600              266.121 /    263.339
+jobs_before_layout/1600          4.932 /      4.888
 run/events                       30204
-run/none                        40.384 /     40.086   1337.0 ns per event (median)
-run/layout                      40.582 /     39.996   1343.6 ns per event (median)
+run/none                        39.893 /     39.188   1320.8 ns per event (median)
+run/layout                      40.105 /     39.875   1327.8 ns per event (median)
 run/ratio                        1.005
 ```
 
-The cases are described in the script's docstring. `run` is a 10-server immediate-release pure job shop
-(`Scenario.pure_job_shop(n_servers=10)`, no default metrics, no subscriber, seed 7) run to time 450, 30,204 domain
-events; nobody observes it (no recorder, no digest, no manifest read, L14). For the per-event row the same run was
-also timed in 25 interleaved pairs after a warm-up (a scratch script, not committed): medians 40.37 against
-40.73 ms (ratio 1.0087) at `e0f4dde`, and 39.08 against 39.23 ms (1.0037) on the same source before the commit.
+The second run: `prepare/1600` 47.3 ms, `activate/1600/layout` 49.2 ms, `run/ratio` 1.002. The cases are described in
+the script's docstring. `run` is a 10-server immediate-release pure job shop (`Scenario.pure_job_shop(n_servers=10)`,
+no default metrics, no subscriber, seed 7) run to time 450, 30,204 domain events; nobody observes it (no recorder, no
+digest, no manifest read, L14). The script prints the commit it measures, with `+changes` when `src` differs from it,
+or `external` and the package path when another tree is measured through `PYTHONPATH`.
 
-### Activation at 1,600 servers: the floor
+### What activation at 1,600 servers spends
 
-`prepare()` of 1,600 servers takes 75 to 79 ms, `env.activate()` 77 to 80 ms. Where the time goes (wall clock of
-the functions, by timers around them, median of five):
+`prepare()` of 1,600 servers takes 47.3 to 47.4 ms, `env.activate()` 48.9 to 49.2 ms. By timers around the functions
+(median of five, with the timers' own cost):
 
 | Part | ms |
 |---|---|
-| the auto layout of 1,600 targets (`auto_layout`, exact rational arithmetic with `Fraction`) | 21 |
-| the final resolution of the layers with the auto layer (`resolve_layers` in `Layout._validate`): merging the 1,600 generated placements, freezing the merged tree, building its 22,400 leaves | 52 |
+| the auto layout of 1,600 targets (`auto_layout`; exact rational arithmetic with `Fraction` for the bounds) | 15 |
+| the final resolution of the layers with the auto layer (`resolve_layers` in `Layout._validate`): merging the 1,600 generated placements into the layers (about 20), freezing the merged tree and building its 22,400 leaves (11) | 31.5 |
 | the other five resolutions, the network, binding, finalization | 3 |
 
 What made up the 0.72 s before: the bundle validating its own output and normalizing and freezing it (about 54 % of
 the profile), the three hashes (18 %), the final resolution checking the generated auto layer against the schema
-(about 11 %) and copying every subtree once per leaf, and the rest. The bundle and the hashes are now built on first
-read; the auto layer, generated by preparation from validated inputs, is not checked against the schema again; leaves
-share one frozen tree. The tests check what preparation no longer checks: an autouse fixture (`tests/conftest.py`,
-`check_bundles`) builds the bundle of every layout the suite prepares, reads it back through
-`LayoutBundle.from_dict` (which validates every field), requires it equal and its hashes those of its data, and
-requires the unchecked auto layer equal to a checked one.
+(about 11 %) and copying the merged tree and its subtrees several times, and the rest. Now the bundle and the hashes
+are built on first read; the auto layer, preparation's own output, already normalized and frozen, is taken as it is;
+the layers are not thawed in full before merging; the merged tree is frozen once per resolution and its leaves share
+it, and `ResolvedValues` keeps them instead of copying them again; `placement_defaults` and the auto layout's exact
+paddings are cached and its exact cell sizes computed once. None of this changes a value: the pins above hold, and so
+does the parity run below. What remains is the merge and the auto layout's arithmetic, both linear in the targets; they
+are not a floor (reducing them changes no hash and no format), but this task stops at the target.
 
-Under 50 ms needs the remaining linear work to shrink: the final resolution copies the merged tree several times (the
-applicable layer thawed, the merge stamping thawed values, the tree frozen for the explicit and the full leaves and
-again by `ResolvedValues`), and the auto layout computes in `Fraction`. Neither changes a hash or the bundle format;
-both are reworkings of `layout/layers.py` and `layout/auto.py` that this task did not take on.
+The tests check what preparation no longer checks: an autouse fixture (`tests/conftest.py`, `check_bundles`) builds,
+at the end of each test, the bundle of every layout the test prepared, and every bundle a test reads, reads it back
+through `LayoutBundle.from_dict` (which validates every field), requires it equal and its hashes those of its data, and
+requires the auto layer taken unchecked equal to a checked one. It checks nothing inside `prepare()`, so an error that
+moved from preparation to the first read fails the test that expects it at `prepare()`. Stage and binder names, saved
+in the bundle, are checked against the schema's `id` where they are declared.
 
 ### Imports and the per-event path
 
 A layout without a network imports no fleet, traffic, reservation or AGV module, also through preparation, a run,
 `env.manifest()` and a bundle read (`tests/core/test_public_api.py`); it imports `simulatte.intralogistics`,
 `.graph` and `.network`, since the package now imports the names of `__all__` on first use. After activation,
-`Environment.step` reads one field and imports nothing (`tests/layout/test_activation.py`). Entities attached during
-the run still make one call into the layout (`Layout._before_attach`), which returns at its first check.
+`Environment.step` reads one field and imports nothing, and an entity attached after activation (a job arriving during
+the run) makes no call into the layout (`tests/layout/test_activation.py`, with timeouts and with a job shop whose jobs
+arrive during the steps). What stays on the per-event path of a model with AGVs is layout mode's existing check of
+every node an AGV is placed on or moves to (`AGV._validate_node`, called by `AGV.current_node` and at the end of each
+segment by the travel executor, which calls `Layout._validate_node`).
 
 ### Parity after the change
 
-On the source of `e0f4dde`:
+On the source of `3a01414`:
 
 ```
 uv run --all-extras python benchmarks/layout_parity.py --worlds 100
