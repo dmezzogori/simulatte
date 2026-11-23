@@ -127,7 +127,7 @@ Davide chose 2 on 2026-11-23.
 | L6 | One network and at most one occupancy-controlling traffic controller per environment (§5.6). | assistant |
 | L7 | The surviving behaviour is today's layout mode wherever the modes differ (ids, frozen endpoints, binding order, `LayoutNotReady`), except where this document says otherwise. | assistant |
 | L8 | Explicit mode is removed only after a randomized parity run shows equal event streams for the same worlds built both ways (§8.1). | assistant |
-| L9 | `import simulatte` stays light; creating or activating an environment may import the layout package, and must not import the intralogistics package for a model that has no network (§9). | assistant |
+| L9 | `import simulatte` stays light; creating or activating an environment may import the layout package, and must not import the intralogistics fleet, traffic, reservation or AGV modules for a model that has no network (§9; the graph and network modules, which the resolver uses for every model, may load). | assistant |
 | L10 | Traces without a layout written by earlier versions remain readable; the viewer keeps its fallback for them only. | assistant |
 | L11 | The work lands on a branch stacked on `feature/agv-traffic` and is released as part of 0.18.0. | assistant |
 | L12 | No deprecation period: the changelog's migration section is the only bridge. | assistant |
