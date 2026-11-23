@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -43,7 +42,8 @@ class EdgeDefinition:
     lineage: tuple[Address, ...] = ()
     blockers: tuple[str, ...] = ()
     passing: bool = False
-    length: float | None = None  # a piece of a split edge: the parent's length over the number of pieces
+    length: float | None = None  # when not the chord: a recorded length, or a piece's (the parent's over the count)
+    recorded: bool = False  # the length was declared (an explicit arc, or a piece of one), not derived from a chord
 
 
 @dataclass(frozen=True)
@@ -169,6 +169,8 @@ class _Builder:
             lineage,
             self.segment_blockers(a, b),
             attributes.get("passing", False),
+            attributes.get("length"),
+            attributes.get("length") is not None,
         )
         for parent in lineage:
             self.lineage.setdefault(parent, []).append(address)
@@ -385,7 +387,7 @@ def _explicit(values: ResolvedValues, builder: _Builder) -> None:
             if direction == "backward"
             else [(source, target), (target, source)]
         )
-        attributes = (arc.get("enabled"), arc.get("speed_limit"), arc.get("passing", False))
+        attributes = (arc.get("enabled"), arc.get("speed_limit"), arc.get("passing", False), arc.get("length"))
         for pair in pairs:
             if pair in directed:
                 if directed[pair] != attributes:
@@ -398,7 +400,12 @@ def _explicit(values: ResolvedValues, builder: _Builder) -> None:
                 address,
                 ids[a],
                 ids[b],
-                {"enabled": attributes[0], "speed_limit": attributes[1], "passing": attributes[2]},
+                {
+                    "enabled": attributes[0],
+                    "speed_limit": attributes[1],
+                    "passing": attributes[2],
+                    "length": attributes[3],
+                },
                 default_direction="forward",
             )
 
@@ -422,13 +429,23 @@ GENERATED_KINDS = ("block_node", "block_edge")
 """Address kinds of the elements that ``block_length`` generates (spec §12); overrides cannot target them."""
 
 
+def _travelled(edge: EdgeDefinition, low: NodeDefinition, high: NodeDefinition) -> float:
+    """The length an edge is split by: its recorded length, else the chord of its ends (spec 5.2)."""
+    from simulatte.intralogistics.graph import chord_length
+
+    if edge.length is not None:
+        return edge.length
+    return chord_length(low.position.x, low.position.y, high.position.x, high.position.y)
+
+
 def split_blocks(
     definitions: NetworkDefinitions, block_length: float, *, capacity: int | None, limits: LayoutLimits
 ) -> NetworkDefinitions:
     """Split every enabled edge longer than ``block_length`` into ``ceil(length / block_length)`` equal pieces.
 
     The count and the length of the pieces follow ``simulatte.intralogistics.graph.split``, the rule of
-    ``LayoutGraph.subdivide``: each piece carries the parent's chord over the number of pieces as its length. Runs
+    ``LayoutGraph.subdivide``: each piece carries the parent's length (the recorded length of an explicit arc, else
+    its chord) over the number of pieces as its length. The two directions of a pair must agree on it. Runs
     after the overrides, so the pieces inherit the parent's effective properties. The generated nodes lie on
     the chord, carry the network default ``capacity`` and are shared by the edges between the same two nodes (the
     two directions of a pair). Their id is ``"<a>~<b>#<k>"`` with ``a`` and ``b`` the ids of the ends in sorted order
@@ -440,7 +457,7 @@ def split_blocks(
     from simulatte.intralogistics.graph import split
 
     nodes = definitions.nodes
-    groups: dict[tuple[Address, Address], list[EdgeDefinition]] = {}
+    pairs: dict[tuple[Address, Address], list[EdgeDefinition]] = {}
     arc_count = 0
     for edge in definitions.edges.values():
         source, target = nodes[edge.source], nodes[edge.target]
@@ -448,9 +465,19 @@ def split_blocks(
             continue
         arc_count += 2 if edge.direction == "both" else 1
         low, high = sorted((source, target), key=lambda definition: definition.id)
-        length = math.hypot(high.position.x - low.position.x, high.position.y - low.position.y)
+        pairs.setdefault((low.address, high.address), []).append(edge)
+    groups: dict[tuple[Address, Address], list[EdgeDefinition]] = {}
+    lengths: dict[tuple[Address, Address], float] = {}
+    for (low_address, high_address), members in pairs.items():
+        low, high = nodes[low_address], nodes[high_address]
+        travelled = {_travelled(edge, low, high) for edge in members}
+        if len(travelled) > 1:
+            raise LayoutError(
+                f"conflicting length on the two directions: {low_address.to_dict()} <-> {high_address.to_dict()}"
+            )
+        lengths[low_address, high_address] = length = travelled.pop()
         if split(length, block_length, limits.max_nodes)[0] > 1:
-            groups.setdefault((low.address, high.address), []).append(edge)
+            groups[low_address, high_address] = members
     if not groups:
         return definitions
     new_nodes = dict(nodes)
@@ -459,8 +486,7 @@ def split_blocks(
     for low_address, high_address in sorted(groups, key=lambda key: (nodes[key[0]].id, nodes[key[1]].id)):
         low, high = nodes[low_address], nodes[high_address]
         members = groups[low_address, high_address]
-        length = math.hypot(high.position.x - low.position.x, high.position.y - low.position.y)
-        count, piece = split(length, block_length, limits.max_nodes)
+        count, piece = split(lengths[low_address, high_address], block_length, limits.max_nodes)
         _limit(len(new_nodes) + count - 1, limits.max_nodes, "max_nodes")
         arc_count += sum((2 if edge.direction == "both" else 1) * (count - 1) for edge in members)
         _limit(arc_count, limits.max_directed_arcs, "max_directed_arcs")
@@ -491,7 +517,7 @@ def split_blocks(
                 made.append(
                     EdgeDefinition(
                         address, source, target, edge.enabled, edge.direction, edge.speed_limit, edge.lineage,
-                        blocked, edge.passing, piece,
+                        blocked, edge.passing, piece, edge.recorded,
                     )
                 )  # fmt: skip
             pieces[edge.address] = tuple(made)
@@ -816,11 +842,18 @@ def resolve_network(
         if edge.direction in ("both", "backward"):
             pairs.append((edge.target, edge.source))
         for source, target in pairs:
-            arc = Arc(nodes[source], nodes[target], False, edge.speed_limit, edge.length, edge.passing)
+            try:
+                arc = Arc(nodes[source], nodes[target], False, edge.speed_limit, edge.length, edge.passing)
+            except ValueError as error:  # a recorded length under the chord
+                raise LayoutError(f"edge {address.to_dict()}: {error}") from error
             reverse = arcs.get((target, source))
             if reverse is not None and reverse.passing != arc.passing:
                 raise LayoutError(
                     f"conflicting passing on the two directions: {source.to_dict()} <-> {target.to_dict()}"
+                )
+            if reverse is not None and reverse.length != arc.length:
+                raise LayoutError(
+                    f"conflicting length on the two directions: {source.to_dict()} <-> {target.to_dict()}"
                 )
             if (source, target) in arcs:
                 if arcs[source, target] != arc:

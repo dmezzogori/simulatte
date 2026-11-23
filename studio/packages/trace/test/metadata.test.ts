@@ -139,6 +139,14 @@ it("opens a schema 1.1 layout bundle and validates it like a 1.0 bundle", async 
   expect(zones[0]!.members.some((member) => Array.isArray(member))).toBe(true);
 });
 
+it("opens a schema 1.1 layout whose arcs record a declared length", async () => {
+  const layout = structuredClone(trafficExpected.layout);
+  layout["network"].graph.arcs[0].length = 12.5;
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout }));
+  expect(trace.layout?.["network"]).toEqual(layout["network"]);
+  expect((trace.layout?.["network"] as any).graph.arcs[0].length).toBe(12.5);
+});
+
 it.each([
   ["full_hash", "bad"], ["algorithms", {}], ["stages", []],
 ])("rejects malformed 1.1 layout %s", async (key, value) => {
@@ -152,6 +160,9 @@ it.each([
   [["network", "graph", "zones", 0, "members", 3], ["a"]],
   [["network", "graph", "zones", 0, "extra"], 1],
   [["network", "graph", "arcs", 0, "passing"], "yes"],
+  [["network", "graph", "arcs", 0, "length"], 0],
+  [["network", "graph", "arcs", 0, "length"], "long"],
+  [["network", "graph", "arcs", 0, "extent"], 12.5],
   [["network", "edges", 0, "passing"], 1],
   [["network", "graph", "nodes", 0, "capacity"], -1],
 ])("rejects nested 1.1 layout corruption %j", async (path, value) => {

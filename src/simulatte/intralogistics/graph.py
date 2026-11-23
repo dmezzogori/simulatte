@@ -43,6 +43,15 @@ class Node:
         return hash(self.id)
 
 
+def chord_length(ax: float, ay: float, bx: float, by: float) -> float:
+    """The straight-line distance of two points: the length of an arc declared without one.
+
+    The layout compares a declared length with it for exact equality, so the arc, the explicit declaration and the
+    split of an edge all compute it here.
+    """
+    return math.hypot(bx - ax, by - ay)
+
+
 @dataclass(frozen=True)
 class Arc:
     source: Node
@@ -58,7 +67,7 @@ class Arc:
             raise ValueError(
                 f"arc {self.source.id}->{self.target.id} speed_limit {limit} must be positive and finite when given"
             )
-        chord = math.hypot(self.target.x - self.source.x, self.target.y - self.source.y)
+        chord = chord_length(self.source.x, self.source.y, self.target.x, self.target.y)
         if self.length is None:
             object.__setattr__(self, "length", chord)
         elif not math.isfinite(self.length) or self.length < min(

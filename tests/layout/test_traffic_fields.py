@@ -220,6 +220,10 @@ USES_1_1 = {
         },
         "passing",
     ),
+    "arc length": (
+        {"network": {"type": "explicit", "arcs": [{"source": "a", "target": "b", "length": 2.5}]}},
+        "length",
+    ),
     "block_length": ({"network": {"type": "explicit", "block_length": 2}}, "block_length"),
     "zones": ({"network": {"type": "explicit", "zones": {}}}, "zones"),
 }  # fmt: skip
@@ -1324,3 +1328,186 @@ def test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream():
     assert any("'gate'" in line for line in twin)
     assert twin == explicit
     assert math.isclose(env.now, lay_env.now)
+
+
+# --- explicit arc length (spec 5.2) -------------------------------------------------------------------------------
+
+
+def chord_only_square() -> Layout:
+    layout = Layout(Environment())
+    nodes = [Node(n, x, y) for n, x, y in (("A", 0, 0), ("B", 1.1, 0), ("C", 1.1, 2.2), ("D", 0, 2.2))]
+    a, b, c, d = nodes
+    arcs = [Arc(a, b), Arc(b, c, bidirectional=False, passing=True), Arc(c, d), Arc(d, a, False, 1.5)]
+    layout.set_network(Explicit(LayoutGraph(nodes, arcs), capacity=2))
+    return layout
+
+
+def chord_only_line() -> Layout:
+    layout = Layout(Environment())
+    a, b = Node("A", 0, 0), Node("B", 3, 4)
+    layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, speed_limit=2.0)])))
+    return layout
+
+
+PINNED_ALL_CHORD = {
+    "line": (
+        chord_only_line,
+        "1.0",
+        "9742e125430faeebcab7ef498d3e12d62d3b5c843f242cb0d21224333ae1b76e",
+        "4a412ebca280f526810db2f5f975bfccca3582f359864ce5e96713f04f3e019b",
+        "3a4f0eadaf18bfeeb088a4c09a4a29a6f56ea73a532627425ed778103ee7e1cb",
+    ),
+    "square": (
+        chord_only_square,
+        "1.1",
+        "287e88e0b63058cb660b5cd9ab5f3a028da8e8dd23799acd62c6156b6bf52c1e",
+        "ac2b195f5656077c76d095bbcaa8cf93c6ba8f183526eeed1ede38c6d15731e2",
+        "7d10ff7357c9f3440d3fbd125fc58284e39e30f99ef6f00ecbf07ed297cac4b2",
+    ),
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("name", sorted(PINNED_ALL_CHORD))
+def test_an_explicit_network_whose_arcs_are_all_chords_keeps_its_hashes_and_records_no_length(name):
+    """The values were read at the commit before the change: recording lengths adds nothing for chords."""
+    build, version, physical, full, layers = PINNED_ALL_CHORD[name]
+    result = build().prepare()
+    assert result.bundle.schema_version == version
+    assert (result.physical_hash, result.full_hash, result.layers_hash) == (physical, full, layers)
+    assert all("length" not in arc for arc in result.bundle["network"]["graph"]["arcs"])
+
+
+def test_explicit_records_a_length_only_where_it_differs_from_the_chord():
+    a, b, c = Node("A", 0, 0), Node("B", 10, 0), Node("C", 10, 5)
+    graph = LayoutGraph([a, b, c], [Arc(a, b, length=25.0), Arc(b, c)])
+    arcs = {(arc.source, arc.target): arc.length for arc in Explicit(graph).arcs}
+    assert arcs == {("A", "B"): 25.0, ("B", "A"): 25.0, ("B", "C"): None, ("C", "B"): None}
+    # An explicit length equal to the chord is the chord: nothing is recorded, as for an arc without one.
+    assert [arc.length for arc in Explicit(LayoutGraph([a, b], [Arc(a, b, length=10.0)])).arcs] == [None, None]
+
+
+def test_a_recorded_explicit_length_is_the_resolved_length_and_the_chord_stays_the_distance():
+    layout = Layout(Environment())
+    a, b = Node("A", 0, 0), Node("B", 10, 0)
+    layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, length=25.0)])))
+    graph = layout.prepare().network.graph
+    first, second = graph.nodes
+    assert (graph.length(first, second), graph.length(second, first)) == (25.0, 25.0)
+    assert graph.distance(first, second) == 10.0  # the chord is still the straight-line distance
+
+
+@pytest.mark.parametrize("pitch", [3.3, 1.1])
+def test_explicit_keeps_the_lengths_of_a_subdivided_graph_to_the_float(pitch):
+    """spec 5.2: ``subdivide`` gives each piece the parent's length over the count, which is not its chord; declared
+    through ``Explicit`` the layout resolves to the same lengths, float for float."""
+    twin = pitch_graph().subdivide(pitch)
+    layout = Layout(Environment())
+    layout.set_network(Explicit(twin))
+    result = layout.prepare()
+    assert len(twin.nodes) == len(PITCH) + (2 if pitch == 1.1 else 0) * (len(PITCH) - 1)
+    assert arc_lengths(result.network.graph) == arc_lengths(twin)
+    recorded = {(arc["source"], arc["target"]): arc.get("length") for arc in result.bundle["network"]["graph"]["arcs"]}
+    expected = {(a.id, b.id): twin.length(a, b) for a in twin.nodes for b in twin.neighbors(a)}
+    for key, length in recorded.items():
+        assert length in (None, expected[key])
+    assert (pitch == 1.1) == any(length is not None for length in recorded.values())
+    assert result.bundle.schema_version == ("1.1" if pitch == 1.1 else "1.0")
+
+
+def test_block_length_splits_a_recorded_length_and_its_pieces_are_the_length_over_the_count():
+    arcs = [{"source": "A", "target": "B", "direction": "both", "length": 45.0}]
+    result = resolve(explicit_patch(arcs, [("A", 0, 0), ("B", 30, 0)], block_length=10))
+    ids = [n.id for n in result.graph.nodes]
+    assert ids == ["A", "B", "A~B#1", "A~B#2", "A~B#3", "A~B#4"]  # ceil(45 / 10) = 5 pieces, not the chord's 3
+    assert {arc_length for arc_length in arc_lengths(result.graph).values()} == {45.0 / 5}
+    a, b = Node("A", 0, 0), Node("B", 30, 0)
+    twin = LayoutGraph([a, b], [Arc(a, b, length=45.0)]).subdivide(10)
+    assert arc_lengths(result.graph) == arc_lengths(twin)
+    assert {n.id: (n.x, n.y) for n in result.graph.nodes} == {n.id: (n.x, n.y) for n in twin.nodes}
+
+
+def test_explicit_with_block_length_splits_a_recorded_length_like_subdivide():
+    a, b = Node("A", 0, 0), Node("B", 30, 0)
+    graph = LayoutGraph([a, b], [Arc(a, b, length=45.0)])
+    layout = Layout(Environment())
+    layout.set_network(Explicit(graph, block_length=10))
+    twin = graph.subdivide(10)
+    assert arc_lengths(layout.prepare().network.graph) == arc_lengths(twin)
+
+
+def test_a_recorded_length_gives_a_1_1_bundle_that_round_trips_and_changes_the_physical_hash():
+    arcs = [{"source": "A", "target": "B", "direction": "both"}]
+    plain = prepared(explicit_patch(arcs))
+    longer = prepared(explicit_patch([{**arcs[0], "length": 25.0}]))
+    assert longer.bundle.schema_version == "1.1"
+    assert {arc["length"] for arc in longer.bundle["network"]["graph"]["arcs"]} == {25.0}
+    assert all("length" not in arc for arc in plain.bundle["network"]["graph"]["arcs"])
+    assert longer.physical_hash != plain.physical_hash
+    assert longer.full_hash != plain.full_hash
+    longer.bundle.check()
+    again = LayoutBundle.from_dict(longer.bundle.to_dict())
+    assert again == longer.bundle
+    assert again.physical_hash == longer.physical_hash
+    other = prepared(explicit_patch([{**arcs[0], "length": 26.0}]))
+    assert other.physical_hash != longer.physical_hash
+    broken = longer.bundle.to_dict()
+    broken["network"]["graph"]["arcs"][0]["length"] = -1.0
+    with pytest.raises(LayoutError):
+        LayoutBundle.from_dict(broken)
+    broken["network"]["graph"]["arcs"][0].update(length=25.0, unknown=1)
+    with pytest.raises(LayoutError):
+        LayoutBundle.from_dict(broken)
+
+
+def test_a_1_0_bundle_rejects_a_length_on_its_arcs():
+    data = prepared(explicit_patch([{"source": "A", "target": "B"}]), version="1.0").bundle.to_dict()
+    assert data["schema_version"] == "1.0"
+    data["network"]["graph"]["arcs"][0]["length"] = 25.0
+    with pytest.raises(LayoutError):
+        LayoutBundle.from_dict(data)
+
+
+def test_a_length_of_the_pieces_of_an_unrecorded_arc_stays_out_of_the_bundle():
+    result = prepared(explicit_patch([{"source": "A", "target": "B", "direction": "both"}], block_length=4))
+    assert all("length" not in arc for arc in result.bundle["network"]["graph"]["arcs"])
+
+
+def test_a_recorded_length_can_be_unset():
+    patch = explicit_patch([{"source": "A", "target": "B", "length": {"$unset": True}}])
+    assert arc_of(resolve(patch), explicit_node("A"), explicit_node("B")).length == 10.0
+
+
+@pytest.mark.parametrize("length", [0, -1, "long", True, float("nan")])
+def test_a_recorded_length_must_be_positive_and_finite(length):
+    with pytest.raises(LayoutError):
+        parse_patch({"schema_version": "1.1", **explicit_patch([{"source": "A", "target": "B", "length": length}])})
+
+
+def test_a_recorded_length_below_the_chord_is_a_layout_error():
+    with pytest.raises(LayoutError, match=r"A.*B.*length"):
+        resolve(explicit_patch([{"source": "A", "target": "B", "length": 5.0}]))
+
+
+def test_the_two_directions_of_a_pair_must_agree_on_length():
+    arcs = [{"source": "A", "target": "B", "length": 25.0}, {"source": "B", "target": "A", "length": 26.0}]
+    with pytest.raises(LayoutError, match="length"):
+        resolve(explicit_patch(arcs))
+    with pytest.raises(LayoutError, match="length"):
+        resolve(explicit_patch(arcs, block_length=10))
+    mixed = [{"source": "A", "target": "B", "length": 25.0}, {"source": "B", "target": "A"}]
+    with pytest.raises(LayoutError, match="length"):
+        resolve(explicit_patch(mixed))
+    with pytest.raises(LayoutError, match="length"):
+        resolve(explicit_patch(mixed, block_length=10))
+    for length, other in ((25.0, 25.0), (10.0, None)):  # equal lengths, and a recorded chord against none
+        pair = [{"source": "A", "target": "B", "length": length}, {"source": "B", "target": "A"}]
+        if other is not None:
+            pair[1]["length"] = other
+        graph = resolve(explicit_patch(pair)).graph
+        assert graph.length(*graph.nodes) == graph.length(*reversed(graph.nodes)) == length
+
+
+def test_a_repeated_directed_arc_with_another_length_conflicts():
+    arcs = [{"source": "A", "target": "B", "length": 25.0}, {"source": "A", "target": "B", "length": 26.0}]
+    with pytest.raises(LayoutError, match="conflicting"):
+        resolve(explicit_patch(arcs))

@@ -520,3 +520,36 @@ def test_preexisting_bay_alias_cannot_introduce_concrete_nodes_during_preparatio
     with pytest.raises(LayoutError, match="explicit graph consumers"):
         layout.prepare()
     assert not any(entity.kind == "node" for entity in env.entities.live())
+
+
+class ConstantSpeed:
+    """A speed profile with only ``travel_time``: 2 m/s, no limits."""
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        return distance / 2.0
+
+
+def test_an_agv_drives_a_recorded_explicit_length_and_not_the_chord():
+    def run(length: float | None) -> float:
+        env = Environment()
+        layout = Layout(env)
+        a, b = Node("A", 0, 0), Node("B", 10, 0)
+        layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, length=length)])))
+        origin, destination = (
+            warehouse(env, "origin", layout.node("A")),
+            warehouse(env, "destination", layout.node("B")),
+        )
+        kind = AGVType("cart", ConstantSpeed(), 100, 100, 100, length=0.5)
+        cart = AGV(env=env, agv_id="cart", initial_node=layout.node("A"), agv_type=kind)
+        fleet = FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[cart], warehouses=[origin, destination], charging_stations=[]
+        )
+        fleet.submit(fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination))
+        env.run()
+        env.close()
+        return env.now
+
+    assert run(None) == 5.0  # the chord, 10 m at 2 m/s
+    assert run(25.0) == 12.5

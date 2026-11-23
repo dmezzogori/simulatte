@@ -156,9 +156,9 @@ def _list(value: Any) -> tuple[Any, ...] | list[Any]:
 def traffic_fields(value: Mapping[str, Any]) -> list[tuple[str, ...]]:
     """The paths of the schema 1.1 fields (spec §12) that a layout patch uses, in a fixed order.
 
-    ``passing`` on lanes, explicit arcs, connectors, the lattice network and edge overrides; ``network.block_length``
-    and ``network.zones``. An ``$unset`` marker counts as use, since it names the field. The patch must be valid
-    against the schema."""
+    ``passing`` on lanes, explicit arcs, connectors, the lattice network and edge overrides; ``length`` on explicit
+    arcs; ``network.block_length`` and ``network.zones``. An ``$unset`` marker counts as use, since it names the
+    field. The patch must be valid against the schema."""
     network = _map(value.get("network"))
     found: list[tuple[str, ...]] = [
         ("network", name) for name in ("passing", "block_length", "zones") if name in network
@@ -167,8 +167,9 @@ def traffic_fields(value: Mapping[str, Any]) -> list[tuple[str, ...]]:
         if "passing" in _map(lane):
             found.append(("network", "lanes", lane_id, "passing"))
     for index, arc in enumerate(_list(network.get("arcs"))):
-        if "passing" in _map(arc):
-            found.append(("network", "arcs", str(index), "passing"))
+        for name in ("passing", "length"):
+            if name in _map(arc):
+                found.append(("network", "arcs", str(index), name))
     for index, record in enumerate(_list(value.get("overrides"))):
         if "passing" in _map(_map(record).get("properties")):
             found.append(("overrides", str(index), "properties", "passing"))

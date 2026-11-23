@@ -302,7 +302,7 @@ def _validate_details(data: Mapping[str, Any]) -> None:
         _keys(node, "id position capacity")
         validate_definition(_thaw({k: v for k, v in node.items() if v is not None}), "explicitNode")
     for arc in _array(graph["arcs"]):
-        _keys(arc, "source target speed_limit" + " passing" * traffic)
+        _keys(arc, "source target speed_limit" + " passing" * traffic, "length" * traffic)
         validate_definition(_thaw({k: v for k, v in arc.items() if v is not None}), "explicitArc")
     for zone in _array(graph["zones"]) if traffic else ():
         _keys(zone, "id capacity hold_back members")
@@ -406,7 +406,9 @@ class ResolvedLayout:
 
 
 def _network(network: Any, traffic: bool) -> dict[str, Any]:
-    """The network record; ``traffic`` (a 1.1 layout) adds edge ``passing``, arc ``passing`` and the graph's zones."""
+    """The network record; ``traffic`` (a 1.1 layout) adds edge ``passing``, arc ``passing`` and the graph's zones.
+
+    A declared arc length is an arc field of its own (1.1 only: declaring one makes the layout 1.1)."""
     definitions = network.definitions
     nodes = []
     for address, node in sorted(definitions.nodes.items(), key=lambda pair: pair[0]._json):
@@ -436,6 +438,14 @@ def _network(network: Any, traffic: bool) -> dict[str, Any]:
             }
         )
     graph = network.graph
+    # An arc whose length was declared (explicit arcs, spec 5.2) records it; every other length follows from the
+    # nodes and the block length, and its bundle stays as it was.
+    recorded = {
+        (definitions.nodes[source].id, definitions.nodes[target].id)
+        for source, edges in definitions.adjacency.items()
+        for target, edge in edges
+        if definitions.edges[edge].recorded
+    }
     record = {
         "nodes": nodes,
         "edges": edges,
@@ -464,6 +474,7 @@ def _network(network: Any, traffic: bool) -> dict[str, Any]:
                     "target": b.id,
                     "speed_limit": graph.arc_between(a, b).speed_limit,
                     **({"passing": graph.arc_between(a, b).passing} if traffic else {}),
+                    **({"length": graph.length(a, b)} if (a.id, b.id) in recorded else {}),
                 }
                 for a in graph.nodes
                 for b in graph.neighbors(a)

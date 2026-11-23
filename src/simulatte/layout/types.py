@@ -262,6 +262,8 @@ class ExplicitArc:
     speed_limit: float | None = None
     enabled: bool = True
     passing: bool | None = None
+    length: float | None = None
+    """The travelled length when it is not the chord of the endpoints; ``None`` leaves the chord."""
 
 
 @dataclass(frozen=True, init=False)
@@ -284,6 +286,8 @@ class Explicit:
         block_length: float | None = None,
         zones: Mapping[str, Any] | None = None,
     ) -> None:
+        from simulatte.intralogistics.graph import chord_length
+
         nodes = tuple(graph.nodes)
         node_set = set(nodes)
         ids = [node.id for node in nodes]
@@ -303,7 +307,12 @@ class Explicit:
                         f"explicit arc {source.id!r} -> {target.id!r} is zero-length after float64 normalization"
                     )
                 speed = None if arc.speed_limit is None else number(arc.speed_limit, "speed_limit", positive=True)
-                arcs.append(ExplicitArc(source.id, target.id, speed, passing=True if arc.passing else None))
+                # An arc cannot tell whether its length was given, so it is recorded when it is not the chord, which
+                # the resolver would otherwise use (an exact comparison: it computes the chord the same way).
+                length = None if arc.length == chord_length(source.x, source.y, target.x, target.y) else arc.length
+                arcs.append(
+                    ExplicitArc(source.id, target.id, speed, passing=True if arc.passing else None, length=length)
+                )
         # Observable adjacency can contain sources absent from graph.nodes as well.
         if any(source not in node_set for source, edges in graph._adjacency.items() if edges):
             raise LayoutError("explicit graph contains a foreign endpoint")

@@ -1507,6 +1507,16 @@
         },
         "passing": {
           "$ref": "#/$defs/passing"
+        },
+        "length": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
         }
       },
       "required": [

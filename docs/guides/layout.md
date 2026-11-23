@@ -312,11 +312,15 @@ with Environment(seed=7) as env:
 
 ## Traffic fields (schema 1.1)
 
-Author format `1.1` adds three fields for traffic control. They are physical inputs: they enter the dependency
+Author format `1.1` adds four fields for traffic control. They are physical inputs: they enter the dependency
 closure and the physical hash.
 
 - `passing` (boolean, default false) on lanes, explicit arcs, connectors, the lattice network and edge overrides:
   opposite traffic may pass on the edge. It sets `Arc.passing` on the resolved arcs.
+- `length` (positive number) on explicit arcs: the travelled length, when it is not the straight line between the
+  nodes. Without it an arc is as long as its chord. `Explicit(graph)` records an arc's length exactly when it differs
+  from its chord, so a graph from `LayoutGraph.subdivide` keeps the lengths of its pieces; the two directions of a
+  pair must agree, and `block_length` splits an arc by its recorded length.
 - `network.block_length` (positive number): after the overrides, every enabled edge longer than it is split into
   `ceil(length / block_length)` equal pieces, so that a vehicle holds a shorter stretch of lane at a time. A
   generated node has the address kind `block_node` (the parent edge's address and the piece index `k`, counted

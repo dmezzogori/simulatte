@@ -226,8 +226,9 @@ function details(data: Map): void {
       const node = keys(item, "id position capacity"); validateLayoutDefinition(node["id"], "id"); point(node["position"]); nullableDefinition(node["capacity"], "capacity");
     }
     for (const item of array(graph["arcs"])) {
-      const arc = keys(item, "source target speed_limit", "passing"); validateLayoutDefinition(arc["source"], "id"); validateLayoutDefinition(arc["target"], "id"); nullableDefinition(arc["speed_limit"], "positive");
+      const arc = keys(item, "source target speed_limit", "passing length"); validateLayoutDefinition(arc["source"], "id"); validateLayoutDefinition(arc["target"], "id"); nullableDefinition(arc["speed_limit"], "positive");
       if (arc["passing"] !== undefined) nullableBoolean(arc["passing"]);
+      if (arc["length"] !== undefined) nullableDefinition(arc["length"], "positive");
     }
     for (const item of array(graph["zones"] ?? [])) {
       const zone = keys(item, "id capacity hold_back members"); validateLayoutDefinition(zone["id"], "id"); validateLayoutDefinition(zone["capacity"], "capacity");
