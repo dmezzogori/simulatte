@@ -336,13 +336,20 @@ class ReservationController:
         ]
 
     def withdraw(self, request: ClaimRequest) -> None:
-        """Cancel `request` if it is still pending; an open wait ends with ``interrupted``."""
+        """Cancel `request` if it is still pending; an open wait ends with ``interrupted``.
+
+        When the AGV was a member of a deadlocked set left unresolved, detection runs again if the waits left still hold
+        a deadlock (spec §7.8).
+        """
         waiting = self._pending.get(request.agv)
         if waiting is None or waiting.request is not request:
             return
+        member = self._unresolved_member(waiting.agv)
         self._dequeue(waiting)
         self._end_wait(waiting, "interrupted")
         self._scan()
+        if member:
+            self._detect_again()
 
     def release(self, agv: AGV, resources: Collection[Resource]) -> None:
         """Free the given resources that `agv` holds, and each zone or corridor whose last held member goes with them.
@@ -488,12 +495,16 @@ class ReservationController:
 
     def _react(self, waiting: _Pending, wait: Wait) -> KeepWaiting | None:
         """Try the reactions of ``on_blocked`` in order (spec §7.9): None when one was staged, otherwise the
-        ``KeepWaiting`` that ended the sequence (``KeepWaiting()`` when it ran out)."""
+        ``KeepWaiting`` that ended the sequence (``KeepWaiting()`` when it ran out). A staged reaction of a member of a
+        deadlocked set left unresolved runs detection again, as a withdrawal does."""
+        member = self._unresolved_member(waiting.agv)
         for reaction in self._policy.on_blocked(wait, self.view):
             if isinstance(reaction, KeepWaiting):
                 return reaction
             if self._attempt(waiting, reaction, "blocked") is not None:
                 self._scan()
+                if member:
+                    self._detect_again()
                 return None
         return KeepWaiting()
 
@@ -655,6 +666,20 @@ class ReservationController:
                 removed = True
                 break
         return remaining
+
+    def _unresolved_member(self, agv: AGV) -> bool:
+        """Whether `agv` is a member of a deadlocked set reported unresolved that still stands."""
+        return any(agv.id in ids for ids in self._unresolved)
+
+    def _detect_again(self) -> None:
+        """Detection after a member's wait of a set left unresolved ended by withdrawal or by a reaction to
+        ``on_blocked``, when the waits left still hold a deadlock (spec §7.8).
+
+        The end of the wait forgot the set (``_end_wait``) and those paths only scan; members whose wait opened into
+        the set have no review, and the reviews of the others may sleep, so nothing else would look at them again.
+        """
+        if self._reduce([waiting for waiting in self._queue if waiting.stopped], gates=False):
+            self._detect()
 
     def _detect(self) -> list[_Pending]:
         """Deadlock detection and resolution among the stopped waiters (spec §7.8); returns the deadlocked set left

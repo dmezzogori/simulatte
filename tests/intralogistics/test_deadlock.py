@@ -890,6 +890,70 @@ class TestDetection:
         w.wait("B", "N0")
         assert len(w.deadlocks()) == 2
 
+    def test_what_is_left_of_a_set_when_a_members_wait_is_withdrawn_is_examined_again(self) -> None:
+        """C waits behind the cycle of A and B, and the set {A, B, C} stands unresolved. C's withdrawal ends the set
+        the controller remembered, but A and B still block each other: detection runs again and reports them, since
+        neither has a review left that would."""
+        policy = Scripted()  # KeepWaiting() with no review: nothing but detection looks at these waits again
+        w = world({"A": "N0", "B": "N1", "C": "N2"}, policy=policy)
+        behind = w.wait("C", "N1")
+        w.wait("A", "N1")
+        w.wait("B", "N0")
+        assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved")]
+        w.controller.withdraw(behind)
+        assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved"), (("A", "B"), None, "unresolved")]
+        assert [[wait.agv.id for wait in waits] for waits in policy.of("on_deadlock")] == [["C", "A", "B"], ["A", "B"]]
+        assert w.controller._unresolved == [("A", "B")]
+        w.env.run()
+        assert timers(w) == []
+        assert w.env.now == 0.0
+
+    def test_a_members_withdrawal_that_leaves_no_deadlock_asks_the_policy_nothing(self) -> None:
+        policy = Scripted()
+        w = world({"A": "N0", "B": "N1"}, policy=policy)
+        w.wait("A", "N1")
+        request = w.wait("B", "N0")
+        assert len(policy.of("on_deadlock")) == 1
+        w.controller.withdraw(request)  # A still waits on B's node, but B no longer waits: no deadlock
+        assert len(policy.of("on_deadlock")) == 1
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        assert w.controller._unresolved == []
+
+    def test_the_withdrawal_of_a_waiter_outside_every_unresolved_set_does_not_detect(self) -> None:
+        policy = Scripted()
+        w = world({"A": "N0", "B": "N1", "M": "N3", "D": "N2"}, policy=policy)
+        w.state("M", AGVState.TRAVELING_EMPTY)
+        w.wait("A", "N1")
+        w.wait("B", "N0")
+        outside = w.wait("D", "N3")  # waits on a moving AGV; its stop asks the policy about {A, B} once more
+        assert len(policy.of("on_deadlock")) == 2
+        w.controller.withdraw(outside)
+        assert len(policy.of("on_deadlock")) == 2
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        assert w.controller._unresolved == [("A", "B")]
+
+    def test_what_is_left_of_a_set_when_a_review_stages_a_members_reaction_is_examined_again(self) -> None:
+        """As above, but C's wait ends because its own review reroutes it (a member that was already waiting keeps
+        its reviews); the end of the wait comes from the reaction, which also only scans."""
+
+        def blocked(wait: Wait) -> Sequence[Reaction]:
+            if wait.agv.id != "C":
+                return (KeepWaiting(),)
+            return (KeepWaiting(1.0),) if wait.reviews == 0 else (Reroute(frozenset()), KeepWaiting())
+
+        policy = Scripted(blocked=blocked, deadlock=lambda waits: [])
+        w = world({"A": "N0", "B": "N1", "C": "N2"}, policy=policy)
+        behind = w.wait("C", "N1", with_hooks=hooks(name="C", accept=("try_reroute",)))
+        w.wait("A", "N1")
+        w.wait("B", "N0")
+        assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved")]
+        run_to(w, 2.0)
+        assert behind.event.value == Rerouted("blocked")
+        assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved"), (("A", "B"), None, "unresolved")]
+        assert w.controller._unresolved == [("A", "B")]
+        w.env.run()
+        assert timers(w) == []
+
 
 # --- deadlock resolution (spec §7.8, §7.9) ------------------------------------------------------------------
 

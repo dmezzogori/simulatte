@@ -245,17 +245,44 @@ def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a
     assert "parking slot of an AGV resting elsewhere" in {violation[1] for violation in record.violations}
 
 
-def test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit():
-    """Seed 2000228 (`ReservationController`, `FastestRouter`): the deadlock of agv-a, agv-c, agv-d, agv-e and agv-g is
-    reported unresolved (last at 378.2); agv-a's wait is withdrawn at 433.1 by a breakdown; the controller forgets the
-    set and never looks at the other four again, though their waits, blocked by each other only, still form a
-    deadlock: the run ends with four open waits that no report explains. A missed detection of traffic control that
-    predates this work (present at e993ca8)."""
-    record = run_world(world_spec(2000228), controller="reservation", router="fastest")
-    assert record.quiescent and not record.violations
-    (case,) = record.known_limits
-    assert case[1] == KNOWN_LIMIT_WITHDRAWN
-    assert case[2] == ("agv-c", "agv-d", "agv-e", "agv-g")
+@pytest.mark.parametrize(
+    ("seed", "router", "withdrawn", "detected"),
+    [
+        (2000228, "fastest", "agv-a", (("agv-c", "agv-d", "agv-e", "agv-g"), "agv-e", "step_aside")),
+        (52118, "shortest", "agv-f", (("agv-g", "bot-y"), None, "unresolved")),
+    ],
+)
+def test_waits_left_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_resolved_or_reported(
+    seed, router, withdrawn, detected
+):
+    """Seed 2000228 (`FastestRouter`): the deadlock of agv-a, agv-c, agv-d, agv-e and agv-g is reported unresolved; at
+    433.1 a breakdown withdraws agv-a's wait, and the other four still block each other only. Seed 52118
+    (`ShortestDistanceRouter`): the deadlock of agv-d, agv-f, agv-g, bot-y and bot-z is reported unresolved; at 293.7 a
+    cancellation withdraws agv-f's wait, and agv-g and bot-y still block each other (and wait on a stranded AGV), with
+    reviews that sleep. The controller forgot the set and never looked at these waits again, which were left open with
+    no report. Now the withdrawal runs the detection again, at the same instant, and the run ends with every wait
+    granted, resolved or reported."""
+    record = run_world(world_spec(seed), controller="reservation", router=router)
+    assert record.quiescent and not record.violations and not record.known_limits
+    events = [(kind, dict(fields)) for kind, fields in record.events]
+    (at,) = [
+        index
+        for index, (kind, fields) in enumerate(events)
+        if kind is logistics_events.TrafficWaitEnded
+        and fields["agv"] == withdrawn
+        and fields["reason"] == "interrupted"
+        and any(
+            kind is logistics_events.TrafficDeadlock and withdrawn in fields["agvs"] for kind, fields in events[:index]
+        )
+        and not any(
+            kind is logistics_events.TrafficWaitEnded and fields["agv"] == withdrawn
+            for kind, fields in events[index + 1 :]
+        )
+    ]
+    ended = events[at][1]
+    kind, fields = next((kind, fields) for kind, fields in events[at + 1 :] if kind is logistics_events.TrafficDeadlock)
+    assert fields["t"] == ended["t"]
+    assert (fields["agvs"], fields["victim"], fields["action"]) == detected
 
 
 def _forget_to_scan_after_a_release(self, agv, gone):
