@@ -245,7 +245,8 @@ the layout subsystem, outside this work.
 The layout is finalized at activation, so a network cannot be declared afterwards: a script that ran a
 production model and then built a network and a fleet in the same environment, which worked while a network
 was a plain graph, now fails with a `LayoutError`. A fleet built after activation on a network that was
-declared before it works. The migration table names it and a test pins the error.
+declared before it works under the default free-flow controller; a `ReservationController` builds its traffic
+network at activation and takes no fleet afterwards, as before this work. The migration table names it and a test pins the error.
 
 What changes for these models: the INITIAL record and the manifest of every trace now carry the layout (the
 manifest's `layout` is no longer `None`), and activation does the work of §9.
@@ -303,7 +304,7 @@ The changelog's migration section for 0.18.0 gains a table and one worked exampl
 | `ReservationController(capacities={node: 2}, zones=[Zone(...)])` | capacities and zones in the network declaration, by node id |
 | an arc between two nodes at the same position | a small offset between the nodes and an explicit `length` |
 | `env.step()` on a fresh environment | `env.activate()` first |
-| declaring the transport network after `env.activate()` or the first `env.run()` (also through a builder, or a first fleet when no network was declared) | declare the network on `env.layout` before activation; fleets and other components with handles may still be added later |
+| declaring the transport network after `env.activate()` or the first `env.run()` (also through a builder, or a first fleet when no network was declared) | declare the network on `env.layout` before activation; components with handles may still be added later (a fleet too, under the default free-flow controller; a fleet of a `ReservationController` registers before activation) |
 | `env.layout is None` or `getattr(env, "layout", None)` as a check | every environment has a layout; reading `env.layout` creates it |
 
 It also states that traces now always carry the layout, that builder AGVs are named `vehicle-<i>`, and that
