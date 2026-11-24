@@ -145,6 +145,20 @@ def test_failed_activation_cannot_be_retried(env: Environment) -> None:
     assert not env.activated
 
 
+def test_step_after_a_failed_activation_names_the_failed_activation(env: Environment) -> None:
+    def boom() -> None:
+        raise KeyError("boom")
+
+    env.on_activate(boom)
+    with pytest.raises(KeyError):
+        env.activate()
+    with pytest.raises(LayoutError, match="activation is in progress or failed") as raised:
+        env.step()  # not "call env.activate()": activating again raises too
+    assert "cannot be activated again" in str(raised.value)
+    with pytest.raises(RuntimeError, match="in progress or failed"):
+        env.activate()
+
+
 def test_activate_from_initializer_raises(env: Environment) -> None:
     env.on_activate(env.activate)
     with pytest.raises(RuntimeError, match="in progress"):

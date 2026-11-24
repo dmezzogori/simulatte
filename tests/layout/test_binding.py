@@ -316,10 +316,11 @@ def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
     env = Environment()
     layout = line(env)
     manager, other, owner = Manager(), Manager(), object()
-    with pytest.raises(LayoutError, match="custom traffic controller requires"):
+    with pytest.raises(LayoutError, match="custom traffic controller requires") as raised:
         FleetCoordinator(
             env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
         )
+    assert "layout.register_resource_owner(" in str(raised.value) and "layout.on_bind(" in str(raised.value)
     layout.register_resource_owner(manager, owner=owner, graph=layout.graph(), binder="resources")
     layout.register_resource_owner(other, owner=owner, graph=layout.graph(), binder="resources")
     with pytest.raises(LayoutError, match="already registered"):
@@ -427,10 +428,11 @@ def test_the_registered_resource_owner_is_accepted_whatever_its_class():
     assert fleet.traffic_controller is controller
     other = Environment()
     stranger = ReservationController(env=other, graph=line(other).graph())  # the owner of another layout
-    with pytest.raises(LayoutError, match="custom traffic controller requires"):
+    with pytest.raises(LayoutError, match="belongs to another environment") as raised:
         FleetCoordinator(
             env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=stranger
         )
+    assert "register_resource_owner" not in str(raised.value)  # its fix is not a registration
 
 
 def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication():
@@ -610,6 +612,12 @@ def test_assigning_none_needs_no_layout():
     assert env.layout is layout
 
 
+class Unready:
+    @property
+    def id(self):
+        raise LayoutNotReady("not ready")
+
+
 def _outcome(call):
     try:
         call()
@@ -660,6 +668,10 @@ def test_the_agv_and_the_layout_accept_the_same_nodes(block):
         types.SimpleNamespace(id=[]),
         mock.ANY,
         Node(None, 0, 0),
+        layout.node("A"),  # a handle, which is for construction
+        layout.node("B"),
+        layout.graph(),
+        Unready(),  # not a handle, its id is not ready
     ]
     generated = [node for node in graph.nodes if node.id not in ("A", "B", "C", "D")]
     assert bool(generated) == (block is not None)
@@ -675,3 +687,42 @@ def test_the_agv_and_the_layout_accept_the_same_nodes(block):
         if by_layout is not None:
             assert cart.current_node is before  # a refused node changes nothing
     assert None in outcomes and len(outcomes) >= 3  # accepted and refused for several reasons
+
+
+CANONICAL_FIX = "fleet.graph, or env.layout.prepare().network.node(env.layout.node(id).address)"
+
+
+def test_a_refused_node_names_where_the_canonical_node_comes_from():
+    """A `Node` the script built, equal to the canonical node, and a handle, which is for construction, are refused by
+    the AGV and by the node binding with a message that names the canonical node of the same id."""
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"))
+    canonical = layout.prepare().network.node(layout.node("B").address)
+    copy = Node("B", canonical.x, canonical.y)
+    for refuse in (lambda node: setattr(cart, "current_node", node), env.entities.bind_node, layout._validate_node):
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node") as raised:
+            refuse(copy)
+        assert CANONICAL_FIX in str(raised.value)
+        for handle in (layout.node("B"), layout.graph()):
+            with pytest.raises(LayoutError) as raised:
+                refuse(handle)
+            message = str(raised.value)
+            assert "a layout handle" in message and "for constructing components" in message, message
+            assert CANONICAL_FIX in message, message
+    assert cart.current_node is layout.prepare().network.node(layout.node("A").address)
+    cart.current_node = canonical
+    assert cart.current_node is canonical
+
+
+def test_assigning_the_node_of_an_agv_whose_node_is_pending_names_the_assignment():
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"))
+    with pytest.raises(LayoutNotReady, match="before reading it"):
+        _ = cart.current_node
+    for node in (None, Node("A", 0, 0)):
+        with pytest.raises(LayoutNotReady) as raised:
+            cart.current_node = node
+        message = str(raised.value)
+        assert "before assigning it" in message and "reading" not in message, message

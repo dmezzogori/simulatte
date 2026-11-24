@@ -304,3 +304,86 @@ def test_explicit_rejects_an_arc_between_two_nodes_at_one_position() -> None:
     env.layout.set_network(explicit)
     graph = env.layout.prepare().network.graph
     assert graph.length(*graph.nodes) == 3.0
+
+
+PHYSICAL = (
+    "id",
+    "x",
+    "y",
+    "z",
+    "nodes",
+    "neighbors",
+    "arc_between",
+    "distance",
+    "length",
+    "path_length",
+    "path_distance",
+    "shortest_path",
+    "subdivide",
+)
+
+
+def test_reading_a_physical_attribute_of_a_handle_names_the_resolved_objects() -> None:
+    """A handle is not the resolved graph or node, before preparation and after it: reading what a `LayoutGraph` or a
+    `Node` has raises `LayoutNotReady` with one message that names where the resolved objects are."""
+    env = Environment()
+    layout = _declared(env)
+    handles = (layout.graph(), layout.node("A"))
+    for prepared in (False, True):
+        if prepared:
+            layout.prepare()
+        for handle in handles:
+            for name in PHYSICAL:
+                with pytest.raises(LayoutNotReady) as raised:
+                    getattr(handle, name)
+                message = str(raised.value)
+                assert message.startswith(f"{type(handle).__name__} is a layout handle"), message
+                assert f"has no {name}" in message, message
+                assert "fleet.graph" in message and "env.layout.prepare().network" in message, message
+
+
+def test_other_attributes_and_the_protocols_of_a_handle_are_unchanged() -> None:
+    import copy
+    import pickle
+
+    env = Environment()
+    layout = _declared(env)
+    for handle in (layout.graph(), layout.node("A")):
+        assert not hasattr(handle, "unknown") and not hasattr(handle, "__deepcopy__")
+        with pytest.raises(AttributeError, match="unknown"):
+            _ = handle.unknown  # type: ignore[union-attr]
+        with pytest.raises(LayoutNotReady):
+            hasattr(handle, "x")  # a physical attribute raises, as it did before
+        assert hasattr(handle, "owner") and hasattr(handle, "address")
+        assert copy.copy(handle) == handle
+        assert repr(handle).startswith(f"{type(handle).__name__}(owner=")
+        with pytest.raises(TypeError):
+            copy.deepcopy(handle)  # the owner holds the environment, which does not copy
+        with pytest.raises(TypeError):
+            pickle.dumps(handle)
+
+
+def test_old_style_declarations_name_what_to_write() -> None:
+    from simulatte.intralogistics.network import Zone
+
+    graph = _graph()
+    a, b = graph.nodes
+    zone = Zone("z", (a, (a, b)), 1)
+    shorthand = "zones={'z': {'members': ['A', ('A', 'B')]"
+    for zones in ([zone], {"z": zone}):
+        with pytest.raises(LayoutError, match="takes a mapping of zone id") as raised:
+            Explicit(graph, zones=zones)  # type: ignore[arg-type]
+        assert shorthand in str(raised.value)
+    with pytest.raises(LayoutError, match=r"member Node\(id='A'.*: write its id 'A'"):
+        Explicit(graph, zones={"z": {"members": [a]}})
+    with pytest.raises(LayoutError, match=r"write the pair of ids \('A', 'B'\)"):
+        Explicit(graph, zones={"z": {"members": [(a, b)]}})
+    env = Environment()
+    with pytest.raises(LayoutError, match=re.escape("takes a node id: write layout.node(node.id)")):
+        env.layout.node(a)  # type: ignore[arg-type]
+    with pytest.raises(LayoutError, match="does not match"):
+        env.layout.node(5)  # type: ignore[arg-type]  # not a node: the schema refuses it, as before
+    with pytest.raises(LayoutError, match=re.escape("declare a LayoutGraph with layout.set_network(Explicit(graph))")):
+        env.layout.set_network(graph)  # type: ignore[arg-type]
+    with pytest.raises(LayoutError, match="network must be Lattice, Lanes or Explicit"):
+        env.layout.set_network("graph")  # type: ignore[arg-type]

@@ -9,6 +9,7 @@ from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
 from simulatte.layout.binding import node_input, pending
+from simulatte.layout.errors import LayoutNotReady
 from simulatte.intralogistics.battery import Battery
 from simulatte.intralogistics.events import AgvBatteryChanged, AgvPlaced, AgvStateChanged
 
@@ -250,14 +251,18 @@ class AGV(Entity, kind="agv"):
 
     def _validate_node(self, node: Node | None) -> None:
         if self._pending_node is not None:
-            pending(self, "current_node")
+            pending(self, "current_node", "assigning")
         if node is None:
             return
         layout = self.env._layout
         # The canonical node of the network passes on one identity check, the common case of every move; anything else
-        # (a copy equal by value, a disabled node, a node of another network) is the layout's to refuse.
-        if layout is not None and layout._canonical_nodes.get(node.id) is node:
-            return
+        # (a copy equal by value, a disabled node, a node of another network, a handle, which has no id) is the
+        # layout's to refuse.
+        try:
+            if layout is not None and layout._canonical_nodes.get(node.id) is node:
+                return
+        except LayoutNotReady:
+            pass
         self.env.layout._validate_node(node)
 
     def _node_deltas(self, node: Node | None, left: NodeBinding | None, entered: NodeBinding | None) -> DeltaBuilder:

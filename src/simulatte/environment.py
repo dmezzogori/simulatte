@@ -655,6 +655,12 @@ class Environment(simpy.Environment):
             self._guard_layout_advance()
             from simulatte.layout.errors import LayoutError
 
+            if self._activation_started:
+                raise LayoutError(
+                    "env.step() needs a completed env.activate(): activation is in progress or failed; the "
+                    "environment cannot be activated again",
+                    code="lifecycle-error",
+                )
             raise LayoutError("call env.activate() before env.step()", code="lifecycle-error")
         try:
             super().step()

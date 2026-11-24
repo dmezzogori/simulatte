@@ -104,11 +104,18 @@ def _zone_members(
     two nodes, as the pair of a controller ``Zone`` is, whichever way the arc runs: the address of ``a -> b`` when the
     graph has that arc, else of ``b -> a``. Address mappings pass through, so the forms may be mixed.
     """
-    if not isinstance(zones, Mapping):
+    if zones is None:
         return zones
+    if not isinstance(zones, Mapping) or not all(isinstance(zone, Mapping) for zone in zones.values()):
+        raise LayoutError(
+            "Explicit(zones=...) takes a mapping of zone id to a zone declaration, not Zone objects: for example "
+            "zones={'z': {'members': ['A', ('A', 'B')], 'capacity': 1}}, with node ids and pairs of ids as members"
+        )
+    from simulatte.intralogistics.graph import Node
+
     converted = {}
     for zone_id, zone in zones.items():
-        members = zone.get("members") if isinstance(zone, Mapping) else None
+        members = zone.get("members")
         if not isinstance(members, (list, tuple)):
             converted[zone_id] = zone
             continue
@@ -124,6 +131,13 @@ def _zone_members(
                     raise LayoutError(f"zones/{zone_id}: member {tuple(member)!r} is not an arc of the explicit graph")
                 source, target = (a, b) if (a, b) in arcs else (b, a)
                 found.append({"kind": "explicit_arc", "source": source, "target": target})
+            elif isinstance(member, Node):
+                raise LayoutError(f"zones/{zone_id}: member {member!r} is a Node: write its id {member.id!r}")
+            elif isinstance(member, (list, tuple)) and len(member) == 2 and all(isinstance(e, Node) for e in member):
+                raise LayoutError(
+                    f"zones/{zone_id}: member {tuple(member)!r} is a pair of Node objects: write the pair of ids "
+                    f"{(member[0].id, member[1].id)!r}"
+                )
             else:
                 found.append(member)
         converted[zone_id] = {**zone, "members": found}

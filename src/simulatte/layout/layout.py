@@ -11,7 +11,7 @@ from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
 from .auto import AutoLayer, TargetMetadata, auto_layout
 from .binding import bind_components
 from .dependencies import MISSING, DependencyClosure
-from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
+from .errors import LayoutDiagnostic, LayoutError, LayoutNotReady, sort_diagnostics
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .lifecycle import PreparationCoordinator, PreparationState
@@ -30,6 +30,11 @@ _FINALIZED_NETWORK = (
     "env.layout before activating; components with handles may still be added later"
 )
 """Why a network cannot be declared, or first used, once the layout is finalized, and what to do (spec §5.5)."""
+
+_CANONICAL_NODE = (
+    "take the node of the same id from fleet.graph, or env.layout.prepare().network.node(env.layout.node(id).address)"
+)
+"""Where the canonical node an AGV moves to comes from (spec §5.4)."""
 
 _BUILTINS = {
     "server",
@@ -200,6 +205,13 @@ class Layout:
 
     def set_network(self, spec: Lattice | Lanes | Explicit) -> None:
         if not isinstance(spec, (Lattice, Lanes, Explicit)):
+            from simulatte.intralogistics.graph import LayoutGraph
+
+            if isinstance(spec, LayoutGraph):
+                raise LayoutError(
+                    "network must be Lattice, Lanes or Explicit: declare a LayoutGraph with "
+                    "layout.set_network(Explicit(graph))"
+                )
             raise LayoutError("network must be Lattice, Lanes or Explicit")
         if self._coordinator.state is PreparationState.FINALIZED:
             raise LayoutError(f"cannot declare the network: {_FINALIZED_NETWORK}", code="lifecycle-error")
@@ -219,6 +231,11 @@ class Layout:
         return self._coordinator.ref(*path)
 
     def node(self, node_id: str) -> NodeRef:
+        if not isinstance(node_id, str):
+            from simulatte.intralogistics.graph import Node
+
+            if isinstance(node_id, Node):
+                raise LayoutError(f"layout.node() takes a node id: write layout.node(node.id), here {node_id.id!r}")
         return self.node_at(Address({"kind": "explicit", "id": node_id}))
 
     def node_at(self, address: Address) -> NodeRef:
@@ -308,8 +325,20 @@ class Layout:
     def _validate_node(self, node: Node | None) -> None:
         if node is None:
             return
-        if self._canonical_nodes.get(node.id) is not node:
-            raise LayoutError("AGV movement requires an exact canonical enabled graph node")
+        try:
+            if self._canonical_nodes.get(node.id) is node:
+                return
+        except LayoutNotReady:
+            if not isinstance(node, (NodeRef, PortRef, GraphRef, ValueRef)):
+                raise
+            raise LayoutError(
+                f"AGV movement takes a node of the resolved network, not a layout handle ({type(node).__name__}): "
+                f"handles are for constructing components; {_CANONICAL_NODE}"
+            ) from None
+        raise LayoutError(
+            "AGV movement requires an exact canonical enabled graph node, the object of the resolved network: "
+            f"{_CANONICAL_NODE}; a Node built by the script is equal to it but is another object"
+        )
 
     def _before_attach(self, obj: Entity, entity_id: str) -> None:
         coordinator = self._coordinator
@@ -369,7 +398,17 @@ class Layout:
             if controller is not self._resource_owner:
                 raise LayoutError("fleet must reuse the registered traffic controller in its environment")
         elif not any(item[0] is controller for item in self._custom_managers):
-            raise LayoutError("custom traffic controller requires explicit resource owner and binder registration")
+            built_for = getattr(controller, "_env", None)  # a ReservationController keeps the environment it serves
+            if built_for is not None and built_for is not self.env:
+                raise LayoutError(
+                    f"the traffic controller ({type(controller).__name__}) belongs to another environment: a fleet "
+                    "takes a controller built with env= the fleet's own environment"
+                )
+            raise LayoutError(
+                "custom traffic controller requires explicit resource owner and binder registration: before the "
+                "layout is prepared, call layout.register_resource_owner(controller, owner=..., graph=layout.graph(), "
+                "binder=name) and layout.on_bind(name, callback, reads=...)"
+            )
 
     def _validate(self, coordinator: PreparationCoordinator) -> ResolvedValues:
         if (

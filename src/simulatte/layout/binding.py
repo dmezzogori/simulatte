@@ -65,11 +65,11 @@ def graph_input(env: Environment, value: Any, *, component: str) -> tuple[Layout
     return None, value
 
 
-def pending(component: Any, field: str) -> None:
+def pending(component: Any, field: str, use: str = "reading") -> None:
     env = getattr(component, "env", None) or component._env
     raise LayoutNotReady(
         f"{type(component).__name__}.{field} is unresolved while {env._layout._coordinator.state.value}: it is bound "
-        "when the layout is prepared; call env.layout.prepare() or env.activate() before reading it",
+        f"when the layout is prepared; call env.layout.prepare() or env.activate() before {use} it",
         code="lifecycle-error",
         target=getattr(component, "id", None),
         path=("bindings", field),

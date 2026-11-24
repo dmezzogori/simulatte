@@ -69,11 +69,34 @@ class _Ref:
         return self.address.to_dict()
 
     def __getattr__(self, name: str) -> Any:
-        if name in ("x", "y", "z", "nodes", "neighbors", "arc_between"):
+        if name in _PHYSICAL:
             raise LayoutNotReady(
-                f"{type(self).__name__} is a logical handle; resolve it before reading {name}", code="lifecycle-error"
+                f"{type(self).__name__} is a layout handle for constructing components, not the resolved graph or "
+                f"node, and has no {name}: read the resolved objects from fleet.graph, or from "
+                "env.layout.prepare().network (its graph, and network.node(env.layout.node(id).address) for a node)",
+                code="lifecycle-error",
             )
         raise AttributeError(name)
+
+
+_PHYSICAL = frozenset(
+    (
+        "id",
+        "x",
+        "y",
+        "z",
+        "nodes",
+        "neighbors",
+        "arc_between",
+        "distance",
+        "length",
+        "path_length",
+        "path_distance",
+        "shortest_path",
+        "subdivide",
+    )
+)
+"""What a `Node` or a `LayoutGraph` has and a handle does not: reading it from a handle raises `LayoutNotReady`."""
 
 
 @dataclass(frozen=True, eq=False, init=False)
