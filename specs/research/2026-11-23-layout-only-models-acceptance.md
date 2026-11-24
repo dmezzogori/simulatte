@@ -2,8 +2,9 @@
 
 Branch `feature/layout-only-models`, spec `specs/2026-11-23-layout-only-models-design.md`. The work makes the layout
 the only way to build a model. This file records the evidence each task produces for the spec's verification (§8) and
-acceptance (§10): the parity run that allows explicit mode to be removed (L8), the measurements of the later tasks, and,
-from Task 11, the safety run on layout-built worlds, the walk of §10 and the gates.
+acceptance (§10): the parity run that allows explicit mode to be removed (L8), the measurements of the later tasks,
+from Task 11, the safety run on layout-built worlds, the walk of §10 and the gates, and, last, the fix wave of the final
+review.
 
 Each section states the commit it was measured at. The sections of Tasks 2 to 5 describe the branch while explicit mode
 still existed; Task 9 removed it (`999c3a7`), and the tests and scripts those sections name for the comparison of the two
@@ -17,7 +18,8 @@ says, the section says so.
 | Do explicit and layout models run alike? | Yes: 6,000 pairs equal at `e4afae4`, the last commit with both modes. | Parity (Task 2) |
 | Does the layout-built world stay safe? | Yes: 12,000 runs of 2,000 worlds, no violation, no exception, every run returned. Two known limits, both predating this work. | Safety run (Task 11) |
 | Are the performance targets of §9 met? | Yes. Activation at 1,600 servers meets its target at the line (49.1 to 49.4 ms against 50 ms). | Final numbers against §9 (Task 11) |
-| Do the gates pass? | Every gate was run and passed. | Gates (Task 11) |
+| Do the gates pass? | At `ab4d430` every gate was run and passed. At the head of the final review's fix wave every gate that was rerun passed, except the local overhead gate against 0.12.0 without its `env.debug` calls, which is at its limit (6 of 18 comparisons over it, by up to 2 points) for the head and for `e1b3d1c` alike, with nothing changed on the measured path. | Gates (Task 11); Final review |
+| What did the final review find? | No behavioural defect. Documentation, error messages of the strict contract and this record were fixed in one wave; no event, digest, bundle or hash changed. | Final review |
 | Is every item of §10 covered? | All but two are covered. Partly covered: item 2 (the code blocks of `docs/` and `skills/` that are not embedded example scripts are executed by no test) and item 5 (only the traffic example is projected by a TypeScript test; the other transport examples are checked for a recorded layout with arcs only). | Walk of §10 (Task 11) |
 
 ## Parity of explicit and layout models (Task 2)
@@ -237,9 +239,11 @@ worlds. Its geometry (nodes, lengths, passing flags, adjacency, zone members, co
 reports a built graph whose nodes or arcs differ from it; so after explicit mode is gone it still notices a layout
 that resolves a network wrongly. After every domain event it replays the deltas from the first event and from the
 initial state and compares them with the live entities. With a `ReservationController` it also keeps its own body
-model of every vehicle, from the motion events only, and checks node, segment, zone and corridor admission against
-it, that the holdings cover the bodies (exactly for a vehicle at rest and at the end of every travel), its own
-derivation of the corridors, and the entities against the holdings ledger; under either controller, parking capacity,
+model of every vehicle, from the motion events only, and checks against it node, zone and corridor admission and the
+direction of the vehicles on a single-lane segment (the spacing of vehicles that follow each other on a segment is not
+checked on the bodies: see "What the monitor does not check" under "Safety run"), that the holdings cover the bodies
+(exactly for a vehicle at rest and at the end of every travel), its own derivation of the corridors, and the entities
+against the holdings ledger, including the ledger's rule that the extents of a segment's holders fit in its length; under either controller, parking capacity,
 parking slots of resting AGVs, and that moves start and end where the body is. At the end of a run that ended on its
 own: no claim of a moving AGV, no review timer, every open wait explained by a stuck report or an unresolved deadlock,
 no motion left, no parking slot held away from its node. It records violations instead of raising, and the known
@@ -941,6 +945,21 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
   and not the emitted reports, so a controller that sets the flag but never emits `traffic.wait_stuck`, or the unresolved
   `traffic.deadlock`, passes. This predates this task.
 
+### What the monitor does not check
+
+Added by the final review (see "Final review"); the monitor is unchanged.
+
+- **The spacing of followers on a segment, on the bodies.** The body model checks the direction of the vehicles on a
+  single-lane segment (`PHYSICAL opposite directions on a segment`), not that vehicles following each other on it keep
+  their extents (`length + min_gap`) within its length. That holds by two checks together: the holdings cover the
+  bodies (`body not covered`, `holdings != body`), and the ledger satisfies the rule for its holders (`LEDGER extents
+  exceed the segment`). A controller whose holdings cover the bodies and satisfy the rule keeps followers apart; the
+  bodies are not compared with each other on a segment.
+- **The content of a `traffic.deadlock` report.** The monitor uses these reports to follow the unresolved deadlocks
+  for the second known limit and to count the feature "a deadlock"; it does not check that the AGVs a report lists are
+  in a deadlock, nor that every deadlock is reported. A wrong or spurious report passes. (Open waits at the end of a run
+  are explained from the controller's state, see the follow-up above.)
+
 ## Costs measured at the end (Task 11)
 
 ### The first activation in a process
@@ -999,7 +1018,7 @@ median of the six medians and the range of the six. The full output of the first
 | Activation under 5 ms at 10 servers, nobody observing | 0.50 ms (0.49 to 0.50) with `Layout(env)`, 0.52 ms (0.51 to 0.52) when activation creates the layout | yes |
 | Activation under 50 ms at 1,600 servers, nobody observing | 49.07 ms (48.87 to 49.37) with `Layout(env)`, 49.37 ms (49.19 to 49.71) when activation creates the layout | yes, at the line: the margin is 0.3 to 1.1 ms, the spread between processes is 0.5 ms, and every one of the six processes is under 50 ms |
 | Linear in the jobs created before activation | 1,600 jobs and 10 servers, `Layout(env)` and `prepare()`: 4.98 ms (4.87 to 5.34) in `jobs_before_layout`; per job 2.9, 2.6 and 3.2 microseconds at 1,600, 25,000 and 99,990 jobs (see above) | yes, up to a growth a little faster than linear (about 67 times the time for 62.5 times the jobs) |
-| The bundle and the hashes are built at first read | `first_bundle` 2.51 ms at 10 servers and 266.8 ms (265.2 to 269.6) at 1,600; `test_an_unobserved_run_builds_no_bundle_and_a_read_builds_it_once` | yes |
+| The bundle and the hashes are built at first read | `first_bundle` 2.51 ms at 10 servers and 266.8 ms (265.2 to 269.6) at 1,600; for a network of 1,600 nodes (final review, see below) 1.05 s for the explicit grid and 0.53 s for the lattice; `test_an_unobserved_run_builds_no_bundle_and_a_read_builds_it_once` | yes |
 | The overhead gate of the core workload against 0.12.0 passes with its present limit | see "Gates" | yes |
 | `import simulatte` imports neither `simulatte.layout` nor `simulatte.intralogistics.graph`; a layout with no network imports no fleet, traffic or AGV module | `tests/core/test_public_api.py::test_layout_is_lazy_but_discoverable`, `::test_a_layout_without_a_network_imports_no_fleet_traffic_or_agv_module`, `tests/layout/test_environment_layout.py::test_a_layout_created_at_activation_imports_no_fleet_traffic_or_agv_module` | yes |
 
@@ -1010,6 +1029,21 @@ Other cases of the same runs (median of the six medians, ms; range in parenthese
 `prepare/1600` 47.44 (47.28 to 47.78), `construct/100` ratio 1.45, `prepare_network/explicit/16, 100, 400, 1600`
 5.77, 30.44, 129.76, 569.65, `prepare_network/lattice/16, 100, 400, 1600` 3.57, 13.44, 52.16, 229.69. The preparation of a
 network is that of Task 9b (5.75, 30.6, 130, 572 and 3.6, 13.5, 52.5, 229): unchanged.
+
+The "before" of the network figures in this section and in Task 9b's is `1bc1e51`, the commit before Task 9b, not the
+base of the branch (`e993ca8`). The first read of the bundle of a network, which `layout_overhead.py` does not time
+(its `first_bundle` cases have servers only), was measured by the final review on the same 1,600-node models (a fresh
+model per repetition, `gc.collect()` outside the timing, the median of seven after one warm-up; the script is kept with
+the fix wave's scratch files, `scratch-final-fix/c1/net_bundle.py`), at `732f315`, whose `src` is that of the head of the
+fix wave:
+
+| 1,600 nodes | `prepare()` | first read of `bundle.full_hash` | An observed run pays (both) | At `e993ca8` (`prepare()`, which built the bundle) |
+|---|---|---|---|---|
+| explicit square grid | 0.610 s (0.602 to 0.617) | 1.049 s (1.044 to 1.055) | 1.66 s | 4.84 s (4.82 to 4.86; median of five) |
+| unit lattice | 0.237 s (0.236 to 0.239) | 0.526 s (0.523 to 0.537) | 0.76 s | 3.06 s (3.05 to 3.07; median of five) |
+
+A run that nobody records and whose manifest nobody reads pays the preparation only. The reviewer of the final review
+measured 1.05 s and 0.51 s for the first read, 1.66 s and 0.75 s in all, and 4.98 s and 3.09 s at `e993ca8`.
 
 First process, as printed:
 
@@ -1124,3 +1158,105 @@ One row per item and per sub-claim. "Covered" says what shows it; a claim nothin
 
 Also run, beyond §10: `tests/intralogistics` and `tests/layout` on CPython 3.11 (2612 passed), the floor of the supported
 versions.
+
+## Final review
+
+### What was reviewed and measured
+
+Two final reviewers read the whole branch at `e1b3d1c` against its base `e993ca8` and measured it end to end:
+production models are identical apart from the layout fields (21 written by hand, 400 random); 8,400 transport pairs,
+explicit mode at `e993ca8` against the layout at `e1b3d1c`, are identical; the bundles of layout models that existed
+before the branch are byte-identical except where an explicit arc records a length; no concrete object is accepted
+where a handle is required (611 probes). They found no critical finding and no behavioural defect. They found
+documentation that was false or missing, error messages of the strict contract that did not name the fix, and gaps in
+this record. One fix wave followed; these are its changes.
+
+### What the fix wave changed
+
+| Commit | Change |
+|---|---|
+| `751959a` | `fix(intralogistics)`: the route check (`_check_route`) compares each hop's endpoints with the resolved arc's by identity (and a route of one node with the AGV's node), so a router that returns copies of the graph's nodes is refused when the route is returned, naming the router, instead of failing at the first arrival with the move started. |
+| `67d5699` | `fix(layout)`: a node the script built, given to `agv.current_node` or `env.entities.bind_node`, is refused with the canonical node named (`fleet.graph`, or `env.layout.prepare().network.node(env.layout.node(id).address)`); a handle there is refused as a handle, which is for construction; assigning the node of an AGV whose node is pending says "before assigning it". Reading what a `Node` or `LayoutGraph` has (`id`, `x`, `nodes`, `length`, `distance`, `shortest_path` and the rest) from a handle raises `LayoutNotReady` with one message naming `fleet.graph` and `env.layout.prepare().network`; other names, `hasattr`, `copy`, `pickle` and `repr` of handles behave as before. An unregistered custom traffic controller names `layout.register_resource_owner` and `layout.on_bind`; a `ReservationController` of another environment has its own sentence. `env.step()` after a failed activation says that activation is in progress or failed. `Explicit(zones=)` with `Zone` objects or `Node` members, `layout.node(node)` and `layout.set_network(graph)` name what to write. |
+| `f652848` | `docs`: a lift's offset lies along the direction of travel under `corner_speed` or `turn_time` (changelog, layout guide, skill); resolved arcs are one-way and only nodes compare equal to the declared ones (changelog, layout and intralogistics guides, skill, a migration row); migration rows and notes for a capacity on a block node, `agv.current_node`, custom traffic controllers, entity names with a lone surrogate, non-finite coordinates and self-loops; the full order of node capacities; the layout guide's sentence that no viewer is included is gone; the docstrings of `Trace.layout` and of the second known limit. |
+| `732f315` | `docs(specs)`: spec §5.8, `Trace.layout` is also `None` for a trace whose activation failed. |
+| `b01c3af` | `test(layout)`: the test of the handle protocols added by `67d5699` accepts each interpreter's error for copying or pickling a handle (whose owner holds the environment): `TypeError` on CPython 3.14, `AttributeError` on 3.11, `PicklingError` on PyPy. The first runs of the PyPy lane and of CPython 3.11, at `732f315`, failed this one test (`1 failed, 4832 passed, 23 skipped` and `1 failed, 2620 passed`). |
+| this commit | `docs(specs)`: this section, the first bundle read of a network (under "Final numbers against spec §9"), what the monitor does not check (under "Safety run"). |
+
+The error paths changed and nothing else: the canonical node still passes on one identity check (the AGV's fast path
+gains a `try`, which costs nothing when nothing is raised), and the activated `env.step()` still reads one field
+(`tests/layout/test_binding.py` and `tests/layout/test_activation.py` hold unchanged; the table of
+`test_the_agv_and_the_layout_accept_the_same_nodes` gained handles and an object whose `id` is not ready). Each code
+change has a test that fails on the source of `e1b3d1c` (the final test files run with that source first on
+`PYTHONPATH`: `11 failed, 146 passed`).
+
+### Evidence that no model changed
+
+- The six fingerprints of `tests/intralogistics/test_random_worlds.py` (seeds 26, 88, 182, 236, 272 and 619) hold, and
+  so do the bundle and hash pins (`tests/layout/test_hashes.py`, `tests/layout/test_traffic_fields.py`: `177 passed`).
+- The safety sample, run at `e1b3d1c` and at the head with
+  `uv run --all-extras python benchmarks/layout_safety.py --worlds 300 --first 100000` and `--first 2000000`, printed
+  the same output apart from the wall-clock line, exit status 0 for all four runs:
+  seeds 100000 to 100299, 1,800 runs, 2,052,398 events, none raised, none not returned, no violation, 3 runs with the
+  parking-slot known limit; seeds 2000000 to 2000299, 1,800 runs, 2,145,016 events, none raised, none not returned, no
+  violation, one run with the parking-slot limit and one with the withdrawn-deadlock limit (seed 2000228, `fastest`).
+- The stdout of the transport examples (`intralogistics_simple`, `_intermediate`, `_advanced`, `_traffic`,
+  `building_an_agv_system`, `layout_intralogistics`) is byte-identical at `e1b3d1c` and at the head.
+- The route check costs nothing measurable: `benchmarks/intralogistics.py --mode none --shifts 1 --warmup 1 --repeat 5
+  --processes 3`, five rounds alternating the source of `e1b3d1c` and the head, gives a ratio of 1.005 (0.997 to 1.022)
+  with the same order trajectory in every run. The check runs 2,336 times in that shift and checks 9,165 hops; the
+  added identity tests cost 7.6 ns per hop, 0.07 ms of a 239 ms run (0.03 %).
+
+### Gates at the head
+
+Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise). The test suites, lint and format ran
+at `b01c3af`, the last commit that changes `src`, `tests`, `docs` or `benchmarks` (the commit after it changes this
+record only); types, the docs, the safety sample, the pins and every timing ran at `732f315`, whose `src`, `docs` and
+`benchmarks` are those of `b01c3af` (it changes one test). Result lines are copied from the output.
+
+| Gate | Command | Result |
+|---|---|---|
+| Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.19%`; `4964 passed, 1 skipped, 3 warnings in 464.59s (0:07:44)` (the same counts at `732f315`; at `e1b3d1c`, run by this wave: 99.19 %, `4954 passed, 1 skipped`). No line of `src` is uncovered at the head that was covered at `e1b3d1c` (the two `coverage.xml` compared by file and line text: 0 lines) |
+| Lint | `uv run --all-extras ruff check src tests benchmarks` | `All checks passed!` |
+| Format | `uv run --all-extras ruff format --check` | `532 files already formatted` |
+| Types | `uv run --all-extras ty check src` | `All checks passed!` |
+| Docs | `uv run --all-extras zensical build`; `tests/layout/test_acceptance.py tests/test_docs_links.py tests/test_docs_run_blocks.py` | `No issues found`, `Build finished in 1.60s`; `8 passed` |
+| Safety sample | `benchmarks/layout_safety.py --worlds 300` from 100000 and from 2000000 | the counts above, exit 0, identical to `e1b3d1c` |
+| PyPy lane | `UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv sync --dev --python pypy-3.11 --frozen`, then `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` (job `test-pypy` of `ci.yml`, in an environment of its own) | `4833 passed, 23 skipped in 613.41s (0:10:13)` (PyPy 7.3.22, Python 3.11.15; at `ab4d430`: 4823 passed) |
+| CPython 3.11 | `UV_PROJECT_ENVIRONMENT=<scratch>/py311-venv uv run --python 3.11 --all-extras pytest tests/intralogistics tests/layout --no-cov -q` | `2621 passed in 131.16s (0:02:11)` (Python 3.11.13; at `ab4d430`: 2612 passed) |
+| Overhead gate of the core workload | the `bench` job's step "Mode none against released and stripped 0.12.0 (gate)", `--warmup 1 --repeat 5 --processes 3`, run locally as described below | against released 0.12.0, pass in all 18 comparisons of nine rounds (-26.5 % to -19.8 %, limit +5.0 %); against 0.12.0 without `env.debug` calls, **6 of 18 fail**, by up to 2.0 points (overhead +5.2 % to +10.5 %, median +8.5 % on u90 and +8.1 % on u95, limit +8.5 %). The source of `e1b3d1c`, run in the same session, fails 2 of 6 (+7.8 % to +8.8 %). See below: the margin against the stripped copy is gone on this machine today for `e1b3d1c` as for the head, and nothing on the measured path changed |
+| Studio | not rerun | last run at `5f61105` (see "Gates (Task 11)"). Nothing it covers changed: `git diff --stat e1b3d1c HEAD -- studio` is empty, and the trace format is unchanged (`src/simulatte/trace/` changed in one docstring) |
+
+### The overhead gate at the head
+
+Run as `benchmarks/README.md` and the `bench` job describe it: mode `none` on the two CI workloads, `--warmup 1
+--repeat 5 --processes 3`, `compare.py --budget 0.03 --noise 0.02` against released 0.12.0 and `--budget 0.065 --noise
+0.02` against the stripped copy. 0.12.0 runs in the environment Task 11 built (`simulatte==0.12.0` with the checkout's
+dependency versions as constraints) and the stripped copy is the one `strip_debug.py` made from it then; each run
+printed the package it imported. The branch side is the checkout's `.venv` (or, for `e1b3d1c`, the `git archive` of its
+`src` first on `PYTHONPATH`). One-minute load average 1.3 to 3.6 (other sessions were running).
+
+| Rounds | Branch side | vs released, u90 | vs released, u95 | vs stripped, u90 | vs stripped, u95 |
+|---|---|---|---|---|---|
+| 1 to 6 | head | -25.3, -26.5, -24.1, -24.7, -25.4, -24.2 % | -23.5, -19.8, -23.3, -23.0, -23.3, -23.7 % | +8.3, +5.2, +7.4, **+9.0**, +7.3, **+8.9** % | +7.9, **+10.5**, +6.9, +8.1, +8.1, +7.8 % |
+| 7 to 9, alternating with the next row | head | -24.3, -24.4, -24.2 % | -23.1, -22.5, -23.3 % | **+9.2**, +8.5, **+9.0** % | **+8.7**, +8.5, +8.0 % |
+| 7 to 9, alternating with the row above | `e1b3d1c` | -24.5, -24.5, -24.5 % | -22.6, -22.7, -23.1 % | **+8.8**, +7.8, +8.2 % | **+8.7**, +7.8, +8.1 % |
+
+Bold is a comparison over the limit of +8.5 %. The branch medians are 0.486 to 0.505 s (u90) and 0.524 to 0.547 s (u95)
+at the head and 0.487 to 0.489 s and 0.525 to 0.526 s at `e1b3d1c`; the stripped copy's 0.449 to 0.471 s and 0.483 to
+0.497 s. Task 11 measured the same source (`src` of `e1b3d1c` is that of `5f61105`) at +7.3 % to +7.7 % and +6.6 % to
++7.6 % against the stripped copy, with branch medians of 0.484 s and 0.520 s: the machine measures the branch about 0.6
+points worse against the stripped copy today, and the margin of 0.8 to 1.9 points that record noted is gone, for
+`e1b3d1c` and for the head alike.
+
+Nothing on the measured path changed. The core workload is a production job shop: it runs none of the changed
+intralogistics or layout code, and the one change it executes, `Environment.step`, is a new branch inside
+`if not self._activated`, which an activated run never enters. Measured directly, alternating the source of `e1b3d1c`
+and the head in separate processes:
+
+- the gate's workloads, `run.py --mode none`, four rounds each: head / `e1b3d1c` 1.006 (0.991 to 1.031) on u90 and
+  1.005 (0.987 to 1.016) on u95, within the spread of the rounds;
+- a process waiting on 300,000 timeouts after activation (median of nine runs per process), four rounds: 439.6 to
+  448.5 ns per timeout at the head, 445.2 to 464.3 ns at `e1b3d1c`.
+
+The gate is a CI gate and runs on the CI runner, whose calibration set the limits (README); it was not run there for this
+wave. Locally it passes against released 0.12.0 and is at its limit against the stripped copy, as it is for `e1b3d1c`.
