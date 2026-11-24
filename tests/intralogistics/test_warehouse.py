@@ -6,12 +6,15 @@ from simulatte.environment import Environment
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import LayoutError, NodeRef
+
+from tests.intralogistics.traffic_support import declare
 
 
 class TestWarehouse:
-    def _make_warehouse(self, env: Environment) -> tuple[Warehouse, list[Node]]:
-        in_bay = Node(id="IN", x=0.0, y=0.0)
-        out_bay = Node(id="OUT", x=1.0, y=0.0)
+    def _make_warehouse(self, env: Environment) -> tuple[Warehouse, list[NodeRef]]:
+        world = declare(env, LayoutGraph([Node(id="IN", x=0.0, y=0.0), Node(id="OUT", x=1.0, y=0.0)], []))
+        in_bay, out_bay = world.ref("IN"), world.ref("OUT")
         steel = SKU(id="STEEL", weight=10.0, volume=0.5)
         bolts = SKU(id="BOLTS", weight=0.1, volume=0.01)
         wh = Warehouse(
@@ -82,8 +85,8 @@ class TestWarehouse:
     def test_pick_does_not_deadlock_with_put(self, env: Environment) -> None:
         """Critical test: pick waits for inventory without holding a slot,
         so put can always get a slot to restock."""
-        in_bay = Node(id="IN", x=0.0, y=0.0)
-        out_bay = Node(id="OUT", x=1.0, y=0.0)
+        world = declare(env, LayoutGraph([Node(id="IN", x=0.0, y=0.0), Node(id="OUT", x=1.0, y=0.0)], []))
+        in_bay, out_bay = world.ref("IN"), world.ref("OUT")
         steel = SKU(id="STEEL", weight=10.0, volume=0.5)
         wh = Warehouse(
             env=env,
@@ -126,18 +129,18 @@ class TestWarehouse:
             Arc(source=agv_pos, target=detour),
             Arc(source=detour, target=out2),
         ]
-        graph = LayoutGraph([out1, out2, detour, agv_pos], arcs)
+        world = declare(env, LayoutGraph([out1, out2, detour, agv_pos], arcs))
         wh = Warehouse(
             env=env,
             name="WH",
             input_bays=[],
-            output_bays=[out1, out2],
+            output_bays=[world.ref("OUT1"), world.ref("OUT2")],
             n_slots=1,
             products=[steel],
             pick_time=1.0,
             put_time=1.0,
         )
-        nearest = wh.nearest_output_bay(agv_pos, graph)
+        nearest = wh.nearest_output_bay(world.node("AGV"), world.canonical_graph())
         assert nearest == out1  # graph distance: AGV→OUT1 = 8.0, AGV→D→OUT2 ≈ 5+5.1 = 10.1
 
     def test_nearest_input_bay_ranks_by_chords_and_names_the_first_bay_when_none_is_reachable(
@@ -146,21 +149,28 @@ class TestWarehouse:
         """``N`` is 10 m away by its chord though its arc is 30 m long; ``F`` is 20 m away; ``I`` is unreachable. The
         helper ranks by the chords of the shortest path (the coordinator ranks by its router's cost instead)."""
         a, near, far, island = Node("A", 0.0, 0.0), Node("N", 10.0, 0.0), Node("F", 0.0, 20.0), Node("I", 50.0, 50.0)
-        graph = LayoutGraph([a, near, far, island], [Arc(a, near, length=30.0), Arc(a, far)])
+        world = declare(env, LayoutGraph([a, near, far, island], [Arc(a, near, length=30.0), Arc(a, far)]))
         steel = SKU(id="S", weight=1.0, volume=0.1)
-        wh = Warehouse(
-            env=env,
-            name="WH",
-            input_bays=[island, far, near],
-            output_bays=[],
-            n_slots=1,
-            products=[steel],
-            pick_time=1.0,
-            put_time=1.0,
-        )
-        assert wh.nearest_input_bay(a, graph) == near
-        wh.input_bays = [island]
-        assert wh.nearest_input_bay(a, graph) == island
+
+        def warehouse(name: str, bays: list[str]) -> Warehouse:
+            return Warehouse(
+                env=env,
+                name=name,
+                input_bays=[world.ref(bay) for bay in bays],
+                output_bays=[],
+                n_slots=1,
+                products=[steel],
+                pick_time=1.0,
+                put_time=1.0,
+            )
+
+        wh = warehouse("WH", ["I", "F", "N"])
+        only_island = warehouse("WH-I", ["I"])  # the bays are declared at construction: they are frozen
+        graph = world.canonical_graph()
+        assert wh.nearest_input_bay(world.node("A"), graph) == near
+        with pytest.raises(LayoutError, match="input_bays is read-only"):
+            wh.input_bays = [world.node("I")]
+        assert only_island.nearest_input_bay(world.node("A"), graph) == island
 
     def test_metrics(self, env: Environment) -> None:
         wh, _ = self._make_warehouse(env)
