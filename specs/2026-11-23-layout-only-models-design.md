@@ -243,8 +243,9 @@ the run are not targets and cost nothing. Whether transient entities should be t
 the layout subsystem, outside this work.
 
 The layout is finalized at activation, so a network cannot be declared afterwards: a script that ran a
-production model and then built a fleet in the same environment, which worked while a network was a plain
-graph, now fails with a `LayoutError`. The migration table names it and a test pins the error.
+production model and then built a network and a fleet in the same environment, which worked while a network
+was a plain graph, now fails with a `LayoutError`. A fleet built after activation on a network that was
+declared before it works. The migration table names it and a test pins the error.
 
 What changes for these models: the INITIAL record and the manifest of every trace now carry the layout (the
 manifest's `layout` is no longer `None`), and activation does the work of §9.
@@ -302,7 +303,7 @@ The changelog's migration section for 0.18.0 gains a table and one worked exampl
 | `ReservationController(capacities={node: 2}, zones=[Zone(...)])` | capacities and zones in the network declaration, by node id |
 | an arc between two nodes at the same position | a small offset between the nodes and an explicit `length` |
 | `env.step()` on a fresh environment | `env.activate()` first |
-| building the transport network or the first fleet after `env.activate()` or the first `env.run()` | declare the network on `env.layout` before activation; components with handles may still be added later |
+| declaring the transport network after `env.activate()` or the first `env.run()` (also through a builder, or a first fleet when no network was declared) | declare the network on `env.layout` before activation; fleets and other components with handles may still be added later |
 | `env.layout is None` or `getattr(env, "layout", None)` as a check | every environment has a layout; reading `env.layout` creates it |
 
 It also states that traces now always carry the layout, that builder AGVs are named `vehicle-<i>`, and that
