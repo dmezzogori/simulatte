@@ -646,3 +646,17 @@ experiment or editing a variant does not invalidate the interactive run.
 exact Python version (`.python-version` or the coordinator's) shared by supervisor and environment; provisioning
 has its own timeout (default 600 s) and a timeout is `provisioning_failed`, never `lost`. Windows coordinators
 keep local experiments; SSH from Windows is untested in 0.17 and Windows is never a remote host.
+
+## Overhead gate against stripped 0.12.0, 2026-11-24 (Davide)
+
+**D106. The CPython budget against 0.12.0 without its `env.debug` calls is 10.5 % (was 6.5 %); the limit is 12.5 %
+(was 8.5 %).** Davide decided on 2026-11-24 to widen the band of the no-subscriber gate against the stripped copy; the
+gate stays a gate. Cause: on the development machine (Apple M4 Pro, CPython 3.14.3) the base of the branch (`e1b3d1c`)
+and its head both measure +6.3 to +9.3 % against the stripped copy over eight rounds, so a whole gate passed in 4 of
+8 rounds at the old limit; the CI runner passed at +6.8 and +7.7 % (`e993ca8`), +8.3 % (`9cc5d64`) and failed once on
+`main` (`ea1292c`, a documentation tool bump that touched no source) with +9.6 and +10.4 %. Rule, unchanged from G3
+report §9 (D56): budget = worst pooled overhead over interleaved rounds plus 2.0 points of headroom; the noise band stays
+2 %. Measured at `7736e5d`, ten rounds, pooled medians of 150 samples per side and workload: +8.34 % (u90) and
++8.45 % (u95); 8.45 + 2.0 = 10.45, rounded up to 10.5; 10.5 + 2.0 = 12.5. The PyPy budget (3 %), both noise bands and
+the released-baseline limit (3 % + 2 %) are unchanged. The measurements are in
+`specs/research/2026-11-23-layout-only-models-acceptance.md`, Assignment 2, C.
