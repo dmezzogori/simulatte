@@ -1052,8 +1052,9 @@ deadlock detection (`_detect`) runs only when a wait starts (`stopped()`), and a
 no review timer. When one wait of the set is withdrawn (`withdraw`, which only scans) the controller forgets every set
 that holds its AGV (`_end_wait`), and nothing looks at the remaining waits again unless a new wait opens, an idle
 blocker comes to rest or a stuck chain reaches them. If they still form a deadlock, the run ends with them open and
-unreported. The monitor recognises it only when, at the end, the exempted waits are a closed set: each is blocked, and
-only by AGVs that wait in the set or are explained by a report."""
+unreported. The monitor recognises it only when no wait started after the withdrawal (a new wait runs the detection,
+which either reports the orphans or means they are not this case) and, at the end, the exempted waits are a closed
+set: each is blocked, and only by waits of the set, which are the orphans' and those queued behind them."""
 
 
 class Monitor:
@@ -1362,15 +1363,19 @@ class Monitor:
         """Follow the unresolved deadlocks the controller reported, for the evidence of `KNOWN_LIMIT_WITHDRAWN`.
 
         The controller forgets a reported set when any wait of it ends. The other members become `_orphans` only when
-        that wait was withdrawn, reason ``interrupted``: ``withdraw`` is the one end that only scans. The others are
-        the controller's own reactions (``rerouted``, ``stepped_aside``, ``gave_up``), which run the detection again
-        after a deadlock, and a grant. Orphans stay so until a later report covers them: a deadlock listing them, a
-        stuck report, or the end of their own wait.
+        that wait was withdrawn, reason ``interrupted``, the end that comes from ``withdraw``, which only scans. A
+        reroute staged by a review also ends a member's wait with a scan only, and the other reasons come from a grant
+        or from a reaction of the deadlock resolution, which detects again; restricting the trigger to ``interrupted``
+        is the conservative choice, since such a case, if it occurs, stays a violation. Orphans stay so until a later
+        report covers them (a deadlock listing them, a stuck report, the end of their own wait) or until any wait
+        starts: the controller detects at every new wait, so that wait either reports them or they are not the case.
         """
         if isinstance(event, TrafficDeadlock):
             self._orphans.difference_update(event.agvs)
             if event.action == "unresolved" and event.agvs not in self._standing:
                 self._standing.append(event.agvs)
+        elif isinstance(event, TrafficWaitStarted):
+            self._orphans.clear()
         elif isinstance(event, TrafficWaitStuck):
             self._orphans.discard(event.agv)
         elif isinstance(event, TrafficWaitEnded):
@@ -1578,16 +1583,17 @@ class Monitor:
                     if agv_id not in explained | limit and any(b.agv.id in limit for b in controller._blocking(wait)):
                         limit.add(agv_id)
                         changed = True
-            # ... as long as they still are a deadlock: every one is blocked, and only by AGVs that wait in the set or
-            # are explained by a report, so none of them can move. The blockers come from the ledger, which the
-            # monitor checks against the entities and its body model at every event. A wait that is not blocked, or
-            # is blocked by an AGV that is moving, idle or stranded, is not the known limit.
+            # ... as long as they still are a deadlock: every one is blocked, and only by waits of the set (the
+            # orphans' and those queued behind them), which wait in turn. A wait blocked by an explained wait would
+            # itself be explained above. The blockers come from the ledger, which the monitor checks against the
+            # entities and its body model at every event. A wait that is not blocked, or is blocked by an AGV that is
+            # moving, idle or stranded, is not the known limit.
             closed = False
             while not closed:
                 closed = True
                 for agv_id in sorted(limit):
                     blockers = {b.agv.id for b in controller._blocking(waits[agv_id])}
-                    if not blockers or not blockers <= limit | explained:
+                    if not blockers or not blockers <= limit:
                         limit.discard(agv_id)
                         closed = False
             if limit:
