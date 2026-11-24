@@ -1,7 +1,8 @@
 """Run the five-node builder through Layout's deferred handle binding.
 
 Run with: uv run --all-extras python examples/layout_intralogistics.py
-The existing intralogistics_simple.py example retains the explicit-graph path.
+intralogistics_simple.py builds the same system and relies on env.layout without creating a Layout; this example
+creates it first and prepares it before the run.
 """
 
 from __future__ import annotations

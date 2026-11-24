@@ -19,7 +19,7 @@ See also: [Intralogistics API](../api/intralogistics.md)
 
 **File:** [`examples/intralogistics_simple.py`](https://github.com/dmezzogori/simulatte/blob/main/examples/intralogistics_simple.py)
 
-The minimal starting point. Uses `build_simple_system()` to create a 5-node linear graph with two warehouses and two AGVs. Submits four transfer orders and prints results.
+The minimal starting point. Uses `build_simple_system()`, on the environment's layout, to create a 5-node linear graph with two warehouses and two AGVs. Submits four transfer orders and prints results.
 
 ```mermaid
 graph LR
@@ -53,7 +53,8 @@ def fmt_time(value: float | None) -> str:
 
 def main() -> None:
     with Environment() as env:
-        coordinator, agvs, warehouse_a, warehouse_b, graph = build_simple_system(env)
+        # The builder declares its five-node line on the environment's layout and builds everything on handles.
+        coordinator, agvs, warehouse_a, warehouse_b, _ = build_simple_system(env, layout=env.layout)
 
         sku = SKU("A", weight=1.0, volume=0.1)
         quantities = [5, 8, 12, 6]
@@ -77,7 +78,7 @@ def main() -> None:
         completed = sum(order.status is OrderStatus.COMPLETED for order in orders)
 
         print("Simple intralogistics example")
-        print(f"Layout nodes: {len(graph.nodes)}")
+        print(f"Layout nodes: {len(coordinator.graph.nodes)}")
         print(f"AGVs: {len(agvs)}")
         print(f"Simulation time: {env.now:.1f}")
         print(f"Completed orders: {completed}/{len(orders)}")
@@ -130,7 +131,7 @@ All corridor arcs are bidirectional. `PROD_A → PROD_B` is one-way, providing a
 
 **What it demonstrates:**
 
-- **Custom graph construction** --- manual `Node`, `Arc`, and `LayoutGraph` instead of a builder
+- **Custom graph construction** --- manual `Node`, `Arc`, and `LayoutGraph`, declared as the network of `env.layout` with `Explicit`, instead of a builder
 - **Multiple SKUs** --- Steel Sheets (80 kg), Plastic Pellets (15 kg), Electronics (2 kg) with weight/volume capacity constraints
 - **Dispatch strategy** --- `NearestIdleStrategy` selects the closest idle AGV for each order
 - **Parking and repositioning** --- `ParkingArea` at node P with `NearestParkingPolicy` sending idle AGVs back to parking
@@ -207,6 +208,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def fmt_time(value: float | None) -> str:
@@ -273,6 +275,10 @@ def main(*, plot: bool = True) -> None:
 
         graph = LayoutGraph(all_nodes, arcs)
 
+        # The graph is the network of the environment's layout; everything below refers to it through handles.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # --- SKUs ---
         steel = SKU(id="Steel Sheets", weight=80.0, volume=0.3)
         plastic = SKU(id="Plastic Pellets", weight=15.0, volume=0.8)
@@ -289,8 +295,8 @@ def main(*, plot: bool = True) -> None:
         raw_materials = Warehouse(
             env=env,
             name="Raw Materials",
-            input_bays=[rm_in],
-            output_bays=[rm_out],
+            input_bays=[layout.node("RM_IN")],
+            output_bays=[layout.node("RM_OUT")],
             n_slots=2,
             products=skus,
             initial_inventory={sku: 20 for sku in skus},
@@ -301,8 +307,8 @@ def main(*, plot: bool = True) -> None:
         finished_goods = Warehouse(
             env=env,
             name="Finished Goods",
-            input_bays=[fg_in],
-            output_bays=[fg_out],
+            input_bays=[layout.node("FG_IN")],
+            output_bays=[layout.node("FG_OUT")],
             n_slots=2,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
@@ -326,19 +332,19 @@ def main(*, plot: bool = True) -> None:
             load_time=10.0,
             unload_time=8.0,
         )
-        starting_nodes = [rm_out, c2, p]
+        starting_nodes = [layout.node("RM_OUT"), layout.node("C2"), layout.node("P")]
         agvs = [
             AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i + 1}", initial_node=node)
             for i, node in enumerate(starting_nodes)
         ]
 
         # --- Parking ---
-        parking = ParkingArea(env=env, name="Parking", node=p, capacity=3)
+        parking = ParkingArea(env=env, name="Parking", node=layout.node("P"), capacity=3)
 
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[raw_materials, finished_goods],
             charging_stations=[],
@@ -540,6 +546,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def fmt_ema(value: float | None) -> str:
@@ -645,6 +652,10 @@ def main(*, plot: bool = True) -> None:
 
         graph = LayoutGraph(all_nodes, arcs)
 
+        # The graph is the network of the environment's layout; everything below refers to it through handles.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # --- SKUs (5) ---
         pallet_a = SKU(id="Pallet-A-Heavy", weight=120.0, volume=0.5)
         pallet_b = SKU(id="Pallet-B-Medium", weight=50.0, volume=0.8)
@@ -675,8 +686,8 @@ def main(*, plot: bool = True) -> None:
         receiving = Warehouse(
             env=env,
             name="Receiving",
-            input_bays=[rcv_in],
-            output_bays=[rcv_out],
+            input_bays=[layout.node("RCV_IN")],
+            output_bays=[layout.node("RCV_OUT")],
             n_slots=3,
             products=skus,
             initial_inventory={sku: 200 for sku in skus},
@@ -687,8 +698,8 @@ def main(*, plot: bool = True) -> None:
         bulk_storage = Warehouse(
             env=env,
             name="Bulk Storage",
-            input_bays=[bulk_in],
-            output_bays=[bulk_out],
+            input_bays=[layout.node("BULK_IN")],
+            output_bays=[layout.node("BULK_OUT")],
             n_slots=4,
             products=skus,
             initial_inventory={sku: 30 for sku in skus},
@@ -699,8 +710,8 @@ def main(*, plot: bool = True) -> None:
         dispatch = Warehouse(
             env=env,
             name="Dispatch",
-            input_bays=[dsp_in],
-            output_bays=[dsp_out],
+            input_bays=[layout.node("DSP_IN")],
+            output_bays=[layout.node("DSP_OUT")],
             n_slots=3,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
@@ -728,20 +739,20 @@ def main(*, plot: bool = True) -> None:
             load_time=12.0,
             unload_time=10.0,
         )
-        starting_nodes = [park, bulk_out, b1, r1, b3]
+        starting_nodes = [layout.node(n) for n in ("PARK", "BULK_OUT", "B1", "R1", "B3")]
         agvs = [
             AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i + 1}", initial_node=node)
             for i, node in enumerate(starting_nodes)
         ]
 
         # --- Parking & Charging ---
-        parking_area = ParkingArea(env=env, name="Parking", node=park, capacity=3)
-        charging_station = ChargingStation(env=env, name="Charger", node=chrg, n_slots=2)
+        parking_area = ParkingArea(env=env, name="Parking", node=layout.node("PARK"), capacity=3)
+        charging_station = ChargingStation(env=env, name="Charger", node=layout.node("CHRG"), n_slots=2)
 
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[receiving, bulk_storage, dispatch],
             charging_stations=[charging_station],
@@ -973,6 +984,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def order_stream(
@@ -1016,13 +1028,17 @@ def main() -> None:
         ]
         graph = LayoutGraph(nodes, arcs)
 
+        # The graph is the network of the environment's layout; everything below refers to it through handles.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # --- Warehouses ---
         crate = SKU("crate", weight=20.0, volume=0.5)
         west = Warehouse(
             env=env,
             name="West",
-            input_bays=[west_bay],
-            output_bays=[west_bay],
+            input_bays=[layout.node("W")],
+            output_bays=[layout.node("W")],
             n_slots=1,
             products=[crate],
             initial_inventory={crate: 50},
@@ -1032,8 +1048,8 @@ def main() -> None:
         east = Warehouse(
             env=env,
             name="East",
-            input_bays=[east_bay],
-            output_bays=[east_bay],
+            input_bays=[layout.node("E")],
+            output_bays=[layout.node("E")],
             n_slots=1,
             products=[crate],
             initial_inventory={crate: 50},
@@ -1058,14 +1074,14 @@ def main() -> None:
             load_time=5.0,
             unload_time=5.0,
         )
-        agvs = [AGV(env=env, agv_type=tugger, agv_id=f"AGV-{i + 1}", initial_node=s) for i in range(3)]
-        parking = ParkingArea(env=env, name="Siding", node=s, capacity=3)
+        agvs = [AGV(env=env, agv_type=tugger, agv_id=f"AGV-{i + 1}", initial_node=layout.node("S")) for i in range(3)]
+        parking = ParkingArea(env=env, name="Siding", node=layout.node("S"), capacity=3)
 
         # --- Traffic control, routing and the coordinator ---
-        traffic = ReservationController(env=env, graph=graph)
+        traffic = ReservationController(env=env, graph=layout.graph())
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[west, east],
             charging_stations=[],

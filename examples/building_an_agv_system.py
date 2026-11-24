@@ -3,7 +3,7 @@
 Demonstrates how to assemble a complete intralogistics simulation using
 simulatte's intralogistics modules step by step:
 
-1. Define a layout graph (nodes + arcs)
+1. Define a layout graph (nodes + arcs) and declare it on the environment's layout
 2. Create warehouses with initial inventory
 3. Configure an AGV fleet with a trapezoidal speed profile
 4. Wire everything together with FleetCoordinator + dispatch strategy
@@ -36,6 +36,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def fmt_time(value: float | None) -> str:
@@ -67,6 +68,11 @@ def main() -> None:
         ]
         graph = LayoutGraph([store_out, c1, c2, line_in, park_node], arcs)
 
+        # The graph is the network of the environment's layout. Every component below refers to its nodes and to the
+        # graph through handles; the layout resolves them when the run starts.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # ------------------------------------------------------------------ #
         # 2. SKUs and warehouses                                              #
         # ------------------------------------------------------------------ #
@@ -77,8 +83,8 @@ def main() -> None:
         storage = Warehouse(
             env=env,
             name="Storage",
-            input_bays=[store_out],
-            output_bays=[store_out],
+            input_bays=[layout.node("STORE_OUT")],
+            output_bays=[layout.node("STORE_OUT")],
             n_slots=3,
             products=products,
             initial_inventory={sku_a: 50, sku_b: 30},
@@ -89,8 +95,8 @@ def main() -> None:
         production_line = Warehouse(
             env=env,
             name="ProductionLine",
-            input_bays=[line_in],
-            output_bays=[line_in],
+            input_bays=[layout.node("LINE_IN")],
+            output_bays=[layout.node("LINE_IN")],
             n_slots=3,
             products=products,
             initial_inventory={},
@@ -116,16 +122,16 @@ def main() -> None:
             unload_time=5.0,
         )
         # Two AGVs starting at C1 (ids are generated: agv-0, agv-1)
-        agvs = [AGV(env=env, agv_type=agv_type, initial_node=c1) for _ in range(2)]
+        agvs = [AGV(env=env, agv_type=agv_type, initial_node=layout.node("C1")) for _ in range(2)]
 
         # ------------------------------------------------------------------ #
         # 4. Parking area and FleetCoordinator                               #
         # ------------------------------------------------------------------ #
-        parking = ParkingArea(env=env, name="Parking", node=park_node, capacity=2)
+        parking = ParkingArea(env=env, name="Parking", node=layout.node("PARK"), capacity=2)
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[storage, production_line],
             charging_stations=[],

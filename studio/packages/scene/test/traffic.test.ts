@@ -1,6 +1,7 @@
+import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import type { PreparedFrame } from "@simulatte/playback";
-import type { State } from "@simulatte/trace";
+import { Session, type PreparedFrame } from "@simulatte/playback";
+import { openRecording, type State } from "@simulatte/trace";
 import { Projector } from "../src/project";
 
 const state: State = {
@@ -51,4 +52,25 @@ it("uses a 1.1 layout bundle like a 1.0 one", () => {
   const projection = new Projector(state).project(frame(layout));
   expect(projection.fallback).toBe(false);
   expect(projection.glyphs.find((glyph) => glyph.id === "n1")).toMatchObject({ x: 3, y: 0 });
+});
+
+async function projectRecorded(directory: string, name: string) {
+  const bytes = readFileSync(new URL(`../../../../tests/fixtures/traces/${directory}/${name}.simtrace`, import.meta.url));
+  const recording = await openRecording(new Uint8Array(bytes).buffer);
+  const session = new Session(recording);
+  const frame = await session.prepare({ mode: "activation", time: recording.trace.activation![0], cursor: recording.trace.activation });
+  session.dispose();
+  return new Projector(frame.state).project(frame);
+}
+
+it("projects the recorded traffic example with its links and without the grid fallback", async () => {
+  const projection = await projectRecorded("generated", "example_traffic");
+  expect(projection.fallback).toBe(false);
+  expect(projection.links.length).toBeGreaterThan(0);
+});
+
+it("projects a trace of an earlier version, no layout, on the grid fallback", async () => {
+  const projection = await projectRecorded("frozen", "shop_small");
+  expect(projection.fallback).toBe(true);
+  expect(projection.links).toEqual([]);
 });

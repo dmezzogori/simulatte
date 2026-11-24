@@ -136,3 +136,31 @@ Overhead gate of the core workload (CI job `bench`, step "Mode none against rele
 
 The core workload does not run the traffic code, so the gate measures the same unobserved path as before this work.
 The PyPy lane of the gate was not run locally (the job runs it on the CI runner).
+
+## Layout-built model against explicit objects, 2026-11-24
+
+`benchmarks/intralogistics.py` now builds the branch side through the layout: the graph is declared with
+`env.layout.set_network(Explicit(graph))` and the warehouses, AGVs, charging station, parking area and coordinator take
+`env.layout.node(id)` and `env.layout.graph()` handles, as `examples/intralogistics_advanced.py` does. The 0.12.0 side
+has no layout and still gets the graph and its nodes. The comparison is the branch at `41ac853` (the script as it was,
+building from concrete objects) against the same commit with the rewritten script, on Apple M4 Pro, CPython 3.14.3,
+the workload above (20 AGVs, one shift, intervals 30 to 60, seed 42), `--warmup 1 --repeat 5 --processes 3`. The two
+versions ran alternately (before, after) in five rounds for each mode; the machine was not otherwise idle (one-minute
+load average 1.6 to 2.1 between the rounds, `uptime` in the kept output). Each cell is the median of the five round
+medians, each of 15 timed runs, with the range over the rounds.
+
+| Mode | Explicit objects, median s (range) | Layout handles, median s (range) | Layout / explicit, median (range) | Peak memory, MB |
+|---|---:|---:|---:|---:|
+| none | 0.22336 (0.21671 to 0.22637) | 0.24462 (0.23850 to 0.24679) | 1.095 (1.090 to 1.101) | 40.0 / 41.4 |
+| default | 0.24192 (0.23698 to 0.24332) | 0.26507 (0.26014 to 0.26589) | 1.095 (1.092 to 1.098) | 40.1 / 41.3 |
+| default_logging | 0.22483 (0.22238 to 0.22622) | 0.24550 (0.24407 to 0.24743) | 1.095 (1.092 to 1.100) | 40.1 / 41.4 |
+
+The work is the same: all 30 results have 1,018 orders, 1,012 completed, input hash
+`1a5ad97c4bd908101086d8ba16cc592cdbb43c24d768fd85756105ff10e28583` and trajectory hash
+`633394be9d9f5b5e07a76a224c14050235a80d5a31a0348488b48a679db95767`, the values recorded in the previous section; in
+mode `full` the semantic digest of the two builds is equal too. The layout build is 9.5 % slower, for two reasons. A
+fixed cost of about 14 ms per environment, the preparation of the layout (a 0.02-shift run takes 2.8 ms with objects and
+17.1 ms with the layout, same 13 orders). And a cost that grows with the run, about 3 % of its time: the resolved network
+keeps its adjacency in read-only mappings, so `shortest_path` and `arc_between` look up in a `mappingproxy` instead of a
+`dict` (`cProfile` of a 3-shift run: `shortest_path` takes 0.759 s cumulative against 0.690 s, and the lookups that were
+`dict.get` calls, 914,101 in 0.180 s, are `mappingproxy.get` calls, 960,349 in 0.235 s). The three-shift runs are 0.717 s and 0.752 s. The spec leaves this benchmark ungated.

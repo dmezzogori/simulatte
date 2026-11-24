@@ -36,6 +36,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def order_stream(
@@ -79,13 +80,17 @@ def main() -> None:
         ]
         graph = LayoutGraph(nodes, arcs)
 
+        # The graph is the network of the environment's layout; everything below refers to it through handles.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # --- Warehouses ---
         crate = SKU("crate", weight=20.0, volume=0.5)
         west = Warehouse(
             env=env,
             name="West",
-            input_bays=[west_bay],
-            output_bays=[west_bay],
+            input_bays=[layout.node("W")],
+            output_bays=[layout.node("W")],
             n_slots=1,
             products=[crate],
             initial_inventory={crate: 50},
@@ -95,8 +100,8 @@ def main() -> None:
         east = Warehouse(
             env=env,
             name="East",
-            input_bays=[east_bay],
-            output_bays=[east_bay],
+            input_bays=[layout.node("E")],
+            output_bays=[layout.node("E")],
             n_slots=1,
             products=[crate],
             initial_inventory={crate: 50},
@@ -121,14 +126,14 @@ def main() -> None:
             load_time=5.0,
             unload_time=5.0,
         )
-        agvs = [AGV(env=env, agv_type=tugger, agv_id=f"AGV-{i + 1}", initial_node=s) for i in range(3)]
-        parking = ParkingArea(env=env, name="Siding", node=s, capacity=3)
+        agvs = [AGV(env=env, agv_type=tugger, agv_id=f"AGV-{i + 1}", initial_node=layout.node("S")) for i in range(3)]
+        parking = ParkingArea(env=env, name="Siding", node=layout.node("S"), capacity=3)
 
         # --- Traffic control, routing and the coordinator ---
-        traffic = ReservationController(env=env, graph=graph)
+        traffic = ReservationController(env=env, graph=layout.graph())
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[west, east],
             charging_stations=[],

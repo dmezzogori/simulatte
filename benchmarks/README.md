@@ -97,8 +97,8 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   finish time in completion order) must be equal, and `compare.py` refuses results that differ.
 - **Peak memory** is the peak RSS (`ru_maxrss`) of a separate process that loads the workload and runs it once;
   `rss_before_mb` is the peak before the run.
-- **Intralogistics** (`intralogistics.py`): the layout, SKUs, warehouses, AGV type and strategies of the advanced
-  example, with more AGVs, a shorter order interval and a longer horizon. The run is seeded, so every mode does the
+- **Intralogistics** (`intralogistics.py`): the layout (declared on `env.layout`), SKUs, warehouses, AGV type and
+  strategies of the advanced example, with more AGVs, a shorter order interval and a longer horizon. The run is seeded, so every mode does the
   same work (the order count, statuses and a fingerprint of the order trajectory are compared by `compare.py`).
   There is no 0.12.0 side: its intralogistics API differs, so no equivalent-work feeder exists. In `none` the
   coordinator has no `OrderEMACollector` (`default_metrics=False`); `default` keeps it; `kpi` adds a `FleetKPIs`
