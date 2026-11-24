@@ -1424,13 +1424,19 @@ u90 0.4942 s / 0.4562 s = +8.34 %, u95 0.5315 s / 0.4901 s = +8.45 %. Worst case
 
 Rule and arithmetic:
 
-- Budget = worst pooled overhead + 2.0 points of headroom = 8.45 + 2.0 = 10.45 %, up to the next 0.1 point: 10.5 %.
+- Budget = worst pooled overhead + 2.0 points of headroom = 8.45 + 2.0 = 10.45 %. The rule states no rounding: 10.45 is written 10.5 as §9 wrote 6.5 for 6.54, and rounding to half a point gives the same.
 - Noise band, CPython: kept at 2 %. The largest single-round excess of a comparison over its workload's pooled
   value is 9.81 - 8.34 = 1.47 points (u90, round 8; u95: 9.33 - 8.45 = 0.88), and S2 against S exceeds +2 % in none of
   the 20 pairs. `calibrate_noise.py out/r*` (seed 20261010, 10,000 draws, three process medians per side) gives an upper
-  bound of the change of the head/stripped ratio of 2 pp or less in 16 of 20 rows (mean 1.5 pp); the four above: 5.20 pp (u90,
-  round 5, the slow S process; the same row has a lower bound of -12.51 pp), 2.58 pp (u95, rounds 1 and 3), 2.04 pp (u90,
-  round 9). The band was not moved for these: the bound resamples three values per side, the realised excesses above are smaller, and the largest row coincides with the load burst of round 5; if the bound of #55 is applied as the largest of the rows, the band would be 6 % (limit 16.5 %), which the maintainer may prefer to decide.
+  bound of the change of the head/stripped ratio of 2 pp or less in 15 of 20 rows (mean 1.5 pp); the five above: 5.20 pp (u90,
+  round 5, the loaded round with the slow S process; the same row has a lower bound of -12.51 pp), 2.58 pp (u95, rounds 1 and
+  3), 2.04 pp (u90, round 9) and 2.02 pp (u95, round 8). Ruling of the controller, 2026-11-24: the band stays 2 %. Read as
+  the pre-0.13 calibration note reads it (the band covers the largest upward bound, rounded up) it would be 3 % with the
+  loaded round set aside (largest 2.58), so a limit of 10.5 + 3 = 13.5 %, or 6 % with every round kept (5.20), so
+  10.5 + 6 = 16.5 %. It stays 2 % because the budget already rose by the measured worst case under the procedure's own
+  rule; because the same reading would move the band against the released package, which the decision of 2026-11-24 does
+  not cover; and because 12.5 % covers every CI run on record (largest +10.4 %). The alternatives stay on record for the
+  maintainer to revisit.
 - Limit = 10.5 + 2.0 = 12.5 %. The limit is 4.05 points above the pooled worst case, as the old one (8.5) was 4.0 above
   its worst case (4.5), and 2.7 points above the highest single comparison (+9.8 %).
 - For comparison, the fallback rule of the assignment (measured maximum + 1.5, up to half a point) would give 9.81 + 1.5 =
@@ -1451,3 +1457,10 @@ runs of the brief pass: `e993ca8` +6.8 % and +7.7 %, `9cc5d64` +8.3 %, and the f
 +10.4 %), which was a failure of noise on a commit that touched no source, would have passed with 2.1 and 2.9 points of margin; so would
 the runner results quoted in the 0.13 release checks (+6.35 % and +8.17 %, and +7.67 % and +8.41 % on the first main run).
 No run in the history exceeds 12.5 %. A rise of the branch's cost against the stripped copy from the pooled 8.45 % to more than 12.5 % (4.05 points) fails the gate; a smaller one passes.
+
+Two facts of the measurement. (1) The measured cost depends on the session with identical source: a reviewer's eight rounds
+at the same commit (`7736e5d`, same `src`; raw files in `reviewer-scratch-a2C/out`, recomputed here: 120 samples per side and
+workload) gave pooled +7.19 % (u90, 0.4900 s / 0.4571 s) and +6.70 % (u95, 0.5247 s / 0.4917 s), every comparison passing at
+8.5 % too (single rounds +6.64 to +7.72 % and +6.23 to +6.89 %), against the +8.34 % and +8.45 % above. (2) What the new
+limit leaves undetected: about 4 points of overhead above today's pooled worst case (1.125 over 1.0845 is +3.7 % of run
+time), which the released-package limit does not catch either, as the branch is 23 to 25 % faster than released 0.12.0.
