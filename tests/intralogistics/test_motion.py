@@ -19,41 +19,10 @@ from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 
-from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph
+from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system, _warehouses
 from tests.intralogistics.test_fleet_events import FleetReplay
 from tests.intralogistics.test_travel import steady
-from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, World, declare, line
-
-
-def _warehouses(env: Environment, world: World) -> tuple[Warehouse, Warehouse]:
-    """WH-A on OUT, stocked, and WH-B on IN, empty, as ``test_entities._warehouses`` builds them."""
-
-    def make(name: str, bay: str, level: int) -> Warehouse:
-        return Warehouse(
-            env=env,
-            name=name,
-            input_bays=[world.ref(bay)],
-            output_bays=[world.ref(bay)],
-            n_slots=2,
-            products=[SKU_A],
-            initial_inventory={SKU_A: level},
-            pick_time=1.0,
-            put_time=1.0,
-        )
-
-    return make("WH-A", "OUT", 100), make("WH-B", "IN", 0)
-
-
-def _system(env: Environment) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, World]:
-    """``test_entities._system`` through the layout: the line OUT - C1 - C2 - IN declared on the layout of `env`,
-    WH-A at OUT and WH-B at IN, one AGV at C1."""
-    world = declare(env, _line_graph()[1])
-    wh_a, wh_b = _warehouses(env, world)
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("C1"))]
-    coordinator = FleetCoordinator(
-        env=env, graph=world.graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[]
-    )
-    return coordinator, agvs, wh_a, wh_b, world
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, TrafficInvariants, declare, line
 
 
 def agv_heading(nodes: Any, source: str, target: str) -> float:

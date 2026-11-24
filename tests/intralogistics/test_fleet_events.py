@@ -107,6 +107,7 @@ from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.warehouse import Warehouse
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system
+from tests.intralogistics.traffic_support import declare
 
 FLEET_KINDS = frozenset({"agv", "order", "fleet"})
 
@@ -152,15 +153,15 @@ def _fleet(
 ) -> tuple[FleetCoordinator, AGV, Warehouse, Warehouse]:
     """The line OUT - C1 - C2 - IN plus an unreachable ISLAND; one AGV at C1; WH-A and WH-B on the named nodes."""
     nodes, _ = _line_graph()
-    by_id = {node.id: node for node in [*nodes, ISLAND]}
     graph = LayoutGraph([*nodes, ISLAND], [Arc(source=a, target=b) for a, b in zip(nodes, nodes[1:], strict=False)])
+    world = declare(env, graph)
 
     def warehouse(name: str, out_bay: str, in_bay: str, level: int) -> Warehouse:
         return Warehouse(
             env=env,
             name=name,
-            input_bays=[by_id[in_bay]],
-            output_bays=[by_id[out_bay]],
+            input_bays=[world.ref(in_bay)],
+            output_bays=[world.ref(out_bay)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
@@ -179,9 +180,9 @@ def _fleet(
         load_time=1.0,
         unload_time=1.0,
     )
-    agv = AGV(env=env, agv_type=agv_type, initial_node=by_id["C1"])
+    agv = AGV(env=env, agv_type=agv_type, initial_node=world.ref("C1"))
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=[agv], warehouses=[wh_a, wh_b], charging_stations=[], **options
+        env=env, graph=world.graph, fleet=[agv], warehouses=[wh_a, wh_b], charging_stations=[], **options
     )
     return coordinator, agv, wh_a, wh_b
 
@@ -536,6 +537,7 @@ def test_pending_redispatch_replay_at_intermediate_cursors() -> None:
     orders = [_order(coordinator, wh_a, wh_b) for _ in range(3)]
     for order in orders:
         coordinator.submit(order)
+    env.layout.prepare()  # binds the nodes and places the AGV: prelude events, part of the initial state
 
     def view(state: Any) -> dict[str, Any]:
         return {entity: dict(fields) for entity, fields in state.items() if fields["$kind"] in FLEET_KINDS}
@@ -575,15 +577,14 @@ def test_pending_redispatch_replay_at_intermediate_cursors() -> None:
 def test_agv_fleet_owner_set_on_coordinator_construction(after_activation: bool) -> None:
     env = Environment(debug=True)
     replay = FleetReplay(env)
-    nodes, graph = _line_graph()
-    # Explicit graph consumers before activation: the environment gets no layout (until explicit mode is removed).
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[i]) for i in (1, 2)]
+    world = declare(env, _line_graph()[1])  # the network is declared before activation (ruling T4-a)
+    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=world.ref(node)) for node in ("C1", "C2")]
     if after_activation:
         env.activate()
     assert [replay.state[agv.id]["fleet"] for agv in agvs] == [None, None]
     added: list[FleetAgvAdded] = []
     env.bus.subscribe(added.append, (FleetAgvAdded,))
-    coordinator = FleetCoordinator(env=env, graph=graph, fleet=agvs, warehouses=[], charging_stations=[])
+    coordinator = FleetCoordinator(env=env, graph=world.graph, fleet=agvs, warehouses=[], charging_stations=[])
 
     assert [(e.fleet, e.agv) for e in added] == [(coordinator.id, agv.id) for agv in agvs]
     assert [e.deltas.ops for e in added] == [(("set", agv.id, "fleet", coordinator.id),) for agv in agvs]
@@ -614,6 +615,7 @@ def test_direct_transition_to_emits() -> None:
 @pytest.mark.parametrize("after_activation", [False, True])
 def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: bool) -> None:
     """Node ``agvs`` replay matches when an AGV is created at a bound node or moved by assignment (carried T14)."""
+    # explicit mode: an AGV placed on a node outside the network (LOOSE) exists only there; Task 9 decides this test
     env = Environment(debug=True)
     replay = FleetReplay(env, FLEET_KINDS | {"node"})  # free traffic: no reservations to replay
     nodes, graph = _line_graph()
@@ -653,7 +655,7 @@ def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: boo
 def test_replay_equals_live_at_every_event_fleet() -> None:
     env = Environment(seed=5, debug=True)
     replay = FleetReplay(env)  # subscribed before any entity exists: the prelude is replayed too
-    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2, agv_battery_capacity=100.0)
+    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2, agv_battery_capacity=100.0, layout=env.layout)
     skus = list(wh_a.inventory)
     coordinator.add_replenishment_policy(ReorderPointPolicy({skus[0]: 1}, {skus[0]: 2}), wh_b, check_interval=40.0)
     early = [coordinator.create_order(sku=sku, quantity=1, origin=wh_a, destination=wh_b) for sku in skus]
