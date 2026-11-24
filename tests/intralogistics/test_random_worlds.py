@@ -14,9 +14,18 @@ import pytest
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.parking import ParkingArea
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
 from tests.intralogistics import random_worlds
-from tests.intralogistics.random_worlds import KNOWN_LIMIT, FEATURES, exercised, present, run_world, world_spec
+from tests.intralogistics.random_worlds import (
+    FEATURES,
+    KNOWN_LIMIT,
+    KNOWN_LIMIT_WITHDRAWN,
+    exercised,
+    present,
+    run_world,
+    world_spec,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 NOT_IN_A_SPEC = {"a traffic wait", "a stuck wait", "a deadlock", "a make-way move"}
@@ -39,6 +48,33 @@ FINGERPRINTS = {
 """``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
 router), pinned at the last commit with explicit mode (e4afae4), where the run built with concrete objects and the run
 built through the layout gave equal run records."""
+
+
+SAFETY = {
+    (100017, "reservation", "shortest"): (
+        {"a passing segment held by two", "a deadlock", "charging", "stranding"},
+        "cc03562cc25fb8139d0f6c496065a1fad6a5a022730f66f4558205ae2f53236d",
+    ),
+    (100039, "reservation", "congestion"): (
+        {"a zone held by two", "a deadlock", "charging", "stranding"},
+        "c262325e549be79d37b1c951a42d1b7cbd6360eba1178fd3fe78f571d4326799",
+    ),
+    (100083, "reservation", "fastest"): (
+        {"a zone held by two", "a deadlock", "charging", "stranding"},
+        "7b2fc028d750341b43d6ef410c9a466f6794c884cbb7cc7f136be4369c59f565",
+    ),
+    (100040, "reservation", "fastest"): (
+        {"a zone held by two", "a deadlock", "charging", "stranding"},
+        "e223bd9582c603d3de521da0324212f95d095945f9adb26353041b902af96f5a",
+    ),
+    (100045, "free", "fastest"): (
+        {"a passing segment traversed", "parking entered", "charging", "stranding", "the second fleet moves"},
+        "4f54418663b6befcdd38c2c145726151bf6564b04c3ed0d2473bdf9695531841",
+    ),
+}
+"""Five runs of the safety check (`benchmarks/layout_safety.py`, spec §8.4), by (seed, controller, router): what each
+exercises and its ``env.fingerprint()`` at the commit of the check. Together they exercise charging, stranding, a zone
+and a passing segment held by two, and a deadlock."""
 
 
 def test_world_spec_is_deterministic_per_seed():
@@ -205,3 +241,34 @@ def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a
     record = run_world(world_spec(619), controller="free", router="shortest")
     assert not record.known_limits
     assert "parking slot of an AGV resting elsewhere" in {violation[1] for violation in record.violations}
+
+
+def test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit():
+    """Seed 2000228 (`ReservationController`, `FastestRouter`): the deadlock of agv-a, agv-c, agv-d, agv-e and agv-g is
+    reported unresolved at 378.2; agv-a's wait is withdrawn at 433.1 by an interruption; the waits of the other four
+    still form a deadlock that the controller never reports again, so the run ends with four open waits that no
+    report explains. A defect of traffic control that predates this work (present at e993ca8)."""
+    record = run_world(world_spec(2000228), controller="reservation", router="fastest")
+    assert record.quiescent and not record.violations
+    (case,) = record.known_limits
+    assert case[1] == KNOWN_LIMIT_WITHDRAWN
+    assert case[2] == ("agv-c", "agv-d", "agv-e", "agv-g")
+
+
+def test_an_open_wait_with_no_report_for_another_reason_is_a_violation(monkeypatch):
+    """With every stuck report suppressed (a scratch patch of the controller), waits are left open with nothing to
+    explain them and no deadlock was reported then withdrawn: a violation, not the known limit."""
+    monkeypatch.setattr(ReservationController, "_report_one", lambda self, waiting, blockers: False)
+    record = run_world(world_spec(26), controller="reservation", router="shortest")
+    assert not record.known_limits
+    assert "open wait with no report" in {violation[1] for violation in record.violations}
+
+
+@pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))
+def test_a_run_of_the_safety_check_returns_with_no_violation(seed, controller, router):
+    spec = world_spec(seed)
+    record = run_world(spec, controller=controller, router=router)
+    features, digest = SAFETY[seed, controller, router]
+    assert record.quiescent and not record.violations and not record.known_limits
+    assert record.fingerprint.digest == digest
+    assert features <= exercised(spec, record.events) <= present(spec) | NOT_IN_A_SPEC

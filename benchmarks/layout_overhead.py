@@ -6,12 +6,16 @@ Run from the repository root:
 
 Every measurement builds a fresh environment, runs ``gc.collect()`` outside the timing and times one step with
 ``time.perf_counter``; it is repeated ``--repeat`` times after one warm-up, and the script prints the median and the
-minimum of the repetitions in milliseconds. The cases:
+minimum of the repetitions in milliseconds. Every environment has a layout. The ``layout`` variants call
+``Layout(env)`` while the model is built; the ``none`` variants do not, and activation creates the layout
+then, so ``none`` is the model whose layout is created at activation, not a model without one. The cases:
 
 - ``construct``: ``Environment()`` already created, then ``Layout(env)`` (in the ``layout`` variant) and ``n``
-  single-capacity servers; the ``layout`` variant is also reported as a ratio to the ``none`` variant.
+  single-capacity servers (the layout of the ``none`` variant is created later, at activation); the ``layout`` variant
+  is also reported as a ratio to the ``none`` variant.
 - ``prepare``: ``layout.prepare()`` on a model of ``n`` servers built with ``Layout(env)``.
-- ``activate``: ``env.activate()`` on the same model (it prepares the layout), and on the model without a layout.
+- ``activate``: ``env.activate()`` on the same model (it prepares the layout), and on the model whose layout it creates
+  and prepares itself (``none``).
 - ``first_bundle``: the first read of ``prepare().bundle.full_hash`` after ``prepare()``.
 - ``jobs_before_layout``: 10 servers and 1,600 production jobs created first, then ``Layout(env)`` and
   ``layout.prepare()`` timed together.
@@ -20,8 +24,9 @@ minimum of the repetitions in milliseconds. The cases:
   preparation grows with the elements of the network (a few hundred microseconds per node), not with the model.
 - ``run``: a 10-server immediate-release pure job shop (``Scenario.pure_job_shop(n_servers=10)``, no default
   metrics, no subscriber, seed 7) built, activated outside the timing and run to a horizon of about 30,000 domain
-  events (counted once, in a separate run with a counting subscriber), with and without ``Layout(env)``, the two
-  variants timed in alternating order; reported also as nanoseconds per domain event and as a ratio.
+  events (counted once, in a separate run with a counting subscriber), with ``Layout(env)`` called while building
+  (``layout``) and with the layout created at activation (``none``), the two variants timed in alternating order;
+  reported also as nanoseconds per domain event and as a ratio.
 
 Nobody observes these runs: no recorder, no digest, no manifest read (L14). ``--json`` writes the results with the
 commit (or ``external`` and the package path when another tree is measured through ``PYTHONPATH``), the interpreter

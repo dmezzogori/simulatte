@@ -19,6 +19,7 @@ the interpreter that runs them, so each version is installed in its own virtual 
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
 | `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
 | `strip_debug.py` | Writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path; the CI gate's second baseline (D55). |
+| `layout_safety.py` | The randomized safety check of layout-built traffic models (spec §8.4): worlds of `tests/intralogistics/random_worlds.py` by seed range, both traffic controllers and the three routers, `env.run()` without `until`, under the traffic monitor; exits 1 on a violation, an exception or a run that does not return within its wall-clock limit (POSIX only). Not part of CI. |
 | `workloads/` | The committed CI-size workloads. |
 
 ## Workloads
