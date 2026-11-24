@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import math
+import operator
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -264,3 +267,67 @@ class TestSubdivide:
         a, b, c = Node("A", 0.0, 0.0), Node("B", 6.0, 0.0), Node("C", 6.0, 6.0)
         result = LayoutGraph([a, b, c], [Arc(b, c, length=8.0), Arc(a, b)]).subdivide(4.0)
         assert [n.id for n in result.nodes] == ["A", "B", "C", "B~C#1", "A~B#1"]
+
+
+class TestLayoutBuiltGraphIsReadOnly:
+    """A graph built by the layout resolves its adjacency into containers that refuse every change (spec §5.2), and
+    its lookups cost what an explicit graph's do."""
+
+    def _frozen(self) -> tuple[Node, Node, Node, LayoutGraph]:
+        a, b, c = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0), Node("C", 0.0, 1.0)
+        return (
+            a,
+            b,
+            c,
+            LayoutGraph._from_layout([a, b, c], [Arc(a, c, False, 2), Arc(a, b, False, 1), Arc(b, a, False, 3)]),
+        )
+
+    def test_every_mutation_of_the_nodes_and_the_adjacency_raises(self) -> None:
+        a, b, c, graph = self._frozen()
+        extra = Arc(c, a, False)
+        containers: list[Any] = [graph._nodes, graph._adjacency, graph._adjacency[a], graph._adjacency[b]]
+        mutations: list[Callable[[Any], object]] = [
+            lambda d: operator.setitem(d, a, extra),
+            lambda d: operator.delitem(d, a),
+            lambda d: d.clear(),
+            lambda d: d.pop(a, None),
+            lambda d: d.popitem(),
+            lambda d: d.setdefault(c, extra),
+            lambda d: d.update({c: extra}),
+            lambda d: operator.ior(d, {c: extra}),
+        ]
+        snapshot = (dict(graph._nodes), {node: dict(edges) for node, edges in graph._adjacency.items()})
+        for container in containers:
+            for mutate in mutations:
+                with pytest.raises(TypeError, match="read-only"):
+                    mutate(container)
+        assert (dict(graph._nodes), {node: dict(edges) for node, edges in graph._adjacency.items()}) == snapshot
+        assert graph.nodes == (a, b, c)
+
+    def test_the_public_surface_does_not_change_it(self) -> None:
+        a, b, c, graph = self._frozen()
+        with pytest.raises(AttributeError):
+            graph.nodes = ()  # ty: ignore[invalid-assignment]  # nodes is a read-only property
+        with pytest.raises(ValueError, match="cannot be subdivided"):
+            graph.subdivide(0.5)
+        graph.neighbors(a).append(c)  # a list copy
+        assert graph.neighbors(a) == [c, b]
+
+    def test_lookups_of_nodes_outside_the_graph_answer_without_inserting(self) -> None:
+        a, b, c, graph = self._frozen()
+        unknown = Node("unknown", 9.0, 9.0)
+        before = list(graph._adjacency)
+        assert graph.neighbors(unknown) == []
+        assert graph.arc_between(unknown, a) is None
+        assert graph.arc_between(a, unknown) is None
+        assert graph.arc_between(c, a) is None  # a node of the graph without an arc that way
+        assert graph.neighbors(c) == []
+        assert list(graph._adjacency) == before and unknown not in graph._adjacency
+        assert graph.arc_between(a, b) == Arc(a, b, False, 1)
+
+    def test_a_graph_written_by_the_user_stays_mutable(self) -> None:
+        a, b = Node("A", 0.0, 0.0), Node("B", 1.0, 0.0)
+        graph = LayoutGraph([a, b], [Arc(a, b)])
+        graph._adjacency[a].clear()  # as before: only layout-built graphs refuse
+        assert graph.neighbors(a) == []
+        assert graph.subdivide(0.5).nodes[:2] == (a, b)

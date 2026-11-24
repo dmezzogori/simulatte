@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from collections.abc import Sequence
-from types import MappingProxyType
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -138,6 +137,36 @@ class NodeBinding(Entity, kind="node"):
         return f"NodeBinding(id={self.id!r})"
 
 
+class _ReadOnlyDict(dict):
+    """A dict that refuses every change once built, for the containers of a layout-built graph (spec §5.2).
+
+    It is a plain ``dict`` for reading, so lookups cost what an explicit graph's do (a ``MappingProxyType`` adds an
+    indirection to each one); the mutating methods raise ``TypeError``. It is filled by ``dict``'s own constructor,
+    which does not call them.
+    """
+
+    __slots__ = ()
+
+    def _refuse(self, *args: object, **kwargs: object) -> Any:
+        raise TypeError("a layout-built graph is read-only")
+
+    __setitem__ = __delitem__ = __ior__ = _refuse
+    clear = pop = popitem = setdefault = update = _refuse
+
+
+class _ReadOnlyAdjacency(_ReadOnlyDict):
+    """The adjacency of a layout-built graph: a node without a traversal, or outside the graph, has no edges."""
+
+    __slots__ = ()
+
+    def __missing__(self, node: Node) -> dict[Node, Arc]:
+        return _NO_EDGES
+
+
+_NO_EDGES: dict[Node, Arc] = _ReadOnlyDict()
+"""The edges of a node that has none; shared, and read-only."""
+
+
 class LayoutGraph:
     _layout_frozen: bool = False
 
@@ -173,10 +202,8 @@ class LayoutGraph:
             adjacency[arc.source][arc.target] = arc
             _check_pair(arc, adjacency[arc.target].get(arc.source))
         graph = cls((), ())
-        object.__setattr__(graph, "_nodes", MappingProxyType(dict.fromkeys(ordered)))
-        object.__setattr__(
-            graph, "_adjacency", MappingProxyType({node: MappingProxyType(edges) for node, edges in adjacency.items()})
-        )
+        graph._nodes = _ReadOnlyDict(dict.fromkeys(ordered))
+        graph._adjacency = _ReadOnlyAdjacency({node: _ReadOnlyDict(edges) for node, edges in adjacency.items()})
         graph._layout_frozen = True
         return graph
 
@@ -186,12 +213,10 @@ class LayoutGraph:
         return tuple(self._nodes)
 
     def neighbors(self, node: Node) -> list[Node]:
-        return list(self._adjacency.get(node, {})) if self._layout_frozen else list(self._adjacency[node])
+        return list(self._adjacency[node])
 
     def arc_between(self, source: Node, target: Node) -> Arc | None:
-        return (
-            self._adjacency.get(source, {}).get(target) if self._layout_frozen else self._adjacency[source].get(target)
-        )
+        return self._adjacency[source].get(target)
 
     def distance(self, source: Node, target: Node) -> float:
         if self.arc_between(source, target) is None:

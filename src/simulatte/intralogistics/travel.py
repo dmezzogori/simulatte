@@ -345,9 +345,12 @@ class TravelExecutor:
         `source` to `node`. With `moved` false (a stalled segment stopped at its
         departure node `node`, spec §8.3) only the motion is cleared: no relocation, and the battery is unchanged.
         """
-        agv._validate_node(node)
+        if moved:
+            relocated = agv._relocate(node)  # validates the node before changing anything
+        else:
+            agv._validate_node(node)
+            relocated = None
         agv.motion = None
-        relocated = agv._relocate(node) if moved else None
         if relocated is not None and source is not None:
             agv.heading = math.atan2(node.y - source.y, node.x - source.x)
         env = self.fleet.env

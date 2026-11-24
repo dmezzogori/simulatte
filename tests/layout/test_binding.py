@@ -540,3 +540,42 @@ def test_an_agv_drives_a_recorded_explicit_length_and_not_the_chord():
 
     assert run(None) == 5.0  # the chord, 10 m at 2 m/s
     assert run(25.0) == 12.5
+
+
+def test_node_validation_accepts_the_canonical_node_and_nothing_else():
+    env = Environment()
+    layout = Layout(env)
+    a, b, c = Node("A", 0, 0), Node("B", 2, 0), Node("C", 4, 0)
+    layout.set_network(Explicit(LayoutGraph([a, b, c], [Arc(a, b), Arc(b, c)])))
+    layout.override(NetworkOverride("off", {"kind": "explicit", "id": "C"}, {"enabled": False}))
+    cart = vehicle(env, layout.node("A"))
+    network = layout.prepare().network
+    canonical = network.node(layout.node("A").address)
+    other = Environment()
+    elsewhere = Layout(other)
+    elsewhere.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b)])))
+    foreign = elsewhere.prepare().network.node(elsewhere.node("A").address)
+    assert foreign == canonical and foreign is not canonical
+    equal = Node(canonical.id, canonical.x, canonical.y)
+    assert equal == canonical and equal is not canonical
+    layout._validate_node(None)
+    layout._validate_node(canonical)
+    cart._validate_node(None)
+    cart._validate_node(canonical)
+    cart.current_node = canonical
+    for rejected in (equal, foreign, c, Node("unknown", 9, 9)):  # equal by value, another network, disabled, unknown
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+            layout._validate_node(rejected)
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+            cart._validate_node(rejected)
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+            cart.current_node = rejected
+        assert cart.current_node is canonical
+    assert env.entities.node_binding(canonical).agvs == [cart.id]
+
+
+def test_node_validation_names_a_missing_layout_as_before():
+    env = Environment()
+    cart = vehicle(env, None)
+    with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+        cart._validate_node(Node("A", 0, 0))

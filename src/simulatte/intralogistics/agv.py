@@ -205,12 +205,12 @@ class AGV(Entity, kind="agv"):
 
     @current_node.setter
     def current_node(self, node: Node | None) -> None:
-        self._validate_node(node)
         previous = self._current_node
         if node == previous:
+            self._validate_node(node)  # a copy equal by value is refused too
             self._current_node = node
             return
-        left, entered = self._relocate(node)
+        left, entered = self._relocate(node)  # validates the node before changing anything
         headed = self.heading is not None
         self.heading = None  # placed, not moved: the direction is unknown
         env = self.env
@@ -251,6 +251,13 @@ class AGV(Entity, kind="agv"):
     def _validate_node(self, node: Node | None) -> None:
         if self._pending_node is not None:
             pending(self, "current_node")
+        if node is None:
+            return
+        layout = self.env._layout
+        # The canonical node of the network passes on one identity check, the common case of every move; anything else
+        # (a copy equal by value, a disabled node, a node of another network) is the layout's to refuse.
+        if layout is not None and layout._canonical_nodes.get(node.id) is node:
+            return
         self.env.layout._validate_node(node)
 
     def _node_deltas(self, node: Node | None, left: NodeBinding | None, entered: NodeBinding | None) -> DeltaBuilder:
