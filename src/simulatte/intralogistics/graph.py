@@ -166,7 +166,8 @@ class LayoutGraph:
     def __init__(self, nodes: Iterable[Node], arcs: Iterable[Arc]) -> None:
         self._nodes: dict[Node, None] = dict.fromkeys(nodes)  # insertion-ordered (spec §5.3)
         self._adjacency: dict[Node, dict[Node, Arc]] = defaultdict(dict)
-        self._lookup: dict[Node, dict[Node, Arc]] = self._adjacency  # what `neighbors` and `arc_between` read; a layout-built graph has its own
+        # What `neighbors` and `arc_between` read: the adjacency itself, but for a layout-built graph.
+        self._lookup: dict[Node, dict[Node, Arc]] = self._adjacency
         for arc in arcs:
             _check_pair(arc, self._adjacency[arc.target].get(arc.source))
             self._adjacency[arc.source][arc.target] = arc
