@@ -160,6 +160,10 @@ raises and names `env.activate()`. This now holds for every environment, includi
 The network is declared once per environment with `layout.set_network(...)`: `Lattice`, `Lanes` or `Explicit`,
 unchanged. `Explicit(graph)` is the way to bring a hand-written `LayoutGraph` into a model.
 
+As before this work, a second `set_network` before preparation replaces the first declaration, and after
+preparation it raises. A model with several regions declares their union in one call; the documentation says
+that the last declaration wins.
+
 `Explicit` copies, for each arc, its direction, `speed_limit`, `passing` and `length`. An `Arc` does not know
 whether its length was given (a missing length is replaced by the chord at construction), so the rule is by
 value: `Explicit` records an arc's `length` when it differs from the chord of its endpoints, and the resolved arc
