@@ -357,9 +357,12 @@ def test_other_attributes_and_the_protocols_of_a_handle_are_unchanged() -> None:
         assert hasattr(handle, "owner") and hasattr(handle, "address")
         assert copy.copy(handle) == handle
         assert repr(handle).startswith(f"{type(handle).__name__}(owner=")
-        with pytest.raises(TypeError):
-            copy.deepcopy(handle)  # the owner holds the environment, which does not copy
-        with pytest.raises(TypeError):
+        # The owner holds the environment, which does not copy or pickle; the error depends on the interpreter
+        # (TypeError on CPython 3.14, AttributeError on 3.11, PicklingError on PyPy) and is not the handle's own.
+        unpicklable = (TypeError, AttributeError, pickle.PicklingError)
+        with pytest.raises(unpicklable):
+            copy.deepcopy(handle)
+        with pytest.raises(unpicklable):
             pickle.dumps(handle)
 
 
