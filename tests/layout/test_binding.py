@@ -579,3 +579,20 @@ def test_node_validation_names_a_missing_layout_as_before():
     cart = vehicle(env, None)
     with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
         cart._validate_node(Node("A", 0, 0))
+
+
+def test_node_validation_of_an_agv_whose_node_is_not_resolved_yet():
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"))
+    for action in (
+        lambda: cart._validate_node(None),
+        lambda: cart._validate_node(Node("A", 0, 0)),
+        lambda: setattr(cart, "current_node", None),
+        lambda: setattr(cart, "current_node", Node("A", 0, 0)),
+    ):
+        with pytest.raises(LayoutNotReady):
+            action()
+    layout.prepare()
+    cart._validate_node(None)  # resolved: the validation passes
+    assert cart.current_node is layout.prepare().network.node(layout.node("A").address)
