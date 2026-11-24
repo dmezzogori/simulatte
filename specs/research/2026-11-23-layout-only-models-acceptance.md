@@ -491,3 +491,148 @@ direction): it becomes the address of `a -> b` when the graph has that arc, else
 two addresses resolve to the same pair. An unknown id, or a pair that is not an arc in either direction, raises
 `LayoutError` naming the zone and the member at declaration. (The address form never raises for the same mistakes: it
 gives a `stale-zone-member` warning at resolution, and the shorthand is stricter because the graph is at hand.)
+
+## Cost of a layout-built network (Task 9b)
+
+Since Task 9 a transport model can only be built through the layout. The Task 8 review measured what that costs against
+the explicit build of the same model (`benchmarks/intralogistics.py`): 1.095 times at one shift in every mode, about 1.04
+on long runs. Commits: `4560487` (run time), `d697ca6` (preparation) and `894e31e` (one test), after `1bc1e51`. The explicit build is gone, so
+the comparison with it is that recorded figure, and a reference tree of it (outside the repository) as a check.
+
+### Result
+
+| | Before (`1bc1e51`) | After (`d697ca6`) |
+|---|---|---|
+| Layout build / explicit build, mode none, one shift | 1.096 (1.079 to 1.100, five rounds; recorded 1.095) | 1.038 (1.019 to 1.043) |
+| The same, six shifts | 1.044 (1.040 to 1.045, three rounds) | 1.012 (1.008 to 1.016) |
+| Run time, after / before, one shift, modes none, default, default_logging | | 0.947, 0.950, 0.952 |
+| Run time, after / before, six shifts, mode none | | 0.964 (0.948 to 0.975) |
+| `prepare()`, explicit square grid of 16, 100, 400, 1,600 nodes, ms | 12.5, 73.2, 303, 1,278 | 5.8, 30.5, 130, 571 |
+| `prepare()`, lattice of 16, 100, 400, 1,600 nodes, ms | 6.4, 30.1, 119, 498 | 3.6, 13.5, 52.3, 229 |
+| Per node at 400 and 1,600 nodes, explicit, microseconds | 758, 799 | 325, 357 |
+| Per node at 400 and 1,600 nodes, lattice, microseconds | 297, 311 | 131, 143 |
+
+The explicit-graph figures are the mean of the two medians of two runs (the runs agree within 1 %); the full output of
+all four runs is below. The per-event cost of a production model, the activation targets of Task 3 and the construction
+ratio are those they were (`run/ratio` 1.000 to 1.002, `activate/1600/layout` 48.7 and 48.9 against 49.8 and 49.6 ms, `construct/1600`
+1.22 to 1.24 in both).
+
+The full suite at the head: 4921 passed, 1 skipped, coverage 99.19 % (baseline 4738 passed, 1 skipped, 99.18 %).
+
+### Run time
+
+The graph a layout builds keeps its nodes and adjacency in `_ReadOnlyDict` containers, `dict` subclasses whose mutating
+methods raise `TypeError` ("a layout-built graph is read-only"), instead of `MappingProxyType` objects: a lookup is a
+`dict` lookup, so `neighbors` and `arc_between` are one body for both kinds of graph, with no allocation beyond the list
+that `neighbors` returns. The adjacency of a frozen graph answers a node outside the graph through `__missing__` with a
+shared empty read-only mapping, as before (`[]` and `None`), without inserting anything. `subdivide` on such a graph
+still raises. The private `_adjacency`/`_nodes` of a layout-built graph still refuse every change, and a graph a user
+writes stays mutable as it was; the public surface of `LayoutGraph` is unchanged, so no public way to change a
+layout-built graph existed and none was added. The containers do not pickle (they did not as proxies either).
+
+`AGV._validate_node` accepts the canonical node with one dictionary lookup by id and an identity test against the
+layout's table, with no property or method call into the layout; everything else (a copy equal by value, a disabled
+node, a node of another network, an unknown node) goes on to `Layout._validate_node`, which raises as before, and the
+test of `tests/layout/test_binding.py` pins each of these cases for the layout and the AGV. Setting `current_node` and
+ending a segment validate once instead of twice (`_relocate` keeps its own validation: the existing test calls it
+directly).
+
+The three causes of the Task 8 attribution (3 shifts, +41 ms in all) were 12.8 ms in the proxies, 7.9 ms in the
+allocation and 4.7 ms in validation. On a 3-shift run (five alternating rounds, one process each, against the reference
+explicit tree) the layout build took 1.055 times as long before (0.767 against 0.728 s) and 1.019 times after the change
+of this part alone (0.742 s). The rest of
+the 3.8 % that remains at one shift is preparation (5.8 ms for this 16-node graph, 2.5 % of the run) and about one point
+that was not attributed further.
+
+### Preparation of a network
+
+Measured with `benchmarks/layout_overhead.py` (new cases `prepare_network/<kind>/<nodes>`, a model with the network and
+no entity; the explicit graph is a square grid of two-way arcs). Preparation is linear in the number of nodes before and
+after. The profile (`cProfile`, 400 nodes) of the first run showed 5 resolutions of the layers, each checking the network
+patch against the schema again (`LayerBundle.__post_init__`), failing `oneOf` branches each building a message and a
+`LayoutError` that the caller threw away (8,785 at 100 nodes), and one `_network_view` resolved twice. What changed, none of which changes a
+value, a hash, a bundle, a diagnostic or an error:
+
+- `resolve_layers(..., code_checked=True)` (like `auto_checked`, Task 3): the coordinator's own patches, which
+  `declare()` checked and froze, and the stages of an earlier bundle are taken as they are. A patch is still checked once,
+  where it is declared; `test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_once` counts it.
+  This was 35 % of the profile of a 100-node explicit network and almost nothing for a lattice, whose patch is small.
+- The schema validator matches the branches of a `oneOf`/`anyOf` quietly (an internal `_Mismatch`, no message), computes
+  the type check of the one kind the rule names, and no longer creates a closure per call. When every branch of a
+  `oneOf` fixes `kind` to a constant (`address`, `nodeAddress`, `elementAddress`, `selector`), only the branches of the
+  value's kind are evaluated, since any other rejects the value at its `kind` property; the count of matching branches is
+  that of evaluating all of them. 6,014 mutated documents and definitions, run in both trees, had the same outcome each
+  (accepted data equal, and for the rejected the same message, code and path; 1,423 accepted, 4,591 rejected), and a test
+  compares the filtered outcome with the count over every branch for values of every kind.
+- The network view that preparation asks for twice with the same layers and targets is resolved once (one slot, compared
+  by identity of the patches).
+
+Evidence that nothing changed: the bundle (a sha256 of the whole `to_dict()`), the three hashes and the diagnostic codes of
+300 random worlds under two controllers (seeds 2000 to 2299) and of three explicit grids and three lattices are equal in
+`1bc1e51` and in the head (606 bundles); `PINNED_ALL_CHORD`, `PINNED_1_0`, `PINNED_BUNDLES` and `tests/layout/test_hashes.py`
+pass.
+
+What remains, from the profile of the head at 400 nodes (`cProfile`, shares of the profiled time; absolute numbers above):
+an explicit network spends 41 % in four resolutions of the layers (merge and freeze of an 800-entry patch, now the
+largest part), 13 % validating each generated `Address` (every node and arc address is checked against the schema when
+built, and a lattice index outside the exact range of a double is rejected there, so the check is an input check), 18 %
+in the auto layout of presentation placements (`_BoundsIndex` over exact fractions, twice) and 14 % in the dependency
+closure's queries. A lattice spends 35 % in address validation, 37 % in the auto layout, 12 % in the layers. Removing any
+of these means changing what is validated or restructuring the auto layout or the closure, which the task excludes; no
+target was set. At 1,600 nodes preparation costs 0.57 s for the explicit grid and 0.23 s for the lattice, which a model
+that large pays once.
+
+### The runs
+
+Commands, from the repository root for the head (`benchmarks/` as the working directory for the intralogistics runs) and
+with `PYTHONPATH=<git archive of 1bc1e51>/src` for the base, the two alternating; the repository's `.venv`, CPython 3.14.3
+on an Apple M4 Pro, a machine shared with other sessions: the one-minute load average was 1.4 to 3.6 between the rounds
+(the runs below were not run at the same time as any other work of mine). The `uptime` after every round is in the kept
+output.
+
+```
+python intralogistics.py --mode {none,default,default_logging} --shifts 1 --warmup 1 --repeat 5 --processes 3 --json ...
+python intralogistics.py --mode none --shifts 6 --warmup 1 --repeat 5 --processes 3 --json ...
+python benchmarks/layout_overhead.py --repeat 9 --json ...
+```
+
+The intralogistics medians and ranges are in `benchmarks/intralogistics-baseline.md`, section "Cost of a layout-built
+network, 2026-11-24". `layout_overhead.py --repeat 9`, medians in ms (two runs each, before then after):
+
+```
+                               before 1     before 2     after 1      after 2
+prepare_network/explicit/16     12.912       12.121       5.766        5.812
+prepare_network/explicit/100    73.086       73.271      30.379       30.640
+prepare_network/explicit/400   302.906      303.595     129.668      130.758
+prepare_network/explicit/1600 1276.426     1280.413     569.035      573.894
+prepare_network/lattice/16       6.317        6.580       3.600        3.606
+prepare_network/lattice/100     29.361       30.877      13.431       13.507
+prepare_network/lattice/400    118.354      119.442      52.240       52.455
+prepare_network/lattice/1600   496.763      498.325     228.543      229.306
+run/ratio (layout / none)        1.002        1.000       1.002        1.002
+```
+
+### Parity of the runs
+
+`RunRecord` (the events with their fields, initial and final state, time, violations, known limits and the fingerprint
+digest, as a sha256 over all of it) of the random worlds of `tests/intralogistics/random_worlds.py`, seeds 1000 to 1299
+(300 worlds), under both controllers and the three routers (`shortest`, `fastest`, `congestion`): 1,800 runs, 1,990,304
+events, run in a `git archive` copy of `1bc1e51` and in the head (`d697ca6`, the source of `894e31e`), with
+`PYTHONHASHSEED=0`; all 1,800 equal, none with a monitor violation, none that failed to end (the same comparison after
+`4560487` alone, run before the preparation commit, was equal too). The six fingerprints of
+`tests/intralogistics/test_random_worlds.py` hold.
+
+### TDD
+
+The read-only test (`TestLayoutBuiltGraphIsReadOnly`) failed before the change on the message of the refusal (`1 failed, 5
+passed`: "'mappingproxy' object does not support item assignment" against "read-only"); the node-validation tests pin the
+contract and passed before and after. For preparation, run against the tree of `1bc1e51`:
+
+```
+FAILED tests/layout/test_layers.py::test_code_stages_taken_as_checked_resolve_like_the_ones_checked_again
+FAILED tests/layout/test_activation.py::test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_once[4]
+FAILED tests/layout/test_activation.py::test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_once[40]
+3 failed, 171 passed
+```
+
+(the schema tests pin the unchanged outcomes and pass on both).

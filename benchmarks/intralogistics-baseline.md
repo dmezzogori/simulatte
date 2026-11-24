@@ -158,9 +158,42 @@ medians, each of 15 timed runs, with the range over the rounds.
 The work is the same: all 30 results have 1,018 orders, 1,012 completed, input hash
 `1a5ad97c4bd908101086d8ba16cc592cdbb43c24d768fd85756105ff10e28583` and trajectory hash
 `633394be9d9f5b5e07a76a224c14050235a80d5a31a0348488b48a679db95767`, the values recorded in the previous section; in
-mode `full` the semantic digest of the two builds is equal too. The layout build is 9.5 % slower, for two reasons. A
-fixed cost of about 14 ms per environment, the preparation of the layout (a 0.02-shift run takes 2.8 ms with objects and
-17.1 ms with the layout, same 13 orders). And a cost that grows with the run, about 3 % of its time: the resolved network
-keeps its adjacency in read-only mappings, so `shortest_path` and `arc_between` look up in a `mappingproxy` instead of a
-`dict` (`cProfile` of a 3-shift run: `shortest_path` takes 0.759 s cumulative against 0.690 s, and the lookups that were
-`dict.get` calls, 914,101 in 0.180 s, are `mappingproxy.get` calls, 960,349 in 0.235 s). The three-shift runs are 0.717 s and 0.752 s. The spec leaves this benchmark ungated.
+mode `full` the semantic digest of the two builds is equal too. The layout build is 9.5 % slower, for a cost of
+preparation and three costs that grow with the run. Preparing the layout is not a fixed cost per environment but grows
+with the elements of the network: about 14 ms for this graph of 16 nodes (a 0.02-shift run takes 2.8 ms with objects and
+17.1 ms with the layout, same 13 orders), 0.75 ms per node (73 ms at 100 nodes, 304 ms at 400). The run-time share,
+about 3 % of a run, had three causes; on a 3-shift run the layout build cost 41 ms more than the explicit one, 25 ms of
+it from these: the resolved graph kept its adjacency in `mappingproxy` objects, so `shortest_path` and `arc_between`
+looked up through a proxy instead of a `dict` (about 12.8 ms; `cProfile`: `shortest_path` takes 0.759 s cumulative
+against 0.690 s, and the lookups that were `dict.get` calls, 914,101 in 0.180 s, are `mappingproxy.get` calls, 960,349
+in 0.235 s); the frozen branch of `neighbors` and `arc_between` built an
+empty `dict` on every call (about 7.9 ms); and `Layout._validate_node`, called twice for each set of an AGV's
+`current_node`, was a call into the layout each time (about 4.7 ms). The three-shift runs are 0.717 s and 0.752 s.
+The spec leaves this benchmark ungated.
+
+## Cost of a layout-built network, 2026-11-24
+
+Task 9b of the layout-only-models work removed most of the run-time and preparation costs named above. The comparison is
+the commit before it (`1bc1e51`) against the commit after it (`d697ca6`), the workload above (20 AGVs, intervals 30 to
+60, seed 42), `--warmup 1 --repeat 5 --processes 3`, on Apple M4 Pro, CPython 3.14.3, the two sides alternating (before,
+after) in five rounds for each mode; the machine was not otherwise idle (one-minute load average 1.4 to 3.6 between the
+rounds, `uptime` in the kept output). Each cell is the median of the five round medians, each of 15 timed runs, with the
+range over the rounds.
+
+| Mode, shifts | `1bc1e51` median s (range) | `d697ca6` median s (range) | After / before, median (range) |
+|---|---:|---:|---:|
+| none, 1 | 0.24906 (0.24697 to 0.25586) | 0.23522 (0.23393 to 0.24619) | 0.947 (0.919 to 0.989) |
+| default, 1 | 0.27081 (0.26890 to 0.27839) | 0.26103 (0.25525 to 0.26351) | 0.950 (0.940 to 0.965) |
+| default_logging, 1 | 0.25196 (0.25060 to 0.25573) | 0.23910 (0.23722 to 0.24608) | 0.952 (0.939 to 0.977) |
+| none, 6 | 1.56888 (1.55107 to 1.61095) | 1.51289 (1.50936 to 1.55227) | 0.964 (0.948 to 0.975) |
+
+The ten results of each one-shift row have the orders and hashes of the previous section (1,018 orders, trajectory
+hash `633394be...`); the ten of the six-shift row agree with each other. The explicit build no longer exists. The previous section's
+comparison with it (1.095 at one shift in every mode, about 1.04 on long runs) is the figure for `1bc1e51`. As a check,
+a reference tree of that explicit build (outside the repository) ran alternately with the same two sides in mode none at
+the same settings: one shift, five rounds, `1bc1e51` / explicit 1.096 (1.079 to 1.100) and `d697ca6` / explicit 1.038
+(1.019 to 1.043); six shifts, three rounds, 1.044 (1.040 to 1.045) and 1.012 (1.008 to 1.016). What remains at one shift
+is mostly the preparation of the network, 5.9 ms for this graph of 16 nodes (14 ms before, 2.5 % of the run), and about
+one point of run time that was not separated further; at six shifts, 0.4 % is preparation. Preparation of larger
+networks is in `specs/research/2026-11-23-layout-only-models-acceptance.md`, section "Cost of a layout-built network
+(Task 9b)".
