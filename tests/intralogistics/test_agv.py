@@ -10,9 +10,10 @@ from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.battery import Battery
 from simulatte.intralogistics.events import AgvBatteryChanged
-from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics.graph import LayoutGraph, Node
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.layout import Explicit, NodeRef
 
 
 class TestAGVState:
@@ -55,7 +56,7 @@ class TestAGVType:
 
 
 class TestAGV:
-    def _make_agv(self, env: Environment, profile: TrapezoidalProfile, node: Node | None = None) -> AGV:
+    def _make_agv(self, env: Environment, profile: TrapezoidalProfile, node: NodeRef | None = None) -> AGV:
         agv_type = AGVType(
             name="test",
             speed_profile=profile,
@@ -66,7 +67,9 @@ class TestAGV:
         return AGV(env=env, agv_type=agv_type, initial_node=node)
 
     def test_creation(self, env: Environment, simple_speed_profile: TrapezoidalProfile, node_a: Node) -> None:
-        agv = self._make_agv(env, simple_speed_profile, node_a)
+        env.layout.set_network(Explicit(LayoutGraph([node_a], [])))
+        agv = self._make_agv(env, simple_speed_profile, env.layout.node(node_a.id))
+        env.layout.prepare()
         assert agv.state == AGVState.IDLE
         assert agv.current_node == node_a
         assert agv.current_load is None

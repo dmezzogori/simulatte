@@ -188,7 +188,7 @@ class TestBuildSimpleSystem:
         """Submit an order, run the simulation, and verify order completes."""
         from simulatte.intralogistics import build_simple_system
 
-        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, layout=env.layout)
 
         # Default products
         default_sku_a = SKU("A", 1.0, 0.1)
@@ -219,15 +219,17 @@ class TestBuildSimpleSystem:
             Warehouse,
             build_simple_system,
         )
+        from simulatte.layout import GraphRef
 
-        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, layout=env.layout)
 
         assert isinstance(coordinator, FleetCoordinator)
         assert isinstance(agvs, list)
         assert all(isinstance(a, AGV) for a in agvs)
         assert isinstance(wh_a, Warehouse)
         assert isinstance(wh_b, Warehouse)
-        assert isinstance(graph, LayoutGraph)
+        assert isinstance(graph, GraphRef)  # the layout's graph; it resolves to a LayoutGraph
+        assert isinstance(env.layout.prepare().network.graph, LayoutGraph)
 
         # Default n_agvs=2
         assert len(agvs) == 2
@@ -236,7 +238,8 @@ class TestBuildSimpleSystem:
         """The graph should have 5 nodes in a linear layout."""
         from simulatte.intralogistics import build_simple_system
 
-        _, _, _, _, graph = build_simple_system(env)
+        build_simple_system(env, layout=env.layout)
+        graph = env.layout.prepare().network.graph
         assert len(graph._nodes) == 5
 
 
@@ -251,7 +254,7 @@ class TestCustomConfiguration:
     def test_custom_agv_count(self, env: Environment) -> None:
         from simulatte.intralogistics import build_simple_system
 
-        coordinator, agvs, _, _, _ = build_simple_system(env, n_agvs=4)
+        coordinator, agvs, _, _, _ = build_simple_system(env, n_agvs=4, layout=env.layout)
         assert len(agvs) == 4
         assert len(coordinator.fleet) == 4
 
@@ -259,7 +262,7 @@ class TestCustomConfiguration:
         from simulatte.intralogistics import build_simple_system
 
         custom_products = [SKU("X", 3.0, 0.3), SKU("Y", 4.0, 0.4)]
-        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, products=custom_products)
+        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, products=custom_products, layout=env.layout)
 
         # Warehouses should know about the custom products
         for sku in custom_products:
@@ -271,7 +274,7 @@ class TestCustomConfiguration:
         from simulatte.intralogistics import build_simple_system
 
         custom_sku = SKU("CUSTOM", 2.0, 0.2)
-        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, products=[custom_sku])
+        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, products=[custom_sku], layout=env.layout)
 
         order = coordinator.create_order(
             sku=custom_sku,
@@ -293,6 +296,7 @@ class TestCustomConfiguration:
             products=[sku_x],
             initial_inventory_a={sku_x: 50},
             initial_inventory_b={sku_x: 25},
+            layout=env.layout,
         )
 
         assert wh_a.get_inventory_level(sku_x) == 50
@@ -310,7 +314,7 @@ class TestBuildSimpleSystemParkingArea:
         from simulatte.intralogistics.builders import build_simple_system
 
         env = Environment()
-        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, layout=env.layout)
         assert len(coordinator.parking_areas) > 0
 
 
@@ -323,13 +327,16 @@ class TestBuildSimpleSystemNames:
     def test_default_ids(self, env: Environment) -> None:
         from simulatte.intralogistics.builders import build_simple_system
 
-        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
-        assert [agv.id for agv in agvs] == ["agv-0", "agv-1"]  # generated: agv-<n> is reserved for names
+        coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, layout=env.layout)
+        assert [agv.id for agv in agvs] == ["vehicle-0", "vehicle-1"]  # named by the builder
         assert (coordinator.id, wh_a.id, wh_b.id) == ("fleet", "WH-A", "WH-B")
+        graph = env.layout.prepare().network.graph
         assert [node.id for node in graph.nodes] == ["WH_A_OUT", "N1", "N2", "N3", "WH_B_IN"]
         assert (coordinator.charging_stations[0].id, coordinator.parking_areas[0].id) == ("CS-CENTER", "PA-N1")
 
     def test_prefixes_keep_two_systems_apart(self, env: Environment) -> None:
+        # explicit mode: two graphs in one environment exist only there (the layout's twin is
+        # tests/layout/test_builders.py::test_two_prefixed_systems_compose_on_caller_network); Task 9 decides this test
         from simulatte.intralogistics.builders import build_simple_system
 
         a = build_simple_system(env, prefix="a.")
@@ -351,23 +358,28 @@ def test_builder_passes_traffic_controller_router_and_length_through(env: Enviro
     from simulatte.intralogistics import FreeFlowController, ShortestDistanceRouter, build_simple_system
 
     controller, router = FreeFlowController(), ShortestDistanceRouter("astar")
-    fleet, agvs, _, _, graph = build_simple_system(env, traffic_controller=controller, router=router, agv_length=1.5)
+    fleet, agvs, _, _, _ = build_simple_system(
+        env, traffic_controller=controller, router=router, agv_length=1.5, layout=env.layout
+    )
     assert fleet.traffic_controller is controller and fleet.router is router
+    graph = env.layout.prepare().network.graph
     assert controller.view.graph is graph
     assert all(agv.agv_type.length == 1.5 for agv in agvs)
-    default, defaults, _, _, _ = build_simple_system(Environment())
+    other = Environment()
+    default, defaults, _, _, _ = build_simple_system(other, layout=other.layout)
     assert isinstance(default.traffic_controller, FreeFlowController)
     assert isinstance(default.router, ShortestDistanceRouter) and default.router.algorithm == "dijkstra"
     assert defaults[0].agv_type.length is None
 
 
-def test_no_layout_builder_digest_remains_compatible():
+def test_builder_digest():
+    """The digest of a run of the builder's model on the environment's layout, its AGVs named ``vehicle-<i>``."""
     from simulatte.intralogistics import build_simple_system
 
     with Environment(seed=17) as env:
         env.enable_digest()
-        fleet, agvs, origin, destination, _ = build_simple_system(env)
-        assert all(not env.entities.is_named(agv.id) for agv in agvs)
+        fleet, agvs, origin, destination, _ = build_simple_system(env, layout=env.layout)
+        assert all(env.entities.is_named(agv.id) for agv in agvs)  # the builder names them vehicle-<i>
         for quantity in (5, 8, 12, 6):
             fleet.submit(
                 fleet.create_order(
@@ -375,4 +387,4 @@ def test_no_layout_builder_digest_remains_compatible():
                 )
             )
         env.run(until=120)
-        assert env.fingerprint().digest == "b62e716120b67b3b5561d4d298b6fb455cf8447abc2e5386362299563aed5c7f"
+        assert env.fingerprint().digest == "d66e5cd5c9e737ec83143ebb36153ed2fc08e4db9955f0f0e90b444af8e31f89"

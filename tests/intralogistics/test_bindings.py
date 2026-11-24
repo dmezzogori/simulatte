@@ -12,14 +12,16 @@ from simulatte.distributions import Exponential, Uniform
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.charging import ChargingStation
-from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics.graph import LayoutGraph, Node
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import Explicit
 from simulatte.rng import derive_seed
 
 SKU_A = SKU(id="SKU-A", weight=1.0, volume=0.1)
 SEED = 17
+CS_NODE = Node(id="CS-NODE", x=0.0, y=0.0)
 
 
 def _agv_type(**kwargs: object) -> AGVType:
@@ -33,8 +35,13 @@ def _agv_type(**kwargs: object) -> AGVType:
     )
 
 
+def _network(env: Environment, warehouse: str = "WH") -> None:
+    """Declare the bay of the warehouse named `warehouse` and the node of the charging station on `env`'s layout."""
+    env.layout.set_network(Explicit(LayoutGraph([Node(id=f"{warehouse}-BAY", x=0.0, y=0.0), CS_NODE], [])))
+
+
 def _warehouse(env: Environment, name: str = "WH", **kwargs: object) -> Warehouse:
-    bay = Node(id=f"{name}-BAY", x=0.0, y=0.0)
+    bay = env.layout.node(f"{name}-BAY")
     return Warehouse(
         env=env,
         name=name,
@@ -48,7 +55,7 @@ def _warehouse(env: Environment, name: str = "WH", **kwargs: object) -> Warehous
 
 
 def _station(env: Environment, **kwargs: object) -> ChargingStation:
-    return ChargingStation(env=env, name="CS", node=Node(id="CS-NODE", x=0.0, y=0.0), n_slots=1, **kwargs)  # ty: ignore[invalid-argument-type]
+    return ChargingStation(env=env, name="CS", node=env.layout.node(CS_NODE.id), n_slots=1, **kwargs)  # ty: ignore[invalid-argument-type]
 
 
 def _stream(name: str) -> random.Random:
@@ -57,6 +64,7 @@ def _stream(name: str) -> random.Random:
 
 def test_numbers_are_managed() -> None:
     env = Environment(seed=SEED)
+    _network(env)
     agv = AGV(env=env, agv_type=_agv_type(load_time=2, unload_time=1.5))
     warehouse = _warehouse(env, pick_time=3, put_time=4.5)
     station = _station(env, recharge_time=7)
@@ -84,6 +92,7 @@ def test_defaults_are_managed_zero_and_rate_based_recharge() -> None:
     env = Environment(seed=SEED)
     agv = AGV(env=env, agv_type=_agv_type())
     assert (agv.sample_load_time(), agv.sample_unload_time()) == (0.0, 0.0)
+    _network(env)
     station = _station(env)  # no recharge_time: the battery's own rate-based computation
     agv.battery.level = 50.0
 
@@ -114,6 +123,7 @@ def test_contextual_callable_keeps_signature_and_is_opaque() -> None:
         return 0.5
 
     agv = AGV(env=env, agv_type=_agv_type(load_time=load, unload_time=0.25))
+    _network(env)
     warehouse = _warehouse(env, pick_time=pick, put_time=put)
     station = _station(env, recharge_time=recharge)
     assert env.opaque_sampler_owners == [agv.id, warehouse.id, station.id]
@@ -136,6 +146,7 @@ def test_distribution_streams_per_entity() -> None:
     agv_type = _agv_type(load_time=Uniform(1.0, 9.0), unload_time=Exponential(0.5))
     first = AGV(env=env, agv_type=agv_type)
     second = AGV(env=env, agv_type=agv_type)
+    _network(env, "WH-X")
     warehouse = _warehouse(env, "WH-X", pick_time=Uniform(1.0, 2.0), put_time=Uniform(3.0, 4.0))
     station = _station(env, recharge_time=Uniform(10.0, 20.0))
     assert env.opaque_sampler_owners == []
