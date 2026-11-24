@@ -105,6 +105,7 @@ from simulatte.intralogistics.policies import ReorderPointPolicy, ResumeDelivery
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import LayoutError
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system
 from tests.intralogistics.traffic_support import declare
@@ -615,30 +616,29 @@ def test_direct_transition_to_emits() -> None:
 @pytest.mark.parametrize("after_activation", [False, True])
 def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: bool) -> None:
     """Node ``agvs`` replay matches when an AGV is created at a bound node or moved by assignment (carried T14)."""
-    # explicit mode: an AGV placed on a node outside the network (LOOSE) exists only there; Task 9 decides this test
     env = Environment(debug=True)
     replay = FleetReplay(env, FLEET_KINDS | {"node"})  # free traffic: no reservations to replay
-    nodes, graph = _line_graph()
-    first = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[0])  # before the binding: in its create delta
-    # An explicit graph consumer before activation: the environment gets no layout (until explicit mode is removed).
+    world = declare(env, _line_graph()[1])  # the network is declared before activation (ruling T4-a)
+    first = AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("OUT"))
     if after_activation:
         env.activate()
-    FleetCoordinator(env=env, graph=graph, fleet=[first], warehouses=[], charging_stations=[])
+    FleetCoordinator(env=env, graph=world.graph, fleet=[first], warehouses=[], charging_stations=[])
+    env.layout.prepare()  # binds the nodes and places the first AGV (done already when activated)
     placed: list[AgvPlaced] = []
     env.bus.subscribe(placed.append, (AgvPlaced,))
 
-    second = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[0])  # node already bound
-    unbound = AGV(env=env, agv_type=_agv_type(), initial_node=Node(id="LOOSE", x=0.0, y=0.0))
-    second.current_node = nodes[3]
-    second.current_node = nodes[3]  # unchanged: no event
+    second = AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("OUT"))  # node already bound: placed at once
+    end = world.node("IN")
+    with pytest.raises(LayoutError, match="exact canonical"):  # a node outside the network
+        second.current_node = Node(id="LOOSE", x=0.0, y=0.0)
+    second.current_node = end
+    second.current_node = end  # unchanged: no event
     second.current_node = None
-    unbound.current_node = nodes[1]
 
     assert [(e.agv, e.node, e.previous) for e in placed] == [
         (second.id, "OUT", None),
         (second.id, "IN", "OUT"),
         (second.id, None, "IN"),
-        (unbound.id, "C1", "LOOSE"),
     ]
     assert placed[0].deltas.ops == (("set", second.id, "node", "OUT"), ("insert", "OUT", "agvs", 1, second.id))
     assert placed[1].deltas.ops == (
@@ -646,7 +646,30 @@ def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: boo
         ("remove", "OUT", "agvs", second.id),
         ("insert", "IN", "agvs", 0, second.id),
     )
-    assert replay.state["OUT"]["agvs"] == (first.id,) and replay.state["C1"]["agvs"] == (unbound.id,)
+    assert replay.state["OUT"]["agvs"] == (first.id,)
+
+
+@pytest.mark.parametrize("after_activation", [False, True])
+def test_agv_placed_from_a_node_outside_the_network(after_activation: bool) -> None:
+    """An AGV created on a node outside the graph and moved by assignment onto a bound node.
+
+    Explicit mode only: a layout refuses a node that is not a canonical node of its network (the ``LayoutError`` of
+    ``test_agv_placed_at_bound_node_and_on_direct_assignment``); Task 9 removes this test."""
+    env = Environment(debug=True)
+    replay = FleetReplay(env, FLEET_KINDS | {"node"})
+    nodes, graph = _line_graph()
+    first = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[0])
+    if after_activation:
+        env.activate()
+    FleetCoordinator(env=env, graph=graph, fleet=[first], warehouses=[], charging_stations=[])
+    placed: list[AgvPlaced] = []
+    env.bus.subscribe(placed.append, (AgvPlaced,))
+
+    unbound = AGV(env=env, agv_type=_agv_type(), initial_node=Node(id="LOOSE", x=0.0, y=0.0))
+    unbound.current_node = nodes[1]
+
+    assert [(e.agv, e.node, e.previous) for e in placed] == [(unbound.id, "C1", "LOOSE")]
+    assert replay.state["C1"]["agvs"] == (unbound.id,)
 
 
 # --- replay over a busy run --------------------------------------------------------------------------------

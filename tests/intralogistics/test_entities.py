@@ -27,6 +27,7 @@ from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import LayoutError
 
 from tests.intralogistics.traffic_support import World, declare
 
@@ -225,13 +226,18 @@ def test_shared_graph_two_fleets_one_binding_per_node() -> None:
     bindings = [entity for entity in env.entities.live() if isinstance(entity, NodeBinding)]
     assert sorted(binding.id for binding in bindings) == ["C1", "C2", "IN", "OUT"]
     assert repr(bindings[0]) == f"NodeBinding(id={bindings[0].id!r})"
-    assert env.entities.bind_node(c1) is env.entities.bind_node(world.node("C1"))
+    equal = Node(id="C1", x=5.0, y=0.0)  # equal to the canonical node, another object
+    assert env.entities.node_binding(equal) is env.entities.bind_node(c1)
+    with pytest.raises(LayoutError, match="exact canonical"):  # a layout binds only its canonical nodes
+        env.entities.bind_node(equal)
     assert env.entities.bind_node(c1).agvs == [first.id, second.id]
     assert (first.fleet, second.fleet) == (fleet_a, fleet_b)
 
 
 def test_same_id_different_node_raises() -> None:
-    # explicit mode: binding nodes that are not the network's exists only there; Task 9 decides this test
+    # Explicit mode only: without a layout any node can be bound, so a second node with a bound id, an equal node and a
+    # reserved id reach the registry's own checks; a layout binds only its canonical nodes, and refuses any other
+    # node first (test_shared_graph_two_fleets_one_binding_per_node). Task 9 decides this test.
     env = Environment()
     bound = env.entities.bind_node(Node(id="A", x=0.0, y=0.0))
     assert env.entities.bind_node(Node(id="A", x=0.0, y=0.0)) is bound  # an equal node: the existing binding
@@ -244,23 +250,44 @@ def test_same_id_different_node_raises() -> None:
 
 
 def test_agv_moves_update_node_agvs() -> None:
-    # explicit mode: an AGV placed on a node outside the network exists only there; Task 9 decides this test
     env = Environment()
-    nodes, graph = _line_graph()
+    world = declare(env, _line_graph()[1])
     agv = AGV(env=env, agv_type=_agv_type())  # no starting node
-    loose = Node(id="LOOSE", x=9.0, y=9.0)  # never bound
-    FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[])
+    loose = Node(id="LOOSE", x=9.0, y=9.0)  # not a node of the network
+    FleetCoordinator(env=env, graph=world.graph, fleet=[agv], warehouses=[], charging_stations=[])
+    nodes = [world.node(name) for name in ("OUT", "C1", "C2", "IN")]  # prepares the layout
     binding = env.entities.bind_node
 
     agv.current_node = nodes[0]
     agv.current_node = nodes[0]
     assert binding(nodes[0]).agvs == [agv.id]
+    with pytest.raises(LayoutError, match="exact canonical"):  # the layout refuses a node outside its network
+        agv.current_node = loose
+    assert binding(nodes[0]).agvs == [agv.id] and agv.current_node is nodes[0]
+    agv.current_node = nodes[3]
+    assert binding(nodes[0]).agvs == []
+    assert binding(nodes[3]).agvs == [agv.id]
+    agv.current_node = None
+    assert all(not binding(node).agvs for node in nodes)
+
+
+def test_an_agv_moved_off_the_graph_leaves_its_node() -> None:
+    """An AGV moved to a node outside the graph leaves the ``agvs`` of its node, and returns from there.
+
+    Explicit mode only: a layout refuses such a node (the ``LayoutError`` of ``test_agv_moves_update_node_agvs``); Task
+    9 removes this test."""
+    env = Environment()
+    nodes, graph = _line_graph()
+    agv = AGV(env=env, agv_type=_agv_type())
+    loose = Node(id="LOOSE", x=9.0, y=9.0)  # never bound
+    FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[])
+    binding = env.entities.bind_node
+
+    agv.current_node = nodes[0]
     agv.current_node = loose
     assert binding(nodes[0]).agvs == []
     agv.current_node = nodes[3]
     assert binding(nodes[3]).agvs == [agv.id]
-    agv.current_node = None
-    assert all(not binding(node).agvs for node in nodes)
 
 
 def test_node_state_tracks_positions_and_reservations_during_a_run() -> None:

@@ -6,6 +6,8 @@ from simulatte.environment import Environment
 from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.sku import SKU
 
+from tests.intralogistics.test_collectors import _declare_lines, _roles
+
 
 # ---------------------------------------------------------------------------
 # Part 1: Import surface test
@@ -335,18 +337,27 @@ class TestBuildSimpleSystemNames:
         assert (coordinator.charging_stations[0].id, coordinator.parking_areas[0].id) == ("CS-CENTER", "PA-N1")
 
     def test_prefixes_keep_two_systems_apart(self, env: Environment) -> None:
-        # explicit mode: two graphs in one environment exist only there (the layout's twin is
-        # tests/layout/test_builders.py::test_two_prefixed_systems_compose_on_caller_network); Task 9 decides this test
         from simulatte.intralogistics.builders import build_simple_system
 
-        a = build_simple_system(env, prefix="a.")
-        b = build_simple_system(env, prefix="b.", n_agvs=1)
+        _declare_lines(env, "a.", "b.")  # one network for the two systems
+        a = build_simple_system(env, prefix="a.", layout=env.layout, nodes=_roles(env, "a."))
+        b = build_simple_system(env, prefix="b.", n_agvs=1, layout=env.layout, nodes=_roles(env, "b."))
         assert [agv.id for agv in a[1]] == ["a.agv-0", "a.agv-1"]
         assert [agv.id for agv in b[1]] == ["b.agv-0"]
         assert (a[0].id, b[0].id, b[2].id) == ("a.fleet", "b.fleet", "b.WH-A")
-        assert [node.id for node in b[4].nodes] == ["b.WH_A_OUT", "b.N1", "b.N2", "b.N3", "b.WH_B_IN"]
+        graph = env.layout.prepare().network.graph
+        assert [node.id for node in graph.nodes if node.id.startswith("b.")] == [
+            "b.WH_A_OUT",
+            "b.N1",
+            "b.N2",
+            "b.N3",
+            "b.WH_B_IN",
+        ]
+        # system b stands on its own nodes
+        endpoints = (b[2].output_bays[0], b[1][0].current_node, b[0].charging_stations[0].node, b[3].input_bays[0])
+        assert [node.id for node in endpoints] == ["b.WH_A_OUT", "b.N1", "b.N2", "b.WH_B_IN"]
         with pytest.raises(ValueError, match="already used"):
-            build_simple_system(env, prefix="a.")
+            build_simple_system(env, prefix="a.", layout=env.layout, nodes=_roles(env, "a."))
 
         order = b[0].create_order(sku=next(iter(b[2].inventory)), quantity=1, origin=b[2], destination=b[3])
         b[0].submit(order)
