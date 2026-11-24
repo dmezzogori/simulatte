@@ -273,8 +273,9 @@ is re-pinned with the cause stated (§8.3).
 ### 5.8 Traces and Studio
 
 Every trace written by this version that records its initial state has `layout` in INITIAL and in the manifest.
-`Trace.layout` is `None` for traces of earlier versions, and for a trace of this version whose activation failed
-before the initial state was recorded (no INITIAL record; outcome `failed`). The Studio scene keeps its grid fallback
+`Trace.layout` is `None` when the INITIAL record carries no layout (traces of earlier versions) and when the trace
+has no INITIAL record: an activation that failed before the initial state was recorded (outcome `failed`), or a
+recorder closed on an environment that was never activated (outcome `completed`). The Studio scene keeps its grid fallback
 for traces without a layout and labels it as today; no trace of this version that records its initial state reaches
 it. A test pins that the four intralogistics examples and a production
 example produce traces with a resolved layout whose `network.graph.arcs` (for the transport examples) is not
