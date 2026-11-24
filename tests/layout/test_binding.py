@@ -1,3 +1,5 @@
+import types
+
 from simulatte import Environment, Layout
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
@@ -435,6 +437,27 @@ def test_the_registered_resource_owner_is_accepted_whatever_its_class():
     assert "register_resource_owner" not in str(raised.value)  # its fix is not a registration
 
 
+@pytest.mark.parametrize("private", [None, "this", "other", "none"])
+def test_an_unregistered_custom_controller_is_told_to_register_whatever_private_attributes_it_has(private):
+    """The message for a controller that was not registered does not depend on its private attributes: only a
+    built-in controller of another environment is told it belongs to another environment."""
+
+    class Manager(FreeFlowController):
+        controls_occupancy = True
+
+    env, other = Environment(), Environment()
+    layout = line(env)
+    manager = Manager()
+    if private is not None:
+        manager._env = {"this": env, "other": other, "none": None}[private]
+        manager.env = manager._env
+    with pytest.raises(LayoutError, match="custom traffic controller requires") as raised:
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
+        )
+    assert "belongs to another environment" not in str(raised.value)
+
+
 def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication():
     for disabled in (False, True):
         env = Environment()
@@ -630,7 +653,6 @@ def _outcome(call):
 def test_the_agv_and_the_layout_accept_the_same_nodes(block):
     """The AGV checks the canonical node on its own fast path and leaves the rest to the layout: whatever the inputs,
     the two give one outcome, so that a condition added to one and not to the other fails here."""
-    import types
     from unittest import mock
 
     env = Environment()
@@ -644,8 +666,13 @@ def test_the_agv_and_the_layout_accept_the_same_nodes(block):
     canonical = {node.id: node for node in graph.nodes}
     other = Environment()
     elsewhere = Layout(other)
-    elsewhere.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b)])))
+    e = Node("E", 6, 0)
+    elsewhere.set_network(Explicit(LayoutGraph([a, b, e], [Arc(a, b), Arc(b, e)])))
     foreign = {node.id: node for node in elsewhere.prepare().network.graph.nodes}
+    apart = Layout(Environment())
+    far = Node("A", 9, 9)
+    apart.set_network(Explicit(LayoutGraph([far, Node("Z", 9, 12)], [Arc(far, Node("Z", 9, 12))])))
+    apart_nodes = {node.id: node for node in apart.prepare().network.graph.nodes}
     inputs = [
         canonical["A"],  # the current node
         canonical["B"],
@@ -659,6 +686,9 @@ def test_the_agv_and_the_layout_accept_the_same_nodes(block):
         Node("C", 4.0, 0.0),
         foreign["A"],  # canonical in another environment
         foreign["B"],
+        foreign["E"],  # canonical in another environment, whose id is not in this network
+        apart_nodes["A"],  # canonical in another environment, the id of a node here at another position
+        apart_nodes["Z"],
         Node("unknown", 9, 9),
         None,
         "A",
@@ -713,6 +743,39 @@ def test_a_refused_node_names_where_the_canonical_node_comes_from():
     assert cart.current_node is layout.prepare().network.node(layout.node("A").address)
     cart.current_node = canonical
     assert cart.current_node is canonical
+
+
+def test_a_refused_node_is_told_what_is_true_for_it():
+    """One refusal, four reasons: a node equal to the canonical one is told to take the canonical object; a disabled
+    node is told it is disabled; a node whose id is not in the network is told so, and a node of the id at another
+    position is told it lies elsewhere. No message advises a node that cannot be canonical to take it from the graph."""
+    env = Environment()
+    layout = line(env)
+    layout.override(NetworkOverride("off", {"kind": "explicit", "id": "B"}, {"enabled": False}))
+    layout.prepare()
+    canonical = layout._canonical_nodes["A"]
+    cases = {
+        "equal": Node("A", canonical.x, canonical.y),
+        "disabled": Node("B", 2, 0),
+        "unknown": Node("unknown", 9, 9),
+        "elsewhere": Node("A", canonical.x + 5, canonical.y),
+        "not a node": types.SimpleNamespace(id="A"),
+    }
+    messages = {}
+    for label, node in cases.items():
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node") as raised:
+            layout._validate_node(node)
+        messages[label] = str(raised.value)
+    assert CANONICAL_FIX in messages["equal"] and "equal to the network's node of that id" in messages["equal"]
+    assert "disabled in the network" in messages["disabled"] and "fleet.graph" not in messages["disabled"]
+    assert "not the id of a node of this environment's network" in messages["unknown"]
+    assert CANONICAL_FIX not in messages["unknown"] and "equal to" not in messages["unknown"]
+    assert "lies elsewhere" in messages["elsewhere"]
+    assert f"({canonical.x + 5}, {canonical.y} against {canonical.x}, {canonical.y})" in messages["elsewhere"]
+    assert "is a SimpleNamespace, not a Node" in messages["not a node"]
+    bare = Environment()
+    with pytest.raises(LayoutError, match="no resolved network yet"):
+        bare.layout._validate_node(Node("A", 0, 0))
 
 
 def test_assigning_the_node_of_an_agv_whose_node_is_pending_names_the_assignment():

@@ -10,6 +10,15 @@ from typing import Any
 from .errors import LayoutNotReady
 
 
+class _PhysicalAttributeError(LayoutNotReady, AttributeError):
+    """Reading what a `Node` or a `LayoutGraph` has from a handle.
+
+    It is a `LayoutNotReady` for a caller that reads the attribute and an `AttributeError` for one that probes it:
+    ``hasattr(handle, "id")`` is False and ``getattr(handle, "id", default)`` is the default, as for any name a handle
+    has not, while a direct read raises with the message below.
+    """
+
+
 @dataclass(frozen=True, init=False)
 class Address:
     """Immutable logical address with an injective generated entity id."""
@@ -70,7 +79,7 @@ class _Ref:
 
     def __getattr__(self, name: str) -> Any:
         if name in _PHYSICAL:
-            raise LayoutNotReady(
+            raise _PhysicalAttributeError(
                 f"{type(self).__name__} is a layout handle for constructing components, not the resolved graph or "
                 f"node, and has no {name}: read the resolved objects from fleet.graph, or from "
                 "env.layout.prepare().network (its graph, and network.node(env.layout.node(id).address) for a node)",
@@ -96,7 +105,8 @@ _PHYSICAL = frozenset(
         "subdivide",
     )
 )
-"""What a `Node` or a `LayoutGraph` has and a handle does not: reading it from a handle raises `LayoutNotReady`."""
+"""What a `Node` or a `LayoutGraph` has and a handle does not: reading it from a handle raises `LayoutNotReady` (also an
+`AttributeError`, so that a probe with `hasattr` or `getattr` and a default finds nothing)."""
 
 
 @dataclass(frozen=True, eq=False, init=False)

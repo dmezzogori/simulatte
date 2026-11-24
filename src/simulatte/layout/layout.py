@@ -9,14 +9,14 @@ from typing import TYPE_CHECKING, Any
 
 from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
 from .auto import AutoLayer, TargetMetadata, auto_layout
-from .binding import bind_components
+from .binding import _loaded, bind_components
 from .dependencies import MISSING, DependencyClosure
 from .errors import LayoutDiagnostic, LayoutError, LayoutNotReady, sort_diagnostics
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .lifecycle import PreparationCoordinator, PreparationState
 from .network import ResolvedNetwork, resolve_network
-from .refs import Address, GraphRef, NodeRef, PortRef, ValueRef
+from .refs import Address, GraphRef, NodeRef, PortRef, ValueRef, _Ref
 from .topology import snapshot_topology
 from .types import Explicit, Grid, Lanes, Lattice, LayoutLimits, NetworkOverride, Point, _freeze
 
@@ -169,16 +169,30 @@ class Layout:
                     result.update({node["id"]: "node" for node in raw.get("nodes", ())})
         return result
 
-    def _entity_id(self, entity: Entity | str) -> str:
+    def _entity_id(self, entity: Entity | str, call: str, takes: str) -> str:
         if isinstance(entity, str):
             return entity
+        if isinstance(entity, _Ref):
+            address = entity.address.to_dict()
+            advice = (
+                f": to place the node {address['id']!r}, write layout.place({address['id']!r}, kind='node', ...)"
+                if call == "layout.place" and isinstance(entity, NodeRef) and address["kind"] == "explicit"
+                else ""
+            )
+            raise LayoutError(
+                f"{call} takes {takes}; {type(entity).__name__} is a layout handle, which names a node or the graph "
+                f"when constructing a component, and is not an entity{advice}",
+                code="foreign-handle",
+            )
         if not self.env.entities.is_live(entity):
             raise LayoutError("placement/flow entity belongs to another environment or is not live")
         return entity.id
 
     def place(self, entity: Entity | str, *, kind: str | None = None, **placement_patch: Any) -> None:
         self._coordinator._mutable()
-        entity_id = self._entity_id(entity)
+        entity_id = self._entity_id(
+            entity, "layout.place", "an entity of this environment, or the id of one with kind=..."
+        )
         if isinstance(entity, str):
             if kind is None:
                 raise LayoutError("string placement target requires kind")
@@ -196,7 +210,11 @@ class Layout:
 
     def flow(self, entities: Sequence[Entity | str]) -> None:
         self._coordinator._mutable()
-        self._flows.append(tuple(self._entity_id(entity) for entity in entities))
+        self._flows.append(
+            tuple(
+                self._entity_id(entity, "layout.flow", "the entities of the flow, or their ids") for entity in entities
+            )
+        )
 
     def set_grid(self, grid: Grid) -> None:
         if not isinstance(grid, Grid):
@@ -242,7 +260,9 @@ class Layout:
         return NodeRef(self, address)
 
     def port(self, entity: Entity | str, port_name: str) -> PortRef:
-        return PortRef(self, self._entity_id(entity), port_name)
+        return PortRef(
+            self, self._entity_id(entity, "layout.port", "an entity of this environment, or its id"), port_name
+        )
 
     def graph(self) -> GraphRef:
         return self._coordinator.graph()
@@ -335,9 +355,41 @@ class Layout:
                 f"AGV movement takes a node of the resolved network, not a layout handle ({type(node).__name__}): "
                 f"handles are for constructing components; {_CANONICAL_NODE}"
             ) from None
-        raise LayoutError(
-            "AGV movement requires an exact canonical enabled graph node, the object of the resolved network: "
-            f"{_CANONICAL_NODE}; a Node built by the script is equal to it but is another object"
+        raise LayoutError(self._refused_node(node))
+
+    def _refused_node(self, node: Node) -> str:
+        """Why `node`, which is not the canonical node of its id, is refused, in words that are true for it.
+
+        Only an error path asks: the accepted path is the identity check of :meth:`_validate_node`.
+        """
+        head = "AGV movement requires an exact canonical enabled graph node, the object of the resolved network"
+        network = self._coordinator.network
+        if network is None:
+            return f"{head}: this layout has no resolved network yet, declare one with set_network and prepare it"
+        canonical = self._canonical_nodes.get(node.id)
+        if canonical is None:
+            disabled = any(not d.enabled and d.id == node.id for d in network.definitions.nodes.values())
+            if disabled:
+                return (
+                    f"{head}: node {node.id!r} is disabled in the network, so no AGV can be at it or move to it; "
+                    "enable it with a NetworkOverride or choose an enabled node"
+                )
+            return (
+                f"{head}: {node.id!r} is not the id of a node of this environment's network, so it is another "
+                "network's node or one the script built; choose a node of fleet.graph or "
+                "env.layout.prepare().network.graph"
+            )
+        if not isinstance(node, type(canonical)):
+            return f"{head}: {_CANONICAL_NODE}; this is a {type(node).__name__}, not a Node"
+        if canonical == node:
+            return (
+                f"{head}: {_CANONICAL_NODE}; this Node is equal to the network's node of that id but is another "
+                "object (one the script built, or one of another environment's network)"
+            )
+        return (
+            f"{head}: {_CANONICAL_NODE}; this Node has the id of a node of the network but lies elsewhere "
+            f"({node.x}, {node.y} against {canonical.x}, {canonical.y}), so it was built by the script or belongs to "
+            "another environment's network"
         )
 
     def _before_attach(self, obj: Entity, entity_id: str) -> None:
@@ -398,8 +450,9 @@ class Layout:
             if controller is not self._resource_owner:
                 raise LayoutError("fleet must reuse the registered traffic controller in its environment")
         elif not any(item[0] is controller for item in self._custom_managers):
-            built_for = getattr(controller, "_env", None)  # a ReservationController keeps the environment it serves
-            if built_for is not None and built_for is not self.env:
+            if isinstance(controller, _loaded("simulatte.intralogistics.reservation", "ReservationController")):
+                # A built-in controller registers with the layout of the environment it was built for, so one that is
+                # not registered here was built for another.
                 raise LayoutError(
                     f"the traffic controller ({type(controller).__name__}) belongs to another environment: a fleet "
                     "takes a controller built with env= the fleet's own environment"

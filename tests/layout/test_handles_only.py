@@ -25,7 +25,7 @@ from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
-from simulatte.layout import Explicit, Layout, LayoutError, LayoutNotReady
+from simulatte.layout import Explicit, Layout, LayoutError, LayoutNotReady, Point
 
 CART = AGVType("cart", TrapezoidalProfile(2, 1, 1), 100, 100, 100, length=0.5)
 GRAPH_FIX = "takes layout.graph(); declare the graph with env.layout.set_network(Explicit(graph))"
@@ -342,6 +342,45 @@ def test_reading_a_physical_attribute_of_a_handle_names_the_resolved_objects() -
                 assert "fleet.graph" in message and "env.layout.prepare().network" in message, message
 
 
+def test_a_probe_of_a_physical_attribute_of_a_handle_finds_nothing_and_a_read_still_names_the_resolved_objects() -> (
+    None
+):
+    """The error of reading a physical attribute is a `LayoutNotReady` and also an `AttributeError`, so `hasattr` is
+    False and `getattr` with a default returns it, while a direct read raises the same message as before."""
+    env = Environment()
+    layout = _declared(env)
+    default = object()
+    for prepared in (False, True):
+        if prepared:
+            layout.prepare()
+        for handle in (layout.graph(), layout.node("A")):
+            for name in PHYSICAL:
+                assert not hasattr(handle, name), name
+                assert getattr(handle, name, default) is default, name
+                for caught in (LayoutNotReady, LayoutError, ValueError, AttributeError):
+                    with pytest.raises(caught, match=f"has no {name}: read the resolved objects from fleet.graph"):
+                        getattr(handle, name)
+            assert hasattr(handle, "owner") and getattr(handle, "address", default) is not default
+
+
+def test_the_probes_of_the_library_treat_a_handle_as_no_entity() -> None:
+    """Every place that reads `id` with a default (`is_live`, `retire`, `attach`, a collector's scope) sees a handle as
+    an object with no id, and answers as it does for any object that is not an entity."""
+    from simulatte.kpi import Collector
+
+    env = Environment()
+    layout = _declared(env)
+    for handle in (layout.graph(), layout.node("A")):
+        assert env.entities.is_live(handle) is False  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="is not an entity kind"):
+            env.entities.attach(handle)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="retire takes an entity"):
+            env.entities.retire(handle)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="must be an attached entity"):
+            Collector(handle)  # type: ignore[arg-type]
+    assert env.entities.live() == ()
+
+
 def test_other_attributes_and_the_protocols_of_a_handle_are_unchanged() -> None:
     import copy
     import pickle
@@ -352,8 +391,7 @@ def test_other_attributes_and_the_protocols_of_a_handle_are_unchanged() -> None:
         assert not hasattr(handle, "unknown") and not hasattr(handle, "__deepcopy__")
         with pytest.raises(AttributeError, match="unknown"):
             _ = handle.unknown  # type: ignore[union-attr]
-        with pytest.raises(LayoutNotReady):
-            hasattr(handle, "x")  # a physical attribute raises, as it did before
+        assert not hasattr(handle, "x")  # a physical attribute is absent to a probe, and a read raises (above)
         assert hasattr(handle, "owner") and hasattr(handle, "address")
         assert copy.copy(handle) == handle
         assert repr(handle).startswith(f"{type(handle).__name__}(owner=")
@@ -364,6 +402,64 @@ def test_other_attributes_and_the_protocols_of_a_handle_are_unchanged() -> None:
             copy.deepcopy(handle)
         with pytest.raises(unpicklable):
             pickle.dumps(handle)
+
+
+def test_place_flow_port_and_retire_say_what_they_take_when_given_a_handle() -> None:
+    """A handle is not an entity: each call says what it takes, and none advises reading `fleet.graph`."""
+    env = Environment()
+    layout = _declared(env)
+    node, graph = layout.node("A"), layout.graph()
+    calls = {
+        "layout.place": lambda handle: layout.place(handle, position=Point(0, 0)),
+        "layout.flow": lambda handle: layout.flow([handle]),
+        "layout.port": lambda handle: layout.port(handle, "out"),
+        "env.entities.retire": env.entities.retire,
+    }
+    for name, call in calls.items():
+        for handle in (node, graph):
+            with pytest.raises((LayoutError, ValueError)) as raised:
+                call(handle)
+            message = str(raised.value)
+            assert message.startswith(f"{name} takes ") and f"{type(handle).__name__} is a layout handle" in message
+            assert "is not an entity" in message and "fleet.graph" not in message, message
+            assert ("layout.place('A', kind='node', ...)" in message) == (name == "layout.place" and handle is node), (
+                message
+            )
+    assert "an entity of this environment, or the id of one with kind=..." in str(_raised(calls["layout.place"], node))
+    assert "the entities of the flow, or their ids" in str(_raised(calls["layout.flow"], node))
+    assert "an entity of this environment, or its id" in str(_raised(calls["layout.port"], node))
+    assert "attached to this environment" in str(_raised(calls["env.entities.retire"], node))
+    layout.place("A", kind="node", position=Point(0, 0))  # what the advice writes is accepted
+    assert env.entities.live() == ()
+
+
+def _raised(call: Any, handle: Any) -> Exception:
+    try:
+        call(handle)
+    except (LayoutError, ValueError) as error:
+        return error
+    raise AssertionError("no error")
+
+
+def test_an_empty_sequence_of_zones_declares_no_zones_as_an_empty_mapping_does() -> None:
+    """`zones=[]` and `zones=()` are accepted, as they were before the zones were declared as a mapping: they declare
+    the empty zone map of `zones={}` and give its bundle and hashes."""
+    results = []
+    for zones in ({}, [], ()):
+        env = Environment()
+        env.layout.set_network(Explicit(_graph(), zones=zones))  # type: ignore[arg-type]
+        results.append(env.layout.prepare())
+    first = results[0]
+    assert first.bundle.schema_version == "1.1" and first.network.zones == ()
+    for result in results[1:]:
+        assert result.bundle.to_dict() == first.bundle.to_dict()
+        assert (result.full_hash, result.physical_hash, result.layers_hash) == (
+            first.full_hash,
+            first.physical_hash,
+            first.layers_hash,
+        )
+        assert result.network.zones == ()
+    assert Explicit(_graph(), zones=[]).zones == Explicit(_graph(), zones=()).zones == {}  # type: ignore[arg-type]
 
 
 def test_old_style_declarations_name_what_to_write() -> None:
@@ -381,6 +477,9 @@ def test_old_style_declarations_name_what_to_write() -> None:
         Explicit(graph, zones={"z": {"members": [a]}})
     with pytest.raises(LayoutError, match=r"write the pair of ids \('A', 'B'\)"):
         Explicit(graph, zones={"z": {"members": [(a, b)]}})
+    for zones in (["z"], ("z",), [{"members": ["A"]}]):  # a non-empty sequence is not a mapping either
+        with pytest.raises(LayoutError, match="takes a mapping of zone id"):
+            Explicit(graph, zones=zones)  # type: ignore[arg-type]
     env = Environment()
     with pytest.raises(LayoutError, match=re.escape("takes a node id: write layout.node(node.id)")):
         env.layout.node(a)  # type: ignore[arg-type]

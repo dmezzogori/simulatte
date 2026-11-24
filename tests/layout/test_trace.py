@@ -88,6 +88,20 @@ def test_failed_prepare_has_no_layout_initial(tmp_path):
     assert trace.layout is None and not any(r.type == RecordType.INITIAL for r in _read(path))
 
 
+def test_a_recorder_closed_on_an_environment_that_was_never_activated_has_no_layout(tmp_path):
+    """`Trace.layout` is None for every trace without an INITIAL record, and its docstring names the three kinds."""
+    env = Environment()
+    path = tmp_path / "never"
+    TraceRecorder(env, path)
+    env.close()
+    trace = Trace.open(path)
+    assert trace.layout is None and not any(r.type == RecordType.INITIAL for r in _read(path))
+    assert trace.outcome == "completed"
+    doc = " ".join(inspect.getdoc(Trace.layout).split())
+    for named in ("without an INITIAL record", "without a layout", "activation failed", "never activated"):
+        assert named in doc, named
+
+
 def test_layout_metadata_of_an_environment_without_layout_code_and_default_limit(tmp_path):
     """Every trace written by this version carries the layout (spec §5.8); traces of earlier versions without one
     stay readable (``tests/core/test_trace_reader.py``, frozen fixtures)."""

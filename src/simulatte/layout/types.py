@@ -106,6 +106,8 @@ def _zone_members(
     """
     if zones is None:
         return zones
+    if isinstance(zones, (list, tuple)) and not zones:
+        return {}  # an empty sequence declares no zones, as an empty mapping does
     if not isinstance(zones, Mapping) or not all(isinstance(zone, Mapping) for zone in zones.values()):
         raise LayoutError(
             "Explicit(zones=...) takes a mapping of zone id to a zone declaration, not Zone objects: for example "

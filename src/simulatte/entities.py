@@ -20,6 +20,7 @@ given, otherwise ``f"{kind}-{n}"`` with a per-kind counter of the environment) a
 from __future__ import annotations
 
 import re
+import sys
 import weakref
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
@@ -352,6 +353,13 @@ class EntityRegistry:
         """
         entity_id = getattr(obj, "id", None)
         if entity_id is None or self._live.get(entity_id) is not obj:
+            refs = sys.modules.get("simulatte.layout.refs")  # a handle exists only once its module is imported
+            if refs is not None and isinstance(obj, refs._Ref):
+                raise ValueError(
+                    "env.entities.retire takes an entity attached to this environment; "
+                    f"{type(obj).__name__} is a layout handle, which names a node or the graph when constructing a "
+                    "component, and is not an entity"
+                )
             raise ValueError(f"{obj!r} is not live in this environment")
         try:
             self._retired[entity_id] = obj  # first: the only step that can fail
