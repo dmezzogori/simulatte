@@ -1048,13 +1048,14 @@ pinned by a fingerprint taken while both modes existed)."""
 
 KNOWN_LIMIT_WITHDRAWN = "waits of an unresolved deadlock left unreported after a member's wait was withdrawn"
 """The second known limit, a defect of `ReservationController` that predates the layout-only work, a missed detection:
-deadlock detection (`_detect`) runs only when a wait starts (`stopped()`), and a member of a set reported unresolved has
-no review timer. When one wait of the set is withdrawn (`withdraw`, which only scans) the controller forgets every set
-that holds its AGV (`_end_wait`), and nothing looks at the remaining waits again unless a new wait opens, an idle
-blocker comes to rest or a stuck chain reaches them. If they still form a deadlock, the run ends with them open and
-unreported. The monitor recognises it only when no wait started after the withdrawal (a new wait runs the detection,
-which either reports the orphans or means they are not this case) and, at the end, the exempted waits are a closed
-set: each is blocked, and only by waits of the set, which are the orphans' and those queued behind them."""
+deadlock detection (`_detect`) runs only when a wait starts (`stopped()`), and a member whose wait opens into a set
+reported unresolved gets no review timer (a member that was already waiting keeps the reviews it had). When one wait of
+the set is withdrawn (`withdraw`, which only scans) the controller forgets every set that holds its AGV (`_end_wait`),
+and nothing looks at the remaining waits again unless a new wait opens, an idle blocker comes to rest or a stuck chain
+reaches them. If they still form a deadlock, the run ends with them open and unreported. The monitor recognises it only
+when no wait started after the withdrawal (a new wait runs the detection, which either reports the orphans or means
+they are not this case) and, at the end, the exempted waits are a closed set: each is blocked, and only by waits of the
+set, which are the orphans' and those queued behind them."""
 
 
 class Monitor:

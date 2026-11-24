@@ -132,7 +132,8 @@ layout.set_network(Explicit(graph))  # once, before activation; a second call be
 ```
 
 `Lattice(...)` and `Lanes(...)` are the other two declarations (see the layout guide). An arc between two nodes at the
-same position is rejected: model a lift or a transfer point with a small offset and an explicit `length`.
+same position is rejected: model a lift or a transfer point with a small offset and an explicit `length`. With
+`corner_speed` or `turn_time`, put the offset along the direction of travel, so that the lift adds no turn.
 
 ### Layout rules
 
@@ -154,6 +155,8 @@ an output bay to pick and to an input bay to deliver.
 `controller.graph`, bays, `station.node` and `area.node` raise `LayoutNotReady`
 until `env.layout.prepare()` or `env.activate()`. They hold canonical nodes: equal
 to the ones you declared and different objects, so compare with `==`, not `is`.
+The resolved graph's arcs are one-way: a two-way arc is two arcs with `bidirectional`
+false, so test for the way back with `fleet.graph.arc_between(v, u) is not None`.
 Declaring the network after activation raises `LayoutError` (also through
 `build_simple_system`, or a component given a handle when no network was declared).
 On a network declared before activation, an AGV, warehouse, parking area, charger

@@ -81,7 +81,9 @@ is recorded when it differs from the chord between its nodes, so a graph from `L
 lengths of its pieces. `capacities` maps node ids to capacities, `zones` names members by node id or by a pair of
 ids, and `block_length` splits long arcs (see [traffic fields](#traffic-fields-schema-11)). Two nodes at the same
 position cannot be joined by an arc: a lift or a transfer point is a small offset between the nodes and an explicit
-`length` on the arc.
+`length` on the arc. The offset gives the arc a direction, so with `corner_speed` or `turn_time` on the vehicle type
+put it along the direction of travel: the lift then adds no turn, where an offset across the lane or against it costs
+one.
 
 The model below has two nodes, a warehouse at each, one vehicle and a `ReservationController`. Its components take
 `layout.node("a")` and `layout.graph()`, handles described under [Handles](#handles):
@@ -187,8 +189,11 @@ raises.
 
 The objects are the canonical nodes and graph of the resolved network. A canonical node is equal to the node you
 declared and is a different object, so compare nodes with `==`, never with `is`, or look one up with
-`result.network.node(layout.node("a").address)`. Assigning `agv.current_node` takes a canonical node of the resolved
-network and nothing else.
+`result.network.node(layout.node("a").address)`. The resolved graph is not equal to the graph you declared, and its
+arcs are one-way: an arc declared `bidirectional=True` (the default) is two arcs, `arc_between(u, v)` and
+`arc_between(v, u)`, each with `bidirectional` false and not equal to the declared arc. Test for the way back with
+`graph.arc_between(v, u) is not None`. Assigning `agv.current_node` takes a canonical node of the resolved network
+and nothing else.
 
 ## What is frozen
 
@@ -562,7 +567,7 @@ expose `Trace.layout is None`. Python `Trace.check()` checks known metadata and 
 the TypeScript reader validates known shape and exposes recorded hashes, without cryptographic verification.
 Unknown future layout schemas remain inspectable but cannot be reused. INITIAL defaults to 64 MiB encoded,
 independently of queue backpressure; if raising `TraceRecorder(max_initial_bytes=...)`, also raise
-`ReaderLimits(max_record=...)` when opening the trace. No viewer or interactive editor is included.
+`ReaderLimits(max_record=...)` when opening the trace.
 
 
 Native Python can record and verify a prepared layout with the core package (the browser examples above do

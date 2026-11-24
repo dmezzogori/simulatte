@@ -130,9 +130,12 @@ see "Changed", "Removed" and "Migration".
   message that names what to write.
 - **Physical fields exist after preparation.** `agv.current_node`, `fleet.graph`, `controller.graph`, a warehouse's
   bays, `station.node` and `area.node` raise `LayoutNotReady` before `env.layout.prepare()` or `env.activate()`, and
-  are read-only afterwards (bays are tuples). The objects are the canonical nodes and graph of the resolved network:
-  equal to the ones you declared and different objects, so compare with `==`. `agv.current_node = node` takes a
-  canonical node of the resolved network only. `repr()` of a component never raises.
+  are read-only afterwards (bays are tuples). The objects are the canonical nodes and graph of the resolved network.
+  The nodes are equal to the ones you declared and are different objects, so compare nodes with `==`. The graph is not
+  equal to the one you declared, and its arcs are one-way: an arc declared `bidirectional=True` (the default) is two
+  arcs of the resolved graph, `arc_between(u, v)` and `arc_between(v, u)`, each with `bidirectional` false and not equal
+  to the declared arc; test for the way back with `graph.arc_between(v, u) is not None`. `agv.current_node = node`
+  takes a canonical node of the resolved network only. `repr()` of a component never raises.
 - **The layout is finalized at activation.** Declaring the transport network after `env.activate()` or the first
   `env.run()` raises `LayoutError`. That includes `build_simple_system(env)`, which declares one, and a component given
   a node handle or `layout.graph()` (a first fleet, for one) when no network was declared before activation. On a
@@ -154,7 +157,9 @@ see "Changed", "Removed" and "Migration".
   when no layout was in use. Digests of builder models change because of these ids. An `AGV` constructed directly keeps its
   generated `agv-<n>` id unless `agv_id` is given.
 - An arc between two nodes at the same position cannot be declared. A lift or a transfer point is modelled with a small
-  offset between its nodes and an explicit `length` on the arc.
+  offset between its nodes and an explicit `length` on the arc. The offset gives the arc a direction, where an arc of
+  length 0 left the heading unchanged: with `corner_speed` or `turn_time` on the vehicle type, put the offset along the
+  direction of travel, so that the lift adds no turn (an offset across the lane or against it costs a turn).
 - Entities created before activation, jobs and orders included, are layout targets with an automatic placement. More
   than `LayoutLimits.max_placements` (100,000) of them raise `LayoutError` at preparation, naming the limit and
   `Layout(env, limits=...)`. The INITIAL record of a recorded run is limited by the 64 MiB of
@@ -223,10 +228,14 @@ Models built with concrete objects no longer run. Build them through the layout:
 | `Warehouse(input_bays=[node])`, `AGV(initial_node=node)`, `ChargingStation(node=node)`, `ParkingArea(node=node)` | `env.layout.node("id")` in place of the node; for a `Node` you already hold, `env.layout.node(node.id)` |
 | Reading `agv.current_node` or `fleet.graph` right after construction | Read it after `env.layout.prepare()` or `env.activate()` |
 | `agv.current_node is my_node` | `agv.current_node == my_node` |
+| `agv.current_node = my_node`, with a `Node` the script built | The canonical node of that id: `env.layout.prepare().network.node(env.layout.node("N1").address)`, or the node of id `"N1"` in `fleet.graph.nodes` |
+| `fleet.graph.arc_between(u, v).bidirectional`, or `arc == my_arc`, to find a two-way arc | `fleet.graph.arc_between(v, u) is not None`: resolved arcs are one-way, and a two-way arc is two of them |
+| `Explicit(graph, block_length=1.0, capacities={"a~b#1": 2})`, a capacity on a node the block length generates (it raises: `capacities` names declared nodes) | `Explicit(graph.subdivide(1.0), capacities={"a~b#1": 2})`, which declares the same network (the same node ids, positions and arc lengths) with the block nodes as declared nodes |
+| A custom traffic controller with `controls_occupancy = True` given to a fleet without registration | Before preparation, `layout.register_resource_owner(controller, owner=..., graph=layout.graph(), binder="name")` and `layout.on_bind("name", callback, reads=...)` |
 | `wh.input_bays.append(node)` | Declare the bays at construction; endpoints are frozen |
 | Two graphs in one environment | One declared network with both regions, in one `set_network` call |
 | `ReservationController(capacities={node: 2}, zones=[Zone(...)])` | `Explicit(graph, capacities={"N1": 2}, zones={"z": {"capacity": 1, "members": ["N1", ("N1", "N2")]}})` (a member is a node id or a pair of ids), or the `capacity` and `zones` of `Lattice` and `Lanes`; `node_capacity=` stays |
-| An arc between two nodes at the same position | A small offset between the nodes and an explicit `length` on the arc |
+| An arc between two nodes at the same position | A small offset between the nodes and an explicit `length` on the arc; with `corner_speed` or `turn_time`, the offset along the direction of travel |
 | `env.step()` on a fresh environment | `env.activate()` first |
 | Declaring the transport network after `env.activate()` or the first `env.run()` (also through a builder, or a first fleet when no network was declared) | Declare the network on `env.layout` before activation. On a network declared before, an AGV, warehouse, parking area or charger with handles, and a fleet on the default `FreeFlowController`, may still be built later; a fleet on a `ReservationController` must be built before activation (`RuntimeError`) |
 | `env.layout is None` or `getattr(env, "layout", None)` as a check | Every environment has a layout; reading `env.layout` creates it |
@@ -238,12 +247,19 @@ The statements that go with the table:
 - Traces and manifests always carry the layout, so a trace of a model that never mentioned one now has it.
 - AGVs of `build_simple_system` are named `vehicle-<i>` (`<prefix>agv-<i>` with a prefix).
 - Declaring a second network before preparation replaces the first; after preparation it raises. Declare the union.
-- A lift or a transfer point is a small offset between two nodes and an explicit `length` on their arc.
+- A lift or a transfer point is a small offset between two nodes and an explicit `length` on their arc. With
+  `corner_speed` or `turn_time`, the offset lies along the direction of travel, so that the lift adds no turn.
 - More than 100,000 entities created before activation (jobs and orders count) need `Layout(env, limits=...)`, with a
   larger `max_placements`.
 - A concrete `LayoutGraph` or `Node` given to a component raises `LayoutError` with the code `foreign-handle`; the
   message says what to write.
 - A zone entity lists its members as nodes in id order, then segments; the zones of a controller are ordered by id.
+- Every entity id becomes a layout id at activation, also in a model that nothing records: an entity name with a lone
+  surrogate (not valid UTF-8) now raises `LayoutError: topology ids must be nonempty UTF-8 strings` at activation,
+  where a production model used to run unless it was recorded. Name entities with valid UTF-8 strings.
+- `Explicit` refuses what a `LayoutGraph` accepts and a network cannot hold: a node with a coordinate that is not
+  finite (`LayoutError: x must be finite`) and an arc from a node to itself (`zero-length`). Give nodes finite
+  coordinates and leave such arcs out.
 
 The two-node model of the [layout guide](docs/guides/layout.md), before:
 
