@@ -1375,3 +1375,79 @@ on a layout with no network to declare it. The added tests are: `test_handles_on
 handle kinds), `test_binding.py` 3, `test_trace.py` 1 (replacing a docstring check). Full suite at `d3723c3`: `Required
 test coverage of 99% reached. Total coverage: 99.19%`; `4975 passed, 1 skipped, 3 warnings in 452.89s (0:07:32)`;
 `ruff check src tests benchmarks`, `ruff format --check` (532 files) and `ty check src` clean.
+
+### C. The band of the core overhead gate
+
+Decided by the maintainer on 2026-11-24: widen the band of the no-subscriber gate against the stripped 0.12.0 (item 8 of
+"Residual findings after the fix wave"). The gate stays a gate. Decision D106 in `specs/studio-decisions.md`.
+
+| | Before | After |
+|---|---|---|
+| `BUDGET_STRIPPED`, CPython (`.github/workflows/ci.yml`) | 0.065 | 0.105 |
+| `NOISE_STRIPPED`, CPython | 0.02 | 0.02 |
+| Limit against the stripped copy, CPython | +8.5 % | +12.5 % |
+| PyPy budget and band, both bands against the released copy, released limit (+5 %) | unchanged | unchanged |
+
+Where the 8.5 % came from (`specs/research/sp1-g3-report.md` §3 and §9, decisions D55 and D56): the budget is "the achieved
+worst case plus 2 % headroom" (worst pooled overhead of the two CI workloads over interleaved rounds, 4.5 %, plus 2.0 =
+6.5 %) and the noise band is the A/A spread widened (0.8 % observed, 2 %), re-checked with `calibrate_noise.py` in
+the pre-0.13 hardening (0.9 and 1.21 pp; CPython kept at 2 %). The rule is applied again as written.
+
+Measurement. Head `7736e5d` (a `git archive`, first on `PYTHONPATH`), released `simulatte==0.12.0` with the dependency
+versions of the earlier gate runs as constraints (simpy 4.1.2, msgpack 1.2.4, tabulate 0.10.0, tqdm 4.70.1) and the stripped
+copy that `strip_debug.py` made from it (12 statements removed; a second run of the script gives the same tree), CPython
+3.14.3, Apple M4 Pro, on AC power. Each round is the gate's step: mode `none`, both CI workloads, `--warmup 1 --repeat 5
+--processes 3`, and a second stripped run (S2) for the baseline's own spread; the order of the runs alternates between
+rounds, as the table shows. Ten rounds, every round kept. The machine was not idle: one-minute load average 1.4 to 2.2
+in rounds 1 to 4 and 8 to 10, and 2.1 to 4.6 in rounds 5 to 7 (a burst of another session during round 5).
+
+| Round | Order of the runs | Load (1 min, after u90 / u95) | u90 vs stripped | u90 vs stripped, second run | u95 vs stripped | u95 vs stripped, second run | vs released (u90 / u95) |
+|---|---|---|---|---|---|---|---|
+| 1 | base, S2, S, head | 1.73 / 1.40 | +8.6 % | +9.2 % | +7.2 % | +8.1 % | -24.2 % / -23.3 % |
+| 2 | head, S, S2, base | 1.61 / 1.98 | +8.0 % | +8.1 % | +8.3 % | +9.4 % | -24.9 % / -22.2 % |
+| 3 | base, S2, S, head | 1.87 / 1.92 | +7.0 % | +6.8 % | +8.9 % | +8.6 % | -24.4 % / -23.0 % |
+| 4 | head, S, S2, base | 1.75 / 2.04 | +9.3 % | +9.4 % | +7.0 % | +7.7 % | -24.3 % / -22.8 % |
+| 5 | base, S2, S, head | 4.52 / 4.55 | +5.9 % | +9.5 % | +9.2 % | +8.7 % | -23.6 % / -22.6 % |
+| 6 | head, S, S2, base | 3.55 / 2.80 | +7.4 % | +8.8 % | +8.9 % | +8.5 % | -24.4 % / -22.3 % |
+| 7 | base, S2, S, head | 3.44 / 2.82 | +8.9 % | +8.5 % | +8.6 % | +9.1 % | -24.2 % / -22.6 % |
+| 8 | head, S, S2, base | 2.85 / 2.42 | +9.8 % | +8.9 % | +7.8 % | +8.2 % | -24.2 % / -22.7 % |
+| 9 | base, S2, S, head | 2.06 / 2.13 | +8.5 % | +9.2 % | +7.8 % | +8.5 % | -24.3 % / -22.7 % |
+| 10 | head, S, S2, base | 2.21 / 1.90 | +8.3 % | +8.7 % | +9.3 % | +7.5 % | -24.6 % / -22.9 % |
+
+Per round, head against the stripped run of the gate (S), over the ten rounds: u90 +5.9 to +9.8 % (median +8.4 %), u95
++7.0 to +9.3 % (median +8.5 %). Against S2: u90 +6.8 to +9.5 %, u95 +7.5 to +9.4 %. S2 against S: -3.3 to +0.9 % (u90;
+the -3.3 % is round 5, where one of the three S processes ran at 0.525 s while the other two ran at 0.459 and 0.465 s) and
+-0.9 to +1.7 % (u95). Head against released 0.12.0: -24.9 to -23.6 % and -23.3 to -22.2 %.
+
+Pooled over the ten rounds (median of the 150 timed runs of each side and workload; the way §9 pools), head against S:
+u90 0.4942 s / 0.4562 s = +8.34 %, u95 0.5315 s / 0.4901 s = +8.45 %. Worst case 8.45 % (u95).
+
+Rule and arithmetic:
+
+- Budget = worst pooled overhead + 2.0 points of headroom = 8.45 + 2.0 = 10.45 %, up to the next 0.1 point: 10.5 %.
+- Noise band, CPython: kept at 2 %. The largest single-round excess of a comparison over its workload's pooled
+  value is 9.81 - 8.34 = 1.47 points (u90, round 8; u95: 9.33 - 8.45 = 0.88), and S2 against S exceeds +2 % in none of
+  the 20 pairs. `calibrate_noise.py out/r*` (seed 20261010, 10,000 draws, three process medians per side) gives an upper
+  bound of the change of the head/stripped ratio of 2 pp or less in 16 of 20 rows (mean 1.5 pp); the four above: 5.20 pp (u90,
+  round 5, the slow S process; the same row has a lower bound of -12.51 pp), 2.58 pp (u95, rounds 1 and 3), 2.04 pp (u90,
+  round 9). The band was not moved for these: the bound resamples three values per side, the realised excesses above are smaller, and the largest row coincides with the load burst of round 5; if the bound of #55 is applied as the largest of the rows, the band would be 6 % (limit 16.5 %), which the maintainer may prefer to decide.
+- Limit = 10.5 + 2.0 = 12.5 %. The limit is 4.05 points above the pooled worst case, as the old one (8.5) was 4.0 above
+  its worst case (4.5), and 2.7 points above the highest single comparison (+9.8 %).
+- For comparison, the fallback rule of the assignment (measured maximum + 1.5, up to half a point) would give 9.81 + 1.5 =
+  11.31, so 11.5 %. It was not used because the procedure has its own rule.
+
+Gate at the head with the new limit: the head passes against the released copy (limit +5 %) in 20 of 20
+comparisons and against the stripped copy in 20 of 20 comparisons against S and 20 of 20 against S2; 10 of 10 whole
+gates pass (both workloads, both baselines). At the old limit of +8.5 % the same rounds give 11 of 20 comparisons against S
+(8 of 20 against S2) and 2 of 10 whole gates.
+
+The gate still fails a real regression. `compare.py` on a pair whose baseline is the S result of round 1 (u90) and whose head
+median is that baseline times 1.124, 1.126 and 1.100 (`--budget 0.105 --noise 0.02`): +12.4 %, limit `+12.5 % (10.5 % + 2.0 %)`,
+pass, exit 0; +12.6 %, `**FAIL**`, exit 1, "mode none overhead +12.6% exceeds the budget 10.5% + noise 2.0%"; +10.0 %, pass,
+exit 0. The same three pairs at the old budget (0.065) all exit 1.
+
+CI history, if the new limit had applied (limits 12.5 % against the stripped copy; nothing was changed for it): the
+runs of the brief pass: `e993ca8` +6.8 % and +7.7 %, `9cc5d64` +8.3 %, and the failed run on `main` (`ea1292c`, +9.6 % and
++10.4 %), which was a failure of noise on a commit that touched no source, would have passed with 2.1 and 2.9 points of margin; so would
+the runner results quoted in the 0.13 release checks (+6.35 % and +8.17 %, and +7.67 % and +8.41 % on the first main run).
+No run in the history exceeds 12.5 %. A rise of the branch's cost against the stripped copy from the pooled 8.45 % to more than 12.5 % (4.05 points) fails the gate; a smaller one passes.
