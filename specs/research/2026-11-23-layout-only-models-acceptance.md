@@ -176,9 +176,10 @@ and so does a slot kept through such a charge but not released as it ends.
 **A deadlock is not detected again after a member's wait was withdrawn.** (Found by the Task 2 review; not met by the
 parity run, which ran seeds 0 to 999 and had none. The safety run of Task 11 meets it once; see "Safety run".) It is a
 missed detection in `ReservationController`, not only a missing report. In `src/simulatte/intralogistics/reservation.py`
-deadlock detection (`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member of a set reported
-unresolved returns from `stopped()` at once (lines 288 to 289) and gets no review timer, and `_report_one` (line 578)
-refuses it a stuck report while the set stands. The set is remembered in `_unresolved`. `_end_wait` (line 631) drops
+deadlock detection (`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member whose wait opens into
+a set reported unresolved returns from `stopped()` at once (lines 288 to 289) and gets no review timer (a member that was
+already waiting keeps what it had: in seed 2000228 agv-e had had two reviews and is dormant), and `_report_one` (line
+578) refuses every member a stuck report while the set stands. The set is remembered in `_unresolved`. `_end_wait` (line 631) drops
 every remembered set that holds the AGV whose wait ended, for any reason. When the wait was withdrawn (`withdraw`, lines
 338 to 345, reason `interrupted`) the controller then only scans for grants. Nothing looks at the remaining waits again
 unless a new wait opens, `idle()` fires for one of their blockers, or a stuck chain reaches them. If they still form a
@@ -207,13 +208,16 @@ work did not change it, and the maintainer decides about it.
 
 The monitor records it apart, under `known_limits` with its own name, on the evidence of the event stream and of the
 end state, and nothing broader. An unresolved deadlock was reported (`traffic.deadlock` with action `unresolved`). A wait
-of that set ended with reason `interrupted`, the only reason that comes from `withdraw`: a grant, and a reroute, step
-aside or give-up the controller staged itself, are followed by a detection or a scan of its own. The other members
-are then orphans until a later report covers them (a `traffic.deadlock` that lists them, a `traffic.wait_stuck` of
-theirs, the end of their own wait). At the end of the run the exempted waits are the orphans' open waits and the waits
-queued behind them, and they must still be a deadlock: each is blocked, and only by AGVs that wait in the set or are
-already explained by a report, so none of them can move. A wait that is not blocked at all, or is blocked by an AGV that
-is idle, stranded or moving, is not the known limit, whatever its history. Any other open wait with no report stays the
+of that set ended with reason `interrupted`, the end that comes from `withdraw`, which only scans. This is the
+conservative choice: a reroute staged by a review (lines 489 to 498) also ends a member's wait with a scan only, and the
+other reasons come from a grant or from the deadlock resolution, which detects again; a case the trigger leaves out would
+stay a violation. The other members are then orphans until a later report covers them (a `traffic.deadlock` that lists
+them, a `traffic.wait_stuck` of theirs, the end of their own wait), and they stop being orphans if any wait starts after
+the withdrawal, since the controller detects at every new wait: that wait either reports them or they are not this case.
+At the end of the run the exempted waits are the orphans' open waits and the waits queued behind them, and they must
+still be a deadlock: each is blocked, and only by waits of the set (the orphans' and those queued behind them). A wait
+queued behind an orphan's claim, not itself a member of the deadlock, is exempted with it. A wait that is not blocked at
+all, or is blocked by an AGV that is idle, stranded or moving, is not the known limit, whatever its history. Any other open wait with no report stays the
 violation `open wait with no report`. The tests are in "What changed in the monitor".
 
 ### The comparison finds a difference
@@ -764,7 +768,7 @@ worlds": the parking slot of the fleet in 14 cases, and the waits of a withdrawn
 
 ### The run
 
-Made at commit `bcce8cc` (the monitor as committed there; the first version of this record, run at `5f61105`, gave the same counts and the same cases), CPython 3.14.3 on an Apple M4 Pro (12 cores, 10 worker processes), from the repository root.
+Made at commit `ab4d430` (the monitor as committed there; the runs at `5f61105` and at `bcce8cc` gave the same counts, the same cases and the same feature tables), CPython 3.14.3 on an Apple M4 Pro (12 cores, 10 worker processes), from the repository root.
 The seeds are not those of the parity run (0 to 999):
 
 ```
@@ -777,7 +781,7 @@ The first run (the one the requirement is met by; seeds 100000 to 100999):
 ```
 worlds 1000 (seeds 100000..100999), runs 6000, events 6570989
 runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0, runs with a known limit 6
-wall-clock limit 120 s per run, 176 s
+wall-clock limit 120 s per run, 181 s
 known limits: kind: cases, runs
   parking slot kept while charging on the way to park: 6, 6
     seed 100023 reservation shortest: 1
@@ -793,7 +797,7 @@ Exit status 0. The second run (seeds 2000000 to 2000999, the range in which the 
 ```
 worlds 1000 (seeds 2000000..2000999), runs 6000, events 6720246
 runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0, runs with a known limit 9
-wall-clock limit 120 s per run, 177 s
+wall-clock limit 120 s per run, 184 s
 known limits: kind: cases, runs
   parking slot kept while charging on the way to park: 8, 8
     seed 2000152 reservation shortest: 1
@@ -859,31 +863,46 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
 
 - It recognises the second known limit (see "Known limits met by the random worlds"), and only while the case stands.
   It follows the unresolved deadlocks the controller reports. The members left when a wait of a set ends with reason
-  `interrupted` (the only reason that comes from `withdraw`) become orphans, until a later report covers them: a
-  `traffic.deadlock` that lists them, a `traffic.wait_stuck` of theirs, or the end of their own wait. At the end of a
-  run that ended on its own, the open waits of orphans, and the waits queued behind them, go to `known_limits` as
+  `interrupted` (the end that comes from `withdraw`) become orphans, until a later report covers them (a
+  `traffic.deadlock` that lists them, a `traffic.wait_stuck` of theirs, the end of their own wait) or until any wait
+  starts (the controller detects at every new wait). At the end of a run that ended on its own, the open waits of
+  orphans, and the waits queued behind them, go to `known_limits` as
   `waits of an unresolved deadlock left unreported after a member's wait was withdrawn` only if they still are a
-  deadlock: each is blocked, and only by AGVs that wait in the exempted set or are explained by a report. The blockers
-  are those of the controller's ledger, which the monitor checks against the entities and its body model at every
-  event. Every other open wait with no report stays the violation `open wait with no report`.
+  deadlock: each is blocked, and only by waits of the exempted set. The blockers are those of the controller's ledger,
+  which the monitor checks against the entities and its body model at every event. Every other open wait with no report
+  stays the violation `open wait with no report`.
 - The first version of this exemption (`5f61105`, record `aad5b29`) counted any orphan with an open wait. The review found
   five mutant runs that ended as a known limit with no violation: a stuck wait whose blocker is stranded or idle (the
   stuck reports suppressed, seed 2000228 with `shortest` or `congestion`), and waits that are not blocked at all (releases
   that do not scan, seed 2000156 with `fastest`; a wait once in an unresolved set never granted, seeds 500005 and 500184
-  with `congestion`). Each now ends as `open wait with no report`.
+  with `congestion`). Each ended as `open wait with no report` after the first fix (`bcce8cc`). The second review found 16 of 1,800 runs of
+  one more mutant that ended as a known limit with no violation (after a member's withdrawal the controller neither
+  detects nor reports stuck: seeds such as 2000173 with `fastest`, 2000245 with all three routers, 2000254 with
+  `congestion`), because the rule did not use the condition stated for the case, that no new wait begins; since
+  `ab4d430` any wait that starts clears the orphans and those runs are violations.
 - The tests are in `tests/intralogistics/test_random_worlds.py`.
   `test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit` pins the case (seed
-  2000228, `FastestRouter`). `test_an_open_wait_with_no_report_for_another_reason_is_a_violation` has four runs that must
+  2000228, `FastestRouter`). `test_an_open_wait_with_no_report_for_another_reason_is_a_violation` has seven runs that must
   be violations with no known limit: seed 26 with the stuck reports suppressed (a boundary the exemption does not
   reach: no unresolved deadlock is ever reported there), seed 2000228 with `shortest` and with `congestion` under the same
-  patch, and seed 2000156 with `fastest` under a `_drop` that does not scan; the last three reach the exemption, and
-  fail against the monitor as it was at `aad5b29` (RED: `4 failed, 27 passed`, the three runs and the trigger test). The
-  trigger is tested on real events: `test_only_a_withdrawal_leaves_the_rest_of_an_unresolved_deadlock_unreported`
-  and `test_a_later_report_or_the_end_of_their_own_wait_covers_the_rest_of_the_deadlock`.
+  patch, seed 2000156 with `fastest` under a `_drop` that does not scan (a reroute orphans the waits there, so the
+  trigger decides it), and seeds 2000173 `fastest`, 2000245 `shortest` and 2000254 `congestion` under a controller that
+  is blind to detection and stuck reports after a member's withdrawal. The six runs after seed 26 reach the exemption:
+  the first three fail against the monitor as it was at `aad5b29` (RED, first round: `4 failed, 27 passed`, the three
+  runs and a trigger test); the last three fail against the monitor at `2dd72b6` (RED, second round: `4 failed, 35
+  passed`, these three and the new trigger test). The trigger
+  is tested on real events: `test_only_a_withdrawal_leaves_the_rest_of_an_unresolved_deadlock_unreported`,
+  `test_a_later_report_or_the_end_of_their_own_wait_covers_the_rest_of_the_deadlock` and
+  `test_a_wait_that_starts_after_the_withdrawal_disqualifies_the_orphans`. The closure of the end-of-run check is tested
+  on a monitor fed synthetic waits, since no seeded run reaches its clauses alone:
+  `test_waits_that_are_still_a_closed_deadlock_are_the_known_limit_with_the_waits_queued_behind_them` and
+  `test_a_wait_that_is_not_blocked_or_not_only_by_the_set_is_not_the_known_limit` (a wait not blocked at all, a wait
+  blocked by an AGV outside the set, a wait queued behind the set and also blocked from outside).
 - Mutants of `ReservationController`, each applied in every worker (a scratch patch, not on disk), run under the monitor
-  as committed at `bcce8cc`: seeds 2000150 to 2000449 and 500000 to 500299, `ReservationController`, three routers
-  (900 runs per range, 1,800 per mutant). No run ends as a known limit without a violation except the case of the
-  unmutated controller, seed 2000228 with `FastestRouter`. The mutants that no run shows are not detected by the
+  as committed at `ab4d430`: seeds 2000150 to 2000449 and 500000 to 500299, `ReservationController`, three routers
+  (900 runs per range, 1,800 per mutant; the table is that of `bcce8cc` plus the row of the mutant added by the second
+  review, all rerun at `ab4d430` with the same counts). No run ends as a known limit without a violation except the case
+  of the unmutated controller, seed 2000228 with `FastestRouter`. The mutants that no run shows are not detected by the
   monitor (a mutant that changes nothing the run shows, or one that sets `wait.stuck` without emitting the event, which the
   monitor reads from the controller's state: see the follow-up below).
 
@@ -894,6 +913,7 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
 | stuck reports of four of the AGVs suppressed | 1,800 | 370 | 1 (2000228, `FastestRouter`) |
 | no stuck report once any wait was withdrawn | 1,800 | 146 | 1 (2000228, `FastestRouter`) |
 | no stuck report for a former member of an unresolved set | 1,800 | 3 | 1 (2000228, `FastestRouter`) |
+| after a member's withdrawal the controller neither detects nor reports stuck | 1,800 | 33 | 0 |
 | an unresolved deadlock is never reported nor remembered | 1,800 | 5 | 0 |
 | the remembered set is cleared as soon as it is reported | 1,800 | 4 | 1 (2000228, `FastestRouter`) |
 | the set is remembered, `traffic.deadlock` is not emitted | 1,800 | 1 | 0 |
@@ -914,7 +934,7 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
   (seed, controller, router): (100017, reservation, shortest), (100039, reservation, congestion), (100083, reservation,
   fastest), (100040, reservation, fastest) and (100045, free, fastest). Each asserts that the run ended on its own, had no
   violation and no known limit, the `env.fingerprint()` digest pinned at `5f61105` (the monitor does not change a run;
-  the pins hold at `bcce8cc`), and the features it exercises; between them they exercise charging, stranding, a zone held
+  the pins hold at `ab4d430`), and the features it exercises; between them they exercise charging, stranding, a zone held
   by two, a passing segment held by two and a deadlock (the first four), and, for the last, a free-flow run with a passing
   segment, parking, charging, stranding and the second fleet. The pins hold for `PYTHONHASHSEED` 1 and 7.
 - Follow-up, not done here: the monitor's end-of-run check reads `wait.stuck` and `controller._unresolved` (private state)
@@ -1026,24 +1046,25 @@ run/ratio                        1.002
 
 ## Gates (Task 11)
 
-Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise), at `bcce8cc`, the last commit that
-changes `src`, `tests`, `benchmarks` or `studio` (later commits change this record and two documentation sentences, and
-no test reads them: the docs gates were run with those sentences in the tree). The Studio and overhead rows were run at
+Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise), at `ab4d430`, the last commit that
+changes `src`, `tests`, `benchmarks` or `studio` (the commit after it changes this record only; the record is read by no
+test. Two documentation sentences of `docs/guides/layout.md` and `CHANGELOG.md` changed at `2dd72b6`, before it, and
+`tests/layout/test_acceptance.py` reads `docs/guides/layout.md`: the docs gates ran after that change). The Studio and overhead rows were run at
 `5f61105` and are kept, for the reason given in the row. Result lines are copied from the output.
 
 | Gate | Command | Result |
 |---|---|---|
-| Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.20%`; `4946 passed, 1 skipped, 3 warnings in 440.69s (0:07:20)` (the baseline of the branch was 4929 passed, 1 skipped: seventeen tests added by this task; the three warnings are deprecations in `starlette`, `websockets` and `uvicorn`). At `5f61105`: 99.19 %, 4936 passed, 449.44 s |
+| Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.19%`; `4954 passed, 1 skipped, 3 warnings in 452.88s (0:07:32)` (the baseline of the branch was 4929 passed, 1 skipped: twenty-five tests added by this task; the three warnings are deprecations in `starlette`, `websockets` and `uvicorn`). At `bcce8cc`: 99.20 %, 4946 passed; at `5f61105`: 99.19 %, 4936 passed |
 | Lint | `uv run --all-extras ruff check src tests`; also `ruff check benchmarks/layout_safety.py`, which CI does not lint | `All checks passed!` for both |
 | Format | `uv run --all-extras ruff format --check` | `532 files already formatted` |
 | Types | `uv run --all-extras ty check src` | `All checks passed!` |
-| Docs | `uv run --all-extras zensical build` | `No issues found`; `Build finished in 0.34s`; with `tests/layout/test_acceptance.py tests/test_docs_links.py tests/test_docs_run_blocks.py`: `8 passed` |
+| Docs | `uv run --all-extras zensical build` | `No issues found`; `Build finished in 0.37s`; with `tests/layout/test_acceptance.py tests/test_docs_links.py tests/test_docs_run_blocks.py`: `8 passed` |
 | Studio types | `pnpm typecheck` (in `studio/`), run at `5f61105` | exit 0 |
 | Studio tests | `pnpm test` (at `5f61105`) | exit 0; trace 329, playback 24, scene 25, export 15 and viewer 82 tests passed (`apps/player` has no tests: `No test files found`) |
 | Studio build | `pnpm build` (at `5f61105`) | `built in 3.46s`, exit 0 (a chunk-size warning of the bundler only) |
 | Studio browsers | `pnpm test:browser` (at `5f61105`) | `36 passed (1.2m)` on chromium, firefox and webkit. Not rerun: `git diff --stat 5f61105 HEAD -- src studio pyproject.toml uv.lock` is empty, and the four Studio rows read only `studio/` and the trace fixtures, which are unchanged |
-| PyPy lane | `UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv sync --dev --python pypy-3.11 --frozen`, then `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` (job `test-pypy` of `ci.yml`; a separate project environment keeps the checkout's `.venv` on CPython) | `4815 passed, 23 skipped in 582.06s (0:09:42)` (PyPy 7.3.22, Python 3.11.15), rerun at `bcce8cc` because the lane covers `tests/intralogistics`, which changed (at `5f61105`: 4805 passed, 585.98 s) |
-| CPython 3.11 | `UV_PROJECT_ENVIRONMENT=<scratch>/py311-venv uv run --python 3.11 --all-extras pytest tests/intralogistics tests/layout --no-cov -q` | `2604 passed in 120.78s (0:02:00)` (Python 3.11.13), rerun at `bcce8cc` for the same reason (at `5f61105`: 2594 passed) |
+| PyPy lane | `UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv sync --dev --python pypy-3.11 --frozen`, then `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` (job `test-pypy` of `ci.yml`; a separate project environment keeps the checkout's `.venv` on CPython) | `4823 passed, 23 skipped in 572.27s (0:09:32)` (PyPy 7.3.22, Python 3.11.15), rerun at `ab4d430` because the lane covers `tests/intralogistics`, which changed (at `bcce8cc`: 4815 passed; at `5f61105`: 4805 passed) |
+| CPython 3.11 | `UV_PROJECT_ENVIRONMENT=<scratch>/py311-venv uv run --python 3.11 --all-extras pytest tests/intralogistics tests/layout --no-cov -q` | `2612 passed in 118.03s (0:01:58)` (Python 3.11.13), rerun at `ab4d430` for the same reason (at `bcce8cc`: 2604; at `5f61105`: 2594) |
 | Overhead gate of the core workload | the `bench` job's step "Mode none against released and stripped 0.12.0 (gate)" on CPython 3.14, `--warmup 1 --repeat 5 --processes 3`, run locally as described below | pass on both workloads against both baselines in three rounds, at `5f61105`. Not rerun: it measures `src` (empty diff since `5f61105`) with `benchmarks/run.py` and `compare.py`, unchanged; the commit after it changes only `tests/` and `benchmarks/layout_safety.py` |
 
 `ci.yml` needed no change. Its lanes name directories (`tests/core tests/execution tests/intralogistics tests/layout`
@@ -1084,7 +1105,7 @@ One row per item and per sub-claim. "Covered" says what shows it; a claim nothin
 | Item | Claim | Covered by | Result |
 |---|---|---|---|
 | 1 | No code path in `src/simulatte` accepts a concrete `LayoutGraph` or `Node` where a handle is required | `tests/layout/test_handles_only.py::test_a_concrete_graph_or_node_raises_with_the_fix` (the seven entry points `FleetCoordinator(graph=)`, `ReservationController(graph=)`, `Warehouse(input_bays=)`, `Warehouse(output_bays=)`, `AGV(initial_node=)`, `ChargingStation(node=)`, `ParkingArea(node=)`, each with and without a declared network: 14 cases), `::test_a_concrete_node_in_the_builders_mapping_raises_with_the_fix` (2), `::test_a_handle_of_another_environments_layout_raises` (7); the signatures of the components take `NodeRef` and `PortRef` (`grep` of `src/simulatte/intralogistics` finds no union of a concrete graph or node with a handle at a construction parameter) | covered by the tests for the eight entry points; not proved for a path no test names (the Task 9 review checked a table of the strictness of every parameter) |
-| 1 | `grep` finds no `_explicit_graph_use` or `_uses_explicit_graph` | `grep -rn '_explicit_graph_use\|_uses_explicit_graph\|_register_graph_use\|check_existing_endpoints' src tests examples benchmarks docs skills CLAUDE.md` at `bcce8cc` | no match (exit 1) |
+| 1 | `grep` finds no `_explicit_graph_use` or `_uses_explicit_graph` | `grep -rn '_explicit_graph_use\|_uses_explicit_graph\|_register_graph_use\|check_existing_endpoints' src tests examples benchmarks docs skills CLAUDE.md` at `ab4d430` | no match (exit 1) |
 | 2 | `tests/` contain no model built in explicit mode | explicit mode cannot be built: the entry points above raise; the whole suite passes (`4936 passed`); the words "explicit mode" remain only in docstrings that name the commit at which a fingerprint was pinned (`tests/layout/test_binding.py:347`, `tests/layout/test_builders.py:248`, `tests/intralogistics/test_random_worlds.py:49`) and in the docstring of `tests/intralogistics/test_traffic.py:128` ("the successor of the explicit-mode rule"); `tests/layout/test_traffic_fields.py::test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream` builds its model with `Explicit` and handles, as its twin | covered |
 | 2 | `examples/` contain no model built in explicit mode | `tests/intralogistics/test_examples.py` runs the intralogistics and layout examples (`test_intralogistics_simple_example_runs`, `..._intermediate_...`, `..._advanced_...`, `..._traffic_...`, `test_layout_intralogistics_example_runs`, `test_layout_stages_example_runs`) and `::test_each_transport_example_records_a_resolved_layout_with_arcs[5 examples]`; every `LayoutGraph(` in `examples/` is followed by `Explicit(graph)` and handles; `examples/studio_recording.py` (`build_simple_system(env)`) is run by no test and was run for this record, in both of its models (`--model fleet` and `--model shop`, exit 0, the trace checked and verified by the script) | covered; the other examples are production models |
 | 2 | `benchmarks/` contain no model built in explicit mode | `benchmarks/intralogistics.py` builds through the layout and ran at `5f61105` (`--mode none --shifts 1 --warmup 0 --repeat 1`, exit 0; it is also the `bench` job's intralogistics step); `benchmarks/layout_overhead.py` and `benchmarks/layout_safety.py` ran for this record | covered |
@@ -1094,12 +1115,12 @@ One row per item and per sub-claim. "Covered" says what shows it; a claim nothin
 | 4 | The performance targets of §9 are measured and recorded | "Final numbers against spec §9" | recorded; all met, the 1,600-server activation at the line |
 | 4 | The core gate passes | "The overhead gate" | pass, twelve comparisons |
 | 5 | A trace of every example opens in Studio with its lanes drawn, checked with the TypeScript reader's tests | the traffic example only: `tests/fixtures/traces/generated/example_traffic.simtrace` is projected by `studio/packages/scene/test/traffic.test.ts` ("projects the recorded traffic example with its links and without the grid fallback": no grid fallback and links present) and a trace of an earlier version stays on the grid fallback ("projects a trace of an earlier version, no layout, on the grid fallback"); for each of the five transport examples (`intralogistics_simple`, `_intermediate`, `_advanced`, `_traffic`, `building_an_agv_system`), `tests/intralogistics/test_examples.py::test_each_transport_example_records_a_resolved_layout_with_arcs` asserts that its trace carries a resolved layout whose network graph has arcs; for a production model, `tests/layout/test_environment_layout.py::test_the_trace_of_a_production_model_carries_its_layout` and the regenerated `shop_small`, `lumscor` and `cell_ops` fixtures (Task 4) | partly covered: the other four transport examples are not projected by a TypeScript test, nor opened in Studio, and two transport models are not even checked for a recorded layout with arcs: `examples/layout_intralogistics.py` (a test runs it and checks its output) and `examples/studio_recording.py --model fleet` (no test runs it; it was run for this record and its trace checked by the script); the claim that their lanes are drawn rests on their traces carrying a resolved layout with arcs, like the traffic example's |
-| 6 | Full suite | `uv run --all-extras pytest` | `4946 passed, 1 skipped` |
-| 6 | Coverage stays at 99 % or above | same run | `Total coverage: 99.20%` |
+| 6 | Full suite | `uv run --all-extras pytest` | `4954 passed, 1 skipped` |
+| 6 | Coverage stays at 99 % or above | same run | `Total coverage: 99.19%` |
 | 6 | Lint, format, types | `ruff check src tests`, `ruff format --check`, `ty check src` | all clean (see "Gates") |
 | 6 | Docs build | `zensical build` | `No issues found` |
 | 6 | Studio gates | `pnpm typecheck && pnpm test && pnpm build && pnpm test:browser` | all exit 0, `36 passed` |
-| 6 | The PyPy lane | the command of `ci.yml` | `4815 passed, 23 skipped` |
+| 6 | The PyPy lane | the command of `ci.yml` | `4823 passed, 23 skipped` |
 
-Also run, beyond §10: `tests/intralogistics` and `tests/layout` on CPython 3.11 (2604 passed), the floor of the supported
+Also run, beyond §10: `tests/intralogistics` and `tests/layout` on CPython 3.11 (2612 passed), the floor of the supported
 versions.
