@@ -9,6 +9,7 @@ cause of the interrupt that the travel raised again.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -563,6 +564,35 @@ def test_an_invalid_route_raises(ids: tuple[str, ...], problem: str) -> None:
     w.go("A", "N2")
     with pytest.raises(ValueError, match=f"BadRouter returned an invalid route from N0 to N2: {problem}"):
         w.env.run()
+
+
+@pytest.mark.parametrize(("copied", "problem"), [(("N1",), "N1"), (("N0", "N1", "N2"), "N0"), (("N2",), "N2")])
+def test_a_route_of_nodes_equal_to_the_graphs_but_not_its_own_raises_when_it_is_returned(
+    copied: tuple[str, ...], problem: str
+) -> None:
+    """A router that returns copies of the graph's nodes is refused when the route is returned, before any move, with
+    the error naming the router; the run would otherwise fail at the first arrival, with the move started."""
+    router = BadRouter(())
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=False, router=router)
+    nodes = (w.nodes[i] for i in ("N0", "N1", "N2"))
+    router.nodes = tuple(Node(node.id, node.x, node.y) if node.id in copied else node for node in nodes)
+    w.go("A", "N2")
+    message = f"BadRouter returned an invalid route from N0 to N2: its node {problem} is not the node of that id in "
+    with pytest.raises(ValueError, match=re.escape(message)):
+        w.env.run()
+    assert w.agvs["A"].current_node is w.nodes["N0"] and w.agvs["A"].motion is None
+
+
+def test_a_route_of_one_node_is_the_agvs_node_itself() -> None:
+    from simulatte.intralogistics.travel import _check_route
+
+    w = world(lambda env: line(env, 3), {"A": "N0"}, reserve=False)
+    w.env.activate()
+    origin = w.nodes["N0"]
+    _check_route(w.fleet, Route((origin,), 0.0), origin, origin)
+    message = "returned an invalid route from N0 to N0: its node N0 is not the node of that id in fleet.graph"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _check_route(w.fleet, Route((Node("N0", origin.x, origin.y),), 0.0), origin, origin)
 
 
 # --- hooks -------------------------------------------------------------------------------------------------------

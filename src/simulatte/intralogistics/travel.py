@@ -100,7 +100,8 @@ def _reached(clear: float, odometer: float) -> bool:
 
 def _check_route(fleet: FleetCoordinator, route: Route, origin: Node, destination: Node) -> None:
     """Raise `ValueError`, naming the router's class, unless `route` is a simple path of arcs from `origin` to
-    `destination`."""
+    `destination` through the nodes of the fleet's graph themselves: an AGV moves to canonical nodes only, so a node
+    equal to the graph's and another object is refused here, before any move."""
     nodes = route.nodes
     problem = None
     if not nodes or nodes[0] != origin:
@@ -109,11 +110,18 @@ def _check_route(fleet: FleetCoordinator, route: Route, origin: Node, destinatio
         problem = f"it does not end at {destination.id}"
     elif len(set(nodes)) != len(nodes):
         problem = "it visits a node twice"
+    elif len(nodes) == 1 and nodes[0] is not origin:  # the origin is the AGV's node, a node of the graph
+        problem = f"its node {origin.id} is not the node of that id in fleet.graph (equal to it, another object)"
     else:
         graph = fleet.graph
         for u, v in zip(nodes, nodes[1:]):
-            if graph.arc_between(u, v) is None:
+            arc = graph.arc_between(u, v)
+            if arc is None:
                 problem = f"there is no arc from {u.id} to {v.id}"
+                break
+            if arc.source is not u or arc.target is not v:  # the arcs of the resolved graph join its own nodes
+                copy = u if arc.source is not u else v
+                problem = f"its node {copy.id} is not the node of that id in fleet.graph (equal to it, another object)"
                 break
     if problem is not None:
         raise ValueError(
