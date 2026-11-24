@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from simulatte._wire import FrozenMap
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.parking import ParkingArea
@@ -245,9 +246,10 @@ def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a
 
 def test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit():
     """Seed 2000228 (`ReservationController`, `FastestRouter`): the deadlock of agv-a, agv-c, agv-d, agv-e and agv-g is
-    reported unresolved at 378.2; agv-a's wait is withdrawn at 433.1 by an interruption; the waits of the other four
-    still form a deadlock that the controller never reports again, so the run ends with four open waits that no
-    report explains. A defect of traffic control that predates this work (present at e993ca8)."""
+    reported unresolved (last at 378.2); agv-a's wait is withdrawn at 433.1 by a breakdown; the controller forgets the
+    set and never looks at the other four again, though their waits, blocked by each other only, still form a
+    deadlock: the run ends with four open waits that no report explains. A missed detection of traffic control that
+    predates this work (present at e993ca8)."""
     record = run_world(world_spec(2000228), controller="reservation", router="fastest")
     assert record.quiescent and not record.violations
     (case,) = record.known_limits
@@ -255,13 +257,75 @@ def test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_
     assert case[2] == ("agv-c", "agv-d", "agv-e", "agv-g")
 
 
-def test_an_open_wait_with_no_report_for_another_reason_is_a_violation(monkeypatch):
-    """With every stuck report suppressed (a scratch patch of the controller), waits are left open with nothing to
-    explain them and no deadlock was reported then withdrawn: a violation, not the known limit."""
+def _forget_to_scan_after_a_release(self, agv, gone):
+    """`ReservationController._drop` without the scan that grants the waits the release unblocks."""
+    if not gone:
+        return
+    self._changes += 1
+    self._revision += 1
+    self.ledger.drop(agv, gone)
+
+
+def _suppress_stuck_reports(monkeypatch):
     monkeypatch.setattr(ReservationController, "_report_one", lambda self, waiting, blockers: False)
-    record = run_world(world_spec(26), controller="reservation", router="shortest")
+
+
+def _no_scan_after_a_release(monkeypatch):
+    monkeypatch.setattr(ReservationController, "_drop", _forget_to_scan_after_a_release)
+
+
+@pytest.mark.parametrize(
+    ("patch", "seed", "router"),
+    [
+        (_suppress_stuck_reports, 26, "shortest"),
+        # These two runs reach the exemption: a deadlock was reported unresolved and a member's wait was withdrawn,
+        # and the waits left open are blocked by an AGV that is stranded or idle (a stuck wait, now unreported).
+        (_suppress_stuck_reports, 2000228, "shortest"),
+        (_suppress_stuck_reports, 2000228, "congestion"),
+        # And this one, where the waits left open are not blocked at all (a grant that never came).
+        (_no_scan_after_a_release, 2000156, "fastest"),
+    ],
+)
+def test_an_open_wait_with_no_report_for_another_reason_is_a_violation(monkeypatch, patch, seed, router):
+    patch(monkeypatch)
+    record = run_world(world_spec(seed), controller="reservation", router=router)
     assert not record.known_limits
     assert "open wait with no report" in {violation[1] for violation in record.violations}
+
+
+def _monitor_after(*events):
+    """A monitor that has seen only `events`, for what it tracks of the deadlock reports."""
+    monitor = random_worlds.Monitor.__new__(random_worlds.Monitor)
+    monitor._standing, monitor._orphans = [], set()
+    for event in events:
+        monitor._track_deadlocks(event)
+    return monitor
+
+
+def _unresolved(*agvs):
+    return logistics_events.TrafficDeadlock(agvs=agvs, victim=None, action="unresolved")
+
+
+def _ended(agv, reason):
+    return logistics_events.TrafficWaitEnded(agv=agv, node="n", reason=reason)
+
+
+def test_only_a_withdrawal_leaves_the_rest_of_an_unresolved_deadlock_unreported():
+    assert _monitor_after(_unresolved("a", "b", "c"), _ended("a", "interrupted"))._orphans == {"b", "c"}
+    for reason in ("granted", "rerouted", "stepped_aside", "gave_up"):
+        monitor = _monitor_after(_unresolved("a", "b", "c"), _ended("a", reason))
+        assert not monitor._orphans and not monitor._standing, reason
+    assert not _monitor_after(_ended("a", "interrupted"))._orphans  # a wait of no reported set
+
+
+def test_a_later_report_or_the_end_of_their_own_wait_covers_the_rest_of_the_deadlock():
+    withdrawn = (_unresolved("a", "b", "c", "d"), _ended("a", "interrupted"))
+    stuck = logistics_events.TrafficWaitStuck(agv="b", blockers=FrozenMap({"x": "IDLE"}))
+    assert _monitor_after(*withdrawn, stuck)._orphans == {"c", "d"}
+    assert _monitor_after(*withdrawn, _ended("c", "granted"))._orphans == {"b", "d"}
+    assert _monitor_after(*withdrawn, _unresolved("b", "c", "d"))._orphans == set()
+    resolved = logistics_events.TrafficDeadlock(agvs=("b", "c"), victim="b", action="reroute")
+    assert _monitor_after(*withdrawn, resolved)._orphans == {"d"}
 
 
 @pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))

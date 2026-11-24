@@ -54,21 +54,21 @@ def _alarm(signum: int, frame: Any) -> None:
     raise _Timeout
 
 
-def _run(spec: Any, router: str, controller: str, limit: int) -> RunRecord | tuple[str, str]:
+def _run(spec: Any, router: str, controller: str, limit: float) -> RunRecord | tuple[str, str]:
     """The record of one run, or ``(kind, text)`` when it raised or did not return within `limit` seconds."""
     signal.signal(signal.SIGALRM, _alarm)
-    signal.alarm(limit)
+    signal.setitimer(signal.ITIMER_REAL, limit)
     try:
         return run_world(spec, router=router, controller=controller)  # type: ignore[arg-type]
     except _Timeout:
-        return "did not return", f"no return within {limit} s"
+        return "did not return", f"no return within {limit:g} s"
     except Exception as exc:
         return "raised", "".join(traceback.format_exception_only(exc)).strip()
     finally:
-        signal.alarm(0)
+        signal.setitimer(signal.ITIMER_REAL, 0)
 
 
-def world(seed: int, limit: int) -> list[dict[str, Any]]:
+def world(seed: int, limit: float) -> list[dict[str, Any]]:
     """The six runs of world `seed`; the first row also lists the features the spec contains."""
     spec = world_spec(seed)
     rows: list[dict[str, Any]] = []
@@ -89,20 +89,31 @@ def world(seed: int, limit: int) -> list[dict[str, Any]]:
     return rows
 
 
-def main() -> int:
+def _limit(text: str) -> float:
+    value = float(text)
+    if not value > 0:
+        raise argparse.ArgumentTypeError("the wall-clock limit must be positive: 0 would remove the bound")
+    return value
+
+
+def main(argv: list[str] | None = None) -> int:
     """Run the check; the exit status is 1 on an exception, a run that did not return or a violation."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--worlds", type=int, default=1000)
     parser.add_argument("--first", type=int, default=100_000, help="the first seed")
     parser.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 2), help="worker processes")
-    parser.add_argument("--limit", type=int, default=120, help="wall-clock seconds allowed to each run")
-    args = parser.parse_args()
+    parser.add_argument("--limit", type=_limit, default=120.0, help="wall-clock seconds allowed to each run (positive)")
+    args = parser.parse_args(argv)
     seeds = range(args.first, args.first + args.worlds)
     started = time.perf_counter()
     rows: list[dict[str, Any]] = []
-    with ProcessPoolExecutor(max_workers=args.jobs) as pool:
-        for found in pool.map(world, seeds, [args.limit] * len(seeds), chunksize=4):
-            rows.extend(found)
+    if args.jobs == 1:  # in this process: no workers to start
+        for seed in seeds:
+            rows.extend(world(seed, args.limit))
+    else:
+        with ProcessPoolExecutor(max_workers=args.jobs) as pool:
+            for found in pool.map(world, seeds, [args.limit] * len(seeds), chunksize=4):
+                rows.extend(found)
     failed: dict[str, list[dict[str, Any]]] = {"raised": [], "did not return": []}
     violations: dict[str, list[dict[str, Any]]] = defaultdict(list)
     limits: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -130,7 +141,7 @@ def main() -> int:
         f"runs with monitor violations {counts['with violations']}, "
         f"runs with a known limit {counts['with a known limit']}"
     )
-    print(f"wall-clock limit {args.limit} s per run, {time.perf_counter() - started:.0f} s")
+    print(f"wall-clock limit {args.limit:g} s per run, {time.perf_counter() - started:.0f} s")
     print("known limits: kind: cases, runs")
     for kind, cases in sorted(limits.items()):
         print(f"  {kind}: {sum(case['known limits'].count(kind) for case in cases)}, {len(cases)}")
@@ -145,7 +156,7 @@ def main() -> int:
         for case in cases:
             print(f"{kind.upper()} seed {case['seed']} {case['controller']} {case['router']}: {case['failed'][1]}")
     for kind, cases in sorted(violations.items()):
-        print(f"VIOLATION {kind!r}: {len(cases)} runs")
+        print(f"VIOLATION {kind!r}: {len({(c['seed'], c['controller'], c['router']) for c in cases})} runs")
         for case in cases:
             print(f"  seed {case['seed']} {case['controller']} {case['router']}: {case['violation']!r}")
     for row in rows:
