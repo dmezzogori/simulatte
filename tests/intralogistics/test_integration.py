@@ -13,6 +13,9 @@ from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import FreeFlowController, TrafficController
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import GraphRef, NodeRef
+
+from tests.intralogistics.traffic_support import declare
 
 
 # ---------------------------------------------------------------------------
@@ -28,8 +31,8 @@ def _build_test_system(
     initial_inventory_a: int = 100,
     initial_inventory_b: int = 0,
     traffic_controller: TrafficController | None = None,
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph, SKU, list[Node]]:
-    """Build a reusable 5-node linear test system.
+) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef, SKU, list[NodeRef]]:
+    """Build a reusable 5-node linear test system, its graph declared on the layout of `env`.
 
     Graph::
 
@@ -43,7 +46,7 @@ def _build_test_system(
 
     Returns:
         ``(coordinator, agvs, wh_a, wh_b, graph, sku, nodes)``
-        where *nodes* is ``[A, B, C, D, E]``.
+        where *graph* is the layout's graph and *nodes* the handles of ``[A, B, C, D, E]``.
     """
     sku = SKU(id="TEST-SKU", weight=1.0, volume=0.1)
 
@@ -60,13 +63,15 @@ def _build_test_system(
         Arc(source=node_c, target=node_d, bidirectional=True),
         Arc(source=node_d, target=node_e, bidirectional=True),
     ]
-    graph = LayoutGraph(nodes, arcs)
+    world = declare(env, LayoutGraph(nodes, arcs))
+    refs = [world.ref(node.id) for node in nodes]
+    ref_a, ref_b, ref_c, _, ref_e = refs
 
     wh_a = Warehouse(
         env=env,
         name="WH-A",
-        input_bays=[node_a],
-        output_bays=[node_a],
+        input_bays=[ref_a],
+        output_bays=[ref_a],
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_a},
@@ -77,8 +82,8 @@ def _build_test_system(
     wh_b = Warehouse(
         env=env,
         name="WH-B",
-        input_bays=[node_e],
-        output_bays=[node_e],
+        input_bays=[ref_e],
+        output_bays=[ref_e],
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_b},
@@ -89,7 +94,7 @@ def _build_test_system(
     charging_station = ChargingStation(
         env=env,
         name="CS-CENTER",
-        node=node_c,
+        node=ref_c,
         n_slots=max(1, n_agvs),
     )
 
@@ -109,14 +114,14 @@ def _build_test_system(
         unload_time=1.0,
     )
 
-    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=node_b) for i in range(n_agvs)]
+    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=ref_b) for i in range(n_agvs)]
 
     if traffic_controller is None:
         traffic_controller = FreeFlowController()
 
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=agvs,
         warehouses=[wh_a, wh_b],
         charging_stations=[charging_station],
@@ -124,7 +129,7 @@ def _build_test_system(
         router=ShortestDistanceRouter(),
     )
 
-    return coordinator, agvs, wh_a, wh_b, graph, sku, nodes
+    return coordinator, agvs, wh_a, wh_b, world.graph, sku, refs
 
 
 # ===========================================================================
@@ -377,15 +382,15 @@ class TestTrafficManagement:
             Arc(source=node_c, target=node_d, bidirectional=True),
             Arc(source=node_d, target=node_e, bidirectional=True),
         ]
-        graph = LayoutGraph(nodes, arcs)
+        world = declare(env, LayoutGraph(nodes, arcs))
 
         sku = SKU(id="TEST-SKU", weight=1.0, volume=0.1)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 200},
@@ -395,8 +400,8 @@ class TestTrafficManagement:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_e],
-            output_bays=[node_e],
+            input_bays=[world.ref("E")],
+            output_bays=[world.ref("E")],
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 0},
@@ -407,12 +412,12 @@ class TestTrafficManagement:
         charging_station = ChargingStation(
             env=env,
             name="CS-CENTER",
-            node=node_c,
+            node=world.ref("C"),
             n_slots=2,
         )
 
         traffic = ReservationController(
-            graph=graph,
+            graph=world.graph,
             env=env,
             node_capacity=2,
         )
@@ -433,12 +438,12 @@ class TestTrafficManagement:
             length=1.0,
         )
 
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_b)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=world.ref("B"))
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("B"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_b],
             charging_stations=[charging_station],
@@ -514,7 +519,7 @@ class TestBuildSimpleSystemE2E:
     def test_build_simple_system_order_completes(self, env: Environment) -> None:
         from simulatte.intralogistics import build_simple_system
 
-        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, layout=env.layout)
 
         sku_a = SKU("A", 1.0, 0.1)
 
