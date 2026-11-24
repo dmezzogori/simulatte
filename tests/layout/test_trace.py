@@ -1,6 +1,7 @@
 from simulatte import Environment, Layout, Trace, TraceRecorder
 from simulatte.trace.format import PREAMBLE
 import inspect
+from pathlib import Path
 import io
 import pytest
 from simulatte._wire import freeze, pack
@@ -88,18 +89,33 @@ def test_failed_prepare_has_no_layout_initial(tmp_path):
     assert trace.layout is None and not any(r.type == RecordType.INITIAL for r in _read(path))
 
 
-def test_a_recorder_closed_on_an_environment_that_was_never_activated_has_no_layout(tmp_path):
-    """`Trace.layout` is None for every trace without an INITIAL record, and its docstring names the three kinds."""
+def test_trace_layout_is_none_without_an_initial_record_or_without_a_layout_in_it(tmp_path):
+    """The three ways `Trace.layout` is None: no INITIAL record because activation failed (outcome ``failed``) or the
+    environment was never activated (outcome ``completed``), and an INITIAL record without a layout (a trace of a
+    version without one, here a frozen fixture)."""
+    frozen = Path(__file__).parents[1] / "fixtures" / "traces" / "frozen" / "cell_ops.simtrace"
+    trace = Trace.open(frozen)
+    assert trace._initial is not None and trace.layout is None  # the reader of the old format has no `_read`
+
     env = Environment()
-    path = tmp_path / "never"
-    TraceRecorder(env, path)
-    env.close()
-    trace = Trace.open(path)
-    assert trace.layout is None and not any(r.type == RecordType.INITIAL for r in _read(path))
-    assert trace.outcome == "completed"
-    doc = " ".join(inspect.getdoc(Trace.layout).split())
-    for named in ("without an INITIAL record", "without a layout", "activation failed", "never activated"):
-        assert named in doc, named
+    failed = tmp_path / "failed"
+    recorder = TraceRecorder(env, failed)
+
+    @env.layout.stage("fail", reads=[])
+    def fail(ctx):
+        raise LayoutError("fail")
+
+    with pytest.raises(LayoutError):
+        env.run()
+    recorder.close(outcome="failed")
+    never = tmp_path / "never"
+    idle = Environment()
+    TraceRecorder(idle, never)
+    idle.close()
+    for path, outcome in ((failed, "failed"), (never, "completed")):
+        trace = Trace.open(path)
+        assert not any(r.type == RecordType.INITIAL for r in _read(path)), outcome
+        assert trace.layout is None and trace.outcome == outcome
 
 
 def test_layout_metadata_of_an_environment_without_layout_code_and_default_limit(tmp_path):

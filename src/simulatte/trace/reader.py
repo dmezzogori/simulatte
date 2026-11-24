@@ -765,10 +765,10 @@ class Trace:
 
     @property
     def layout(self):
-        """Immutable saved layout, including opaque future versions; None for a trace without an INITIAL record: one
-        of a version without a layout, one whose activation failed before the initial state was recorded (outcome
-        ``failed``), and one whose recorder was closed on an environment that was never activated (outcome
-        ``completed``)."""
+        """Immutable saved layout, including opaque future versions. None when the trace has no INITIAL record (an
+        activation that failed before the initial state was recorded, outcome ``failed``; a recorder closed on an
+        environment that was never activated, outcome ``completed``) or when its INITIAL record carries no layout
+        (traces of versions without a layout)."""
         return self._layout
 
     def check(self) -> None:

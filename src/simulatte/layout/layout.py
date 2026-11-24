@@ -180,8 +180,8 @@ class Layout:
                 else ""
             )
             raise LayoutError(
-                f"{call} takes {takes}; {type(entity).__name__} is a layout handle, which names a node or the graph "
-                f"when constructing a component, and is not an entity{advice}",
+                f"{call} takes {takes}; {type(entity).__name__} is a layout handle, which stands for a part of "
+                f"the layout when constructing a component, and is not an entity{advice}",
                 code="foreign-handle",
             )
         if not self.env.entities.is_live(entity):
@@ -365,7 +365,12 @@ class Layout:
         head = "AGV movement requires an exact canonical enabled graph node, the object of the resolved network"
         network = self._coordinator.network
         if network is None:
-            return f"{head}: this layout has no resolved network yet, declare one with set_network and prepare it"
+            declared = self._coordinator.values.at(("network",), explicit=True).state == "present"
+            return f"{head}: " + (
+                "the network is declared but not prepared yet: call env.layout.prepare() or env.activate()"
+                if declared
+                else "this layout has no network: declare one with env.layout.set_network(...)"
+            )
         canonical = self._canonical_nodes.get(node.id)
         if canonical is None:
             disabled = any(not d.enabled and d.id == node.id for d in network.definitions.nodes.values())
@@ -440,7 +445,9 @@ class Layout:
         """Check a fleet's members and traffic controller: a controller that does not control occupancy needs no
         registration; a built-in controller registered with this layout must be its resource owner; any other
         controller must be registered with :meth:`register_resource_owner`. The layout's own record of registered
-        owners decides, not the controller's class (spec §12)."""
+        owners decides (spec §12); the class of the controller only tells a built-in `ReservationController` that
+        its constructor set another environment (the layout it registered with) from a controller that was never
+        registered, which is told to register."""
         for member in members:
             if getattr(member, "env", None) is not self.env or not self.env.entities.is_live(member):
                 raise LayoutError("fleet member must be live in the same environment")
@@ -450,9 +457,10 @@ class Layout:
             if controller is not self._resource_owner:
                 raise LayoutError("fleet must reuse the registered traffic controller in its environment")
         elif not any(item[0] is controller for item in self._custom_managers):
-            if isinstance(controller, _loaded("simulatte.intralogistics.reservation", "ReservationController")):
-                # A built-in controller registers with the layout of the environment it was built for, so one that is
-                # not registered here was built for another.
+            reservation = _loaded("simulatte.intralogistics.reservation", "ReservationController")
+            built_for = getattr(controller, "_env", None) if isinstance(controller, reservation) else None
+            if built_for is not None and built_for is not self.env:
+                # The constructor of a built-in controller sets the environment and registers it with that layout.
                 raise LayoutError(
                     f"the traffic controller ({type(controller).__name__}) belongs to another environment: a fleet "
                     "takes a controller built with env= the fleet's own environment"

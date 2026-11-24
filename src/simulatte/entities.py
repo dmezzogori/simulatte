@@ -357,8 +357,8 @@ class EntityRegistry:
             if refs is not None and isinstance(obj, refs._Ref):
                 raise ValueError(
                     "env.entities.retire takes an entity attached to this environment; "
-                    f"{type(obj).__name__} is a layout handle, which names a node or the graph when constructing a "
-                    "component, and is not an entity"
+                    f"{type(obj).__name__} is a layout handle, which stands for a part of the layout when "
+                    "constructing a component, and is not an entity"
                 )
             raise ValueError(f"{obj!r} is not live in this environment")
         try:

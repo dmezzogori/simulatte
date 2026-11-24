@@ -458,6 +458,29 @@ def test_an_unregistered_custom_controller_is_told_to_register_whatever_private_
     assert "belongs to another environment" not in str(raised.value)
 
 
+def test_a_reservation_controller_subclass_that_never_registered_is_told_to_register():
+    """Only a built-in controller whose constructor set another environment is told it belongs to one: a subclass whose
+    own `__init__` skips the constructor has registered nowhere and is told to register, like any custom controller."""
+
+    class Skips(ReservationController):
+        def __init__(self, env=None):
+            if env is not None:  # the constructor of the built-in controller sets the environment it serves
+                super().__init__(env=env, graph=line(env).graph())
+
+    env, other = Environment(), Environment()
+    layout = line(env)
+    for controller, advice in ((Skips(), "custom traffic controller requires"), (Skips(other), "belongs to another")):
+        with pytest.raises(LayoutError, match=advice):
+            FleetCoordinator(
+                env=env,
+                graph=layout.graph(),
+                fleet=[],
+                warehouses=[],
+                charging_stations=[],
+                traffic_controller=controller,
+            )
+
+
 def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication():
     for disabled in (False, True):
         env = Environment()
@@ -774,8 +797,13 @@ def test_a_refused_node_is_told_what_is_true_for_it():
     assert f"({canonical.x + 5}, {canonical.y} against {canonical.x}, {canonical.y})" in messages["elsewhere"]
     assert "is a SimpleNamespace, not a Node" in messages["not a node"]
     bare = Environment()
-    with pytest.raises(LayoutError, match="no resolved network yet"):
+    with pytest.raises(LayoutError, match="this layout has no network: declare one with env.layout.set_network"):
         bare.layout._validate_node(Node("A", 0, 0))
+    declared = Environment()
+    line(declared)  # a network declared and not prepared yet
+    with pytest.raises(LayoutError, match="declared but not prepared yet: call env.layout.prepare") as raised:
+        declared.layout._validate_node(Node("A", 0, 0))
+    assert "set_network" not in str(raised.value)
 
 
 def test_assigning_the_node_of_an_agv_whose_node_is_pending_names_the_assignment():
