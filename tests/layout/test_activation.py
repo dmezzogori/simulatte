@@ -791,11 +791,18 @@ def test_an_invalid_stage_or_binder_name_raises_where_it_is_declared(monkeypatch
     layout.prepare()
 
 
-@pytest.mark.parametrize("nodes", [4, 40])
-def test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_once(monkeypatch, nodes):
+@pytest.mark.parametrize(
+    ("kind", "size", "views"),
+    [("explicit", 4, 1), ("explicit", 40, 1), ("lattice", 4, 2), ("lattice", 40, 2), ("none", 4, 2), ("none", 40, 2)],
+)
+def test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_as_often_as_it_must(
+    monkeypatch, kind, size, views
+):
     """A patch is checked against the schema when it is declared (spec §9: validation of the declared inputs stays at
-    declaration and preparation); the resolutions of a preparation take the checked patches as they are, and the
-    network view, which preparation asks for twice with the same layers and targets, is resolved once."""
+    declaration and preparation); the resolutions of a preparation take the checked patches as they are. The network
+    view, which preparation asks for twice, is resolved once when the second ask has the layers and targets of the
+    first (an explicit network) and twice otherwise: for a lattice the targets of the second ask include the nodes the
+    first ask built, and a model without a network keeps nothing (`views` is how many times the view is resolved)."""
     from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
     from simulatte.layout import Explicit
     from simulatte.layout import layers as layers_module
@@ -813,13 +820,21 @@ def test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_
         monkeypatch.setattr(module, "resolve_layers", counted)
 
     env = Environment()
-    path = [Node(f"n{i}", float(i), 0.0) for i in range(nodes)]
-    env.layout.set_network(Explicit(LayoutGraph(path, [Arc(a, b) for a, b in zip(path, path[1:])])))
-    assert [data for data in checks if "network" in data]  # declaring the network checked its patch
+    if kind == "explicit":
+        path = [Node(f"n{i}", float(i), 0.0) for i in range(size)]
+        env.layout.set_network(Explicit(LayoutGraph(path, [Arc(a, b) for a, b in zip(path, path[1:])])))
+    elif kind == "lattice":
+        env.layout.set_grid(Grid(1, 1))
+        env.layout.set_network(Lattice((0, 0, size - 1, 0)))
+    else:
+        for _ in range(size):
+            Server(env=env, capacity=1)
+    assert bool([data for data in checks if "network" in data]) == (kind != "none")  # declaring checked its patch
     checks.clear()
     resolutions.clear()
     result = env.layout.prepare()
     assert not [data for data in checks if "network" in data]  # preparing checked it no more
-    assert len(result.network.graph.nodes) == nodes
-    # the final resolutions: the network view once, the layers with the final targets, and the one with the auto layer
-    assert sorted(resolutions) == [(False, False), (True, False), (True, False), (True, True)]
+    assert len(result.network.graph.nodes) == (0 if kind == "none" else size)
+    # the layers with the final targets, the network view (once or twice) and the one with the auto layer
+    assert resolutions.count((True, False)) == 1 + views
+    assert resolutions.count((True, True)) == 1

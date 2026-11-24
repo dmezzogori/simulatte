@@ -290,6 +290,7 @@ class TestLayoutBuiltGraphIsReadOnly:
             lambda d: operator.setitem(d, a, extra),
             lambda d: operator.delitem(d, a),
             lambda d: d.clear(),
+            lambda d: d.__init__({c: extra}),
             lambda d: d.pop(a, None),
             lambda d: d.popitem(),
             lambda d: d.setdefault(c, extra),
@@ -303,6 +304,19 @@ class TestLayoutBuiltGraphIsReadOnly:
                     mutate(container)
         assert (dict(graph._nodes), {node: dict(edges) for node, edges in graph._adjacency.items()}) == snapshot
         assert graph.nodes == (a, b, c)
+
+    def test_the_plain_containers_the_lookups_read_agree_with_the_read_only_ones(self) -> None:
+        a, b, c, graph = self._frozen()
+        assert type(graph._lookup) is dict and all(type(edges) is dict for edges in graph._lookup.values())
+        assert list(graph._lookup) == list(graph._adjacency) == list(graph._nodes) == [a, b, c]
+        for node in graph._adjacency:
+            assert list(graph._lookup[node].items()) == list(graph._adjacency[node].items())
+            assert graph.neighbors(node) == list(graph._adjacency[node])
+            for other in graph._nodes:
+                assert graph.arc_between(node, other) is graph._adjacency[node].get(other)
+        assert not any(plain is shown for plain, shown in zip(graph._lookup.values(), graph._adjacency.values()))
+        explicit = LayoutGraph([a, b], [Arc(a, b)])
+        assert explicit._lookup is explicit._adjacency  # a graph written by the user reads what it shows
 
     def test_the_public_surface_does_not_change_it(self) -> None:
         a, b, c, graph = self._frozen()

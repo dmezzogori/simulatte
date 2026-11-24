@@ -596,3 +596,82 @@ def test_node_validation_of_an_agv_whose_node_is_not_resolved_yet():
     layout.prepare()
     cart._validate_node(None)  # resolved: the validation passes
     assert cart.current_node is layout.prepare().network.node(layout.node("A").address)
+
+
+def test_assigning_none_needs_no_layout():
+    """`AGV._validate_node(None)` accepts without asking for the environment's layout, which it used to create: a model
+    that only clears an AGV's node can still make its layout afterwards."""
+    env = Environment()
+    cart = vehicle(env, None)
+    cart.current_node = None
+    cart._validate_node(None)
+    assert env._layout is None
+    layout = Layout(env)
+    assert env.layout is layout
+
+
+def _outcome(call):
+    try:
+        call()
+    except BaseException as error:
+        return type(error), str(error)
+    return None
+
+
+@pytest.mark.parametrize("block", [None, 1.0])
+def test_the_agv_and_the_layout_accept_the_same_nodes(block):
+    """The AGV checks the canonical node on its own fast path and leaves the rest to the layout: whatever the inputs, the
+    two give one outcome, so that a condition added to one and not to the other fails here."""
+    import types
+    from unittest import mock
+
+    env = Environment()
+    layout = Layout(env)
+    a, b, c, d = Node("A", 0, 0), Node("B", 2, 0), Node("C", 4, 0), Node("D", 2, 3)
+    kwargs = {} if block is None else {"block_length": block}
+    layout.set_network(Explicit(LayoutGraph([a, b, c, d], [Arc(a, b), Arc(b, c), Arc(b, d)]), **kwargs))
+    layout.override(NetworkOverride("off", {"kind": "explicit", "id": "C"}, {"enabled": False}))
+    cart = vehicle(env, layout.node("A"))
+    graph = layout.prepare().network.graph
+    canonical = {node.id: node for node in graph.nodes}
+    other = Environment()
+    elsewhere = Layout(other)
+    elsewhere.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b)])))
+    foreign = {node.id: node for node in elsewhere.prepare().network.graph.nodes}
+    inputs = [
+        canonical["A"],  # the current node
+        canonical["B"],
+        canonical["D"],
+        Node("A", canonical["A"].x, canonical["A"].y),  # equal by value, not canonical
+        Node("B", canonical["B"].x, canonical["B"].y),
+        a,  # declared by the user: equal to the canonical node
+        b,
+        Node("A", 7.0, 7.0),  # the id of a node at another position
+        c,  # disabled
+        Node("C", 4.0, 0.0),
+        foreign["A"],  # canonical in another environment
+        foreign["B"],
+        Node("unknown", 9, 9),
+        None,
+        "A",
+        5,
+        object(),
+        types.SimpleNamespace(id="A"),
+        types.SimpleNamespace(id=[]),
+        mock.ANY,
+        Node(None, 0, 0),
+    ]
+    generated = [node for node in graph.nodes if node.id not in ("A", "B", "C", "D")]
+    assert bool(generated) == (block is not None)
+    for node in generated[:2]:
+        inputs += [node, Node(node.id, node.x, node.y)]
+    outcomes = set()
+    for node in inputs:
+        by_layout = _outcome(lambda: layout._validate_node(node))
+        assert _outcome(lambda: cart._validate_node(node)) == by_layout
+        outcomes.add(by_layout)
+        before = cart.current_node
+        assert _outcome(lambda: setattr(cart, "current_node", node)) == by_layout
+        if by_layout is not None:
+            assert cart.current_node is before  # a refused node changes nothing
+    assert None in outcomes and len(outcomes) >= 3  # accepted and refused for several reasons

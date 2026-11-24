@@ -138,11 +138,11 @@ class NodeBinding(Entity, kind="node"):
 
 
 class _ReadOnlyDict(dict):
-    """A dict that refuses every change once built, for the containers of a layout-built graph (spec §5.2).
+    """A dict that refuses every change once built: the containers a layout-built graph shows (spec §5.2).
 
-    It is a plain ``dict`` for reading, so lookups cost what an explicit graph's do (a ``MappingProxyType`` adds an
-    indirection to each one); the mutating methods raise ``TypeError``. It is filled by ``dict``'s own constructor,
-    which does not call them.
+    The mutating methods and ``__init__`` raise ``TypeError``; build one with :meth:`of`. Reading it is a ``dict``
+    read, but CPython takes a slower path for a subclass, so the graph's own lookups use plain dicts built from the
+    same data (``LayoutGraph._lookup``). The unbound ``dict`` methods can still change one; that is not a public path.
     """
 
     __slots__ = ()
@@ -150,21 +150,14 @@ class _ReadOnlyDict(dict):
     def _refuse(self, *args: object, **kwargs: object) -> Any:
         raise TypeError("a layout-built graph is read-only")
 
-    __setitem__ = __delitem__ = __ior__ = _refuse
+    __init__ = __setitem__ = __delitem__ = __ior__ = _refuse
     clear = pop = popitem = setdefault = update = _refuse
 
-
-class _ReadOnlyAdjacency(_ReadOnlyDict):
-    """The adjacency of a layout-built graph: a node without a traversal, or outside the graph, has no edges."""
-
-    __slots__ = ()
-
-    def __missing__(self, node: Node) -> dict[Node, Arc]:
-        return _NO_EDGES
-
-
-_NO_EDGES: dict[Node, Arc] = _ReadOnlyDict()
-"""The edges of a node that has none; shared, and read-only."""
+    @classmethod
+    def of(cls, data: dict[Any, Any]) -> _ReadOnlyDict:
+        container = dict.__new__(cls)
+        dict.update(container, data)
+        return container
 
 
 class LayoutGraph:
@@ -173,6 +166,7 @@ class LayoutGraph:
     def __init__(self, nodes: Iterable[Node], arcs: Iterable[Arc]) -> None:
         self._nodes: dict[Node, None] = dict.fromkeys(nodes)  # insertion-ordered (spec §5.3)
         self._adjacency: dict[Node, dict[Node, Arc]] = defaultdict(dict)
+        self._lookup = self._adjacency  # what `neighbors` and `arc_between` read; a layout-built graph has its own
         for arc in arcs:
             _check_pair(arc, self._adjacency[arc.target].get(arc.source))
             self._adjacency[arc.source][arc.target] = arc
@@ -202,8 +196,10 @@ class LayoutGraph:
             adjacency[arc.source][arc.target] = arc
             _check_pair(arc, adjacency[arc.target].get(arc.source))
         graph = cls((), ())
-        graph._nodes = _ReadOnlyDict(dict.fromkeys(ordered))
-        graph._adjacency = _ReadOnlyAdjacency({node: _ReadOnlyDict(edges) for node, edges in adjacency.items()})
+        # The graph shows read-only containers and reads plain dicts of the same data, which nothing changes.
+        graph._nodes = _ReadOnlyDict.of(dict.fromkeys(ordered))
+        graph._adjacency = _ReadOnlyDict.of({node: _ReadOnlyDict.of(edges) for node, edges in adjacency.items()})
+        graph._lookup = adjacency
         graph._layout_frozen = True
         return graph
 
@@ -213,10 +209,16 @@ class LayoutGraph:
         return tuple(self._nodes)
 
     def neighbors(self, node: Node) -> list[Node]:
-        return list(self._adjacency[node])
+        try:
+            return list(self._lookup[node])
+        except KeyError:  # only a layout-built graph raises: a node outside it has no neighbors
+            return []
 
     def arc_between(self, source: Node, target: Node) -> Arc | None:
-        return self._adjacency[source].get(target)
+        try:
+            return self._lookup[source].get(target)
+        except KeyError:
+            return None
 
     def distance(self, source: Node, target: Node) -> float:
         if self.arc_between(source, target) is None:

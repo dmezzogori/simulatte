@@ -236,9 +236,14 @@ class PreparationCoordinator:
         """Compiler candidates are actual attachments/definitions, never pending code ids."""
         targets = self._target_provider() if self._target_provider else self._targets
         bundle = values.bundle
+        if values.at(("network",), explicit=True).state != "present":
+            # No network is declared: the view is small and only asked for once or twice, so nothing is kept (keeping
+            # the targets of a model of thousands of servers would cost more than resolving again).
+            return resolve_layers(bundle.code_stages, bundle.file_layer, targets=targets, final=True, code_checked=True)
         stages, items = bundle.code_stages, tuple(targets.items())
         # Preparation asks for the view twice with the same layers and targets (building the network, then checking the
         # changes): the second ask gets the first's answer, which is immutable. The patches are compared by identity.
+        # For a lattice the second ask has other targets (the network's nodes), and resolves again.
         last = self._last_view
         if last is not None:
             last_stages, last_file_layer, last_items, last_view = last
