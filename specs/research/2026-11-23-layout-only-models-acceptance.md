@@ -1176,13 +1176,14 @@ this record. One fix wave followed; these are its changes.
 | Commit | Change |
 |---|---|
 | `751959a` | `fix(intralogistics)`: the route check (`_check_route`) compares each hop's endpoints with the resolved arc's by identity (and a route of one node with the AGV's node), so a router that returns copies of the graph's nodes is refused when the route is returned, naming the router, instead of failing at the first arrival with the move started. |
-| `67d5699` | `fix(layout)`: a node the script built, given to `agv.current_node` or `env.entities.bind_node`, is refused with the canonical node named (`fleet.graph`, or `env.layout.prepare().network.node(env.layout.node(id).address)`); a handle there is refused as a handle, which is for construction; assigning the node of an AGV whose node is pending says "before assigning it". Reading what a `Node` or `LayoutGraph` has (`id`, `x`, `nodes`, `length`, `distance`, `shortest_path` and the rest) from a handle raises `LayoutNotReady` with one message naming `fleet.graph` and `env.layout.prepare().network`; other names, `hasattr`, `copy`, `pickle` and `repr` of handles behave as before. An unregistered custom traffic controller names `layout.register_resource_owner` and `layout.on_bind`; a `ReservationController` of another environment has its own sentence. `env.step()` after a failed activation says that activation is in progress or failed. `Explicit(zones=)` with `Zone` objects or `Node` members, `layout.node(node)` and `layout.set_network(graph)` name what to write. |
+| `67d5699` | `fix(layout)`: a node the script built, given to `agv.current_node` or `env.entities.bind_node`, is refused with the canonical node named (`fleet.graph`, or `env.layout.prepare().network.node(env.layout.node(id).address)`); a handle there is refused as a handle, which is for construction; assigning the node of an AGV whose node is pending says "before assigning it". Reading what a `Node` or `LayoutGraph` has (`id`, `x`, `nodes`, `length`, `distance`, `shortest_path` and the rest) from a handle raises `LayoutNotReady` with one message naming `fleet.graph` and `env.layout.prepare().network`; other names, `copy`, `pickle` and `repr` of handles behave as before (probing these names with `hasattr` or `getattr` with a default does not: see "Residual findings" below). An unregistered custom traffic controller names `layout.register_resource_owner` and `layout.on_bind`; a `ReservationController` of another environment has its own sentence. `env.step()` after a failed activation says that activation is in progress or failed. `Explicit(zones=)` with `Zone` objects or `Node` members, `layout.node(node)` and `layout.set_network(graph)` name what to write. |
 | `f652848` | `docs`: a lift's offset lies along the direction of travel under `corner_speed` or `turn_time` (changelog, layout guide, skill); resolved arcs are one-way and only nodes compare equal to the declared ones (changelog, layout and intralogistics guides, skill, a migration row); migration rows and notes for a capacity on a block node, `agv.current_node`, custom traffic controllers, entity names with a lone surrogate, non-finite coordinates and self-loops; the full order of node capacities; the layout guide's sentence that no viewer is included is gone; the docstrings of `Trace.layout` and of the second known limit. |
 | `732f315` | `docs(specs)`: spec §5.8, `Trace.layout` is also `None` for a trace whose activation failed. |
 | `b01c3af` | `test(layout)`: the test of the handle protocols added by `67d5699` accepts each interpreter's error for copying or pickling a handle (whose owner holds the environment): `TypeError` on CPython 3.14, `AttributeError` on 3.11, `PicklingError` on PyPy. The first runs of the PyPy lane and of CPython 3.11, at `732f315`, failed this one test (`1 failed, 4832 passed, 23 skipped` and `1 failed, 2620 passed`). |
 | this commit | `docs(specs)`: this section, the first bundle read of a network (under "Final numbers against spec §9"), what the monitor does not check (under "Safety run"). |
 
-The error paths changed and nothing else: the canonical node still passes on one identity check (the AGV's fast path
+The error paths changed, and two inputs that were accepted are now refused ("Residual findings" below); nothing
+else changed: the canonical node still passes on one identity check (the AGV's fast path
 gains a `try`, which costs nothing when nothing is raised), and the activated `env.step()` still reads one field
 (`tests/layout/test_binding.py` and `tests/layout/test_activation.py` hold unchanged; the table of
 `test_the_agv_and_the_layout_accept_the_same_nodes` gained handles and an object whose `id` is not ready). Each code
@@ -1260,3 +1261,53 @@ and the head in separate processes:
 
 The gate is a CI gate and runs on the CI runner, whose calibration set the limits (README); it was not run there for this
 wave. Locally it passes against released 0.12.0 and is at its limit against the stripped copy, as it is for `e1b3d1c`.
+
+## Residual findings after the fix wave (not fixed)
+
+The fix wave was reviewed once, at `9c3fba4`, by a reviewer who had not seen the branch. All sixteen items were
+found addressed and no model changed (520 random worlds, 3,120 runs, 3,464,917 events byte-identical between
+`e1b3d1c` and `9c3fba4`; 17 example scripts, 21 production models and 820 layouts identical). The plan allows one fix
+wave, so what that review found is recorded here and left to the maintainer.
+
+Introduced by the fix wave:
+
+1. `Explicit(graph, zones=[])` and `zones=()` now raise ("takes a mapping ..., not Zone objects"). Before the wave
+   they declared an empty zone map, as `zones={}` does (`src/simulatte/layout/types.py:107-113`).
+2. `hasattr(handle, name)` and `getattr(handle, name, default)` now raise `LayoutNotReady` for `id`, `distance`,
+   `length`, `path_length`, `path_distance`, `shortest_path` and `subdivide` (`src/simulatte/layout/refs.py:71-78`);
+   before the wave they returned `False` and the default. `LayoutNotReady` is a `ValueError`, not an
+   `AttributeError`, so `hasattr` does not catch it. The six names that raised already (`x`, `y`, `z`, `nodes`,
+   `neighbors`, `arc_between`) are unchanged. One effect inside the library: `env.entities.is_live(handle)` raises
+   where it returned `False`. A class deriving from both `LayoutNotReady` and `AttributeError` would restore the
+   probes and keep the message of a direct read; it was checked on CPython 3.14, 3.11 and PyPy 3.11 by the reviewer,
+   not applied.
+3. `layout.place(handle, ...)`, `layout.flow([handle, ...])` and `env.entities.retire(handle)` now answer with the
+   handle message, whose advice to read `fleet.graph` does not fit those calls.
+4. One refusal message serves every node that is not canonical (`src/simulatte/layout/layout.py:338-341`): a
+   disabled node, a node of another environment and an unknown id are told to take the node of the same id from
+   `fleet.graph`, which does not help them.
+5. The message for a controller of another environment is chosen by a private attribute (`layout.py:401`): a custom
+   controller with any `_env` that is not the fleet's is told it belongs to another environment.
+6. `Trace.layout` is `None` for any trace without an INITIAL record. The docstring and spec §5.8 name traces of
+   earlier versions and failed activations; a recorder on an environment closed without ever activating is a third
+   case (outcome `completed`).
+
+Found by that review outside the fix wave:
+
+7. World 52118 under `ReservationController` and `ShortestDistanceRouter` ends with a monitor violation that is not
+   one of the two known limits: `open wait with no report ['agv-g', 'bot-y']` at t=576.19
+   (`uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first 52118`). It is identical at `e1b3d1c`
+   and at `9c3fba4`, and a tree that still had explicit mode gives the same 829 events and the same violation in both
+   modes, so it comes neither from the fix wave nor from the layout. From the trace: an unresolved deadlock of five
+   at t=172.8; the wait of one member is withdrawn at t=293.7; two of the others get stuck reports; `agv-g` and
+   `bot-y`, blocked by an AGV that is not waiting, get none. It looks like the missed detection of the second known
+   limit in a shape that the monitor's exemption, which requires a closed set, does not recognise; this was not
+   investigated further. It was 1 run of that review's 3,120. The safety run recorded above (seeds 100000 to 100999
+   and 2000000 to 2000999) has no violation; the statement does not extend to other seeds.
+8. The overhead gate against the stripped 0.12.0 is at its limit on this machine for the base and the head alike:
+   over eight alternating rounds, `e1b3d1c` gave +6.3 to +9.2 % (u90) and +6.9 to +8.0 % (u95), `9c3fba4` +7.3 to
+   +9.3 % and +8.1 to +9.0 %, against a limit of +8.5 %; a whole gate passed in 4 of 8 rounds for each. Two stripped
+   runs of the same round differ by -1.0 to +1.2 %. The gate workloads execute four statements changed by the wave,
+   all at import. The head is not slower than the base of the branch (-0.50 % and -0.38 % against `e993ca8`). On the
+   CI runner the `bench` job passed at `e993ca8` with +6.8 % and +7.7 %, and has failed once on `main` for a commit
+   that touched no source.
