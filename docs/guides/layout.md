@@ -47,8 +47,9 @@ INITIAL record of a recorded run approaches `TraceRecorder`'s `max_initial_bytes
 take about 60 MB).
 
 A model pays nothing per event for its layout. Activation of a production model takes about 0.5 ms at 10 servers and
-about 50 ms at 1,600, measured on a development machine. The bundle and its hashes are built on first read: a recorded run builds them once, at
-INITIAL, and a run that nobody records and whose manifest nobody reads never builds them.
+about 50 ms at 1,600, measured on a development machine. The bundle and its hashes are built on first read: a
+recorded run builds them once, at INITIAL, and a run that nobody records and whose manifest nobody reads never builds
+them.
 
 ## Declaring a transport network
 
@@ -66,8 +67,11 @@ the first: the last declaration wins. After preparation it raises `LayoutError`.
 
 The layout is finalized when it is prepared, by `layout.prepare()`, `env.activate()` or the first `env.run()`.
 Declare the network before that; afterwards `set_network` raises `LayoutError`, also through `build_simple_system`,
-which declares one, and through a first fleet when no network was declared. Fleets and other components that take
-handles (see [Handles](#handles)) may still be added later on a network declared before and resolve at once.
+which declares one, and through a component given a node handle or `layout.graph()` (a first fleet, for one) when no
+network was declared. On a network declared before, an `AGV`, `Warehouse`, `ParkingArea` or `ChargingStation` with
+handles (see [Handles](#handles)) may still be built later and resolves at once, and so may a fleet on the default
+`FreeFlowController`. A fleet on a `ReservationController` must be built before activation: the controller and its
+fleets register before the network is built, and a later one raises `RuntimeError`.
 
 `Explicit(graph, *, clearance=0, blocked=None, capacity=None, capacities=None, block_length=None, zones=None)` copies
 each node's id and position and, for each arc, its direction, `speed_limit`, `passing` and `length`. An arc's length
@@ -188,9 +192,10 @@ network and nothing else.
 
 After preparation the network and the static endpoints are read-only: bays are tuples, and `fleet.graph`,
 `controller.graph`, `station.node` and `area.node` cannot be assigned. An AGV moves among canonical nodes. Declaring
-the network after activation raises `LayoutError`. A component constructed after
-preparation resolves its handles at once and may attach to the frozen network, but cannot change it; a
-`ReservationController` constructed then raises, because it takes the network's resources at binding. Graph
+the network after activation raises `LayoutError`. A component with handles constructed after
+preparation resolves them at once and may attach to the frozen network, but cannot change it; a
+`ReservationController` constructed then raises, because it takes the network's resources at binding, and so does
+a fleet on a `ReservationController` (`RuntimeError`). Graph
 coordinates stay authoritative: placement positions in a file or on node-bound AGVs do not move the nodes of the
 network.
 

@@ -76,7 +76,7 @@ ReservationController(
 )
 ```
 
-Fleets register in their constructor and must do so before the environment is activated; the network is built by an activation initializer of the controller. A fleet on a reservation controller is passed as `FleetCoordinator(traffic_controller=controller)`. Several fleets share one controller, because an environment has one network. Assigning `AGV.current_node` directly after activation bypasses traffic.
+Fleets register in their constructor and, on a reservation controller, must do so before the environment is activated (a later one raises `RuntimeError`; under `FreeFlowController` a fleet may be built after activation); the network is built by an activation initializer of the controller. A fleet on a reservation controller is passed as `FleetCoordinator(traffic_controller=controller)`. Several fleets share one controller, because an environment has one network. Assigning `AGV.current_node` directly after activation bypasses traffic.
 
 ### The traffic network
 

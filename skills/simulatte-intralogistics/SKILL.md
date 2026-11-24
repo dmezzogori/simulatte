@@ -155,8 +155,11 @@ an output bay to pick and to an input bay to deliver.
 until `env.layout.prepare()` or `env.activate()`. They hold canonical nodes: equal
 to the ones you declared and different objects, so compare with `==`, not `is`.
 Declaring the network after activation raises `LayoutError` (also through
-`build_simple_system`, or a first fleet when no network was declared); fleets with
-handles may be added later on a network declared before activation. `env.step()` needs `env.activate()` first.
+`build_simple_system`, or a component given a handle when no network was declared).
+On a network declared before activation, an AGV, warehouse, parking area, charger
+and a free-flow fleet with handles may be added later; a fleet on a
+`ReservationController` must be built before activation (`RuntimeError`).
+`env.step()` needs `env.activate()` first.
 
 ### Traffic control
 
