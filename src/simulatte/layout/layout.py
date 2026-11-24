@@ -272,6 +272,16 @@ class Layout:
         self._coordinator._owner(ref)
         return self._coordinator.network.node(ref.address)
 
+    def _resolve_late_node(self, ref: NodeRef | PortRef) -> Node:
+        """`ref` resolved for a component constructed after preparation; without a network that names the cause."""
+        if self._coordinator.values.at(("network",), explicit=True).state != "present":
+            raise LayoutError(
+                f"node reference requires a declared network: {_FINALIZED_NETWORK}",
+                code="missing-handle",
+                path=("network",),
+            )
+        return self._resolve_node(ref)
+
     def _bind_node(self, ref: NodeRef | PortRef, entity_id: str, field: str) -> Node:
         node = self._resolve_node(ref)
         self._coordinator.closure.bind(f"{entity_id}:{field}", {"address": ref.to_dict(), "endpoint": node.id})

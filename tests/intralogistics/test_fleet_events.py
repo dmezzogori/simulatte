@@ -634,11 +634,14 @@ def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: boo
     second.current_node = end
     second.current_node = end  # unchanged: no event
     second.current_node = None
+    third = AGV(env=env, agv_type=_agv_type(), initial_node=None)  # created without a node: placed by assignment
+    third.current_node = world.node("C1")
 
     assert [(e.agv, e.node, e.previous) for e in placed] == [
         (second.id, "OUT", None),
         (second.id, "IN", "OUT"),
         (second.id, None, "IN"),
+        (third.id, "C1", None),
     ]
     assert placed[0].deltas.ops == (("set", second.id, "node", "OUT"), ("insert", "OUT", "agvs", 1, second.id))
     assert placed[1].deltas.ops == (
@@ -647,6 +650,7 @@ def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: boo
         ("insert", "IN", "agvs", 0, second.id),
     )
     assert replay.state["OUT"]["agvs"] == (first.id,)
+    assert replay.state["C1"]["agvs"] == (third.id,)
 
 
 # --- replay over a busy run --------------------------------------------------------------------------------

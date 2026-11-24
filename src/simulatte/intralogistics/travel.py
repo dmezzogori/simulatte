@@ -131,11 +131,11 @@ def _described(profile: ArcProfile) -> MotionDescription:
 
     When the entry speed, the length and every phase value are exact floats, which ``freeze`` keeps as they are, the
     map is built directly with the phases as they are (tuples), without ``freeze``'s recursion over them; otherwise
-    (numbers of another type) it is the plain description, which ``freeze`` converts. A run's arcs have a positive
-    length, so its profiles have phases.
+    (a profile without phases, or numbers of another type) it is the plain description, which ``freeze`` converts. A
+    profile has no phases when its arc is so short that every phase rounds to a duration of 0.
     """
     phases, v_in, length = profile.phases, profile.v_in, profile.length
-    if type(v_in) is not float or type(length) is not float:
+    if not phases or type(v_in) is not float or type(length) is not float:
         return profile.description()
     for duration, accel in phases:
         if type(duration) is not float or type(accel) is not float:

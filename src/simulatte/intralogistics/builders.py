@@ -65,7 +65,7 @@ def build_simple_system(
     ``traffic_controller`` and ``router`` go to the coordinator (defaults: free flow, shortest distance);
     ``agv_length`` is the ``length`` of the AGV type, which ``ReservationController`` requires.
 
-    Layout warehouses default to ``obstacle=False``. Plain bay nodes have no owner
+    The warehouses are placed with ``obstacle=False``. Plain bay nodes have no owner
     clearance exemption: use a port connector for an obstructing warehouse.
 
     Returns:
@@ -204,7 +204,10 @@ def _layout_graph(
     layout: Layout, nodes: Mapping[str, NodeRef | PortRef] | None, prefix: str
 ) -> tuple[GraphRef, list[NodeRef | PortRef]]:
     from simulatte.layout import Explicit, LayoutError, NodeRef, PortRef
+    from simulatte.layout.binding import reject_node
 
+    for value in () if nodes is None else nodes.values():  # a concrete node is named before any other mistake
+        reject_node(value, component="build_simple_system", parameter="nodes")
     # Inspect declarations only: graph reads would freeze/generate the network.
     # A partial file patch inherits defaults, but cannot erase an existing code
     # network and trick the builder into replacing it.

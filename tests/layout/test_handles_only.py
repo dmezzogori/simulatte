@@ -13,12 +13,15 @@ import pytest
 
 from simulatte import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
+from simulatte.intralogistics.builders import build_simple_system
 from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import AgvPlaced
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.order import OrderStatus
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
@@ -80,6 +83,19 @@ def test_a_concrete_graph_or_node_raises_with_the_fix(case: str, declared: bool)
         CASES[case](env, graph, graph.nodes[0])
     assert raised.value.diagnostics[0].code == "foreign-handle"
     assert env.entities.live() == before
+
+
+@pytest.mark.parametrize("declared", [False, True], ids=["no-network", "network"])
+def test_a_concrete_node_in_the_builders_mapping_raises_with_the_fix(declared: bool) -> None:
+    env = Environment()
+    if declared:
+        _declared(env)
+    roles = ("WH_A_OUT", "N1", "N2", "N3", "WH_B_IN")
+    nodes = {role: Node(role, float(i), 0.0) for i, role in enumerate(roles)}
+    with pytest.raises(LayoutError, match=f"^{re.escape(f'build_simple_system(nodes=...) {NODE_FIX}')}$") as raised:
+        build_simple_system(env, nodes=nodes)  # ty: ignore[invalid-argument-type]
+    assert raised.value.diagnostics[0].code == "foreign-handle"
+    assert env.entities.live() == ()
 
 
 @pytest.mark.parametrize("case", sorted(CASES))
@@ -185,8 +201,36 @@ def test_late_components_resolve_at_once() -> None:
     assert early.current_node is a
     assert env.entities.node_binding(b).agvs == ["late"]
     assert placed == [("late", "B", None)]
-    fleet = _fleet(env, layout.graph(), name="late-fleet")
-    assert fleet.graph is network.graph
+    sku = SKU("stock", 1, 1)
+    origin, destination = (
+        Warehouse(
+            env=env,
+            name=name,
+            input_bays=[layout.node(at)],
+            output_bays=[layout.node(at)],
+            n_slots=1,
+            products=[sku],
+            initial_inventory={sku: stock},
+            pick_time=1,
+            put_time=1,
+        )
+        for name, at, stock in (("late-origin", "A", 5), ("late-destination", "B", 0))
+    )
+    fleet = FleetCoordinator(
+        env=env,
+        graph=layout.graph(),
+        fleet=[late],
+        warehouses=[origin, destination],
+        charging_stations=[],
+        parking_areas=[parking],
+        name="late-fleet",
+    )
+    assert fleet.graph is network.graph and origin.output_bays == (a,) and destination.input_bays == (b,)
+    order = fleet.create_order(sku=sku, quantity=2, origin=origin, destination=destination)
+    fleet.submit(order)
+    env.run()
+    assert order.status is OrderStatus.COMPLETED  # the late AGV works: it fetched from A and delivered to B
+    assert destination.get_inventory_level(sku) == 2 and late.current_node is b
     with pytest.raises(LayoutError, match="must be constructed before the layout is prepared"):
         ReservationController(env=env, graph=layout.graph())
 
@@ -202,16 +246,29 @@ def test_the_network_is_declared_before_the_layout_is_finalized(finalize: str) -
         env.layout.set_network(Explicit(_graph()))
     with pytest.raises(LayoutError, match=re.escape(f"graph reference requires a declared network: {cause}: {fix}")):
         _fleet(env, env.layout.graph())
-    assert not any(entity.kind == "fleet" for entity in env.entities.live())
+    a = env.layout.node("A")
+    for make in (
+        lambda: AGV(env=env, agv_type=CART, initial_node=a),
+        lambda: _warehouse(env, input_bays=[a]),
+        lambda: ChargingStation(env=env, name="cs", node=a, n_slots=1),
+        lambda: ParkingArea(env=env, name="pa", node=a, capacity=1),
+    ):
+        with pytest.raises(LayoutError, match=re.escape(f"node reference requires a declared network: {cause}: {fix}")):
+            make()
+    assert env.entities.live() == ()
 
 
 def test_one_network_per_environment() -> None:
+    """Spec §5.2: before preparation the last declaration wins; after it a declaration raises."""
     env = Environment()
-    layout = _declared(env)
+    x, y = Node("X", 0, 0), Node("Y", 5, 0)
+    env.layout.set_network(Explicit(LayoutGraph([x, y], [Arc(x, y)])))
+    layout = _declared(env)  # replaces the first declaration
     first = _fleet(env, layout.graph(), name="first")
     second = _fleet(env, layout.graph(), name="second")
     result = layout.prepare()
     assert first.graph is second.graph is result.network.graph
+    assert [node.id for node in result.network.graph.nodes] == ["A", "B"]
     with pytest.raises(LayoutError, match="cannot declare the network"):
         layout.set_network(Explicit(_graph()))
 

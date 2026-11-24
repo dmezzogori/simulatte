@@ -20,25 +20,30 @@ if TYPE_CHECKING:
     from .layout import Layout
 
 
+def reject_node(value: Any, *, component: str, parameter: str) -> None:
+    """Raise `LayoutError` naming the fix when `value` is a concrete `Node` given for `parameter` (spec §5.3)."""
+    from simulatte.intralogistics.graph import Node
+
+    if isinstance(value, Node):
+        raise LayoutError(
+            f"{component}({parameter}=...) takes layout.node(id) or layout.port(...) handles, not Node objects",
+            code="foreign-handle",
+        )
+
+
 def node_input(
     env: Environment, value: Any, *, component: str, parameter: str, optional: bool = False
 ) -> tuple[Node | None, NodeRef | PortRef | None]:
     """The node of a component's `parameter`: a handle of the environment's layout, resolved at once when the layout
     is finalized, else kept as pending. A concrete `Node` raises `LayoutError` naming the fix (spec §5.3); a handle of
     another layout raises too. ``None`` is accepted when `optional`."""
-    from simulatte.intralogistics.graph import Node
-
     if value is None and optional:
         return None, None
-    if isinstance(value, Node):
-        raise LayoutError(
-            f"{component}({parameter}=...) takes layout.node(id) or layout.port(...) handles, not Node objects",
-            code="foreign-handle",
-        )
+    reject_node(value, component=component, parameter=parameter)
     layout = env.layout
     layout._accept_reference(value, (NodeRef, PortRef))
     if layout._coordinator.state is PreparationState.FINALIZED:
-        return layout._resolve_node(value), None
+        return layout._resolve_late_node(value), None
     return None, value
 
 

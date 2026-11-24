@@ -521,6 +521,28 @@ def test_non_positive_limits_stall_the_run(v_max: float, accel: float) -> None:
     assert w.held("A") == ["N0"]
 
 
+@pytest.mark.parametrize("gap", [5e-324, 1e-16, 5e-16])
+def test_an_arc_too_short_for_any_phase_is_described_as_linear(gap: float) -> None:
+    """``B`` and ``C`` are distinct points a positive but tiny distance apart, passed at full speed: every phase of the
+    arc's profile rounds to a duration of 0, so the profile has none and its motion is ``linear`` (reviewer finding of
+    Task 9: such an arc is not a chord of length 0, and the layout accepts it)."""
+    points = [("N0", -10.0, 0.0), ("B", 0.0, 0.0), ("C", gap, 0.0), ("D", 10.0, 0.0)]
+    w = world(
+        lambda env: build(env, points, [("N0", "B"), ("B", "C"), ("C", "D")]),
+        {"A": "N0"},
+        reserve=False,
+        agv_type=vehicle(profile=TrapezoidalProfile(2.0, 1.0, 1.0)),
+    )
+    assert 0.0 < w.fleet.graph.length(w.nodes["B"], w.nodes["C"]) == gap
+    w.go("A", "D")
+    w.env.run()
+    started = {e.from_node: e for e in w.of(AgvMoveStarted)}
+    assert dict(started["B"].motion) == {"curve": "linear"}
+    assert started["B"].t_end == started["B"].t
+    assert all(dict(started[node].motion)["curve"] == "piecewise" for node in ("N0", "C"))
+    assert w.agvs["A"].current_node == w.nodes["D"] and w.agvs["A"].heading == 0.0
+
+
 class NoLimits:
     """The steady trapezoidal profile without ``limits``: travel time and description only."""
 

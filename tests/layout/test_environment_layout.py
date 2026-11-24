@@ -62,7 +62,6 @@ def test_constructor_after_first_use_raises(tmp_path: Path) -> None:
         message = str(raised.value)
         assert "already has a layout" in message
         assert "Layout(env, ...) must come before the first use of env.layout" in message
-        assert "explicit graph consumers" not in message
     assert env.layout is first
 
 

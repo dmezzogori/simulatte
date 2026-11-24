@@ -58,8 +58,12 @@ _HEADING_TOLERANCE = 1e-9
 
 
 def arc_direction(source: Node, target: Node) -> float:
-    """The direction of the chord from `source` to `target` in radians. The two nodes of an arc never share a position
-    (spec L16 of the layout-only design), so every arc has a direction."""
+    """The direction of the chord from `source` to `target` in radians.
+
+    The two nodes of an arc of a resolved network never share a position (spec L16 of the layout-only design), so
+    every such arc has a direction. For two nodes at one position, which a graph built by hand and given to a router
+    directly can still hold, it returns 0.0, the ``atan2`` of a zero vector.
+    """
     return math.atan2(target.y - source.y, target.x - source.x)
 
 

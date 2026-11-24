@@ -117,12 +117,9 @@ class NodeBinding(Entity, kind="node"):
 
     def __init__(self, env: Environment, node: Node) -> None:
         self.node = node
-        # AGVs placed here before the binding existed; later moves update the list (AGV.current_node).
-        self.agvs: list[str] = [
-            entity.id
-            for entity in env.entities.live()
-            if entity.kind == "agv" and getattr(entity, "_current_node", None) == node
-        ]
+        # The layout binds every node at preparation, before any AGV has a node; placements and moves update the list
+        # (AGV.current_node), and an AGV constructed later appends itself.
+        self.agvs: list[str] = []
         self.reserved_by: list[str] = []
         env.entities.attach(self, name=node.id)
 
