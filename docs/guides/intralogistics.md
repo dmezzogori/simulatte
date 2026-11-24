@@ -1,6 +1,6 @@
 # Intralogistics
 
-For generated lattices, lanes, ports and migration from explicit graphs, see the [layout guide](../guides/layout.md).
+For generated lattices, lanes, ports and handles, see the [layout guide](../guides/layout.md).
 
 Simulatte's intralogistics subpackage models warehouse-to-warehouse material transport using AGV (Automated Guided Vehicle) fleets. It provides a complete toolkit for building, running, and analyzing intralogistics simulations.
 
@@ -39,11 +39,13 @@ from simulatte.intralogistics import (
 )
 ```
 
+`simulatte.intralogistics` loads its names on first use. Import the names you need, as above, or a submodule such as `simulatte.intralogistics.graph`. After a bare `import simulatte.intralogistics` its submodules are not yet attributes, and its event types are registered only when the first name is used.
+
 ## Core concepts
 
-**Layout** --- Define your facility as a directed graph of `Node` and `Arc` objects. Nodes have (x, y) coordinates; arcs can be one-way or bidirectional, carry an optional `speed_limit`, a travelled `length` (the chord between the endpoints when omitted; never shorter than it) and a `passing` flag (opposite traffic may pass on the arc). `LayoutGraph.length(u, v)` and `path_length(path)` use the travelled length; `distance` and `path_distance` keep the chord.
+**Layout** --- Every environment has a layout, `env.layout`, and the transport network is declared on it with `env.layout.set_network(...)`: a `Lattice`, `Lanes`, or `Explicit(graph)` for a directed graph of `Node` and `Arc` objects that you write by hand. Components never take the graph or its nodes themselves: they take handles of the layout (`layout.graph()`, `layout.node(id)`, `layout.node_at(address)`, `layout.port(entity, name)`), which the layout resolves when it is prepared. A concrete `LayoutGraph` or `Node` raises `LayoutError`. After `env.layout.prepare()` or `env.activate()`, `agv.current_node`, `fleet.graph` and the other physical fields hold the resolved objects, which are equal to the ones you declared and are different objects: compare nodes with `==`. Before that, reading one raises `LayoutNotReady`. In an explicit graph, nodes have (x, y) coordinates; arcs can be one-way or bidirectional, carry an optional `speed_limit`, a travelled `length` (the chord between the endpoints when omitted; never shorter than it) and a `passing` flag (opposite traffic may pass on the arc). `LayoutGraph.length(u, v)` and `path_length(path)` use the travelled length; `distance` and `path_distance` keep the chord.
 
-**Warehouses** --- Each `Warehouse` has input/output bays (graph nodes), finite pick/put slots, and per-SKU inventory tracked as SimPy containers.
+**Warehouses** --- Each `Warehouse` has input/output bays (layout node handles), finite pick/put slots, and per-SKU inventory tracked as SimPy containers.
 
 **AGV fleet** --- `AGV` instances are typed by `AGVType`, which bundles a `SpeedProfile`, battery parameters, capacity limits, the vehicle's `length` and `min_gap`, and optional turning and idle-power models. `TrapezoidalProfile` models acceleration, cruising, and deceleration with optional battery degradation and load speed factors; it reports its kinematic limits, so its vehicles pass nodes at speed (see [Motion](#motion)). Without a `battery_degradation_fn` the speed factor equals the battery level, so maximum speed and acceleration fall in proportion to the charge (deceleration is unscaled); pass `lambda level: 1.0` for full speed at any level.
 
@@ -59,16 +61,14 @@ from simulatte.intralogistics import (
 
 A traffic controller grants each AGV the right to move. A travel asks it for a claim before entering the arcs ahead; the coordinator also tells it where the AGVs start and when one becomes idle.
 
-- `FreeFlowController` (the default) grants everything at once. Vehicles never wait for one another and can share nodes and lanes; it creates no entities and emits no traffic events. Use it when traffic is not what the study is about: travel times are those of a vehicle alone on the layout. One controller serves one graph: registering a fleet on another graph raises `ValueError`, and fleets on different graphs each take their own controller, as they do by default.
+- `FreeFlowController` (the default) grants everything at once. Vehicles never wait for one another and can share nodes and lanes; it creates no entities and emits no traffic events. Use it when traffic is not what the study is about: travel times are those of a vehicle alone on the layout. One controller serves one environment: registering a fleet of another environment raises `ValueError`, and fleets of different environments each take their own controller, as they do by default.
 - `ReservationController` enforces occupancy. An AGV moves only on resources it holds, so two vehicles never share a node beyond its capacity and never meet head-on on a lane. Use it when congestion, blocking and waiting are part of what you measure. It requires every vehicle type of its fleets to have a `length` (`register_fleet` raises `ValueError` naming the type otherwise).
 
 ```python
 ReservationController(
     env=env,
-    graph=graph,  # LayoutGraph, or layout.graph() with a Layout
+    graph=env.layout.graph(),
     node_capacity=1,  # default capacity of a node
-    capacities=None,  # Mapping[Node, int], explicit capacities
-    zones=(),  # authored Zone values
     derive_corridors=True,
     hold_back_dead_ends=True,
     policy=None,  # default StandardTrafficPolicy()
@@ -76,15 +76,15 @@ ReservationController(
 )
 ```
 
-Fleets register in their constructor and must do so before the environment is activated; the network is built by an activation initializer of the controller. A fleet on a reservation controller is passed as `FleetCoordinator(traffic_controller=controller)`. Several fleets on the same graph share one controller. Assigning `AGV.current_node` directly after activation bypasses traffic.
+Fleets register in their constructor and must do so before the environment is activated; the network is built by an activation initializer of the controller. A fleet on a reservation controller is passed as `FleetCoordinator(traffic_controller=controller)`. Several fleets share one controller, because an environment has one network. Assigning `AGV.current_node` directly after activation bypasses traffic.
 
 ### The traffic network
 
-The controller derives its resources from the graph when the environment is activated:
+The controller derives its resources from the layout's network when the environment is activated. Node capacities and zones belong to the network, so they are declared with it (`capacity`, `capacities` and `zones` of `Explicit`, `capacity` and `zones` of `Lattice` and `Lanes`, the `capacity` of a network override; see the [layout guide](layout.md#traffic-fields-schema-11)); the controller has no arguments for them.
 
-- **Nodes.** A node's capacity is the first of: an explicit capacity (`capacities`, or a layout node capacity); the sum of the capacities of the facilities on the node (a `ParkingArea`'s capacity, a `ChargingStation`'s slot count); `node_capacity`. An explicit capacity smaller than the facility sum is logged as a warning at activation.
+- **Nodes.** A node's capacity is the first of: a capacity declared on the network (a node's own, or an override); the sum of the capacities of the facilities on the node (a `ParkingArea`'s capacity, a `ChargingStation`'s slot count); `node_capacity`. An explicit capacity smaller than the facility sum is logged as a warning at activation.
 - **Segments.** One per pair of adjacent nodes, shared by both directions, with the arc's length. Its id is the two node ids in sorted order joined by `~` (`"C1~J"`). A segment is held with a direction. On a single-lane segment every holder has the same direction, and the extents of the holders (see below) must fit in its length. On a segment whose arc has `passing=True` the test counts only the holders in the same direction, so opposite traffic may be on it at once.
-- **Zones.** `Zone(id, members, capacity=1, hold_back=False)` is a set of nodes and node pairs (segments) of which at most `capacity` AGVs may hold any member. An AGV holds the zone while it holds any member. With `hold_back=True` the zone is claimed one leg before its first member, so that an AGV that cannot enter waits outside it.
+- **Zones.** A zone, declared as `zones={id: {"capacity": 1, "hold_back": False, "members": [...]}}` with the network, is a set of nodes and node pairs (segments) of which at most `capacity` AGVs may hold any member. In `Explicit`, a member is a node id (`"J"`) or a pair of ids (`("X", "J")`), the segment between the two nodes; the controller's zones are `Zone(id, members, capacity, hold_back)` values over the resolved nodes, ordered by zone id, and the `zone` entity lists its members as nodes in id order, then segments. An AGV holds the zone while it holds any member. With `hold_back=True` the zone is claimed one leg before its first member, so that an AGV that cannot enter waits outside it.
 - **Corridors.** Derived when `derive_corridors` is true: a maximal chain of at least two two-way, non-passing segments whose interior nodes have exactly two neighbours and capacity 1, between two **ports**, nodes with three or more neighbours or capacity above 1. Its id is `"corridor:<smallest interior node id>"`. Vehicles in a corridor all travel in the same direction: an AGV going the other way waits at the port until it is empty of oncoming traffic. A cycle with no port is not a corridor; the controller logs it once at activation.
 - **Dead-end branches.** From every leaf (a node with one neighbour), whatever its capacity, the controller walks through nodes with two neighbours and capacity 1 to the first node with three or more neighbours or capacity above 1, the **root**. The walked nodes form a branch. An AGV that enters a branch claims everything down to the end of its route in it before it leaves the root, so a vehicle that cannot get in waits where it does not block the way out. `hold_back_dead_ends=False` turns the rule off. A line whose two ends are both leaves of capacity 1 has no passing place and no branch.
 
@@ -99,7 +99,7 @@ For example:
 
 Here `J~C1`, `C1~C2` and `C2~K` with the interior nodes `C1` and `C2` form `corridor:C1`, between the ports `J` (three neighbours) and `K` (capacity 2). `BAY` and `X` form a branch with root `J`; `PARK` and `OUT` are branches of one node, with roots `J` and `K`. For an AGV at `C2` travelling to `BAY`, the claim for the leg from `C1` to `J` also covers the legs to `X` and `BAY`, because `J` is the root of their branch: the AGV does not leave the corridor until the branch is free.
 
-The same layout with two carts, the parking area, an explicit capacity on `K` and an authored zone that admits one vehicle at a time around `J`:
+The same layout with two carts, the parking area, an explicit capacity on `K` and a zone that admits one vehicle at a time around `J`:
 
 ```python
 from simulatte.environment import Environment
@@ -117,8 +117,8 @@ from simulatte.intralogistics import (
     TrafficKPIs,
     TrapezoidalProfile,
     Warehouse,
-    Zone,
 )
+from simulatte.layout import Explicit
 
 with Environment() as env:
     bay, x, j, park = Node("BAY", 0, 0), Node("X", 10, 0), Node("J", 20, 0), Node("PARK", 20, 10)
@@ -127,12 +127,20 @@ with Environment() as env:
         [bay, x, j, c1, c2, k, out, park],
         [Arc(bay, x), Arc(x, j), Arc(j, c1), Arc(c1, c2), Arc(c2, k), Arc(k, out), Arc(j, park)],
     )
+    layout = env.layout
+    layout.set_network(
+        Explicit(
+            graph,
+            capacities={"K": 2},  # K gets capacity 2
+            zones={"junction": {"capacity": 1, "members": ["J", ("X", "J"), ("J", "C1"), ("J", "PARK")]}},
+        )
+    )
     box = SKU("box", weight=1.0, volume=0.1)
     store = Warehouse(
         env=env,
         name="Store",
-        input_bays=[bay],
-        output_bays=[bay],
+        input_bays=[layout.node("BAY")],
+        output_bays=[layout.node("BAY")],
         n_slots=1,
         products=[box],
         initial_inventory={box: 10},
@@ -142,8 +150,8 @@ with Environment() as env:
     line = Warehouse(
         env=env,
         name="Line",
-        input_bays=[out],
-        output_bays=[out],
+        input_bays=[layout.node("OUT")],
+        output_bays=[layout.node("OUT")],
         n_slots=1,
         products=[box],
         pick_time=5.0,
@@ -158,17 +166,12 @@ with Environment() as env:
         length=1.2,  # required by ReservationController
         min_gap=0.3,  # extent 1.5
     )
-    agvs = [AGV(env=env, agv_type=cart, initial_node=park) for _ in range(2)]
-    parking = ParkingArea(env=env, name="Parking", node=park, capacity=2)  # PARK gets capacity 2
-    traffic = ReservationController(
-        env=env,
-        graph=graph,
-        capacities={k: 2},
-        zones=[Zone("junction", members=(j, (x, j), (j, c1), (j, park)), capacity=1)],
-    )
+    agvs = [AGV(env=env, agv_type=cart, initial_node=layout.node("PARK")) for _ in range(2)]
+    parking = ParkingArea(env=env, name="Parking", node=layout.node("PARK"), capacity=2)  # PARK gets capacity 2
+    traffic = ReservationController(env=env, graph=layout.graph())
     fleet = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=layout.graph(),
         fleet=agvs,
         warehouses=[store, line],
         charging_stations=[],
@@ -226,7 +229,7 @@ class EagerReroute(StandardTrafficPolicy):
         return super().on_blocked(wait, view)
 
 
-traffic = ReservationController(env=env, graph=graph, policy=EagerReroute())
+traffic = ReservationController(env=env, graph=env.layout.graph(), policy=EagerReroute())
 ```
 
 ### Idle vehicles: make way, service nodes, parking
@@ -253,7 +256,7 @@ Standing deadlocks and stuck waits come from layouts with no place for one vehic
 - **Give nodes room.** A capacity above 1 on junctions, bays and charger nodes lets a vehicle wait there without blocking the one that has to get past.
 - **Give idle vehicles somewhere to go.** Parking areas off the main lanes are where make-way moves and repositioning send idle vehicles; without them, idle AGVs end up on lanes and in front of bays.
 - **Use one-way loops** around bays and in busy areas, so that vehicles do not meet head-on at all.
-- **Split long arcs into blocks.** A claim holds a whole segment, so on a long arc a follower waits until the leader has left it. `LayoutGraph.subdivide(max_length)` returns a graph in which every arc longer than `max_length` is replaced by equal pieces, with generated nodes named `"<a>~<b>#<k>"` (`a` and `b` the endpoint ids in sorted order, `k` counted from `a`); with a `Layout`, `block_length` does the same, with the same nodes and the same arc lengths to the float (see the [layout guide](layout.md#traffic-fields-schema-11)). With a profile that has kinematic limits, a straight line takes the same free-flow time however many nodes split it.
+- **Split long arcs into blocks.** A claim holds a whole segment, so on a long arc a follower waits until the leader has left it. `block_length` in the network declaration replaces every arc longer than it by equal pieces, with generated nodes named `"<a>~<b>#<k>"` (`a` and `b` the endpoint ids in sorted order, `k` counted from `a`; see the [layout guide](layout.md#traffic-fields-schema-11)). For a graph you write by hand, `LayoutGraph.subdivide(max_length)` does the same before you declare it with `Explicit`, with the same nodes and the same arc lengths to the float; it refuses a graph the layout built. With a profile that has kinematic limits, a straight line takes the same free-flow time however many nodes split it.
 
 The [traffic example](../examples/intralogistics.md#traffic) runs a two-way corridor with one-way loops at the bays and a siding that doubles as the parking area.
 
@@ -264,6 +267,7 @@ The [traffic example](../examples/intralogistics.md#traffic) runs a two-way corr
 - **The fairness rule lapses** when a vehicle that does not hold the corridor rests on a slot of the waiting vehicle's port.
 - **Charging.** Two defects predate the traffic work and are unchanged: a vehicle whose battery is critical and whose charger is more than one arc away stops at the first node of each travel towards the charger and strands without charging; and when an arc of a mission cannot be afforded even with the level a full charge leaves on arrival at the node before it, the vehicle travels between the charger and that node without end, and `env.run()` without `until` does not return.
 - **Late grants.** See [Look-ahead](#look-ahead).
+- **Parking and charging.** An AGV that set off to park and charges on the way keeps its parking slot, which other AGVs cannot use, until the charge ends.
 
 ## Motion
 

@@ -11,7 +11,7 @@ def fmt_time(value: float | None) -> str:
 def main() -> None:
     with Environment() as env:
         # The builder declares its five-node line on the environment's layout and builds everything on handles.
-        coordinator, agvs, warehouse_a, warehouse_b, _ = build_simple_system(env, layout=env.layout)
+        coordinator, agvs, warehouse_a, warehouse_b, _ = build_simple_system(env)
 
         sku = SKU("A", weight=1.0, volume=0.1)
         quantities = [5, 8, 12, 6]

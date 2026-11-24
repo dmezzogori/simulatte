@@ -1,8 +1,30 @@
 # Intralogistics API Reference
 
-Import everything from `simulatte.intralogistics`.
+Import everything from `simulatte.intralogistics`; the layout and its declarations (`Explicit`, `Lattice`, `Lanes`) come
+from `simulatte.layout`.
+
+Every environment has a layout, `env.layout`. A transport network is declared on it once, before activation, and
+components take handles of it, never `Node` or `LayoutGraph` objects (a concrete one raises `LayoutError`, code
+`foreign-handle`). Physical fields (`agv.current_node`, `fleet.graph`, `controller.graph`, bays, `station.node`,
+`area.node`) raise `LayoutNotReady` until `env.layout.prepare()` or `env.activate()`; they hold canonical nodes, equal
+to the declared ones and different objects (compare with `==`).
 
 ## Spatial Layer
+
+### Declaring the network and handles
+
+```python
+layout = env.layout  # created on first read
+layout.set_network(Explicit(graph, capacities={"N1": 2}, zones={"z": {"capacity": 1, "members": ["N1", ("N1", "N2")]}}))
+# Lattice(...) and Lanes(...) are the other two declarations; a second call before preparation replaces the first.
+
+layout.graph()  # GraphRef: FleetCoordinator(graph=), ReservationController(graph=)
+layout.node("N1")  # NodeRef of an explicit node; layout.node_at(Address(...)) for generated networks
+layout.port(entity, "out")  # PortRef of a named port
+```
+
+`Explicit(graph, *, clearance=0, blocked=None, capacity=None, capacities=None, block_length=None, zones=None)` keeps each
+arc's direction, `speed_limit`, `passing` and `length`. Zone members are node ids or pairs of ids.
 
 ### Node
 
@@ -100,8 +122,8 @@ class Warehouse:
         *,
         env,
         name: str,
-        input_bays: list[Node],  # nodes where AGVs deliver
-        output_bays: list[Node],  # nodes where AGVs pick up
+        input_bays: Sequence[NodeRef | PortRef],  # handles of the nodes where AGVs deliver
+        output_bays: Sequence[NodeRef | PortRef],  # handles of the nodes where AGVs pick up
         n_slots: int,  # concurrent pick/put operations
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
@@ -176,12 +198,12 @@ Default depletion: `distance * 1.0`. Default recharge: `(target - current) * 1.0
 ```python
 class AGV:
     def __init__(
-        self, *, env, agv_type: AGVType, agv_id: str | None = None, initial_node: Node | None = None
+        self, *, env, agv_type: AGVType, agv_id: str | None = None, initial_node: NodeRef | PortRef | None = None
     ) -> None: ...
 
     agv_id: str
     agv_type: AGVType
-    current_node: Node | None
+    current_node: Node | None  # after preparation; assign a canonical node of the resolved network only
     current_load: dict[SKU, int] | None
     battery: Battery
     state: AGVState  # property
@@ -253,7 +275,7 @@ class ChargingStation:
         *,
         env,
         name: str,
-        node: Node,
+        node: NodeRef | PortRef,
         n_slots: int,
         recharge_time=None,  # number | description | (current_level, target_level) -> time; stream "<name>/recharge"
         supports_swap=False,
@@ -262,7 +284,7 @@ class ChargingStation:
         swap_recharge_time=0.0,
     ) -> None: ...
 
-    node: Node
+    node: Node  # after preparation, read-only
     total_recharges: int
     total_swaps: int
     total_occupied_time: float
@@ -275,9 +297,9 @@ class ChargingStation:
 
 ```python
 class ParkingArea:
-    def __init__(self, *, env, name: str, node: Node, capacity: int) -> None: ...
+    def __init__(self, *, env, name: str, node: NodeRef | PortRef, capacity: int) -> None: ...
 
-    node: Node
+    node: Node  # after preparation, read-only
     available_capacity: int  # property
 
     def enter(self, agv) -> ProcessGenerator: ...
@@ -328,7 +350,7 @@ class TransferOrder:
 ### FreeFlowController
 
 Grants every claim at once; no entities, no traffic events. Default when `traffic_controller` is omitted from
-`FleetCoordinator`. One instance serves one graph.
+`FleetCoordinator`. One instance serves the network of one environment.
 
 ### ReservationController
 
@@ -338,10 +360,8 @@ class ReservationController:
         self,
         *,
         env,
-        graph,  # LayoutGraph or GraphRef
-        node_capacity: int = 1,
-        capacities: Mapping[Node, int] | None = None,
-        zones: Sequence[Zone] = (),
+        graph: GraphRef,  # layout.graph()
+        node_capacity: int = 1,  # fallback capacity; capacities and zones are declared with the network
         derive_corridors: bool = True,
         hold_back_dead_ends: bool = True,
         policy: TrafficPolicy | None = None,  # default StandardTrafficPolicy()
@@ -350,12 +370,13 @@ class ReservationController:
 ```
 
 Claims nodes, segments (`"<a>~<b>"`), zones and derived corridors (`"corridor:<node>"`) all or nothing. Node
-capacity: explicit, else the facilities on the node, else `node_capacity`. Fleets register before activation;
+capacity: declared on the network, else the facilities on the node, else `node_capacity`. Fleets register before activation;
 every vehicle type needs `length`. Placing more AGVs on a node than its capacity raises `RuntimeError` at
 activation. Emits `traffic.reserved`, `traffic.released`, `traffic.wait_started`, `traffic.wait_ended`,
 `traffic.wait_stuck` and `traffic.deadlock`.
 
 ```python
+# The value a declared zone resolves to (read it from `traffic.network.zones`); declare zones with the network.
 Zone(id: str, members: tuple[Node | tuple[Node, Node], ...], capacity: int = 1, hold_back: bool = False)
 
 StandardTrafficPolicy(*, reroute_after=30.0, max_detour=1.5, max_resolutions=8)
@@ -388,7 +409,7 @@ class FleetCoordinator:
         self,
         *,
         env,
-        graph: LayoutGraph,
+        graph: GraphRef,  # layout.graph()
         fleet: list[AGV],
         warehouses: list[Warehouse],
         charging_stations: list[ChargingStation],
@@ -574,8 +595,14 @@ def build_simple_system(
     initial_inventory_a: dict[SKU, int] | None = None,
     initial_inventory_b: dict[SKU, int] | None = None,
     prefix: str = "",  # entity id prefix, to host several systems in one env
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph]: ...
+    layout=None,  # default env.layout
+    nodes=None,  # role -> NodeRef | PortRef, required when the layout already has a network
+    traffic_controller=None,
+    router=None,
+    agv_length: float | None = None,  # required by ReservationController
+) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef]: ...
 ```
 
-Creates a 5-node linear graph (WH_A → N1 → N2 → N3 → WH_B), two
-warehouses, a charging station at N2, and *n_agvs* AGVs starting at N1.
+Builds on `env.layout`. With no declared network it declares a 5-node linear graph (WH_A → N1 → N2 → N3 → WH_B);
+with one, `nodes` maps the roles `WH_A_OUT`, `N1`, `N2`, `N3` and `WH_B_IN` to handles. Two warehouses, a charging
+station at N2, and *n_agvs* AGVs starting at N1, named `vehicle-<i>` (`<prefix>agv-<i>` with a prefix).

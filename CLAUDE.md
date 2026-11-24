@@ -55,6 +55,7 @@ simulatte/
 │   │   ├── replay.py                         # Full-level replay verification
 │   │   └── workers.py, workers_cli.py        # workers.toml and `simulatte workers list|check|setup|prune`
 │   ├── studio/             # Optional Studio server; experiments.py holds the experiment, comparison and replay commands
+│   ├── layout/             # Layout of every environment: placement, generated transport networks, stages, bundle and hashes
 │   ├── builders.py         # Factory functions for system setup
 │   ├── distributions.py    # Statistical distributions
 │   ├── typing.py           # Shared type definitions
@@ -65,12 +66,13 @@ simulatte/
 │   ├── intralogistics/     # Warehouse, AGV fleet, material transport (graph, routing, traffic control, motion, fleet coordinator, metrics, policies)
 │   └── experimental/       # Unstable modules (gymnasium wrapper)
 ├── studio/                 # TypeScript workspace (pnpm): trace reader, playback, scene, export, viewer app (experiments, results, compare panels) and offline player
-├── benchmarks/             # Overhead benchmarks against simulatte 0.12.0 (CI bench job)
+├── benchmarks/             # Overhead benchmarks against simulatte 0.12.0 (CI bench job); layout_overhead.py measures what a layout costs
 ├── examples/               # Runnable example scripts (intralogistics_simple, _intermediate, _advanced, _traffic)
 ├── tests/
 │   ├── core/               # Tests for stable modules
 │   ├── execution/          # Tests for managed execution, experiments' scheduler, workers (fake ssh and uv are POSIX-only)
-│   ├── intralogistics/     # Tests for intralogistics modules
+│   ├── intralogistics/     # Tests for intralogistics modules; random_worlds.py draws random worlds built through the layout, with an independent monitor
+│   ├── layout/             # Tests for the layout package and the documented layout examples
 │   └── experimental/       # Tests for experimental modules
 ├── docs/                   # Website sources (simulatte.dev), built with Zensical
 ├── overrides/              # MkDocs theme overrides
@@ -85,6 +87,8 @@ Simulatte is a discrete-event simulation framework for production planning and c
 ### Core Components
 
 **Environment** (`src/simulatte/environment.py`): SimPy wrapper that carries the event bus (`env.bus`, `env.emit`, `env.wants`), the entity registry (`env.entities`), named RNG streams (`env.rng`, `env.bind`, seeded by `Environment(seed=)`), activation (`env.activate()`, `env.on_activate`; `env.run()` activates on first use, manual `env.step()` needs `env.activate()` first), the semantic digest and run manifest (`env.enable_digest()`, `env.fingerprint()`, `env.manifest()`), KPI collectors (`env.collectors`, `env.configure_kpis`) and per-environment logging through sinks (`simulatte.logsinks`: text/JSON/SQLite/history). Supports a context manager that closes trace recorders and sinks.
+
+**Layout** (`src/simulatte/layout/`): every environment has one layout, `env.layout`, created on first read or at activation (`Layout(env, file=, limits=)` only to give it a file layer or limits, before the first read). It positions entities, holds the transport network and is written to every trace and manifest. A network is declared once with `env.layout.set_network(Explicit(graph) | Lattice(...) | Lanes(...))` before activation (the last declaration before preparation wins); components take handles only (`layout.graph()`, `layout.node(id)`, `layout.node_at(address)`, `layout.port(entity, name)`), and a concrete `LayoutGraph` or `Node` raises `LayoutError`. Physical fields (`agv.current_node`, `fleet.graph`, bays) raise `LayoutNotReady` until `env.layout.prepare()` or `env.activate()` and then hold canonical nodes: compare them with `==`. `import simulatte` imports neither the layout nor the intralogistics graph.
 
 **Events and entities** (`events.py`, `entities.py`): every state change is a typed event (`DomainEvent` with deltas, `ObserverEvent` for logs and KPI samples) registered with `@event_type` and emitted behind `if env.wants(Cls): env.emit(Cls(...))`; event construction must call no user code. Components are entities with ids (`job-<n>`, `server-<n>` or `name=`, builder names `wc-<i>`, `shopfloor`, `router`, `psp` plus `prefix=`). Observers never change results (see `tests/core/test_invariance.py`).
 
@@ -126,7 +130,7 @@ Simulatte is a discrete-event simulation framework for production planning and c
 
 Warehouse-to-warehouse material transport via AGV fleets:
 
-- **LayoutGraph** (`intralogistics/graph.py`): Directed graph of `Node`/`Arc` (`speed_limit`, travelled `length`, `passing`); `length`, `path_length`, `subdivide(max_length)`
+- **LayoutGraph** (`intralogistics/graph.py`): Directed graph of `Node`/`Arc` (`speed_limit`, travelled `length`, `passing`); `length`, `path_length`, `subdivide(max_length)`. Written by hand, it is declared with `Explicit(graph)`; the graph a model runs on is the layout's resolved, read-only one
 - **Warehouse** (`intralogistics/warehouse.py`): Per-SKU inventory, finite pick/put slots, input/output bays
 - **AGV** (`intralogistics/agv.py`): State machine (IDLE, TRAVELING_EMPTY/LOADED, WAITING_LOAD/UNLOAD, CHARGING, STRANDED) with battery and speed profile; `AGVType` carries `length`/`min_gap` (required by `ReservationController`), `corner_speed`, `turn_time` and `idle_power` (lazy; `AGV.battery_level_now()` is the pure read)
 - **Speed and kinematics** (`speed.py`, `kinematics.py`): `SpeedProfile`, `KinematicProfile.limits` -> `Kinematics`, `TrapezoidalProfile`; the pure run planner (`plan_run`, constant-acceleration phases, the `piecewise` motion curve)
@@ -138,7 +142,7 @@ Warehouse-to-warehouse material transport via AGV fleets:
 - **Metrics** (`intralogistics/metrics.py`): bus collectors scoped to a fleet: `OrderEMACollector` (default `coordinator.metrics`: fulfillment time, dispatch delay, travel times), `FleetTimeSeries` (`plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`), `FleetKPIs` and `TrafficKPIs`
 - **Events** (`intralogistics/events.py`): fleet, order, AGV (including `agv.routed`), traffic (`traffic.reserved`/`released`/`wait_started`/`wait_ended`/`wait_stuck`/`deadlock`), warehouse, charging and parking events; `_resources.py` holds SimPy resources that report their changes
 - **Facilities**: `ChargingStation` (`charging.py`), `ParkingArea` (`parking.py`)
-- **Builders** (`intralogistics/builders.py`): `build_simple_system()` for quick setup
+- **Builders** (`intralogistics/builders.py`): `build_simple_system(env)` for quick setup, on `env.layout`; returns a `GraphRef`, AGVs named `vehicle-<i>`
 
 ### Experimental Modules (`experimental/`)
 

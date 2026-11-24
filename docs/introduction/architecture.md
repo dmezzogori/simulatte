@@ -36,12 +36,12 @@ graph TD
 
 ## Intralogistics
 
-A `TransferOrder` is queued in the `FleetCoordinator`, the central orchestrator for all AGV missions. The coordinator assigns an `AGV` via pluggable dispatch and repositioning policies, asks its `Router` for a route across the `LayoutGraph` (a directed graph of nodes and arcs), and moves the AGV as its `TrafficController` grants the nodes, lane segments, zones and corridors it needs: `FreeFlowController`, the default, grants everything at once; `ReservationController` enforces occupancy, with a `TrafficPolicy` for waits and deadlocks. The AGV picks inventory from a source `Warehouse`, transits to the destination, puts it down, and then either recharges at a `ChargingStation` or parks at a `ParkingArea`. Every state change is published as an event on the environment's bus, and the order and time-series metrics are collectors subscribed to it.
+A `TransferOrder` is queued in the `FleetCoordinator`, the central orchestrator for all AGV missions. The coordinator assigns an `AGV` via pluggable dispatch and repositioning policies, asks its `Router` for a route across the graph of the environment's layout (`LayoutGraph`, a directed graph of nodes and arcs, declared on `env.layout`), and moves the AGV as its `TrafficController` grants the nodes, lane segments, zones and corridors it needs: `FreeFlowController`, the default, grants everything at once; `ReservationController` enforces occupancy, with a `TrafficPolicy` for waits and deadlocks. The AGV picks inventory from a source `Warehouse`, transits to the destination, puts it down, and then either recharges at a `ChargingStation` or parks at a `ParkingArea`. Every state change is published as an event on the environment's bus, and the order and time-series metrics are collectors subscribed to it.
 
 ```mermaid
 graph TD
     Env2["Environment"]
-    LG["LayoutGraph<br/>Nodes + Arcs"]
+    LG["Layout network<br/>LayoutGraph: Nodes + Arcs"]
     WH["Warehouse<br/>inventory + bays"]
     TO["TransferOrder"]
     FC["FleetCoordinator<br/>orchestrator"]
@@ -67,6 +67,10 @@ graph TD
     Env2 -.drives.-> AGV
     FC -.records.-> M
 ```
+
+## The layout
+
+Every `Environment` owns a layout, `env.layout`, created on first use or at activation. It positions the entities of the model, holds the transport network of an intralogistics model (declared once with `env.layout.set_network(...)`, and referred to by components through handles), and its resolved form is part of every trace and run manifest. A production-only model needs no layout code. The [Layouts and transport networks guide](../guides/layout.md) covers it.
 
 ## Observability: events, traces and KPIs
 

@@ -1042,7 +1042,7 @@ class _Slot:
 KNOWN_LIMIT = "parking slot kept while charging on the way to park"
 """The known limit: an AGV takes a parking slot when it sets off to park, starts a charge before it gets there (at a
 charger it turned to, or one on its route), and keeps the slot while it charges, until the charge ends (fleet behaviour,
-the same in both modes while explicit mode existed)."""
+pinned by a fingerprint taken while both modes existed)."""
 
 
 class Monitor:

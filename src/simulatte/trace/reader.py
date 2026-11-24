@@ -765,7 +765,7 @@ class Trace:
 
     @property
     def layout(self):
-        """Immutable saved layout, including opaque future versions; None in old/no-layout traces."""
+        """Immutable saved layout, including opaque future versions; None in traces of versions without a layout."""
         return self._layout
 
     def check(self) -> None:

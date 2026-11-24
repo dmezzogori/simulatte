@@ -784,3 +784,34 @@ The AGV traffic work ([traffic design](2026-11-21-agv-traffic-design.md) §12) a
 - **Traffic owner validation by protocol.** A fleet's controller with `controls_occupancy == False` needs no
   registration; `ReservationController` must be the registered owner; any other controller must be registered with
   `register_resource_owner`. The layout's own record of registered owners decides, not the controller's class.
+
+## Layout-only amendment (2026-11-23)
+
+The [layout-only design](2026-11-23-layout-only-models-design.md) amends this specification: from 0.18.0 a model is
+built through its layout and in no other way.
+
+- **`env.layout` always exists.** §4's "`env.layout`, initially `None`" is superseded. The property returns the
+  environment's layout and creates it on first read; activation creates one if nothing did. `Layout(env, *, file=None,
+  limits=LayoutLimits())` and `Layout.from_dict` stay as the way to create the layout with a file layer or limits, and
+  raise when the environment already has a layout or has been activated. A production-only model needs no layout code;
+  its trace and manifest carry the layout like any other.
+- **A3 to A5 and the "Without a Layout" paragraphs are superseded.** A3 stored null in no-layout manifests: the
+  manifest's `layout` is null no more (before activation it reports `{"schema_version": "1.0", "status":
+  "unresolved"}`), and `Trace.layout` is `None` only for traces of earlier versions. A4's condition "when a Layout is
+  attached" holds for every environment: manual `env.step()` needs completed activation, and one traffic controller
+  that controls occupancy serves an environment's one network. A5's read-only rules for bound endpoints hold for every
+  model. The "Without a Layout" paragraph of §10, with its preserved explicit-graph behaviour, constructors, dynamic
+  attachment and the environment graph-use registration hook, is removed together with explicit mode. Components take
+  handles of the environment's layout only, and a concrete `LayoutGraph` or `Node` raises `LayoutError`.
+- **The import rule is narrowed.** §4's rule that `import simulatte` must not import the layout package or the
+  intralogistics graph solely for the `Layout` export stands. Creating or activating an environment may import the
+  layout package, and must not import the intralogistics fleet, traffic, reservation or AGV modules for a model that has
+  no network; the graph and network modules, which the resolver uses for every model, may load.
+- **`Explicit` arcs carry `length`.** `Explicit(graph)` records an arc's `length` when it differs from the chord of its
+  endpoints, and the resolved arc then has exactly that length. Schema 1.1 reads an optional `length` on explicit arcs,
+  a physical input; bundles of explicit networks whose lengths are all chords do not change. `Explicit` also takes
+  `capacities`, a mapping from node id to capacity, and names zone members by node id or pair of ids.
+  Arcs between two nodes at the same position stay rejected.
+- **One network per environment.** The network is declared with `set_network`, once; before preparation a second call
+  replaces the first (the last declaration wins), after preparation it raises. Node capacities and zones are declared
+  with the network, and `ReservationController(capacities=, zones=)` are removed.

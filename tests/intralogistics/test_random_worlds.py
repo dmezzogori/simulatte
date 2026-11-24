@@ -1,5 +1,5 @@
-"""The random worlds of ``random_worlds.py``: a deterministic description, runs that reproduce the fingerprints both
-modes agreed on while explicit mode existed, a monitor that detects a violation."""
+"""The random worlds of ``random_worlds.py``: a deterministic description, runs that reproduce the fingerprints pinned
+while both modes existed, a monitor that detects a violation."""
 
 from __future__ import annotations
 
@@ -189,8 +189,8 @@ def test_the_features_are_named_once():
 
 def test_a_parking_slot_kept_while_charging_on_the_way_to_park_is_the_known_limit_not_a_violation():
     """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0, charges from
-    148.6 to 220.1 and leaves P0 as the charge ends. Fleet behaviour, the same in both modes while explicit mode
-    existed (the fingerprint pinned then)."""
+    148.6 to 220.1 and leaves P0 as the charge ends. Fleet behaviour, pinned by a fingerprint taken while both
+    modes existed."""
     spec = world_spec(619)
     layout = run_world(spec, controller="free", router="shortest")
     assert not layout.violations

@@ -1,19 +1,19 @@
-"""Run the five-node builder through Layout's deferred handle binding.
+"""Run the five-node builder through the layout's deferred handle binding.
 
 Run with: uv run --all-extras python examples/layout_intralogistics.py
-intralogistics_simple.py builds the same system and relies on env.layout without creating a Layout; this example
-creates it first and prepares it before the run.
+intralogistics_simple.py builds the same system and never mentions the layout; this example reads env.layout first
+and prepares it before the run.
 """
 
 from __future__ import annotations
 
-from simulatte import Environment, Layout
+from simulatte import Environment
 from simulatte.intralogistics import FleetKPIs, OrderStatus, build_simple_system
 
 
 def main() -> None:
     with Environment(seed=17) as env:
-        layout = Layout(env)
+        layout = env.layout
         fleet, agvs, origin, destination, graph_ref = build_simple_system(env)
         assert graph_ref == layout.graph()
         kpis = FleetKPIs(fleet).attach(env)

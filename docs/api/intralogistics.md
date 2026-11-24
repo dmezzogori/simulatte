@@ -7,6 +7,8 @@ For a conceptual overview and worked examples, see the
 
 ## Layout
 
+`Node`, `Arc` and `LayoutGraph` are how an explicit network is written. They are declared on the environment's layout with `env.layout.set_network(Explicit(graph))` (see the [layout API](layout.md)); components take handles of the layout (`layout.graph()`, `layout.node(id)`), never these objects.
+
 ::: simulatte.intralogistics.Node
     options:
       heading_level: 3
@@ -58,7 +60,7 @@ A router finds the routes of a fleet's travels and its cost ranks the candidates
 
 ## Traffic
 
-A traffic controller grants each AGV the resources it needs to move. `FreeFlowController` is the default; `ReservationController` enforces the occupancy of nodes, segments, zones and corridors. See the [traffic section of the guide](../guides/intralogistics.md#traffic-control).
+A traffic controller grants each AGV the resources it needs to move. `FreeFlowController` is the default; `ReservationController` enforces the occupancy of nodes, segments, zones and corridors. Node capacities and zones are declared with the network on the layout, not on the controller (see the [layout guide](../guides/layout.md#traffic-fields-schema-11)); `Zone` is the value the controller takes from it. See the [traffic section of the guide](../guides/intralogistics.md#traffic-control).
 
 ::: simulatte.intralogistics.TrafficController
     options:

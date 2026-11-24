@@ -39,8 +39,9 @@ use the `simulatte:dev` skill instead.
 
 ## Quick setup
 
-`build_simple_system()` creates a 5-node linear graph, 2 warehouses, and
-a fleet with sensible defaults. Good for smoke tests and prototyping.
+`build_simple_system()` declares a 5-node linear network on `env.layout`, and
+builds 2 warehouses and a fleet with sensible defaults on handles of it. Good for
+smoke tests and prototyping. Its AGVs are named `vehicle-<i>`.
 
 ```python
 from simulatte.environment import Environment
@@ -62,18 +63,20 @@ ids, graph node ids) share one namespace per environment and must not look like
 
 ## Manual composition
 
-For custom layouts, follow this sequence:
+Every environment has a layout, `env.layout`. For custom layouts, follow this sequence:
 
 1. **Define nodes** with (x, y) coordinates in meters
 2. **Define arcs** between nodes (bidirectional or one-way)
-3. **Create `LayoutGraph`**
+3. **Create `LayoutGraph`** and declare it with `env.layout.set_network(Explicit(graph))` before activation
 4. **Define SKUs** with weight and volume
-5. **Create warehouses** with input/output bays, inventory, pick/put times
+5. **Create warehouses** with input/output bays (handles `layout.node("ID")`), inventory, pick/put times
 6. **Create AGV type and fleet** with speed profile and battery config
 7. **Create facilities** (parking areas, charging stations)
-8. **Create `FleetCoordinator`** with policies and metrics
+8. **Create `FleetCoordinator`** with `graph=layout.graph()`, policies and metrics
 9. **Wire replenishment** if needed
 10. **Start order processes** and run
+
+Components take handles of the layout, never `Node` or `LayoutGraph` objects: a concrete one raises `LayoutError`.
 
 ```python
 from simulatte.environment import Environment
@@ -98,6 +101,7 @@ from simulatte.intralogistics import (
     FastestRouter,  # optional: routing by travel time
     TrafficKPIs,
 )
+from simulatte.layout import Explicit
 ```
 
 See `references/api-reference.md` for all constructor signatures.
@@ -121,7 +125,14 @@ arcs = [
     Arc(wh_out, c1, bidirectional=True),
 ]
 graph = LayoutGraph([wh_in, wh_out, c1], arcs)
+
+layout = env.layout
+layout.set_network(Explicit(graph))  # once, before activation; a second call before preparation replaces the first
+# Components take handles: layout.graph(), layout.node("WH_IN")
 ```
+
+`Lattice(...)` and `Lanes(...)` are the other two declarations (see the layout guide). An arc between two nodes at the
+same position is rejected: model a lift or a transfer point with a small offset and an explicit `length`.
 
 ### Layout rules
 
@@ -136,8 +147,15 @@ charging station on the node gives it its capacity), or activation raises
 `RuntimeError`.
 
 **Warehouse bays are graph nodes.** Each warehouse has `input_bays` and
-`output_bays` — lists of nodes. AGVs travel to an output bay to pick and
-to an input bay to deliver.
+`output_bays` — sequences of node handles (`layout.node("ID")`). AGVs travel to
+an output bay to pick and to an input bay to deliver.
+
+**Physical fields exist after preparation.** `agv.current_node`, `fleet.graph`,
+`controller.graph`, bays, `station.node` and `area.node` raise `LayoutNotReady`
+until `env.layout.prepare()` or `env.activate()`. They hold canonical nodes: equal
+to the ones you declared and different objects, so compare with `==`, not `is`.
+Declaring the network or building the first fleet after activation raises
+`LayoutError`; build them first. `env.step()` needs `env.activate()` first.
 
 ### Traffic control
 
@@ -146,20 +164,24 @@ each other:
 
 - `FreeFlowController` (default): every move is granted at once; AGVs share
   nodes and lanes and never wait. Use it when traffic is not studied.
-- `ReservationController(env=, graph=, node_capacity=1, capacities=None,
-  zones=(), derive_corridors=True, hold_back_dead_ends=True, policy=None,
+- `ReservationController(env=, graph=layout.graph(), node_capacity=1,
+  derive_corridors=True, hold_back_dead_ends=True, policy=None,
   priority_fn=None)`: AGVs claim nodes, lane segments, zones and derived
   corridors all or nothing, wait when they cannot, and deadlocks are
   detected and resolved by `StandardTrafficPolicy` (reroute, step aside,
   give up). Every `AGVType` needs a `length` (and optionally `min_gap`), or
   `register_fleet` raises `ValueError`. Build it before the coordinator and
-  pass the same instance to every fleet on the graph.
+  pass the same instance to every fleet: an environment has one network.
+  Node capacities and zones are declared with the network
+  (`Explicit(graph, capacities={"N1": 2}, zones={"z": {"capacity": 1,
+  "members": ["N1", ("N1", "N2")]}})`), not on the controller.
 
 Design the layout for it: two vehicles cannot pass on a single lane, so give
 them passing places (a siding, or a `passing=True` arc whose end nodes have
 room for two), capacity above 1 on junctions and bays, parking areas off the
-main lanes, and one-way loops around bays. `LayoutGraph.subdivide(max_length)`
-splits long arcs into blocks. `TrafficKPIs(coordinator).attach(env)` counts
+main lanes, and one-way loops around bays. `block_length` in the network
+declaration splits long arcs into blocks (`LayoutGraph.subdivide(max_length)`
+does the same to a graph before `Explicit`). `TrafficKPIs(coordinator).attach(env)` counts
 blocked time, waits, deadlocks (resolved and unresolved), stuck waits,
 reroutes and make-way moves; `traffic.deadlock` and `traffic.wait_stuck`
 events say what happened. A deadlock no reaction resolves stands
@@ -442,6 +464,15 @@ case distances to the nearest charger.
 AGVs need to return after delivery. If all corridors are one-way in the
 same direction, AGVs get trapped. Use bidirectional arcs for main
 corridors; reserve one-way for bypass routes.
+
+**Reading a physical field too early.**
+`agv.current_node` right after construction raises `LayoutNotReady`; call
+`env.layout.prepare()` first, or read it after the run starts.
+
+**More than 100,000 entities before activation.** Entities (jobs and orders
+included) created before activation are layout targets; past
+`LayoutLimits.max_placements` preparation raises `LayoutError`. Use
+`Layout(env, limits=...)` before anything reads `env.layout`.
 
 **Multiple AGVs at one node under `ReservationController`.**
 At activation the controller places each AGV and requires an immediate grant.

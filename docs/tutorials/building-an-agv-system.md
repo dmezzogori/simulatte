@@ -21,8 +21,11 @@ STORE_OUT(0,0) -- C1(10,0) -- C2(20,0) -- LINE_IN(30,0)
 ```
 
 ```python
+from simulatte.environment import Environment
 from simulatte.intralogistics import Arc, LayoutGraph, Node
 from simulatte.layout import Explicit
+
+env = Environment()
 
 store_out = Node(id="STORE_OUT", x=0.0, y=0.0)
 c1 = Node(id="C1", x=10.0, y=0.0)

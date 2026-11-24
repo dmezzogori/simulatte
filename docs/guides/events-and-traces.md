@@ -139,7 +139,7 @@ If you drive the simulation manually with `env.step()` instead of `env.run()`, c
 
 The **semantic digest** is a BLAKE2b hash of the initial state and of every domain event (time, payload and deltas, without display-only fields such as labels). Two runs have the same digest exactly when they have the same trajectory, whatever else observes them, and across `PYTHONHASHSEED` values. Enable it with `env.enable_digest()` (before activation); a `TraceRecorder` enables it too.
 
-`env.fingerprint()` returns the digest and the KPI scalars of every attached collector, namespaced by scope. The **manifest** records what is needed to reproduce a run: Simulatte version, Python and platform, dependencies, the RNG derivation, the seed (as a decimal string), the time unit and warm-up and, once a run finished, the stopping policy. A manifest is **complete** when nothing in it is unavailable: pass a `Provenance` with hashes of your model, source, inputs and dependencies, and use no opaque sampler.
+`env.fingerprint()` returns the digest and the KPI scalars of every attached collector, namespaced by scope. The **manifest** records what is needed to reproduce a run: Simulatte version, Python and platform, dependencies, the RNG derivation, the seed (as a decimal string), the time unit and warm-up, the schema and hashes of the layout and, once a run finished, the stopping policy. Every environment has a layout (see the [layout guide](layout.md)); before activation the manifest reports it as `{"schema_version": "1.0", "status": "unresolved"}`. A manifest is **complete** when nothing in it is unavailable: pass a `Provenance` with hashes of your model, source, inputs and dependencies, and use no opaque sampler.
 
 ```python
 from simulatte import Provenance
@@ -204,6 +204,7 @@ for event in trace.events(start, (1.0, 10**9)):  # events with start < (t, seq) 
 - `kpi_series_display` exposes separate `interpolation` and `missing` rules. These are optional format 1.2 metadata; older traces use previous-sample display and gaps for missing samples.
 - `kpi_declarations` maps `scope/name` to immutable metadata: unit, kind, description and observation settings. Older traces return an empty map.
 - `kpis()` returns the scalars and `kpi_series()` the samples of the KPI records.
+- `layout` is the resolved layout bundle that every trace written by this version carries in its initial state, for production-only models too. It is `None` only for traces of earlier versions, which have none; Studio draws those on a labelled fallback grid.
 - `check()` validates the container (checksums, index, limits) and raises `TraceCorrupted` on damage.
 - `verify()` recomputes the digest from the initial state and the events and compares it with the footer: `True`, `False`, or `"not_verifiable"` for `kpi` traces and traces without a footer.
 
