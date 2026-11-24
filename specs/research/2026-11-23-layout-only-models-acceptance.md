@@ -1332,8 +1332,8 @@ section are not part of this task. No event, digest, bundle or hash of any model
 | 2. Probes of a handle | Reading a physical attribute of a handle (the thirteen names: `id`, `x`, `y`, `z`, `nodes`, `neighbors`, `arc_between`, `distance`, `length`, `path_length`, `path_distance`, `shortest_path`, `subdivide`) raises a private class derived from `LayoutNotReady` and `AttributeError`. `hasattr` is False, `getattr` with a default returns it, a direct read raises the same message, and `except LayoutNotReady` and `except LayoutError` still catch it. `env.entities.is_live(handle)` is False again. No public name is added. |
 | 3a. `place`, `flow`, `port`, `retire` | Each answers a handle with a message that says what the call takes; `layout.place` with a node handle of an explicit id adds `layout.place('A', kind='node', ...)`. `layout.port` had the same fault and is changed with them. |
 | 3b. Refused nodes | The refusal after the identity check is chosen by `Layout._refused_node` (the accepted path is unchanged): equal to the canonical node (keeps the `fleet.graph` advice); disabled; an id that is not in the network; an id of the network at another position; an object that is not a `Node`; a layout with no resolved network. |
-| 3c. Controller of another environment | The layout recognises a built-in `ReservationController` that is not registered with it (it registers with the layout of its own environment at construction); any other unregistered controller is told to register, whatever private attributes it has. |
-| 3d. `Trace.layout` | Docstring: "None for a trace without an INITIAL record: one of a version without a layout, one whose activation failed before the initial state was recorded (outcome ``failed``), and one whose recorder was closed on an environment that was never activated (outcome ``completed``)." |
+| 3c. Controller of another environment | The layout recognises a built-in `ReservationController` that is not registered with it (it registers with the layout of its own environment at construction); any other unregistered controller is told to register, whatever private attributes it has. A `ReservationController` subclass that never ran the constructor carries no environment and is told to register (fix round 1: the first version told it it belonged to another environment). |
+| 3d. `Trace.layout` | Docstring (corrected in fix round 1; the first wording said earlier traces have no INITIAL record, and the frozen fixtures have one): "None when the trace has no INITIAL record (an activation that failed before the initial state was recorded, outcome ``failed``; a recorder closed on an environment that was never activated, outcome ``completed``) or when its INITIAL record carries no layout (traces of versions without a layout)." The test checks the three facts (a frozen fixture, a failed activation, a never-activated recorder). |
 
 Differences from the brief, found while doing it:
 
@@ -1345,8 +1345,9 @@ Differences from the brief, found while doing it:
   layout holds no registry of other layouts. A node of another network is told it is not a node of this network when
   its id is absent, that it lies elsewhere when its id is present at another position, and, when it is equal to the
   canonical node, that it is "one the script built, or one of another environment's network".
-- `ReservationController` has no public `env`; the layout decides from the class of a controller it did not register,
-  looked up only if its module is imported.
+- `ReservationController` has no public `env`; the layout decides from the class of a controller it did not register
+  (looked up only if its module is imported) and the environment its constructor set (`_env`, read only for that
+  class): a built-in controller of another environment is told so, anything else unregistered is told to register.
 - Of the five `getattr(obj, "id", None)` idioms, four are reached with a handle and tested (`attach`, `retire`,
   `is_live`, a collector's scope); the fifth (`layout/binding.py`, the `target` of the not-ready error) takes a
   component and is never given a handle.
@@ -1364,3 +1365,13 @@ layout examples and `layout_safety.py --worlds 300` from 100000 and from 2000000
 `--first 100000 --worlds 200` (1,200 runs, 1,361,222 events, no violation, 3 runs with the parking-slot limit) is
 identical apart from the wall-clock line, exit 0 each. The hash and bundle pins and the six fingerprints of
 `tests/intralogistics/test_random_worlds.py` hold unchanged (full suite).
+
+Fix round 1 (after the scoped review of A): `Trace.layout` docstring and its test corrected as in the 3d row; the
+other-environment message only for a `ReservationController` that carries another environment, with a test of a
+subclass that never ran the constructor; the place, flow, port and retire messages say a handle "stands for a part of
+the layout" (true for `GraphRef`, `NodeRef`, `PortRef` and `ValueRef`, all four now used by the tests); a refused node on
+a layout whose network is declared and not prepared is told to call `env.layout.prepare()` or `env.activate()`, and one
+on a layout with no network to declare it. The added tests are: `test_handles_only.py` 4 (the old one changed to four
+handle kinds), `test_binding.py` 3, `test_trace.py` 1 (replacing a docstring check). Full suite at `d3723c3`: `Required
+test coverage of 99% reached. Total coverage: 99.19%`; `4975 passed, 1 skipped, 3 warnings in 452.89s (0:07:32)`;
+`ruff check src tests benchmarks`, `ruff format --check` (532 files) and `ty check src` clean.
