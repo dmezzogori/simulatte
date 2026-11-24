@@ -133,9 +133,12 @@ see "Changed", "Removed" and "Migration".
   are read-only afterwards (bays are tuples). The objects are the canonical nodes and graph of the resolved network:
   equal to the ones you declared and different objects, so compare with `==`. `agv.current_node = node` takes a
   canonical node of the resolved network only. `repr()` of a component never raises.
-- **The layout is finalized at activation.** Declaring the network or building the first fleet after `env.activate()`
-  or the first `env.run()` raises `LayoutError`. Components that take handles may still be added later and resolve at
-  once; a `ReservationController` may not.
+- **The layout is finalized at activation.** Declaring the transport network after `env.activate()` or the first
+  `env.run()` raises `LayoutError`. That includes `build_simple_system(env)`, which declares one, and a first fleet (or
+  a node handle, or `layout.graph()`) when no network was declared before activation. A fleet built after activation on
+  a network declared before it works, as do other components with handles, which resolve at once; a
+  `ReservationController` built after preparation raises. `env.on_activate(env.step)` now raises `LayoutError` where it
+  raised `RuntimeError`.
 - `Explicit` keeps `Arc.length`: a length that differs from the chord of the arc's nodes is recorded (schema 1.1 reads
   an optional `length` on explicit arcs, which enters the physical hash), so an arc longer than its chord keeps its
   length, and a graph from `LayoutGraph.subdivide` keeps the lengths of its pieces. With `block_length` the pieces of an
@@ -155,7 +158,7 @@ see "Changed", "Removed" and "Migration".
   `Layout(env, limits=...)`; close to that number the INITIAL record of a recorded run approaches the 64 MiB of
   `TraceRecorder(max_initial_bytes=)` (99,990 jobs take about 60 MB). Entities created during the run are not targets.
 - A model pays nothing per event for its layout. Activation of a production model takes about 0.5 ms at 10 servers and
-  about 49 ms at 1,600. `ResolvedLayout.bundle` and the hashes are built when first read: a recorded run builds them
+  about 50 ms at 1,600 (timings on a development machine). `ResolvedLayout.bundle` and the hashes are built when first read: a recorded run builds them
   once, at INITIAL, and a run that nobody records and whose manifest nobody reads never builds them. A model error
   still raises at preparation.
 - A stage or binder name must be a nonempty string without NUL or a lone surrogate; any other name raises
@@ -196,6 +199,8 @@ see "Changed", "Removed" and "Migration".
 | `FleetCoordinator(traffic_manager=, path_planner=)` | `FleetCoordinator(traffic_controller=, router=, clear_service_nodes=, lookahead_margin=)` |
 | `DispatchStrategy.select(order, fleet, graph)` | `select(order, fleet, context)` |
 
+`graph=` and every node argument of these replacements take handles of `env.layout`; see the second table below.
+
 - `AGVType.length` is required with `ReservationController`: `register_fleet` raises `ValueError` naming a vehicle
   type without one. `FreeFlowController`, the default, does not need it. With a length of 0 (and no `min_gap`) a node is
   released the instant the AGV leaves it.
@@ -210,8 +215,8 @@ Models built with concrete objects no longer run. Build them through the layout:
 
 | Before | After |
 |---|---|
-| `graph = LayoutGraph(nodes, arcs)` passed to components | `env.layout.set_network(Explicit(LayoutGraph(nodes, arcs)))`, then `graph = env.layout.graph()` |
-| `Warehouse(input_bays=[node])`, `AGV(initial_node=node)`, `ChargingStation(node=node)`, `ParkingArea(node=node)` | `env.layout.node("id")` in place of the node |
+| `graph = LayoutGraph(nodes, arcs)` passed to components | `from simulatte.layout import Explicit`, then `env.layout.set_network(Explicit(LayoutGraph(nodes, arcs)))`, then `graph = env.layout.graph()`. This `graph` is a handle for components (`graph=`), not a readable graph: `graph.nodes` and `len(graph.nodes)` raise `LayoutNotReady`. Read the resolved graph as `fleet.graph` (or `env.layout.prepare().network.graph`) after `env.layout.prepare()` or `env.activate()` |
+| `Warehouse(input_bays=[node])`, `AGV(initial_node=node)`, `ChargingStation(node=node)`, `ParkingArea(node=node)` | `env.layout.node("id")` in place of the node; for a `Node` you already hold, `env.layout.node(node.id)` |
 | Reading `agv.current_node` or `fleet.graph` right after construction | Read it after `env.layout.prepare()` or `env.activate()` |
 | `agv.current_node is my_node` | `agv.current_node == my_node` |
 | `wh.input_bays.append(node)` | Declare the bays at construction; endpoints are frozen |
@@ -219,7 +224,7 @@ Models built with concrete objects no longer run. Build them through the layout:
 | `ReservationController(capacities={node: 2}, zones=[Zone(...)])` | `Explicit(graph, capacities={"N1": 2}, zones={"z": {"capacity": 1, "members": ["N1", ("N1", "N2")]}})` (a member is a node id or a pair of ids), or the `capacity` and `zones` of `Lattice` and `Lanes`; `node_capacity=` stays |
 | An arc between two nodes at the same position | A small offset between the nodes and an explicit `length` on the arc |
 | `env.step()` on a fresh environment | `env.activate()` first |
-| Building the transport network or the first fleet after `env.activate()` or the first `env.run()` | Declare the network on `env.layout` before activation; components with handles may still be added later |
+| Declaring the transport network after `env.activate()` or the first `env.run()` (also through a builder, or a first fleet when no network was declared) | Declare the network on `env.layout` before activation; fleets and other components with handles may still be added later |
 | `env.layout is None` or `getattr(env, "layout", None)` as a check | Every environment has a layout; reading `env.layout` creates it |
 | `graph` returned by `build_simple_system(env)` used as a `LayoutGraph` | It is a `GraphRef`; read `fleet.graph` after preparation |
 | `Layout(env)` to give a production model a layout | `env.layout`, or nothing: activation creates it. Keep `Layout(env, file=..., limits=...)` for a file layer or limits |
@@ -239,6 +244,31 @@ The statements that go with the table:
 The two-node model of the [layout guide](docs/guides/layout.md), before:
 
 ```python
+from simulatte import Environment
+from simulatte.intralogistics import (
+    AGV,
+    AGVType,
+    Arc,
+    FleetCoordinator,
+    LayoutGraph,
+    Node,
+    ReservationController,
+    SKU,
+    TrapezoidalProfile,
+    Warehouse,
+)
+
+env = Environment(seed=7)
+box = SKU("box", weight=1.0, volume=0.1)
+cart = AGVType(
+    name="cart",
+    speed_profile=TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0),
+    battery_capacity=100.0,
+    weight_capacity=10.0,
+    volume_capacity=1.0,
+    length=1.0,
+)
+
 a, b = Node("a", 0, 0), Node("b", 20, 0)
 graph = LayoutGraph([a, b], [Arc(a, b, bidirectional=True)])
 store = Warehouse(
@@ -274,11 +304,38 @@ fleet = FleetCoordinator(
     traffic_controller=traffic,
 )
 assert agv.current_node is a
+print(len(graph.nodes))
 ```
 
 and after:
 
 ```python
+from simulatte import Environment
+from simulatte.intralogistics import (
+    AGV,
+    AGVType,
+    Arc,
+    FleetCoordinator,
+    LayoutGraph,
+    Node,
+    ReservationController,
+    SKU,
+    TrapezoidalProfile,
+    Warehouse,
+)
+from simulatte.layout import Explicit
+
+env = Environment(seed=7)
+box = SKU("box", weight=1.0, volume=0.1)
+cart = AGVType(
+    name="cart",
+    speed_profile=TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0),
+    battery_capacity=100.0,
+    weight_capacity=10.0,
+    volume_capacity=1.0,
+    length=1.0,
+)
+
 a, b = Node("a", 0, 0), Node("b", 20, 0)
 layout = env.layout
 layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, bidirectional=True)])))
@@ -316,6 +373,7 @@ fleet = FleetCoordinator(
 )
 layout.prepare()
 assert agv.current_node == a
+print(len(fleet.graph.nodes))  # the resolved graph; `layout.graph()` is only a handle
 ```
 
 ## 0.17.0 — 2026-10-13

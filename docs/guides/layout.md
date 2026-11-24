@@ -47,7 +47,7 @@ INITIAL record of a recorded run approaches `TraceRecorder`'s `max_initial_bytes
 take about 60 MB).
 
 A model pays nothing per event for its layout. Activation of a production model takes about 0.5 ms at 10 servers and
-about 49 ms at 1,600. The bundle and its hashes are built on first read: a recorded run builds them once, at
+about 50 ms at 1,600, measured on a development machine. The bundle and its hashes are built on first read: a recorded run builds them once, at
 INITIAL, and a run that nobody records and whose manifest nobody reads never builds them.
 
 ## Declaring a transport network
@@ -65,8 +65,9 @@ several disconnected regions declares their union in one call. A second `set_net
 the first: the last declaration wins. After preparation it raises `LayoutError`.
 
 The layout is finalized when it is prepared, by `layout.prepare()`, `env.activate()` or the first `env.run()`.
-Declare the network, and build the first fleet, before that; afterwards `set_network` raises `LayoutError`. Components
-that take handles may still be added later and resolve at once.
+Declare the network before that; afterwards `set_network` raises `LayoutError`, also through `build_simple_system`,
+which declares one, and through a first fleet when no network was declared. Fleets and other components that take
+handles (see [Handles](#handles)) may still be added later on a network declared before and resolve at once.
 
 `Explicit(graph, *, clearance=0, blocked=None, capacity=None, capacities=None, block_length=None, zones=None)` copies
 each node's id and position and, for each arc, its direction, `speed_limit`, `passing` and `length`. An arc's length
@@ -76,7 +77,8 @@ ids, and `block_length` splits long arcs (see [traffic fields](#traffic-fields-s
 position cannot be joined by an arc: a lift or a transfer point is a small offset between the nodes and an explicit
 `length` on the arc.
 
-The model below has two nodes, a warehouse at each, one vehicle and a `ReservationController`:
+The model below has two nodes, a warehouse at each, one vehicle and a `ReservationController`. Its components take
+`layout.node("a")` and `layout.graph()`, handles described under [Handles](#handles):
 
 ```python { .run }
 from simulatte import Environment
@@ -186,7 +188,7 @@ network and nothing else.
 
 After preparation the network and the static endpoints are read-only: bays are tuples, and `fleet.graph`,
 `controller.graph`, `station.node` and `area.node` cannot be assigned. An AGV moves among canonical nodes. Declaring
-the network or building the first fleet after activation raises `LayoutError`. A component constructed after
+the network after activation raises `LayoutError`. A component constructed after
 preparation resolves its handles at once and may attach to the frozen network, but cannot change it; a
 `ReservationController` constructed then raises, because it takes the network's resources at binding. Graph
 coordinates stay authoritative: placement positions in a file or on node-bound AGVs do not move the nodes of the
@@ -372,8 +374,9 @@ reachability is checked for every `require_path` pair. A declared network is gen
 ## Stages and physical reads
 
 Stages may create entity counts from explicit resolved inputs, including file edits. Declare every read;
-`after` supplies stage dependencies. The `declare` stage precedes user stages. A stage or binder name must be a
-nonempty string without NUL or a lone surrogate; any other name raises `LayoutError` where it is declared. A stage cannot read its own
+`after` supplies stage dependencies. The `declare` stage precedes user stages, and `declare` is not a valid
+stage name. A stage or binder name must be a nonempty string without NUL or a lone surrogate; any other name raises
+`LayoutError` where it is declared. A stage cannot read its own
 outputs, future targets or auto defaults. Each stage freezes its complete output placements, including absent
 leaves; later stages cannot add a property to one of those targets.
 

@@ -154,8 +154,9 @@ an output bay to pick and to an input bay to deliver.
 `controller.graph`, bays, `station.node` and `area.node` raise `LayoutNotReady`
 until `env.layout.prepare()` or `env.activate()`. They hold canonical nodes: equal
 to the ones you declared and different objects, so compare with `==`, not `is`.
-Declaring the network or building the first fleet after activation raises
-`LayoutError`; build them first. `env.step()` needs `env.activate()` first.
+Declaring the network after activation raises `LayoutError` (also through
+`build_simple_system`, or a first fleet when no network was declared); fleets with
+handles may be added later on a network declared before activation. `env.step()` needs `env.activate()` first.
 
 ### Traffic control
 
