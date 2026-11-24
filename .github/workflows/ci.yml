@@ -262,10 +262,10 @@ jobs:
       # Noise bands were checked against PR #43 and the first successful main runner artifacts
       # (specs/research/2026-10-10-pre-013-hardening.md). Keep 2% CPython; use 7% PyPy (upward bootstrap bound 6.22pp);
       # calibration uses upward ratio uncertainty (false failures), not the full timing range.
-      # Original G3 calibration: specs/research/sp1-g3-report.md §3. The stripped baseline's budget is
-      # tightened after the tuning of D56 (G3 report §9): 6.5 % on CPython (was 10 %), 3 % on PyPy (the floor).
-      # The CPython budget is 10.5 % since D106 (2026-11-24): the pooled worst case measured on the development
-      # machine, 8.45 %, plus 2.0 points of headroom, as in §9; the limit is 12.5 % with the 2 % band.
+      # Original G3 calibration: specs/research/sp1-g3-report.md §3. The stripped baseline's CPython budget was 10 %,
+      # was tightened to 6.5 % after the tuning of D56 (G3 report §9; PyPy 3 %, the floor) and is 10.5 % since D106
+      # (2026-11-24): the pooled worst case measured on the development machine, 8.45 %, plus 2.0 points of
+      # headroom, as in §9. The limit against the stripped copy is 12.5 % on CPython with the 2 % band (was 8.5 %).
       BUDGET_RELEASED: "0.03"
       NOISE_RELEASED: ${{ matrix.pypy && '0.07' || '0.02' }}
       BUDGET_STRIPPED: ${{ matrix.pypy && '0.03' || '0.105' }}
