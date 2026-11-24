@@ -789,3 +789,37 @@ def test_an_invalid_stage_or_binder_name_raises_where_it_is_declared(monkeypatch
         else:
             layout.stage("valid", reads=(), after=(name,))(lambda ctx: None)
     layout.prepare()
+
+
+@pytest.mark.parametrize("nodes", [4, 40])
+def test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_once(monkeypatch, nodes):
+    """A patch is checked against the schema when it is declared (spec §9: validation of the declared inputs stays at
+    declaration and preparation); the resolutions of a preparation take the checked patches as they are, and the
+    network view, which preparation asks for twice with the same layers and targets, is resolved once."""
+    from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+    from simulatte.layout import Explicit
+    from simulatte.layout import layers as layers_module
+
+    checks, resolutions = [], []
+    parse = layers_module.parse_patch
+    monkeypatch.setattr(layers_module, "parse_patch", lambda data, **k: checks.append(data) or parse(data, **k))
+    for module in (lifecycle, facade_module):
+        resolve = module.resolve_layers
+
+        def counted(*args, resolve=resolve, **kwargs):
+            resolutions.append((kwargs.get("final", False), len(args) > 2 and args[2] is not None))
+            return resolve(*args, **kwargs)
+
+        monkeypatch.setattr(module, "resolve_layers", counted)
+
+    env = Environment()
+    path = [Node(f"n{i}", float(i), 0.0) for i in range(nodes)]
+    env.layout.set_network(Explicit(LayoutGraph(path, [Arc(a, b) for a, b in zip(path, path[1:])])))
+    assert [data for data in checks if "network" in data]  # declaring the network checked its patch
+    checks.clear()
+    resolutions.clear()
+    result = env.layout.prepare()
+    assert not [data for data in checks if "network" in data]  # preparing checked it no more
+    assert len(result.network.graph.nodes) == nodes
+    # the final resolutions: the network view once, the layers with the final targets, and the one with the auto layer
+    assert sorted(resolutions) == [(False, False), (True, False), (True, False), (True, True)]

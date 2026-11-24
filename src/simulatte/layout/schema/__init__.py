@@ -13,7 +13,7 @@ import re
 from collections.abc import Mapping
 from functools import lru_cache
 from importlib.resources import files
-from typing import Any
+from typing import Any, NoReturn
 
 from ..errors import LayoutError
 
@@ -59,10 +59,14 @@ def _copy(value: Any, path: tuple[str, ...], depth: int, max_nesting: int) -> An
     raise LayoutError(f"{'/'.join(('$', *path))}: expected JSON data", code="schema-error", path=path)
 
 
+class _Mismatch(Exception):
+    """A value does not match a rule, in a validation whose message nobody reads (a branch of ``oneOf``/``anyOf``)."""
+
+
 def _matches(value: Any, rule: dict[str, Any], path: tuple[str, ...]) -> bool:
     try:
-        _validate(value, rule, path)
-    except LayoutError:
+        _validate(value, rule, path, quiet=True)
+    except _Mismatch:
         return False
     return True
 
@@ -78,64 +82,102 @@ def _json_key(value: Any) -> tuple[Any, ...]:
     return ("scalar", value)
 
 
-def _validate(value: Any, rule: dict[str, Any], path: tuple[str, ...]) -> None:
+_KINDS = {
+    "object": lambda value: isinstance(value, dict),
+    "array": lambda value: isinstance(value, list),
+    "string": lambda value: isinstance(value, str),
+    "number": lambda value: type(value) in (int, float),
+    "integer": lambda value: type(value) in (int, float) and value % 1 == 0,
+    "boolean": lambda value: type(value) is bool,
+}
+
+
+_DISCRIMINATORS: dict[int, tuple[list[dict[str, Any]], tuple[Any, ...] | None]] = {}
+
+
+def _branches_of_kind(branches: list[dict[str, Any]], kind: Any) -> list[dict[str, Any]]:
+    """The branches that a value whose ``kind`` is `kind` can match.
+
+    When every branch fixes ``kind`` to a constant (the addresses and selectors), a branch with another constant rejects
+    the value at its ``kind`` property whatever else the value holds, so it is not evaluated; the number of matching
+    branches is the same. Branches of any other shape are all kept.
+    """
+    entry = _DISCRIMINATORS.get(id(branches))  # the entry keeps `branches` alive, so its id is not reused
+    if entry is None:
+        consts: list[Any] | None = []
+        for branch in branches:
+            fixed = branch.get("properties", {}).get("kind", {})
+            if "const" not in fixed:
+                consts = None
+                break
+            consts.append(fixed["const"])
+        entry = _DISCRIMINATORS[id(branches)] = (branches, None if consts is None else tuple(consts))
+    consts_of = entry[1]
+    if consts_of is None:
+        return branches
+    return [
+        branch
+        for branch, const in zip(branches, consts_of)
+        if kind == const and isinstance(kind, bool) == isinstance(const, bool)
+    ]
+
+
+def _fail(path: tuple[str, ...], message: str, quiet: bool) -> NoReturn:
+    """Reject the value at `path`; when `quiet` the caller only needs to know that it does not match."""
+    if quiet:
+        raise _Mismatch
+    raise LayoutError(f"{'/'.join(('$', *path))}: {message}", code="schema-error", path=path)
+
+
+def _validate(value: Any, rule: dict[str, Any], path: tuple[str, ...], quiet: bool = False) -> None:
     if not rule:
         return
-
-    def fail(message: str) -> None:
-        raise LayoutError(f"{'/'.join(('$', *path))}: {message}", code="schema-error", path=path)
-
     if "$ref" in rule:
-        _validate(value, _schema()["$defs"][rule["$ref"].removeprefix("#/$defs/")], path)
+        _validate(value, _schema()["$defs"][rule["$ref"].removeprefix("#/$defs/")], path, quiet)
     for keyword in ("oneOf", "anyOf"):
         if keyword in rule:
-            matches = sum(_matches(value, branch, path) for branch in rule[keyword])
+            branches = rule[keyword]
+            if isinstance(value, dict) and "kind" in value:
+                branches = _branches_of_kind(branches, value["kind"])
+            matches = sum(_matches(value, branch, path) for branch in branches)
             if matches == 0 or (keyword == "oneOf" and matches != 1):
-                fail(f"does not match {keyword} schema branches")
+                _fail(path, f"does not match {keyword} schema branches", quiet)
     kind = rule.get("type")
-    checks = {
-        "object": isinstance(value, dict),
-        "array": isinstance(value, list),
-        "string": isinstance(value, str),
-        "number": type(value) in (int, float),
-        "integer": type(value) in (int, float) and value % 1 == 0,
-        "boolean": type(value) is bool,
-    }
-    if kind is not None and not checks[kind]:
-        fail(f"expected {kind}")
+    if kind is not None and not _KINDS[kind](value):
+        _fail(path, f"expected {kind}", quiet)
     if "const" in rule and (value != rule["const"] or (isinstance(value, bool) != isinstance(rule["const"], bool))):
-        fail("unexpected constant")
+        _fail(path, "unexpected constant", quiet)
     if "enum" in rule and value not in rule["enum"]:
-        fail("unexpected value")
+        _fail(path, "unexpected value", quiet)
     if isinstance(value, dict):
         if any(key not in value for key in rule.get("required", ())):
-            fail("missing required field")
+            _fail(path, "missing required field", quiet)
         for key, item in value.items():
             if "propertyNames" in rule:
-                _validate(key, rule["propertyNames"], (*path, key))
+                _validate(key, rule["propertyNames"], (*path, key), quiet)
             child = rule.get("properties", {}).get(key, rule.get("additionalProperties", {}))
             if child is False:
-                fail(f"unknown field {key}")
-            _validate(item, child, (*path, key))
+                _fail(path, f"unknown field {key}", quiet)
+            _validate(item, child, (*path, key), quiet)
     if isinstance(value, list):
         if len(value) < rule.get("minItems", 0) or len(value) > rule.get("maxItems", math.inf):
-            fail("invalid array length")
+            _fail(path, "invalid array length", quiet)
         if rule.get("uniqueItems") and len({_json_key(item) for item in value}) != len(value):
-            fail("duplicate array item")
+            _fail(path, "duplicate array item", quiet)
         for i, item in enumerate(value):
             prefix = rule.get("prefixItems", [])
             child = prefix[i] if i < len(prefix) else rule.get("items", {})
             if child is False:
-                fail("extra array item")
-            _validate(item, child, (*path, str(i)))
+                _fail(path, "extra array item", quiet)
+            _validate(item, child, (*path, str(i)), quiet)
     if isinstance(value, str):
         if len(value) < rule.get("minLength", 0) or ("pattern" in rule and re.search(rule["pattern"], value) is None):
-            fail("invalid string")
+            _fail(path, "invalid string", quiet)
     if type(value) in (int, float):
         if value < rule.get("minimum", -math.inf) or value > rule.get("maximum", math.inf):
-            fail("number outside range")
+            _fail(path, "number outside range", quiet)
         if value <= rule.get("exclusiveMinimum", -math.inf):
-            fail("number must be positive")
+            _fail(path, "number must be positive", quiet)
 
 
 def validate_definition(value: Any, definition: str, *, max_nesting: int = 64) -> Any:

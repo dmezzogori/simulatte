@@ -80,13 +80,20 @@ class LayerBundle:
     """Whether ``auto_layer`` is the output of the auto layout of a preparation, already normalized and frozen: it is
     taken as it is, not checked against the schema again (spec §9 of
     ``specs/2026-11-23-layout-only-models-design.md``); the tests check it."""
+    code_checked: bool = field(default=False, repr=False, compare=False)
+    """Whether every patch of ``code_stages`` is the data of a `FileLayer` or of an earlier bundle: checked against the
+    schema, normalized and frozen when it was declared. A preparation resolves the layers a number of times, each with
+    the patches it declared; they are taken as they are instead of being checked once more per resolution."""
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "code_stages",
-            tuple((stage, _freeze(normalize(parse_patch(data), canonical=False))) for stage, data in self.code_stages),
-        )
+        if not self.code_checked:
+            object.__setattr__(
+                self,
+                "code_stages",
+                tuple(
+                    (stage, _freeze(normalize(parse_patch(data), canonical=False))) for stage, data in self.code_stages
+                ),
+            )
         if self.auto_layer is not None:
             if set(self.auto_layer) - {"schema_version", "placements"}:
                 raise LayoutError("auto layer may only fill presentation placements")
@@ -348,6 +355,7 @@ def resolve_layers(
     targets: Mapping[str, str] | None = None,
     final: bool = False,
     auto_checked: bool = False,
+    code_checked: bool = False,
 ) -> ResolvedValues:
     """Resolve code in call order, then file; optionally fill presentation gaps.
 
@@ -355,11 +363,12 @@ def resolve_layers(
     or supplies authoritative kinds. Unknown file targets remain pending in the bundle.
     ``final=True`` requires authoritative targets and excludes unmatched code as well
     as file placements. Stage ownership/freezing and physical eligibility are enforced
-    by the stage engine. ``auto_checked`` marks ``auto_layer`` as the auto layout's own output (`LayerBundle`).
+    by the stage engine. ``auto_checked`` marks ``auto_layer`` as the auto layout's own output and ``code_checked`` the
+    code stages as already checked (`LayerBundle`).
     """
     if final and targets is None:
         raise LayoutError("final layer resolution requires authoritative targets")
-    bundle = LayerBundle(tuple(code_stages), file_layer, auto_layer, auto_checked)
+    bundle = LayerBundle(tuple(code_stages), file_layer, auto_layer, auto_checked, code_checked)
     known = dict(targets or {}) if final else _known(bundle, targets or {})
     merged = _Merge()
     for stage, data in bundle.code_stages:

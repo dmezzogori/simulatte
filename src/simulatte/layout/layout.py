@@ -157,7 +157,9 @@ class Layout:
             if coordinator.network is not None:
                 result.update({definition.id: "node" for definition in coordinator.network.definitions.nodes.values()})
             else:
-                raw = resolve_layers(coordinator._code, coordinator.file_layer).explicit_data.get("network", {})
+                raw = resolve_layers(coordinator._code, coordinator.file_layer, code_checked=True).explicit_data.get(
+                    "network", {}
+                )
                 if raw.get("type") == "explicit":
                     result.update({node["id"]: "node" for node in raw.get("nodes", ())})
         return result
@@ -426,6 +428,7 @@ class Layout:
             targets=self._targets(),
             final=True,
             auto_checked=True,
+            code_checked=True,
         )
 
     def _finalize(self, coordinator: PreparationCoordinator) -> ResolvedLayout:

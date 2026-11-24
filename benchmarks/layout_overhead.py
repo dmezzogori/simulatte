@@ -15,6 +15,9 @@ minimum of the repetitions in milliseconds. The cases:
 - ``first_bundle``: the first read of ``prepare().bundle.full_hash`` after ``prepare()``.
 - ``jobs_before_layout``: 10 servers and 1,600 production jobs created first, then ``Layout(env)`` and
   ``layout.prepare()`` timed together.
+- ``prepare_network``: ``layout.prepare()`` of a model with a transport network of 16, 100, 400 and 1,600 nodes,
+  declared as an ``Explicit`` square grid of arcs and as a ``Lattice`` of the same size (spec §5.2): the cost of
+  preparation grows with the elements of the network (a few hundred microseconds per node), not with the model.
 - ``run``: a 10-server immediate-release pure job shop (``Scenario.pure_job_shop(n_servers=10)``, no default
   metrics, no subscriber, seed 7) built, activated outside the timing and run to a horizon of about 30,000 domain
   events (counted once, in a separate run with a counting subscriber), with and without ``Layout(env)``, the two
@@ -43,6 +46,8 @@ import simulatte
 from simulatte import Environment, Layout
 from simulatte.builders import build_immediate_release_system
 from simulatte.events import DomainEvent
+from simulatte.intralogistics import Arc, LayoutGraph, Node
+from simulatte.layout import Explicit, Grid, Lattice
 from simulatte.job import ProductionJob
 from simulatte.scenario import Scenario
 from simulatte.server import Server
@@ -85,6 +90,21 @@ def _model(n: int, with_layout: bool) -> Environment:
     if with_layout:
         Layout(env)
     _servers(env, n)
+    return env
+
+
+def _network_model(kind: str, side: int) -> Environment:
+    """A model with a ``side`` by ``side`` network, declared and not prepared: explicit arcs between neighbours spaced
+    10 apart, or a unit lattice."""
+    env = Environment()
+    if kind == "explicit":
+        nodes = {(i, j): Node(id=f"n{i}_{j}", x=10.0 * i, y=10.0 * j) for i in range(side) for j in range(side)}
+        arcs = [Arc(nodes[i, j], nodes[i + 1, j]) for i in range(side - 1) for j in range(side)]
+        arcs += [Arc(nodes[i, j], nodes[i, j + 1]) for i in range(side) for j in range(side - 1)]
+        env.layout.set_network(Explicit(LayoutGraph(list(nodes.values()), arcs)))
+    else:
+        env.layout.set_grid(Grid(1, 1))
+        env.layout.set_network(Lattice((0, 0, side - 1, side - 1)))
     return env
 
 
@@ -191,6 +211,15 @@ def measure(repeat: int) -> dict[str, Any]:
             return env.layout.prepare()
 
         results[f"first_bundle/{n}"] = _summary(_timed(prepared, lambda result: result.bundle.full_hash, repeat))
+    for kind in ("explicit", "lattice"):
+        for side in (4, 10, 20, 40):
+
+            def network(kind: str = kind, side: int = side) -> Environment:
+                return _network_model(kind, side)
+
+            results[f"prepare_network/{kind}/{side * side}"] = _summary(
+                _timed(network, lambda env: env.layout.prepare(), repeat)
+            )
     results["jobs_before_layout/1600"] = _summary(_timed(_jobs_model, _jobs_measure, repeat))
     events = _count_events()
     results["run/events"] = events
