@@ -17,10 +17,14 @@ not a difference between the modes. The known difference of spec §8.1 (`Explici
 Task 1 (`15a52de`, `8f54323`); the same comparison against the source before Task 1 finds it (see "The comparison
 finds a difference").
 
+This is the record of the two modes agreeing at the last commit where both exist: Task 9 removes explicit mode
+after it.
+
 ### The run
 
-Made at commit `8a8effa` (the source is that of `8f54323`; the commits after it change only the generator, its tests
-and the script), CPython 3.14.3 on an Apple M4 Pro, ten worker processes:
+Made at commit `e4afae4` (Task 8's last commit, the last one with both modes; its `src`, `tests` and `benchmarks`
+extracted with `git archive` and the extracted `src` put first on `PYTHONPATH`), CPython 3.14.3 on an Apple M4 Pro, ten
+worker processes:
 
 ```
 uv run --all-extras python benchmarks/layout_parity.py --worlds 1000
@@ -29,8 +33,12 @@ uv run --all-extras python benchmarks/layout_parity.py --worlds 1000
 ```
 worlds 1000 (seeds 0..999), runs 12000, pairs 6000
 equal 6000, differing 0, events compared 13093868, failed in both modes 0, ended at the horizon 0, with monitor violations 0, with a known limit 6, known-limit cases 7
-until 20000.0, wall-clock limit 120 s per run, 436 s
+until 20000.0, wall-clock limit 120 s per run, 379 s
 ```
+
+The counts, the feature table below and the known-limit cases are those of the first run of this record (commit
+`8a8effa`, 436 s): Tasks 3 to 8 changed neither mode's behaviour on these worlds. Since Task 5 the worlds declare
+per-node capacities and zones on `Explicit` in layout mode and give them to the controller in explicit mode.
 
 The script exited with status 0. Each world (`world_spec(seed)` in
 `tests/intralogistics/random_worlds.py`, seeds 0 to 999) runs twelve times: two modes, `ReservationController` and
