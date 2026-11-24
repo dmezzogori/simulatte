@@ -620,8 +620,8 @@ def _outcome(call):
 
 @pytest.mark.parametrize("block", [None, 1.0])
 def test_the_agv_and_the_layout_accept_the_same_nodes(block):
-    """The AGV checks the canonical node on its own fast path and leaves the rest to the layout: whatever the inputs, the
-    two give one outcome, so that a condition added to one and not to the other fails here."""
+    """The AGV checks the canonical node on its own fast path and leaves the rest to the layout: whatever the inputs,
+    the two give one outcome, so that a condition added to one and not to the other fails here."""
     import types
     from unittest import mock
 
