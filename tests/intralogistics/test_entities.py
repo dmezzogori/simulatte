@@ -231,8 +231,10 @@ def test_shared_graph_two_fleets_one_binding_per_node() -> None:
 
 
 def test_same_id_different_node_raises() -> None:
+    # explicit mode: binding nodes that are not the network's exists only there; Task 9 decides this test
     env = Environment()
-    env.entities.bind_node(Node(id="A", x=0.0, y=0.0))
+    bound = env.entities.bind_node(Node(id="A", x=0.0, y=0.0))
+    assert env.entities.bind_node(Node(id="A", x=0.0, y=0.0)) is bound  # an equal node: the existing binding
     with pytest.raises(ValueError, match="already bound to a different node"):
         env.entities.bind_node(Node(id="A", x=1.0, y=0.0))
     assert env.entities.node_binding(Node(id="A", x=1.0, y=0.0)) is None
@@ -242,7 +244,7 @@ def test_same_id_different_node_raises() -> None:
 
 
 def test_agv_moves_update_node_agvs() -> None:
-    # explicit mode: an AGV placed on a node outside the network exists only there; Task 9 removes this test
+    # explicit mode: an AGV placed on a node outside the network exists only there; Task 9 decides this test
     env = Environment()
     nodes, graph = _line_graph()
     agv = AGV(env=env, agv_type=_agv_type())  # no starting node
