@@ -18,7 +18,7 @@ says, the section says so.
 | Does the layout-built world stay safe? | Yes: 12,000 runs of 2,000 worlds, no violation, no exception, every run returned. Two known limits, both predating this work. | Safety run (Task 11) |
 | Are the performance targets of §9 met? | Yes. Activation at 1,600 servers meets its target at the line (49.1 to 49.4 ms against 50 ms). | Final numbers against §9 (Task 11) |
 | Do the gates pass? | Every gate was run and passed. | Gates (Task 11) |
-| Is every item of §10 covered? | Yes, with the gaps named in the walk (items 2 and 5). | Walk of §10 (Task 11) |
+| Is every item of §10 covered? | All but two are covered. Partly covered: item 2 (the code blocks of `docs/` and `skills/` that are not embedded example scripts are executed by no test) and item 5 (only the traffic example is projected by a TypeScript test; the other transport examples are checked for a recorded layout with arcs only). | Walk of §10 (Task 11) |
 
 ## Parity of explicit and layout models (Task 2)
 
@@ -173,31 +173,48 @@ node, and the slot was released at the instant the charge ended. A slot held by 
 way stays a violation (`test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation`),
 and so does a slot kept through such a charge but not released as it ends.
 
-**Waits of a deadlock left unreported after a member's wait was withdrawn.** (Found by the Task 2 review; not met by the
-parity run, which ran seeds 0 to 999 and had none. The safety run of Task 11 meets it once; see "Safety run".) Under
-`ReservationController`, a deadlock that no reaction could resolve is reported once, as `traffic.deadlock` with action
-`unresolved`, and the controller remembers the set of AGVs (`_unresolved`). When any wait of that set ends, the controller
-forgets the whole set (`_end_wait`). If the remaining waits still form a deadlock and nothing makes the controller look
-again (no new wait starts), the deadlock is never reported again: the run ends, with an empty event queue, with AGVs in
-open waits that no `traffic.wait_stuck` and no unresolved-deadlock report explains. The monitor's end-of-run check calls
-this "open wait with no report".
+**A deadlock is not detected again after a member's wait was withdrawn.** (Found by the Task 2 review; not met by the
+parity run, which ran seeds 0 to 999 and had none. The safety run of Task 11 meets it once; see "Safety run".) It is a
+missed detection in `ReservationController`, not only a missing report. In `src/simulatte/intralogistics/reservation.py`
+deadlock detection (`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member of a set reported
+unresolved returns from `stopped()` at once (lines 288 to 289) and gets no review timer, and `_report_one` (line 578)
+refuses it a stuck report while the set stands. The set is remembered in `_unresolved`. `_end_wait` (line 631) drops
+every remembered set that holds the AGV whose wait ended, for any reason. When the wait was withdrawn (`withdraw`, lines
+338 to 345, reason `interrupted`) the controller then only scans for grants. Nothing looks at the remaining waits again
+unless a new wait opens, `idle()` fires for one of their blockers, or a stuck chain reaches them. If they still form a
+deadlock the run ends, with an empty event queue, with AGVs in open waits that no `traffic.wait_stuck` and no
+unresolved-deadlock report explains: the monitor's end-of-run check calls this "open wait with no report".
 
 The case in seed 2000228 (`ReservationController`, `FastestRouter`): the deadlock of agv-a, agv-c, agv-d, agv-e and
 agv-g is reported unresolved at 95.1 (at 92.4 for the four without agv-c) and again at 192.3, 265.9 and 378.2, each time
 after one member's wait ended by interruption and began again, which makes the controller look again; the last report is
-at 378.2; at 433.1 agv-a's wait ends with reason `interrupted` as a breakdown interrupts its mission
-(`AgvMoveInterrupted` with reason `breakdown`, order-4 back to `PENDING`); no new wait begins; the run ends at 581.6 with the open waits of
-agv-c, agv-d, agv-e and agv-g and no report after 433.1.
+at 378.2. At 433.1 agv-a's wait ends with reason `interrupted` as a breakdown interrupts its mission (`AgvMoveInterrupted`
+with reason `breakdown`, order-4 back to `PENDING`); no new wait begins; the run ends at 581.6 with the open waits of
+agv-c, agv-d, agv-e and agv-g, blocked by each other only, and no report after 433.1.
 
-This is a defect of traffic control. It predates this work: the branch's diff of `reservation.py` against `e993ca8`
-(35 lines) touches none of `_unresolved`, `_end_wait`, `_resolve` or `_detect`. This work did not change it, and the
-maintainer decides about it. The monitor records it apart, under `known_limits` with its own name, only on the evidence
-in the event stream: an unresolved deadlock was reported, a wait of that set then ended, the waits left open at the end
-are those of the set's remaining members (or waits queued behind them), and no later `traffic.deadlock` listing them, no
-`traffic.wait_stuck` of theirs and no end of their wait followed. Any other open wait with no report stays a violation
-(`test_an_open_wait_with_no_report_for_another_reason_is_a_violation`, with every stuck report suppressed by a scratch patch
-of the controller); the case itself is pinned by
-`test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit`.
+Consequence, measured by the review of this task with a scratch patch that calls `_detect()` after a member's withdrawal
+(the patch is not part of the branch, and no source was changed by this work): in seed 2000228 the policy stages two
+step-asides at 433.116 for the remaining four, agv-e and agv-d move (29 moves against 25), the three waits left are
+reported stuck at 481.8, there is no known limit and no violation, and the completed orders stay at 2 (the batteries are
+nearly spent and agv-e strands at 439.4). Over 900 runs (seeds 2000150 to 2000449, `ReservationController`, three
+routers) a member's withdrawal drops a remembered set in 27 runs; a deadlock is still there at that instant in 9;
+re-detection stages a resolution in 3; 8 fingerprints change; the completed orders rise in no run and fall in one
+(seed 2000274, `FastestRouter`, 13 to 12). The defect is real but rare, and re-detecting is not free of consequences.
+
+It predates this work: the branch's diff of `reservation.py` against `e993ca8` (35 lines) touches none of `_unresolved`,
+`_end_wait`, `_resolve` or `_detect`, and the review ran seed 2000228 at `e993ca8` with the same 38 traffic events. This
+work did not change it, and the maintainer decides about it.
+
+The monitor records it apart, under `known_limits` with its own name, on the evidence of the event stream and of the
+end state, and nothing broader. An unresolved deadlock was reported (`traffic.deadlock` with action `unresolved`). A wait
+of that set ended with reason `interrupted`, the only reason that comes from `withdraw`: a grant, and a reroute, step
+aside or give-up the controller staged itself, are followed by a detection or a scan of its own. The other members
+are then orphans until a later report covers them (a `traffic.deadlock` that lists them, a `traffic.wait_stuck` of
+theirs, the end of their own wait). At the end of the run the exempted waits are the orphans' open waits and the waits
+queued behind them, and they must still be a deadlock: each is blocked, and only by AGVs that wait in the set or are
+already explained by a report, so none of them can move. A wait that is not blocked at all, or is blocked by an AGV that
+is idle, stranded or moving, is not the known limit, whatever its history. Any other open wait with no report stays the
+violation `open wait with no report`. The tests are in "What changed in the monitor".
 
 ### The comparison finds a difference
 
@@ -222,7 +239,8 @@ derivation of the corridors, and the entities against the holdings ledger; under
 parking slots of resting AGVs, and that moves start and end where the body is. At the end of a run that ended on its
 own: no claim of a moving AGV, no review timer, every open wait explained by a stuck report or an unresolved deadlock,
 no motion left, no parking slot held away from its node. It records violations instead of raising, and the known
-limit above apart from them.
+limits apart from them. At `e4afae4` that was the first known limit only; Task 11 adds the recognition of the second, with
+the narrow boundary described above (see "What changed in the monitor" under "Safety run").
 
 ### Tests
 
@@ -746,7 +764,7 @@ worlds": the parking slot of the fleet in 14 cases, and the waits of a withdrawn
 
 ### The run
 
-Made at commit `5f61105`, CPython 3.14.3 on an Apple M4 Pro (12 cores, 10 worker processes), from the repository root.
+Made at commit `bcce8cc` (the monitor as committed there; the first version of this record, run at `5f61105`, gave the same counts and the same cases), CPython 3.14.3 on an Apple M4 Pro (12 cores, 10 worker processes), from the repository root.
 The seeds are not those of the parity run (0 to 999):
 
 ```
@@ -759,7 +777,7 @@ The first run (the one the requirement is met by; seeds 100000 to 100999):
 ```
 worlds 1000 (seeds 100000..100999), runs 6000, events 6570989
 runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0, runs with a known limit 6
-wall-clock limit 120 s per run, 188 s
+wall-clock limit 120 s per run, 176 s
 known limits: kind: cases, runs
   parking slot kept while charging on the way to park: 6, 6
     seed 100023 reservation shortest: 1
@@ -775,7 +793,7 @@ Exit status 0. The second run (seeds 2000000 to 2000999, the range in which the 
 ```
 worlds 1000 (seeds 2000000..2000999), runs 6000, events 6720246
 runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0, runs with a known limit 9
-wall-clock limit 120 s per run, 184 s
+wall-clock limit 120 s per run, 177 s
 known limits: kind: cases, runs
   parking slot kept while charging on the way to park: 8, 8
     seed 2000152 reservation shortest: 1
@@ -800,9 +818,11 @@ The script (`benchmarks/layout_safety.py`) is a thin runner over `tests/intralog
 holdings ledger, replay of the deltas from the first event and from the initial state at every domain event, and the
 checks at the end of a run that ended on its own; see "The monitor" under Task 2). A run that reaches the wall-clock
 limit is reported as not returned and counts as a failure, as does an exception; the exit status is 1 for either and for
-any violation, and 0 when only known limits occurred. Its behaviour on failure was checked by forcing each of the three
-(a run that sleeps past a limit of 1 s, a run that raises, a seeded violation): each is listed by name, seed, controller
-and router, and the status is 1.
+any violation, and 0 when only known limits occurred. The limit is a positive number of seconds (a limit of 0 is
+refused, since it would remove the bound) and `--jobs 1` runs the worlds in the process itself. The exit status is
+tested by `tests/intralogistics/test_layout_safety.py` (clean runs, a run that raises, a run cut by a limit of 0.05 s, a
+seeded violation, a limit of 0 and of -1). CI lints `src` and `tests` only; `ruff check benchmarks/layout_safety.py` is
+clean and `ruff format --check` covers the file.
 
 Features exercised in the first run: worlds that contain the feature, worlds in which at least one of the six runs
 exercised it, runs (of 6,000) that exercised it.
@@ -837,24 +857,69 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
 
 ### What changed in the monitor
 
-- It recognises the second known limit (above), narrowly: it follows the unresolved deadlocks the controller reports, the
-  waits of a set that remain when one wait of the set ends, and the later reports that cover them (a deadlock listing
-  them, a stuck report, the end of their own wait). At the end of a run, open waits with no report that are those
-  remaining members' waits, or are queued behind them, go to `known_limits` as
-  `waits of an unresolved deadlock left unreported after a member's wait was withdrawn`; every other open wait with no
-  report stays the violation `open wait with no report`.
-- The tests of this: `test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit` (seed
-  2000228; RED before the change, the violation `open wait with no report` for agv-c, agv-d, agv-e and agv-g; GREEN after)
-  and `test_an_open_wait_with_no_report_for_another_reason_is_a_violation` (seed 26 with every stuck report suppressed by a
-  scratch patch of `ReservationController._report_one`: a violation, no known limit).
+- It recognises the second known limit (see "Known limits met by the random worlds"), and only while the case stands.
+  It follows the unresolved deadlocks the controller reports. The members left when a wait of a set ends with reason
+  `interrupted` (the only reason that comes from `withdraw`) become orphans, until a later report covers them: a
+  `traffic.deadlock` that lists them, a `traffic.wait_stuck` of theirs, or the end of their own wait. At the end of a
+  run that ended on its own, the open waits of orphans, and the waits queued behind them, go to `known_limits` as
+  `waits of an unresolved deadlock left unreported after a member's wait was withdrawn` only if they still are a
+  deadlock: each is blocked, and only by AGVs that wait in the exempted set or are explained by a report. The blockers
+  are those of the controller's ledger, which the monitor checks against the entities and its body model at every
+  event. Every other open wait with no report stays the violation `open wait with no report`.
+- The first version of this exemption (`5f61105`, record `aad5b29`) counted any orphan with an open wait. The review found
+  five mutant runs that ended as a known limit with no violation: a stuck wait whose blocker is stranded or idle (the
+  stuck reports suppressed, seed 2000228 with `shortest` or `congestion`), and waits that are not blocked at all (releases
+  that do not scan, seed 2000156 with `fastest`; a wait once in an unresolved set never granted, seeds 500005 and 500184
+  with `congestion`). Each now ends as `open wait with no report`.
+- The tests are in `tests/intralogistics/test_random_worlds.py`.
+  `test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit` pins the case (seed
+  2000228, `FastestRouter`). `test_an_open_wait_with_no_report_for_another_reason_is_a_violation` has four runs that must
+  be violations with no known limit: seed 26 with the stuck reports suppressed (a boundary the exemption does not
+  reach: no unresolved deadlock is ever reported there), seed 2000228 with `shortest` and with `congestion` under the same
+  patch, and seed 2000156 with `fastest` under a `_drop` that does not scan; the last three reach the exemption, and
+  fail against the monitor as it was at `aad5b29` (RED: `4 failed, 27 passed`, the three runs and the trigger test). The
+  trigger is tested on real events: `test_only_a_withdrawal_leaves_the_rest_of_an_unresolved_deadlock_unreported`
+  and `test_a_later_report_or_the_end_of_their_own_wait_covers_the_rest_of_the_deadlock`.
+- Mutants of `ReservationController`, each applied in every worker (a scratch patch, not on disk), run under the monitor
+  as committed at `bcce8cc`: seeds 2000150 to 2000449 and 500000 to 500299, `ReservationController`, three routers
+  (900 runs per range, 1,800 per mutant). No run ends as a known limit without a violation except the case of the
+  unmutated controller, seed 2000228 with `FastestRouter`. The mutants that no run shows are not detected by the
+  monitor (a mutant that changes nothing the run shows, or one that sets `wait.stuck` without emitting the event, which the
+  monitor reads from the controller's state: see the follow-up below).
+
+| Mutant of `ReservationController` | Runs | With `open wait with no report` | Known limit and no violation |
+|---|---|---|---|
+| no mutant | 1,800 | 0 | 1 (2000228, `FastestRouter`) |
+| every stuck report suppressed | 1,800 | 635 | 1 (2000228, `FastestRouter`) |
+| stuck reports of four of the AGVs suppressed | 1,800 | 370 | 1 (2000228, `FastestRouter`) |
+| no stuck report once any wait was withdrawn | 1,800 | 146 | 1 (2000228, `FastestRouter`) |
+| no stuck report for a former member of an unresolved set | 1,800 | 3 | 1 (2000228, `FastestRouter`) |
+| an unresolved deadlock is never reported nor remembered | 1,800 | 5 | 0 |
+| the remembered set is cleared as soon as it is reported | 1,800 | 4 | 1 (2000228, `FastestRouter`) |
+| the set is remembered, `traffic.deadlock` is not emitted | 1,800 | 1 | 0 |
+| a wait is marked stuck, `traffic.wait_stuck` is not emitted | 1,800 | 0 | 1 (2000228, `FastestRouter`) |
+| every review timer dropped | 1,800 | 364 | 1 (2000228, `FastestRouter`) |
+| the timer of the second and later reviews dropped | 1,800 | 10 | 1 (2000228, `FastestRouter`) |
+| every third release does not scan | 1,800 | 1 | 1 (2000228, `FastestRouter`) |
+| releases never grant (only a new request scans) | 1,800 | 6 | 1 (2000228, `FastestRouter`) |
+| any withdrawal forgets every unresolved set | 1,800 | 0 | 1 (2000228, `FastestRouter`) |
+| any release forgets every unresolved set | 1,800 | 0 | 1 (2000228, `FastestRouter`) |
+| any grant forgets every unresolved set | 1,800 | 0 | 1 (2000228, `FastestRouter`) |
+| the withdrawal of a non-member makes the controller forget every set for good | 1,800 | 1 | 1 (2000228, `FastestRouter`) |
+| a wait once in an unresolved set is never granted | 1,800 | 102 | 1 (2000228, `FastestRouter`) |
+| the same, and it does not gate the waits behind it | 1,800 | 101 | 1 (2000228, `FastestRouter`) |
+
 - Five fixed runs with the monitor are permanent tests
   (`test_a_run_of_the_safety_check_returns_with_no_violation[...]` in `tests/intralogistics/test_random_worlds.py`), by
   (seed, controller, router): (100017, reservation, shortest), (100039, reservation, congestion), (100083, reservation,
   fastest), (100040, reservation, fastest) and (100045, free, fastest). Each asserts that the run ended on its own, had no
-  violation and no known limit, the `env.fingerprint()` digest pinned at `5f61105`, and the features it exercises; between
-  them they exercise charging, stranding, a zone held by two, a passing segment held by two and a deadlock (the first
-  four), and, for the last, a free-flow run with a passing segment, parking, charging, stranding and the second fleet.
-  The pins hold for `PYTHONHASHSEED` 1 and 7.
+  violation and no known limit, the `env.fingerprint()` digest pinned at `5f61105` (the monitor does not change a run;
+  the pins hold at `bcce8cc`), and the features it exercises; between them they exercise charging, stranding, a zone held
+  by two, a passing segment held by two and a deadlock (the first four), and, for the last, a free-flow run with a passing
+  segment, parking, charging, stranding and the second fleet. The pins hold for `PYTHONHASHSEED` 1 and 7.
+- Follow-up, not done here: the monitor's end-of-run check reads `wait.stuck` and `controller._unresolved` (private state)
+  and not the emitted reports, so a controller that sets the flag but never emits `traffic.wait_stuck`, or the unresolved
+  `traffic.deadlock`, passes. This predates this task.
 
 ## Costs measured at the end (Task 11)
 
@@ -878,13 +943,27 @@ nothing declared: activation creates the layout and prepares it. Three repetitio
 | the first `env.manifest()` after it | 2.24 s (2.19 to 2.27) |
 | a `TraceRecorder`, activation and close | 4.25 s (4.02 to 4.28); trace of 36.7 MB |
 
-The activation cost per job is 4.9 microseconds here against 2.8 microseconds with 1,600 jobs (`jobs_before_layout`, 4.98
-ms in total below), so preparation grows a little faster than linearly between 1,600 and 99,990 jobs (62 times the jobs,
-about 108 times the time); it is not quadratic. The size of the trace depends on the jobs: with the same 99,990 jobs
-and routes of four and of ten operations the traces are 40.3 MB and 51.1 MB (4.1 s and 4.4 s). The Task 4 and Task 10
-reviews quoted 60 to 63 MB and 4.5 s for a model of 99,990 jobs that this measurement does not reproduce (their job
-shape was not recorded); the writer's `max_initial_bytes` is 64 MiB, so a model with more per job than these jobs
-carry can reach that limit. I did not separate the share of the layout's bundle in these sizes.
+Cost per job, like for like, on a loaded machine (one-minute load average 9 to 10; medians of nine repetitions at 1,600 and
+25,000 jobs and of five at 99,990; two runs, the second in parentheses; `src` is the same at `5f61105` and `bcce8cc`):
+
+| Jobs | `Layout(env)` and `prepare()` | `env.activate()` |
+|---|---|---|
+| 1,600 | 4.7 ms, 2.94 (2.90) microseconds per job | 7.1 ms, 4.42 (4.38) microseconds per job |
+| 25,000 | 65.5 ms, 2.62 (2.58) microseconds per job | 101.9 ms, 4.08 (4.02) microseconds per job |
+| 99,990 | 316.9 ms, 3.17 (3.13) microseconds per job | 470.3 ms, 4.70 (4.69) microseconds per job |
+
+From 1,600 to 99,990 jobs (62.5 times the jobs) `prepare()` takes about 67 times as long and `env.activate()` about 66
+times: a little faster than linear, not quadratic. (The activation figure of the table above, 488 ms, was measured on a
+quieter machine with a fresh model per repetition and is of the same size.)
+
+The trace size depends on where the recorder is attached and on the jobs. With the 99,990 jobs above the INITIAL payload,
+the part `max_initial_bytes` (64 MiB) limits, is 36.7 MB (35.0 MiB, 55 % of the limit): 17.9 MB of layout bundle and 18.8 MB
+of state. The trace file is 36.7 MB when the recorder is attached after the jobs are created (the case measured above) and
+63.0 MB when it is attached before them, because their creation events are recorded too (the other 26.3 MB). The 60 to 63
+MB that the Task 4 and Task 10 reviews quoted is the second case, and it reproduces exactly (`reviewer-scratch-t10/jobs.py`
+attaches the recorder first). With routes of four and of ten operations the INITIAL payload is 40.3 MB (38.4 MiB) and 51.1
+MB (48.7 MiB): jobs with longer routes take more of the limit. The documentation (`docs/guides/layout.md`,
+`CHANGELOG.md`) says this.
 
 ### Final numbers against spec §9
 
@@ -899,13 +978,13 @@ median of the six medians and the range of the six. The full output of the first
 | Construction with a layout within 1.5 times construction without, at 1,600 servers | 1.22 times (1.20 to 1.23): 3.05 ms (3.01 to 3.09) against 2.51 ms (2.46 to 2.52) | yes |
 | Activation under 5 ms at 10 servers, nobody observing | 0.50 ms (0.49 to 0.50) with `Layout(env)`, 0.52 ms (0.51 to 0.52) when activation creates the layout | yes |
 | Activation under 50 ms at 1,600 servers, nobody observing | 49.07 ms (48.87 to 49.37) with `Layout(env)`, 49.37 ms (49.19 to 49.71) when activation creates the layout | yes, at the line: the margin is 0.3 to 1.1 ms, the spread between processes is 0.5 ms, and every one of the six processes is under 50 ms |
-| Linear in the jobs created before activation | 1,600 jobs and 10 servers, `Layout(env)` and `prepare()`: 4.98 ms (4.87 to 5.34); 99,990 jobs: see above | yes up to a growth a little faster than linear |
+| Linear in the jobs created before activation | 1,600 jobs and 10 servers, `Layout(env)` and `prepare()`: 4.98 ms (4.87 to 5.34) in `jobs_before_layout`; per job 2.9, 2.6 and 3.2 microseconds at 1,600, 25,000 and 99,990 jobs (see above) | yes, up to a growth a little faster than linear (about 67 times the time for 62.5 times the jobs) |
 | The bundle and the hashes are built at first read | `first_bundle` 2.51 ms at 10 servers and 266.8 ms (265.2 to 269.6) at 1,600; `test_an_unobserved_run_builds_no_bundle_and_a_read_builds_it_once` | yes |
 | The overhead gate of the core workload against 0.12.0 passes with its present limit | see "Gates" | yes |
 | `import simulatte` imports neither `simulatte.layout` nor `simulatte.intralogistics.graph`; a layout with no network imports no fleet, traffic or AGV module | `tests/core/test_public_api.py::test_layout_is_lazy_but_discoverable`, `::test_a_layout_without_a_network_imports_no_fleet_traffic_or_agv_module`, `tests/layout/test_environment_layout.py::test_a_layout_created_at_activation_imports_no_fleet_traffic_or_agv_module` | yes |
 
 The 50 ms target is met at the line, as Tasks 3, 4 and 9b measured (48.5 to 50.5 ms): process to process the spread is about
-0.5 ms, and a loaded machine can put a run over the target. The medians of all runs of this record are under it.
+0.5 ms, and a loaded machine can put a run over the target. The medians of the six processes of this record are all under it, but not every earlier run of this file: the second run of Task 4 (at `051ac30`) measured 50.2 ms with `Layout(env)` and 50.5 ms when activation creates the layout. The target is met on the median of repeated runs, with 0.3 to 1.1 ms to spare, and can be missed by a single loaded run.
 
 Other cases of the same runs (median of the six medians, ms; range in parentheses): `prepare/10` 0.49 (0.48 to 0.50),
 `prepare/1600` 47.44 (47.28 to 47.78), `construct/100` ratio 1.45, `prepare_network/explicit/16, 100, 400, 1600`
@@ -947,24 +1026,25 @@ run/ratio                        1.002
 
 ## Gates (Task 11)
 
-Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise), in this order, with nothing edited in
-`src`, `tests`, `benchmarks` or `studio` after `5f61105`: the Python gates ran on the tree of that commit (the full suite
-before the commit was made, on the same files). Result lines are copied from the output.
+Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise), at `bcce8cc`, the last commit that
+changes `src`, `tests`, `benchmarks` or `studio` (later commits change this record and two documentation sentences, and
+no test reads them: the docs gates were run with those sentences in the tree). The Studio and overhead rows were run at
+`5f61105` and are kept, for the reason given in the row. Result lines are copied from the output.
 
 | Gate | Command | Result |
 |---|---|---|
-| Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.19%`; `4936 passed, 1 skipped, 3 warnings in 449.44s (0:07:29)` (the baseline of the branch was 4929 passed, 1 skipped: seven tests added by this task; the three warnings are deprecations in `starlette`, `websockets` and `uvicorn`) |
-| Lint | `uv run --all-extras ruff check src tests` | `All checks passed!` |
-| Format | `uv run --all-extras ruff format --check` | `531 files already formatted` |
+| Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.20%`; `4946 passed, 1 skipped, 3 warnings in 440.69s (0:07:20)` (the baseline of the branch was 4929 passed, 1 skipped: seventeen tests added by this task; the three warnings are deprecations in `starlette`, `websockets` and `uvicorn`). At `5f61105`: 99.19 %, 4936 passed, 449.44 s |
+| Lint | `uv run --all-extras ruff check src tests`; also `ruff check benchmarks/layout_safety.py`, which CI does not lint | `All checks passed!` for both |
+| Format | `uv run --all-extras ruff format --check` | `532 files already formatted` |
 | Types | `uv run --all-extras ty check src` | `All checks passed!` |
-| Docs | `uv run --all-extras zensical build` | `No issues found`; `Build finished in 0.36s` |
-| Studio types | `pnpm typecheck` (in `studio/`) | exit 0 |
-| Studio tests | `pnpm test` | exit 0; trace 329, playback 24, scene 25, export 15 and viewer 82 tests passed (`apps/player` has no tests: `No test files found`) |
-| Studio build | `pnpm build` | `built in 3.46s`, exit 0 (a chunk-size warning of the bundler only) |
-| Studio browsers | `pnpm test:browser` | `36 passed (1.2m)` on chromium, firefox and webkit |
-| PyPy lane | `UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv sync --dev --python pypy-3.11 --frozen`, then `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` (job `test-pypy` of `ci.yml`; a separate project environment keeps the checkout's `.venv` on CPython) | `4805 passed, 23 skipped in 585.98s (0:09:45)` (PyPy 7.3.22, Python 3.11.15) |
-| CPython 3.11 | `UV_PROJECT_ENVIRONMENT=<scratch>/py311-venv uv run --python 3.11 --all-extras pytest tests/intralogistics tests/layout --no-cov -q` | `2594 passed in 120.13s (0:02:00)` (Python 3.11.13) |
-| Overhead gate of the core workload | the `bench` job's step "Mode none against released and stripped 0.12.0 (gate)" on CPython 3.14, `--warmup 1 --repeat 5 --processes 3`, run locally as described below | pass on both workloads against both baselines in three rounds |
+| Docs | `uv run --all-extras zensical build` | `No issues found`; `Build finished in 0.34s`; with `tests/layout/test_acceptance.py tests/test_docs_links.py tests/test_docs_run_blocks.py`: `8 passed` |
+| Studio types | `pnpm typecheck` (in `studio/`), run at `5f61105` | exit 0 |
+| Studio tests | `pnpm test` (at `5f61105`) | exit 0; trace 329, playback 24, scene 25, export 15 and viewer 82 tests passed (`apps/player` has no tests: `No test files found`) |
+| Studio build | `pnpm build` (at `5f61105`) | `built in 3.46s`, exit 0 (a chunk-size warning of the bundler only) |
+| Studio browsers | `pnpm test:browser` (at `5f61105`) | `36 passed (1.2m)` on chromium, firefox and webkit. Not rerun: `git diff --stat 5f61105 HEAD -- src studio pyproject.toml uv.lock` is empty, and the four Studio rows read only `studio/` and the trace fixtures, which are unchanged |
+| PyPy lane | `UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv sync --dev --python pypy-3.11 --frozen`, then `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` (job `test-pypy` of `ci.yml`; a separate project environment keeps the checkout's `.venv` on CPython) | `4815 passed, 23 skipped in 582.06s (0:09:42)` (PyPy 7.3.22, Python 3.11.15), rerun at `bcce8cc` because the lane covers `tests/intralogistics`, which changed (at `5f61105`: 4805 passed, 585.98 s) |
+| CPython 3.11 | `UV_PROJECT_ENVIRONMENT=<scratch>/py311-venv uv run --python 3.11 --all-extras pytest tests/intralogistics tests/layout --no-cov -q` | `2604 passed in 120.78s (0:02:00)` (Python 3.11.13), rerun at `bcce8cc` for the same reason (at `5f61105`: 2594 passed) |
+| Overhead gate of the core workload | the `bench` job's step "Mode none against released and stripped 0.12.0 (gate)" on CPython 3.14, `--warmup 1 --repeat 5 --processes 3`, run locally as described below | pass on both workloads against both baselines in three rounds, at `5f61105`. Not rerun: it measures `src` (empty diff since `5f61105`) with `benchmarks/run.py` and `compare.py`, unchanged; the commit after it changes only `tests/` and `benchmarks/layout_safety.py` |
 
 `ci.yml` needed no change. Its lanes name directories (`tests/core tests/execution tests/intralogistics tests/layout`
 for the PyPy lane) and the files of the `execution-native` lane (`tests/execution` and twelve files under `tests/core`),
@@ -1004,7 +1084,7 @@ One row per item and per sub-claim. "Covered" says what shows it; a claim nothin
 | Item | Claim | Covered by | Result |
 |---|---|---|---|
 | 1 | No code path in `src/simulatte` accepts a concrete `LayoutGraph` or `Node` where a handle is required | `tests/layout/test_handles_only.py::test_a_concrete_graph_or_node_raises_with_the_fix` (the seven entry points `FleetCoordinator(graph=)`, `ReservationController(graph=)`, `Warehouse(input_bays=)`, `Warehouse(output_bays=)`, `AGV(initial_node=)`, `ChargingStation(node=)`, `ParkingArea(node=)`, each with and without a declared network: 14 cases), `::test_a_concrete_node_in_the_builders_mapping_raises_with_the_fix` (2), `::test_a_handle_of_another_environments_layout_raises` (7); the signatures of the components take `NodeRef` and `PortRef` (`grep` of `src/simulatte/intralogistics` finds no union of a concrete graph or node with a handle at a construction parameter) | covered by the tests for the eight entry points; not proved for a path no test names (the Task 9 review checked a table of the strictness of every parameter) |
-| 1 | `grep` finds no `_explicit_graph_use` or `_uses_explicit_graph` | `grep -rn '_explicit_graph_use\|_uses_explicit_graph\|_register_graph_use\|check_existing_endpoints' src tests examples benchmarks docs skills CLAUDE.md` at `5f61105` | no match (exit 1) |
+| 1 | `grep` finds no `_explicit_graph_use` or `_uses_explicit_graph` | `grep -rn '_explicit_graph_use\|_uses_explicit_graph\|_register_graph_use\|check_existing_endpoints' src tests examples benchmarks docs skills CLAUDE.md` at `bcce8cc` | no match (exit 1) |
 | 2 | `tests/` contain no model built in explicit mode | explicit mode cannot be built: the entry points above raise; the whole suite passes (`4936 passed`); the words "explicit mode" remain only in docstrings that name the commit at which a fingerprint was pinned (`tests/layout/test_binding.py:347`, `tests/layout/test_builders.py:248`, `tests/intralogistics/test_random_worlds.py:49`) and in the docstring of `tests/intralogistics/test_traffic.py:128` ("the successor of the explicit-mode rule"); `tests/layout/test_traffic_fields.py::test_an_explicit_graph_and_its_layout_twin_produce_the_same_event_stream` builds its model with `Explicit` and handles, as its twin | covered |
 | 2 | `examples/` contain no model built in explicit mode | `tests/intralogistics/test_examples.py` runs the intralogistics and layout examples (`test_intralogistics_simple_example_runs`, `..._intermediate_...`, `..._advanced_...`, `..._traffic_...`, `test_layout_intralogistics_example_runs`, `test_layout_stages_example_runs`) and `::test_each_transport_example_records_a_resolved_layout_with_arcs[5 examples]`; every `LayoutGraph(` in `examples/` is followed by `Explicit(graph)` and handles; `examples/studio_recording.py` (`build_simple_system(env)`) is run by no test and was run for this record, in both of its models (`--model fleet` and `--model shop`, exit 0, the trace checked and verified by the script) | covered; the other examples are production models |
 | 2 | `benchmarks/` contain no model built in explicit mode | `benchmarks/intralogistics.py` builds through the layout and ran at `5f61105` (`--mode none --shifts 1 --warmup 0 --repeat 1`, exit 0; it is also the `bench` job's intralogistics step); `benchmarks/layout_overhead.py` and `benchmarks/layout_safety.py` ran for this record | covered |
@@ -1013,13 +1093,13 @@ One row per item and per sub-claim. "Covered" says what shows it; a claim nothin
 | 3 | The safety run of §8.4 is recorded with its counts | "Safety run of layout-built worlds (Task 11)": 2,000 worlds, 12,000 runs, 13,291,235 events, no violation, no exception, every run returned | recorded |
 | 4 | The performance targets of §9 are measured and recorded | "Final numbers against spec §9" | recorded; all met, the 1,600-server activation at the line |
 | 4 | The core gate passes | "The overhead gate" | pass, twelve comparisons |
-| 5 | A trace of every example opens in Studio with its lanes drawn, checked with the TypeScript reader's tests | the traffic example only: `tests/fixtures/traces/generated/example_traffic.simtrace` is projected by `studio/packages/scene/test/traffic.test.ts` ("projects the recorded traffic example with its links and without the grid fallback": no grid fallback and links present) and a trace of an earlier version stays on the grid fallback ("projects a trace of an earlier version, no layout, on the grid fallback"); for each of the five transport examples (`intralogistics_simple`, `_intermediate`, `_advanced`, `_traffic`, `building_an_agv_system`), `tests/intralogistics/test_examples.py::test_each_transport_example_records_a_resolved_layout_with_arcs` asserts that its trace carries a resolved layout whose network graph has arcs; for a production model, `tests/layout/test_environment_layout.py::test_the_trace_of_a_production_model_carries_its_layout` and the regenerated `shop_small`, `lumscor` and `cell_ops` fixtures (Task 4) | partly covered: the other four transport examples are not projected by a TypeScript test, nor opened in Studio; the claim that their lanes are drawn rests on their traces carrying a resolved layout with arcs, like the traffic example's |
-| 6 | Full suite | `uv run --all-extras pytest` | `4936 passed, 1 skipped` |
-| 6 | Coverage stays at 99 % or above | same run | `Total coverage: 99.19%` |
+| 5 | A trace of every example opens in Studio with its lanes drawn, checked with the TypeScript reader's tests | the traffic example only: `tests/fixtures/traces/generated/example_traffic.simtrace` is projected by `studio/packages/scene/test/traffic.test.ts` ("projects the recorded traffic example with its links and without the grid fallback": no grid fallback and links present) and a trace of an earlier version stays on the grid fallback ("projects a trace of an earlier version, no layout, on the grid fallback"); for each of the five transport examples (`intralogistics_simple`, `_intermediate`, `_advanced`, `_traffic`, `building_an_agv_system`), `tests/intralogistics/test_examples.py::test_each_transport_example_records_a_resolved_layout_with_arcs` asserts that its trace carries a resolved layout whose network graph has arcs; for a production model, `tests/layout/test_environment_layout.py::test_the_trace_of_a_production_model_carries_its_layout` and the regenerated `shop_small`, `lumscor` and `cell_ops` fixtures (Task 4) | partly covered: the other four transport examples are not projected by a TypeScript test, nor opened in Studio, and two transport models are not even checked for a recorded layout with arcs: `examples/layout_intralogistics.py` (a test runs it and checks its output) and `examples/studio_recording.py --model fleet` (no test runs it; it was run for this record and its trace checked by the script); the claim that their lanes are drawn rests on their traces carrying a resolved layout with arcs, like the traffic example's |
+| 6 | Full suite | `uv run --all-extras pytest` | `4946 passed, 1 skipped` |
+| 6 | Coverage stays at 99 % or above | same run | `Total coverage: 99.20%` |
 | 6 | Lint, format, types | `ruff check src tests`, `ruff format --check`, `ty check src` | all clean (see "Gates") |
 | 6 | Docs build | `zensical build` | `No issues found` |
 | 6 | Studio gates | `pnpm typecheck && pnpm test && pnpm build && pnpm test:browser` | all exit 0, `36 passed` |
-| 6 | The PyPy lane | the command of `ci.yml` | `4805 passed, 23 skipped` |
+| 6 | The PyPy lane | the command of `ci.yml` | `4815 passed, 23 skipped` |
 
-Also run, beyond §10: `tests/intralogistics` and `tests/layout` on CPython 3.11 (2594 passed), the floor of the supported
+Also run, beyond §10: `tests/intralogistics` and `tests/layout` on CPython 3.11 (2604 passed), the floor of the supported
 versions.

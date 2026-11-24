@@ -42,9 +42,11 @@ Studio, experiments) the driver creates the layout and passes it to `build(env, 
 Every entity created before activation is a target of the layout, with an automatic placement and an entry in the
 bundle. This includes jobs and orders. At most `LayoutLimits.max_placements` targets are allowed (100,000 by
 default); a model that creates more before activation raises `LayoutError` at preparation, naming the limit and
-`Layout(env, limits=...)`. Entities created during the run are not targets and cost nothing. Close to the limit, the
-INITIAL record of a recorded run approaches `TraceRecorder`'s `max_initial_bytes` (64 MiB by default; 99,990 jobs
-take about 60 MB).
+`Layout(env, limits=...)`. Entities created during the run are not targets and cost nothing. The INITIAL record of a
+recorded run has a size limit, `TraceRecorder`'s `max_initial_bytes` (64 MiB by default). With 99,990 jobs of two
+operations on ten servers it takes about 35 MiB, of which about half is the layout bundle; jobs with longer routes
+take more. The trace file is then about 37 MB, or about 63 MB when the recorder is attached before the jobs are
+created, because their creation is recorded too.
 
 A model pays nothing per event for its layout. Activation of a production model takes about 0.5 ms at 10 servers and
 about 50 ms at 1,600, measured on a development machine. The bundle and its hashes are built on first read: a

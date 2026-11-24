@@ -157,8 +157,10 @@ see "Changed", "Removed" and "Migration".
   offset between its nodes and an explicit `length` on the arc.
 - Entities created before activation, jobs and orders included, are layout targets with an automatic placement. More
   than `LayoutLimits.max_placements` (100,000) of them raise `LayoutError` at preparation, naming the limit and
-  `Layout(env, limits=...)`; close to that number the INITIAL record of a recorded run approaches the 64 MiB of
-  `TraceRecorder(max_initial_bytes=)` (99,990 jobs take about 60 MB). Entities created during the run are not targets.
+  `Layout(env, limits=...)`. The INITIAL record of a recorded run is limited by the 64 MiB of
+  `TraceRecorder(max_initial_bytes=)`: 99,990 jobs of two operations on ten servers take about 35 MiB of it (the trace
+  file is about 37 MB, or about 63 MB when the recorder is attached before the jobs are created). Entities created
+  during the run are not targets.
 - A model pays nothing per event for its layout. Activation of a production model takes about 0.5 ms at 10 servers and
   about 50 ms at 1,600 (timings on a development machine). `ResolvedLayout.bundle` and the hashes are built when
   first read: a recorded run builds them once, at INITIAL, and a run that nobody records and whose manifest nobody
