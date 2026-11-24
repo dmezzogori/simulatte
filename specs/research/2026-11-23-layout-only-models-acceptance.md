@@ -175,10 +175,10 @@ node, and the slot was released at the instant the charge ended. A slot held by 
 way stays a violation (`test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation`),
 and so does a slot kept through such a charge but not released as it ends.
 
-**A deadlock is not detected again after a member's wait was withdrawn.** (Found by the Task 2 review; not met by the
-parity run, which ran seeds 0 to 999 and had none. The safety run of Task 11 meets it once; see "Safety run".) It is a
-missed detection in `ReservationController`, not only a missing report. In `src/simulatte/intralogistics/reservation.py`
-deadlock detection (`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member whose wait opens into
+**A deadlock is not detected again after a member's wait was withdrawn.** **Fixed in `df2f7c3`** (Assignment 2, B1); the
+monitor no longer exempts it (`5b3bb91`). (Found by the Task 2 review; not met by the parity run, which ran seeds 0 to
+999 and had none. The safety run of Task 11 meets it once; see "Safety run".) It is a missed detection in
+`ReservationController`, not only a missing report. In `src/simulatte/intralogistics/reservation.py` deadlock detection (`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member whose wait opens into
 a set reported unresolved returns from `stopped()` at once (lines 288 to 289) and gets no review timer (a member that was
 already waiting keeps what it had: in seed 2000228 agv-e had had two reviews and is dormant), and `_report_one` (line
 578) refuses every member a stuck report while the set stands. The set is remembered in `_unresolved`. `_end_wait` (line 631) drops
@@ -865,6 +865,8 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
 
 ### What changed in the monitor
 
+- Since `5b3bb91` (Assignment 2, B1) the second known limit is fixed and this exemption, its orphan tracking and its tests
+  are removed; what follows describes the monitor from `ab4d430` to `6ff842f`.
 - It recognises the second known limit (see "Known limits met by the random worlds"), and only while the case stands.
   It follows the unresolved deadlocks the controller reports. The members left when a wait of a set ends with reason
   `interrupted` (the end that comes from `withdraw`) become orphans, until a later report covers them (a
@@ -955,10 +957,10 @@ Added by the final review (see "Final review"); the monitor is unchanged.
   bodies (`body not covered`, `holdings != body`), and the ledger satisfies the rule for its holders (`LEDGER extents
   exceed the segment`). A controller whose holdings cover the bodies and satisfy the rule keeps followers apart; the
   bodies are not compared with each other on a segment.
-- **The content of a `traffic.deadlock` report.** The monitor uses these reports to follow the unresolved deadlocks
-  for the second known limit and to count the feature "a deadlock"; it does not check that the AGVs a report lists are
-  in a deadlock, nor that every deadlock is reported. A wrong or spurious report passes. (Open waits at the end of a run
-  are explained from the controller's state, see the follow-up above.)
+- **The content of a `traffic.deadlock` report.** The monitor used these reports to follow the unresolved deadlocks
+  for the second known limit (until `5b3bb91`) and uses them to count the feature "a deadlock"; it does not check
+  that the AGVs a report lists are in a deadlock, nor that every deadlock is reported. A wrong or spurious report
+  passes. (Open waits at the end of a run are explained from the controller's state, see the follow-up above.)
 
 ## Costs measured at the end (Task 11)
 
@@ -1310,6 +1312,8 @@ Found by that review outside the fix wave:
    limit in a shape that the monitor's exemption, which requires a closed set, does not recognise; this was not
    investigated further. It was 1 run of that review's 3,120. The safety run recorded above (seeds 100000 to 100999
    and 2000000 to 2000999) has no violation; the statement does not extend to other seeds.
+   **Fixed in `df2f7c3`** (Assignment 2, B1): it is the second known limit's defect in another shape, and the fix of
+   that defect makes the run clean.
 8. The overhead gate against the stripped 0.12.0 is at its limit on this machine for the base and the head alike:
    over eight alternating rounds, `e1b3d1c` gave +6.3 to +9.2 % (u90) and +6.9 to +8.0 % (u95), `9c3fba4` +7.3 to
    +9.3 % and +8.1 to +9.0 %, against a limit of +8.5 %; a whole gate passed in 4 of 8 rounds for each. Two stripped
@@ -1375,6 +1379,125 @@ on a layout with no network to declare it. The added tests are: `test_handles_on
 handle kinds), `test_binding.py` 3, `test_trace.py` 1 (replacing a docstring check). Full suite at `d3723c3`: `Required
 test coverage of 99% reached. Total coverage: 99.19%`; `4975 passed, 1 skipped, 3 warnings in 452.89s (0:07:32)`;
 `ruff check src tests benchmarks`, `ruff format --check` (532 files) and `ty check src` clean.
+
+### B1. Waits after a deadlock member's wait ends
+
+Decided by the maintainer on 2026-11-24: fix, before 0.18.0 is tagged, the two cases the random worlds found where a wait
+is left open and unreported, and delete the monitor's exemption for the first. Commits `df2f7c3`
+(`fix(intralogistics): a deadlock is examined again when a member's wait ends`) and `5b3bb91`
+(`test(intralogistics): the monitor no longer exempts waits left after a withdrawn deadlock member`), base `6ff842f`.
+
+**Cause, item 1 (known limit 2, seed 2000228, `FastestRouter`).** As recorded under "Known limits met by the random
+worlds": `_end_wait` drops every remembered unresolved set that holds the AGV whose wait ends; `withdraw` then only
+scans, and nothing looks at the other members again. A reaction staged by a review (`_react`) ends a member's wait the
+same way. Members whose wait opened into the set have no review timer, and the reviews of the others may sleep (T23).
+
+**Cause, item 2 (residual item 7, seed 52118, `ShortestDistanceRouter`).** The same defect in another shape. The set
+`{agv-d, agv-f, agv-g, bot-y, bot-z}` is reported unresolved (153.2, 158.2, again 172.8). At 198.4 agv-c strands and
+`idle()` reviews bot-y and agv-g; their reviews at 228.4 find no change and sleep, and `_report_one` refuses them as
+members. At 293.7 a cancellation withdraws agv-f's wait: `_end_wait` drops the set, `withdraw` only scans, nothing is
+granted or released, so the sleeping reviews are not woken; `_reduce` without gates over the waits left gives
+`[bot-y, agv-g]`. agv-f then strands and `idle(agv-f)` reviews only the wait it blocks (agv-d), whose stuck report
+reaches the wait behind it (bot-z); agv-a's stuck report at 317.5 reaches only the waits behind agv-a. No wait starts
+afterwards. bot-y and agv-g are also blocked by the stranded agv-c, so they are not a closed set and the monitor's
+exemption did not recognise them: a violation instead of the known limit. No review timer was lost and the stuck chain
+behaves as §7.9 states.
+
+**Change.** In `withdraw`, and in `_react` after a staged reaction, when the AGV whose wait ends was a member of a set
+left unresolved, the controller runs `_detect()` again if `_reduce(gates=False)` over the open waits is not empty
+(`_detect_again`, `_unresolved_member`). This is the fix the reviewer measured (`final-scratch-area2/headfix`, variant 2),
+written without the instance flag: the membership is read before the wait ends. Nothing else in admission, the gate,
+review timing, what the policy may stage, make-way or charging changed. Under `FreeFlowController` the controller is not
+involved.
+
+**Monitor.** `KNOWN_LIMIT_WITHDRAWN`, the orphan tracking (`_track_deadlocks`, `_standing`, `_orphans`) and the closure
+in `Monitor.final` are removed; `final` is again the check of `e4afae4`: every open wait at quiescence is explained by a
+stuck report or an unresolved deadlock, or queued behind one, or it is `open wait with no report`. Removed tests:
+`test_waits_left_open_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_a_known_limit`,
+`test_a_wait_that_starts_after_the_withdrawal_disqualifies_the_orphans`,
+`test_waits_that_are_still_a_closed_deadlock_are_the_known_limit_with_the_waits_queued_behind_them`,
+`test_a_wait_that_is_not_blocked_or_not_only_by_the_set_is_not_the_known_limit` (3 cases),
+`test_only_a_withdrawal_leaves_the_rest_of_an_unresolved_deadlock_unreported` and
+`test_a_later_report_or_the_end_of_their_own_wait_covers_the_rest_of_the_deadlock`. The pin on seed 2000228 became
+`test_waits_left_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_resolved_or_reported` for seeds 2000228
+(`fastest`) and 52118 (`shortest`): no violation, no known limit, and a `traffic.deadlock` at the instant of the
+withdrawal (2000228: `agv-c, agv-d, agv-e, agv-g`, victim agv-e, `step_aside`; 52118: `agv-g, bot-y`, `unresolved`).
+The seven runs of mutant controllers that must end with `open wait with no report` stay
+(`test_an_open_wait_with_no_report_is_a_violation`). The monitor now exempts only the parking slot (`KNOWN_LIMIT`),
+until Task B2.
+
+**Measurement.** The base `6ff842f` and the head `5b3bb91`, each a `git archive` first on `PYTHONPATH`, the same worlds
+under each tree's own monitor, both controllers and three routers: seeds 100000..100999, 2000000..2000999 and
+52000..53999 (4,000 worlds, 24,000 runs; 12,000 under `ReservationController`). Every run returned, at both commits.
+Pooled over the 12,000 reservation runs, paired by (seed, router); the interval is the 95 % t interval of the sum of
+the paired differences. "Open waits without a report" is counted by the measuring script with the same rule for both
+trees (not stuck, not in an unresolved set, not queued behind such a wait), independently of the exemption.
+
+| Measure | `6ff842f` | `5b3bb91` | Difference, 95 % interval | Runs that differ |
+|---|---|---|---|---|
+| runs that returned | 12,000 | 12,000 | 0 | 0 |
+| runs with a violation (all `open wait with no report`) | 1 | 0 | -1 [-3.0, +1.0] | 1 |
+| runs with the withdrawn-deadlock known limit | 1 | 0 | -1 [-3.0, +1.0] | 1 |
+| runs with the parking-slot known limit | 23 | 23 | 0 | 0 |
+| open waits without a report | 6 (2 runs) | 0 | -6 [-14.8, +2.8] | 2 |
+| `traffic.wait_stuck` | 26,846 | 26,835 | -11 [-28.0, +6.0] | 11 |
+| `traffic.deadlock` resolved | 149,004 | 149,042 | +38 [-112.3, +188.3] | 16 |
+| `traffic.deadlock` unresolved | 10,530 | 10,667 | +137 [+101.5, +172.5] | 102 |
+| orders completed | 149,177 | 149,166 | -11 [-24.4, +2.4] | 7 |
+| runs whose fingerprint changed | | | | 122 |
+
+By range: the safety ranges 100000..100999 and 2000000..2000999 (6,000 reservation runs) have 55 fingerprints changed,
+orders completed down in 3 runs and up in none (net -7), and the withdrawn-deadlock known limit gone (2000228); the
+reviewer's variant gave 52 to 55, 0 up and 3 down, net -7. Seeds 52000..53999: 67 fingerprints changed, the violation of
+52118 gone, orders completed up in 2 runs and down in 2 (net -4). The added unresolved reports are sets reported again
+after a member left (each is a new set); in 89 of the 122 changed runs the only count that differs is that of the
+unresolved reports, and in 12 no count differs (a report or a resolution comes earlier: in 100460 `congestion` the same
+set is reported unresolved at 168.2 instead of 174.6; in 52530 `congestion` the same step-aside of bot-z is staged at
+the withdrawal instead of at the next wait of the same instant, and the run then diverges). Counted by a wrapper of
+`_detect_again` on the head (safety ranges / seeds 52000..53999): called in 164 / 202 runs, a deadlock still there in
+78 / 84, a resolution staged in 13 / 17, a new set reported unresolved in 50 / 53. Free-flow runs: 12,000 of 12,000
+`RunRecord`s identical (sha256 of events, initial and final state, time, violations, known limits and fingerprint).
+The stdout of seven transport and layout examples (`building_an_agv_system`, `intralogistics_simple`,
+`_intermediate`, `_advanced`, `_traffic`, `layout_intralogistics`, `layout_stages`) is identical at both commits, apart
+from the tree path in matplotlib's warnings. No pinned digest, fingerprint or fixture moved (the six fingerprints and
+five safety pins of `test_random_worlds.py`, `tests/fixtures/traces/generated/`, `test_examples.py`,
+`test_traffic_scenarios.py`: full suite green, nothing re-pinned).
+
+**Safety run at `5b3bb91`** (CPython 3.14.3, Apple M4 Pro, 10 worker processes, from the repository root):
+
+```
+worlds 1000 (seeds 100000..100999), runs 6000, events 6570230
+runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0, runs with a known limit 6
+wall-clock limit 120 s per run, 180 s
+known limits: kind: cases, runs
+  parking slot kept while charging on the way to park: 6, 6
+```
+
+```
+worlds 1000 (seeds 2000000..2000999), runs 6000, events 6720024
+runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0, runs with a known limit 8
+wall-clock limit 120 s per run, 184 s
+known limits: kind: cases, runs
+  parking slot kept while charging on the way to park: 8, 8
+```
+
+Exit status 0 for each. The parking-slot cases are the 14 recorded under "Safety run" (the same seeds and routers).
+
+**Mutant check** (the reviewer's scripts of `reviewer-scratch-t11/`, run on `5b3bb91` with the exemption gone): seeds
+2000150..2000449 and 500000..500299, `ReservationController`, three routers, 900 runs per range.
+
+| Mutant of `ReservationController` | Runs with `open wait with no report` (2000150.. / 500000..) | Total of 1,800 | At `ab4d430` |
+|---|---|---|---|
+| no mutant | 0 / 0 | 0 | 0 |
+| after a member's withdrawal the controller neither detects nor reports stuck | 21 / 12 | 33 | 33 |
+| every stuck report suppressed | 307 / 328 | 635 | 635 |
+| every review timer dropped | 174 / 191 | 365 | 364 |
+
+No run of any mutant ended with a known limit; the monitor still catches a controller that goes blind.
+
+**Spec.** The traffic spec says detection runs when a wait opens (§7.8, §15); the wording to amend is given to the
+controller in the task report, not changed here. `docs/` and `CHANGELOG.md` are unchanged: 0.17.0 had no
+`ReservationController` and no deadlock detection of this kind, so nothing here is visible to a user of 0.17.0.
 
 ### C. The band of the core overhead gate
 
