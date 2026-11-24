@@ -1273,6 +1273,7 @@ Introduced by the fix wave:
 
 1. `Explicit(graph, zones=[])` and `zones=()` now raise ("takes a mapping ..., not Zone objects"). Before the wave
    they declared an empty zone map, as `zones={}` does (`src/simulatte/layout/types.py:107-113`).
+   **Fixed in `060a055`** (Assignment 2, A).
 2. `hasattr(handle, name)` and `getattr(handle, name, default)` now raise `LayoutNotReady` for `id`, `distance`,
    `length`, `path_length`, `path_distance`, `shortest_path` and `subdivide` (`src/simulatte/layout/refs.py:71-78`);
    before the wave they returned `False` and the default. `LayoutNotReady` is a `ValueError`, not an
@@ -1281,16 +1282,21 @@ Introduced by the fix wave:
    where it returned `False`. A class deriving from both `LayoutNotReady` and `AttributeError` would restore the
    probes and keep the message of a direct read; it was checked on CPython 3.14, 3.11 and PyPy 3.11 by the reviewer,
    not applied.
+   **Fixed in `060a055`**, with that class.
 3. `layout.place(handle, ...)`, `layout.flow([handle, ...])` and `env.entities.retire(handle)` now answer with the
    handle message, whose advice to read `fleet.graph` does not fit those calls.
+   **Fixed in `060a055`** (`layout.port` too).
 4. One refusal message serves every node that is not canonical (`src/simulatte/layout/layout.py:338-341`): a
    disabled node, a node of another environment and an unknown id are told to take the node of the same id from
    `fleet.graph`, which does not help them.
+   **Fixed in `060a055`**; see the differences listed in Assignment 2, A.
 5. The message for a controller of another environment is chosen by a private attribute (`layout.py:401`): a custom
    controller with any `_env` that is not the fleet's is told it belongs to another environment.
+   **Fixed in `060a055`.**
 6. `Trace.layout` is `None` for any trace without an INITIAL record. The docstring and spec §5.8 name traces of
    earlier versions and failed activations; a recorder on an environment closed without ever activating is a third
    case (outcome `completed`).
+   **Fixed in `060a055`** (the docstring; spec §5.8 is the controller's).
 
 Found by that review outside the fix wave:
 
@@ -1311,3 +1317,50 @@ Found by that review outside the fix wave:
    all at import. The head is not slower than the base of the branch (-0.50 % and -0.38 % against `e993ca8`). On the
    CI runner the `bench` job passed at `e993ca8` with +6.8 % and +7.7 %, and has failed once on `main` for a commit
    that touched no source.
+
+## Assignment 2
+
+### A. Residuals of the fix wave
+
+Items 1 to 6 of "Residual findings after the fix wave" are fixed in `060a055`
+(`fix(layout): handles answer attribute probes, empty zone sequences, messages that fit the call`). Items 7 and 8 of that
+section are not part of this task. No event, digest, bundle or hash of any model changed.
+
+| Item | What changed |
+|---|---|
+| 1. `zones=[]`, `zones=()` | An empty list or tuple declares the empty zone map, as `zones={}` does. A non-empty sequence, `Zone` objects in a sequence or as mapping values, and `Node` members raise the messages they raised. |
+| 2. Probes of a handle | Reading a physical attribute of a handle (the thirteen names: `id`, `x`, `y`, `z`, `nodes`, `neighbors`, `arc_between`, `distance`, `length`, `path_length`, `path_distance`, `shortest_path`, `subdivide`) raises a private class derived from `LayoutNotReady` and `AttributeError`. `hasattr` is False, `getattr` with a default returns it, a direct read raises the same message, and `except LayoutNotReady` and `except LayoutError` still catch it. `env.entities.is_live(handle)` is False again. No public name is added. |
+| 3a. `place`, `flow`, `port`, `retire` | Each answers a handle with a message that says what the call takes; `layout.place` with a node handle of an explicit id adds `layout.place('A', kind='node', ...)`. `layout.port` had the same fault and is changed with them. |
+| 3b. Refused nodes | The refusal after the identity check is chosen by `Layout._refused_node` (the accepted path is unchanged): equal to the canonical node (keeps the `fleet.graph` advice); disabled; an id that is not in the network; an id of the network at another position; an object that is not a `Node`; a layout with no resolved network. |
+| 3c. Controller of another environment | The layout recognises a built-in `ReservationController` that is not registered with it (it registers with the layout of its own environment at construction); any other unregistered controller is told to register, whatever private attributes it has. |
+| 3d. `Trace.layout` | Docstring: "None for a trace without an INITIAL record: one of a version without a layout, one whose activation failed before the initial state was recorded (outcome ``failed``), and one whose recorder was closed on an environment that was never activated (outcome ``completed``)." |
+
+Differences from the brief, found while doing it:
+
+- `Explicit(graph, zones={})` is not the same bundle as no `zones` argument: it declares schema 1.1 with an empty zone
+  list, and no argument gives schema 1.0 (this was so before the fix wave too: `zones=[]` was `dict([])`, an empty
+  map). The fix gives `zones=[]` and `zones=()` the bundle and hashes of `zones={}`, which the test pins; it does not
+  make `zones={}` equal to no argument.
+- A node of another environment's network cannot be told from a node the script built: `Node` carries no owner and the
+  layout holds no registry of other layouts. A node of another network is told it is not a node of this network when
+  its id is absent, that it lies elsewhere when its id is present at another position, and, when it is equal to the
+  canonical node, that it is "one the script built, or one of another environment's network".
+- `ReservationController` has no public `env`; the layout decides from the class of a controller it did not register,
+  looked up only if its module is imported.
+- Of the five `getattr(obj, "id", None)` idioms, four are reached with a handle and tested (`attach`, `retire`,
+  `is_live`, a collector's scope); the fifth (`layout/binding.py`, the `target` of the not-ready error) takes a
+  component and is never given a handle.
+
+Evidence. RED: at `66a5a96` (source stashed) the new and changed tests of `test_handles_only.py`, `test_binding.py` and
+`test_trace.py` gave `8 failed, 137 passed`. The item 1 test was then written as a comparison with no `zones` argument
+and corrected afterwards to compare with `zones={}`; it fails at `66a5a96` on the first `Explicit(..., zones=[])`.
+GREEN: `954 passed` for `tests/layout`, `tests/core/test_entities.py`, `tests/intralogistics/test_entities.py` and
+`tests/intralogistics/test_fleet_events.py`. CPython 3.11.13: `919 passed`; PyPy 7.3.22 (Python 3.11.15): `918 passed,
+1 skipped`, for `tests/layout tests/core/test_entities.py tests/intralogistics/test_entities.py`. Full suite at
+`060a055`: `Required test coverage of 99% reached. Total coverage: 99.19%`; `4974 passed, 1 skipped, 3 warnings in
+442.30s (0:07:22)`. `ruff check src tests benchmarks`: `All checks passed!`; `ruff format --check`: `532 files already
+formatted`; `ty check src`: `All checks passed!`; `zensical build`: `No issues found`. The stdout of seven transport and
+layout examples and `layout_safety.py --worlds 300` from 100000 and from 2000000 are byte-identical before and after;
+`--first 100000 --worlds 200` (1,200 runs, 1,361,222 events, no violation, 3 runs with the parking-slot limit) is
+identical apart from the wall-clock line, exit 0 each. The hash and bundle pins and the six fingerprints of
+`tests/intralogistics/test_random_worlds.py` hold unchanged (full suite).
