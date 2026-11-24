@@ -8,11 +8,9 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
-from simulatte._wire import FrozenMap
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.parking import ParkingArea
@@ -22,7 +20,6 @@ from tests.intralogistics import random_worlds
 from tests.intralogistics.random_worlds import (
     FEATURES,
     KNOWN_LIMIT,
-    KNOWN_LIMIT_WITHDRAWN,
     exercised,
     present,
     run_world,
@@ -331,121 +328,24 @@ def _blind_after_a_members_withdrawal(monkeypatch):
     ("patch", "seed", "router"),
     [
         (_suppress_stuck_reports, 26, "shortest"),
-        # These two runs reach the exemption: a deadlock was reported unresolved and a member's wait was withdrawn,
-        # and the waits left open are blocked by an AGV that is stranded or idle (a stuck wait, now unreported).
+        # A deadlock was reported unresolved and a member's wait was withdrawn, and the waits left open are blocked by
+        # an AGV that is stranded or idle (a stuck wait, now unreported).
         (_suppress_stuck_reports, 2000228, "shortest"),
         (_suppress_stuck_reports, 2000228, "congestion"),
-        # And this one, where a grant never came: the withdrawal that orphans the waits is a reroute, so the trigger
-        # decides it (the clause of the closure for a wait that is not blocked has its own test below).
+        # A grant never came: releases do not scan.
         (_no_scan_after_a_release, 2000156, "fastest"),
-        # Waits that start after the withdrawal would have been detected: here the controller is blind to them, a
-        # real fault that follows an interruption, and some waits are left open with a deadlock that nothing reports.
+        # After a member's withdrawal the controller is blind to detection and stuck reports, a real fault that follows
+        # an interruption, and some waits are left open with a deadlock that nothing reports.
         (_blind_after_a_members_withdrawal, 2000173, "fastest"),
         (_blind_after_a_members_withdrawal, 2000245, "shortest"),
         (_blind_after_a_members_withdrawal, 2000254, "congestion"),
     ],
 )
-def test_an_open_wait_with_no_report_for_another_reason_is_a_violation(monkeypatch, patch, seed, router):
+def test_an_open_wait_with_no_report_is_a_violation(monkeypatch, patch, seed, router):
     patch(monkeypatch)
     record = run_world(world_spec(seed), controller="reservation", router=router)
     assert not record.known_limits
     assert "open wait with no report" in {violation[1] for violation in record.violations}
-
-
-def _monitor_after(*events):
-    """A monitor that has seen only `events`, for what it tracks of the deadlock reports."""
-    monitor = random_worlds.Monitor.__new__(random_worlds.Monitor)
-    monitor._standing, monitor._orphans = [], set()
-    for event in events:
-        monitor._track_deadlocks(event)
-    return monitor
-
-
-def _unresolved(*agvs):
-    return logistics_events.TrafficDeadlock(agvs=agvs, victim=None, action="unresolved")
-
-
-def _ended(agv, reason):
-    return logistics_events.TrafficWaitEnded(agv=agv, node="n", reason=reason)
-
-
-def _started(agv):
-    return logistics_events.TrafficWaitStarted(agv=agv, node="n", resources=(), blockers=(), reason="occupied")
-
-
-def test_a_wait_that_starts_after_the_withdrawal_disqualifies_the_orphans():
-    """The controller detects at every new wait, so such a wait either reports the orphans or they are not the case."""
-    withdrawn = (_unresolved("a", "b", "c"), _ended("a", "interrupted"))
-    assert _monitor_after(*withdrawn, _started("z"))._orphans == set()
-    assert _monitor_after(*withdrawn, _started("z"), _unresolved("d", "e"), _ended("d", "interrupted"))._orphans == {
-        "e"
-    }
-
-
-def _monitor_at_the_end(blocked_by, orphans):
-    """A monitor at the end of a run with open waits (AGV id -> ids of the AGVs that block it) and `orphans`."""
-    waits = {
-        agv: SimpleNamespace(agv=SimpleNamespace(id=agv), stopped=True, timer=None, stuck=False) for agv in blocked_by
-    }
-    controller = SimpleNamespace(
-        _unresolved=[],
-        _queue=list(waits.values()),
-        _blocking=lambda wait: [SimpleNamespace(agv=SimpleNamespace(id=b)) for b in blocked_by[wait.agv.id]],
-    )
-    monitor = random_worlds.Monitor.__new__(random_worlds.Monitor)
-    monitor.__dict__.update(
-        reservation=True,
-        controller=controller,
-        env=SimpleNamespace(now=9.0),
-        world=SimpleNamespace(agvs={}, parking=()),
-        violations=[],
-        known_limits=[],
-        _orphans=set(orphans),
-    )
-    monitor.final()
-    return monitor
-
-
-def test_waits_that_are_still_a_closed_deadlock_are_the_known_limit_with_the_waits_queued_behind_them():
-    monitor = _monitor_at_the_end({"b": ["c"], "c": ["b"], "d": ["b"]}, {"b", "c"})
-    assert not monitor.violations
-    ((_, kind, agvs),) = monitor.known_limits
-    assert kind == KNOWN_LIMIT_WITHDRAWN and agvs == ("b", "c", "d")
-
-
-@pytest.mark.parametrize(
-    ("blocked_by", "violating"),
-    [
-        # c is not blocked at all (its claim is admissible and never granted), so b, which only c blocks, is not stuck
-        # in a deadlock either
-        ({"b": ["c"], "c": []}, ["b", "c"]),
-        # c is blocked by an AGV that is not waiting (moving, idle or stranded)
-        ({"b": ["c"], "c": ["b", "x"]}, ["b", "c"]),
-        # d is queued behind b but also blocked by an AGV that is not waiting: it is a violation, b and c stay
-        ({"b": ["c"], "c": ["b"], "d": ["b", "x"]}, ["d"]),
-    ],
-)
-def test_a_wait_that_is_not_blocked_or_not_only_by_the_set_is_not_the_known_limit(blocked_by, violating):
-    monitor = _monitor_at_the_end(blocked_by, {"b", "c"})
-    assert [violation[1:] for violation in monitor.violations] == [("open wait with no report", violating)]
-
-
-def test_only_a_withdrawal_leaves_the_rest_of_an_unresolved_deadlock_unreported():
-    assert _monitor_after(_unresolved("a", "b", "c"), _ended("a", "interrupted"))._orphans == {"b", "c"}
-    for reason in ("granted", "rerouted", "stepped_aside", "gave_up"):
-        monitor = _monitor_after(_unresolved("a", "b", "c"), _ended("a", reason))
-        assert not monitor._orphans and not monitor._standing, reason
-    assert not _monitor_after(_ended("a", "interrupted"))._orphans  # a wait of no reported set
-
-
-def test_a_later_report_or_the_end_of_their_own_wait_covers_the_rest_of_the_deadlock():
-    withdrawn = (_unresolved("a", "b", "c", "d"), _ended("a", "interrupted"))
-    stuck = logistics_events.TrafficWaitStuck(agv="b", blockers=FrozenMap({"x": "IDLE"}))
-    assert _monitor_after(*withdrawn, stuck)._orphans == {"c", "d"}
-    assert _monitor_after(*withdrawn, _ended("c", "granted"))._orphans == {"b", "d"}
-    assert _monitor_after(*withdrawn, _unresolved("b", "c", "d"))._orphans == set()
-    resolved = logistics_events.TrafficDeadlock(agvs=("b", "c"), victim="b", action="reroute")
-    assert _monitor_after(*withdrawn, resolved)._orphans == {"d"}
 
 
 @pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))

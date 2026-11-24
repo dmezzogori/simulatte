@@ -14,9 +14,8 @@ built graph that differs from it. It keeps its own body model of every vehicle, 
 checks after every domain event that the replayed deltas equal the live entities (from the first event and from the
 initial state), and, under a `ReservationController`, that the bodies respect node, segment, zone and corridor
 admission, that the holdings cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and
-that the entities agree with the holdings ledger. It records violations instead of raising, so a run always ends. Two
-known limits, `KNOWN_LIMIT` (the fleet) and `KNOWN_LIMIT_WITHDRAWN` (the traffic controller), are recognised from their
-own events and recorded apart.
+that the entities agree with the holdings ledger. It records violations instead of raising, so a run always ends. One
+known limit of the fleet, `KNOWN_LIMIT`, is recognised from its own events and recorded apart.
 """
 
 from __future__ import annotations
@@ -63,7 +62,6 @@ from simulatte.intralogistics.events import (
     TrafficDeadlock,
     TrafficReleased,
     TrafficReserved,
-    TrafficWaitEnded,
     TrafficWaitStarted,
     TrafficWaitStuck,
 )
@@ -727,7 +725,7 @@ class RunRecord:
     """Whether the event queue was empty when the run ended (always true without ``until``)."""
     violations: tuple[tuple[Any, ...], ...]
     known_limits: tuple[tuple[Any, ...], ...]
-    """The cases of `KNOWN_LIMIT` and `KNOWN_LIMIT_WITHDRAWN` the monitor recognised, apart from the violations."""
+    """The cases of `KNOWN_LIMIT` the monitor recognised, apart from the violations."""
     fingerprint: str
     """``env.fingerprint()`` at the end of the run, as the parity tests of ``tests/layout`` compare it."""
 
@@ -1046,22 +1044,11 @@ KNOWN_LIMIT = "parking slot kept while charging on the way to park"
 charger it turned to, or one on its route), and keeps the slot while it charges, until the charge ends (fleet behaviour,
 pinned by a fingerprint taken while both modes existed)."""
 
-KNOWN_LIMIT_WITHDRAWN = "waits of an unresolved deadlock left unreported after a member's wait was withdrawn"
-"""The second known limit, a defect of `ReservationController` that predates the layout-only work, a missed detection:
-deadlock detection (`_detect`) runs only when a wait starts (`stopped()`), and a member whose wait opens into a set
-reported unresolved gets no review timer (a member that was already waiting keeps the reviews it had). When one wait of
-the set is withdrawn (`withdraw`, which only scans) the controller forgets every set that holds its AGV (`_end_wait`),
-and nothing looks at the remaining waits again unless a new wait opens, an idle blocker comes to rest or a stuck chain
-reaches them. If they still form a deadlock, the run ends with them open and unreported. The monitor recognises it only
-when no wait started after the withdrawal (a new wait runs the detection, which either reports the orphans or means
-they are not this case) and, at the end, the exempted waits are a closed set: each is blocked, and only by waits of the
-set, which are the orphans' and those queued behind them."""
-
 
 class Monitor:
     """Checks a run of a built world after every domain event; see the module docstring. ``violations`` lists
     ``(time, what, *details)``; ``known_limits`` lists the cases of `KNOWN_LIMIT` as ``(time, KNOWN_LIMIT, area, agv,
-    entered, released)`` and those of `KNOWN_LIMIT_WITHDRAWN` as ``(time, KNOWN_LIMIT_WITHDRAWN, agv ids)``;
+    entered, released)``;
     ``events`` counts the domain events seen and ``checked`` those checked against the body model."""
 
     def __init__(self, world: BuiltWorld, *, replay: bool = True) -> None:
@@ -1082,8 +1069,6 @@ class Monitor:
         self._slots: dict[tuple[str, str], _Slot] = {}
         self._chargers = {node for _, node, _ in world.spec.chargers}
         self._areas = {name: node for name, node, _ in world.spec.parking}
-        self._standing: list[tuple[str, ...]] = []  # deadlocks reported unresolved whose waits all stand
-        self._orphans: set[str] = set()  # members left behind when a wait of a standing deadlock was withdrawn
         self.env.bus.subscribe(self.on, "*")
         if self.reservation:
             self._patch_exits()
@@ -1247,7 +1232,6 @@ class Monitor:
         if not self._ready:
             self._setup()
         self._track_slots(event, float(env.now))
-        self._track_deadlocks(event)
         if self.bodies is None:
             if self.reservation and len(self.controller.ledger.placed()) < len(self.world.agvs):
                 return
@@ -1359,32 +1343,6 @@ class Monitor:
                     self.known_limits.append((slot.flagged[0][0], KNOWN_LIMIT, event.area, event.agv, slot.entered, t))
                 else:
                     self.violations.extend(slot.flagged)
-
-    def _track_deadlocks(self, event: Any) -> None:
-        """Follow the unresolved deadlocks the controller reported, for the evidence of `KNOWN_LIMIT_WITHDRAWN`.
-
-        The controller forgets a reported set when any wait of it ends. The other members become `_orphans` only when
-        that wait was withdrawn, reason ``interrupted``, the end that comes from ``withdraw``, which only scans. A
-        reroute staged by a review also ends a member's wait with a scan only, and the other reasons come from a grant
-        or from a reaction of the deadlock resolution, which detects again; restricting the trigger to ``interrupted``
-        is the conservative choice, since such a case, if it occurs, stays a violation. Orphans stay so until a later
-        report covers them (a deadlock listing them, a stuck report, the end of their own wait) or until any wait
-        starts: the controller detects at every new wait, so that wait either reports them or they are not the case.
-        """
-        if isinstance(event, TrafficDeadlock):
-            self._orphans.difference_update(event.agvs)
-            if event.action == "unresolved" and event.agvs not in self._standing:
-                self._standing.append(event.agvs)
-        elif isinstance(event, TrafficWaitStarted):
-            self._orphans.clear()
-        elif isinstance(event, TrafficWaitStuck):
-            self._orphans.discard(event.agv)
-        elif isinstance(event, TrafficWaitEnded):
-            self._orphans.discard(event.agv)
-            for ids in [ids for ids in self._standing if event.agv in ids]:
-                self._standing.remove(ids)
-                if event.reason == "interrupted":
-                    self._orphans.update(set(ids) - {event.agv})
 
     def finish(self) -> None:
         """At the end of any run: a slot still held after a charge it was kept through is a violation after all."""
@@ -1575,32 +1533,8 @@ class Monitor:
                     if agv_id not in explained and any(b.agv.id in explained for b in controller._blocking(wait)):
                         explained.add(agv_id)
                         changed = True
-            # Waits of the deadlock members the controller stopped reporting, and the waits queued behind them ...
-            limit = {agv_id for agv_id in self._orphans if agv_id in waits and agv_id not in explained}
-            changed = True
-            while changed:
-                changed = False
-                for agv_id, wait in waits.items():
-                    if agv_id not in explained | limit and any(b.agv.id in limit for b in controller._blocking(wait)):
-                        limit.add(agv_id)
-                        changed = True
-            # ... as long as they still are a deadlock: every one is blocked, and only by waits of the set (the
-            # orphans' and those queued behind them), which wait in turn. A wait blocked by an explained wait would
-            # itself be explained above. The blockers come from the ledger, which the monitor checks against the
-            # entities and its body model at every event. A wait that is not blocked, or is blocked by an AGV that is
-            # moving, idle or stranded, is not the known limit.
-            closed = False
-            while not closed:
-                closed = True
-                for agv_id in sorted(limit):
-                    blockers = {b.agv.id for b in controller._blocking(waits[agv_id])}
-                    if not blockers or not blockers <= limit:
-                        limit.discard(agv_id)
-                        closed = False
-            if limit:
-                self.known_limits.append((float(self.env.now), KNOWN_LIMIT_WITHDRAWN, tuple(sorted(limit))))
-            if set(waits) - explained - limit:
-                self.violation("open wait with no report", sorted(set(waits) - explained - limit))
+            if set(waits) - explained:
+                self.violation("open wait with no report", sorted(set(waits) - explained))
         for agv in self.world.agvs.values():
             if agv.motion is not None and not agv.motion.get("stalled"):
                 self.violation("motion left at quiescence", agv.id)
