@@ -28,6 +28,16 @@ EXERCISED = {
     272: {"a passing segment held by two", "stranding", "a recorded length traversed", "a deadlock"},
 }
 """Five worlds and some of what their run under ``ReservationController`` and the default router exercises."""
+FINGERPRINTS = {
+    26: "f1de1cc861081516b04b41647fee919ab85822bf8d603fb4de349fd0351592ec",
+    88: "c539208e1d5b79e8530e657f637adc1eefad87a39ff7f949b749f10e1c076f99",
+    182: "e36b053f438b2090df7cb1fe932b0d9dd2ed678619929b5c234804deabfa9024",
+    236: "761629ac3bcb4ab91b8c6835cf4ef40de65ce15312eb1ad879a88a6001aa0bca",
+    272: "b4f29be8b9f03f51449ca4b261f5e90c4b3f324ad0fbc6833096ec3227df05bf",
+    619: "bf99183019763d143b258513bf38c4b1caaf0cc98fc393b513f2e5383d85c618",
+}
+"""``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
+router), equal in both modes when pinned, at the last commit where both existed."""
 
 
 def test_world_spec_is_deterministic_per_seed():
@@ -60,7 +70,7 @@ def test_a_world_runs_alike_built_explicitly_and_through_the_layout(seed):
     explicit = run_world(spec, mode="explicit", controller="reservation")
     layout = run_world(spec, mode="layout", controller="reservation")
     assert layout.events and layout.quiescent and not layout.violations
-    assert explicit == layout
+    assert explicit == layout and layout.fingerprint.digest == FINGERPRINTS[seed]
     assert EXERCISED[seed] <= exercised(spec, layout.events) <= present(spec) | NOT_IN_A_SPEC
 
 
@@ -184,6 +194,7 @@ def test_a_parking_slot_kept_while_charging_on_the_way_to_park_is_the_known_limi
     explicit = run_world(spec, mode="explicit", controller="free", router="shortest")
     layout = run_world(spec, mode="layout", controller="free", router="shortest")
     assert explicit == layout and not layout.violations
+    assert layout.fingerprint.digest == FINGERPRINTS[619]
     (case,) = layout.known_limits
     assert case[1:4] == (KNOWN_LIMIT, "P0", "agv-a")
     assert case[4] == pytest.approx(97.003, abs=1e-3) and case[5] == pytest.approx(220.061, abs=1e-3)
