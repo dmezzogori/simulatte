@@ -162,7 +162,7 @@ class TestFreeFlowController:
 
         env = Environment()
         layout = Layout(env)
-        line(env, 2)
+        world = line(env, 2)
         controller = FreeFlowController()
         for name in ("a", "b"):  # both graphs are still references to the layout's graph: one graph
             FleetCoordinator(
@@ -175,7 +175,7 @@ class TestFreeFlowController:
                 name=name,
             )
         layout.prepare()
-        assert controller.view.graph is layout.prepare().network.graph
+        assert controller.view.graph is world.canonical_graph()
 
     def test_view_graph_requires_a_fleet(self) -> None:
         with pytest.raises(RuntimeError):

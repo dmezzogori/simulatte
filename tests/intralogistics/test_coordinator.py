@@ -61,6 +61,29 @@ class RestToRest:
         return self._profile.motion(*args)
 
 
+class Severable(ShortestDistanceRouter):
+    """The shortest-distance router, with no route over a severed leg: `severed` holds ``(source id, target id)``
+    pairs, added during the run where the graph of a layout, which is frozen, cannot lose its arcs."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.severed: set[tuple[str, str]] = set()
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        found = super().route(request, view)
+        if found is None or any((u.id, v.id) in self.severed for u, v in zip(found.nodes, found.nodes[1:])):
+            return None
+        return found
+
+    def sever(self, graph: LayoutGraph, node: Node, *neighbours: Node) -> None:
+        """Sever every leg out of `node` when no `neighbours` are named, else the legs between `node` and each."""
+        if neighbours:
+            for other in neighbours:
+                self.severed |= {(node.id, other.id), (other.id, node.id)}
+        else:
+            self.severed |= {(node.id, other.id) for other in graph.neighbors(node)}
+
+
 def _four_arc_line() -> tuple[Node, Node, Node, LayoutGraph]:
     """``ORIGIN -- A -- MID -- B -- DEST`` with 25 m arcs; returns ORIGIN, MID, DEST and the graph."""
     names = ("ORIGIN", "A", "MID", "B", "DEST")
@@ -2999,21 +3022,21 @@ class TestResumeDeliveryStranded:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # explicit mode: the test severs arcs of the graph during the run, which the frozen graph of a layout does not
-        # allow; Task 9 decides this test
         # Graph: ORIGIN -- A -- MID -- B -- DEST, under reservation: at ORIGIN the AGV claims up to MID, so the
-        # interrupt takes effect at MID. The arcs out of MID are then removed: neither the resumed delivery nor the
-        # return to the origin has a route, and the cargo is dropped at MID.
+        # interrupt takes effect at MID. The arcs out of MID are then severed (the router finds no route over them):
+        # neither the resumed delivery nor the return to the origin has a route, and the cargo is dropped at MID.
         node_origin, node_mid, node_dest, graph = _four_arc_line()
-        traffic = ReservationController(graph=graph, env=env)
+        world = declare(env, graph)
+        router = Severable()
+        traffic = ReservationController(graph=world.graph, env=env)
         statuses: list[OrderStatusChanged] = []
         env.bus.subscribe(statuses.append, (OrderStatusChanged,))
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3023,8 +3046,8 @@ class TestResumeDeliveryStranded:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3045,16 +3068,17 @@ class TestResumeDeliveryStranded:
             critical_battery_threshold=0.05,
             length=0.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
             traffic_controller=traffic,
             load_recovery_strategy=ResumeDelivery(),
+            router=router,
         )
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
@@ -3067,8 +3091,8 @@ class TestResumeDeliveryStranded:
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
-                # Remove the arc from MID to DEST to strand the AGV on resume
-                graph._adjacency[node_mid] = {}
+                # Sever the arcs out of MID to strand the AGV on resume
+                router.sever(world.canonical_graph(), world.node("MID"))
                 process.interrupt("test_strand")
 
         env.process(interrupt_and_block())
@@ -3077,7 +3101,7 @@ class TestResumeDeliveryStranded:
         # After stranding on resume: cargo should be cleared, order failed
         assert agv.current_load is None
         assert agv.state == AGVState.IDLE
-        assert agv.current_node == node_mid
+        assert agv.current_node == world.node("MID")
         assert ("FAILED", "cargo_dropped") in [(e.status, e.reason) for e in statuses if e.order == order.id]
         assert order.status == OrderStatus.FAILED
         assert [node.id for _, node, _, _ in coordinator._dropped_cargo] == ["MID"]
@@ -3103,14 +3127,12 @@ class TestResumeDeliveryFallbackToReturn:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # explicit mode: the test severs arcs of the graph during the run, which the frozen graph of a layout does not
-        # allow; Task 9 decides this test
         speed_profile: Any
         if kinematic:
             # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID, the
             # first node 0.05 m beyond A (spec §8.3), under free flow as well.
             node_origin, node_mid, node_dest, graph = _four_arc_line()
-            beyond_mid = next(node for node in graph.nodes if node.id == "B")
+            beyond_mid = "B"
             speed_profile = simple_speed
         else:
             node_origin = Node(id="ORIGIN", x=0.0, y=0.0)
@@ -3120,14 +3142,16 @@ class TestResumeDeliveryFallbackToReturn:
                 [node_origin, node_mid, node_dest],
                 [Arc(source=node_origin, target=node_mid), Arc(source=node_mid, target=node_dest)],
             )
-            beyond_mid = node_dest
+            beyond_mid = "DEST"
             speed_profile = RestToRest(simple_speed)  # rest to rest: the interrupt takes effect at MID
+        world = declare(env, graph)
+        router = Severable()
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3137,8 +3161,8 @@ class TestResumeDeliveryFallbackToReturn:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3155,15 +3179,16 @@ class TestResumeDeliveryFallbackToReturn:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
             load_recovery_strategy=ResumeDelivery(),
+            router=router,
         )
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
@@ -3176,8 +3201,7 @@ class TestResumeDeliveryFallbackToReturn:
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
                 # Sever only the way on from MID, keep MID->ORIGIN intact
-                graph._adjacency[node_mid].pop(beyond_mid, None)
-                graph._adjacency[beyond_mid].pop(node_mid, None)
+                router.sever(world.canonical_graph(), world.node("MID"), world.node(beyond_mid))
                 process.interrupt("test_sever_dest_only")
 
         interrupted: list[AgvMoveInterrupted] = []
@@ -3205,8 +3229,6 @@ class TestResumeDeliveryFallbackChain:
     ) -> None:
         from simulatte.intralogistics.policies import ResumeDelivery
 
-        # explicit mode: the test severs arcs of the graph during the run, which the frozen graph of a layout does not
-        # allow; Task 9 decides this test
         speed_profile: Any
         if kinematic:
             # A kinematic vehicle on four 25 m arcs: cancelled on the first, it passes A at speed and rests at MID.
@@ -3221,12 +3243,14 @@ class TestResumeDeliveryFallbackChain:
                 [Arc(source=node_origin, target=node_mid), Arc(source=node_mid, target=node_dest)],
             )
             speed_profile = RestToRest(simple_speed)  # rest to rest: the interrupt takes effect at MID
+        world = declare(env, graph)
+        router = Severable()
 
         wh_origin = Warehouse(
             env=env,
             name="WH-ORIGIN",
-            input_bays=[node_origin],
-            output_bays=[node_origin],
+            input_bays=[world.ref("ORIGIN")],
+            output_bays=[world.ref("ORIGIN")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 100},
@@ -3236,8 +3260,8 @@ class TestResumeDeliveryFallbackChain:
         wh_dest = Warehouse(
             env=env,
             name="WH-DEST",
-            input_bays=[node_dest],
-            output_bays=[node_dest],
+            input_bays=[world.ref("DEST")],
+            output_bays=[world.ref("DEST")],
             n_slots=2,
             products=[sku_a],
             initial_inventory={sku_a: 0},
@@ -3254,15 +3278,16 @@ class TestResumeDeliveryFallbackChain:
             load_time=1.0,
             unload_time=1.0,
         )
-        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_origin)
+        agv = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("ORIGIN"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv],
             warehouses=[wh_origin, wh_dest],
             charging_stations=[],
             load_recovery_strategy=ResumeDelivery(),
+            router=router,
         )
 
         order = coordinator.create_order(sku=sku_a, quantity=10, origin=wh_origin, destination=wh_dest)
@@ -3274,10 +3299,12 @@ class TestResumeDeliveryFallbackChain:
             yield env.timeout(4.0)
             process = coordinator._active_missions.get(order.id)
             if process is not None and process.is_alive:
-                # Remove ALL arcs from MID - AGV is completely isolated
-                graph._adjacency[node_mid] = {}
-                graph._adjacency[node_origin].pop(node_mid, None)
-                graph._adjacency[node_dest].pop(node_mid, None)
+                # Sever ALL arcs from MID - AGV is completely isolated
+                resolved, mid = world.canonical_graph(), world.node("MID")
+                router.sever(resolved, mid)
+                router.severed |= {
+                    (name, "MID") for name in ("ORIGIN", "DEST") if resolved.arc_between(world.node(name), mid)
+                }
                 process.interrupt("test_full_strand")
 
         env.process(interrupt_and_isolate())

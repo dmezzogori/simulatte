@@ -66,6 +66,8 @@ class World:
     agvs: dict[str, AGV]
     replay: FullReplay
     invariants: TrafficInvariants
+    declared: Declared | None = None
+    """The graph declared on the layout; ``None`` for an `explicit_world`."""
 
     def seg(self, a: str, b: str) -> Segment:
         return self.controller.network.segment(self.nodes[a], self.nodes[b])
@@ -138,7 +140,7 @@ def world(
     if place:
         env.on_activate(lambda: [controller.place(agv, agv.current_node) for agv in vehicles.values()])
     env.activate()
-    return World(env, controller, {node.id: node for node in graph.nodes}, vehicles, replay, invariants)
+    return World(env, controller, {node.id: node for node in graph.nodes}, vehicles, replay, invariants, declared)
 
 
 def explicit_world(
@@ -862,22 +864,16 @@ class TestLifecycle:
         ]
 
     def test_entities_are_attached_at_activation_in_id_order(self) -> None:
-        # explicit mode: a layout binds every node of its network at preparation, so a controller without a fleet does
-        # not have only its segments and zones there (reported to the controller); Task 9 decides this test
-        points = [("J1", 0, 0), ("a", 10, 0), ("b", 20, 0), ("J2", 30, 0)]
-        points += [("x1", -10, 10), ("y1", -10, -10), ("x2", 40, 10), ("y2", 40, -10)]
-        nodes = {name: Node(name, x, y) for name, x, y in points}
-        links = [("J1", "a"), ("a", "b"), ("b", "J2"), ("J1", "x1"), ("J1", "y1"), ("J2", "x2"), ("J2", "y2")]
-        graph = LayoutGraph(nodes.values(), [Arc(nodes[u], nodes[v]) for u, v in links])
-        zone = Zone("B-zone", (nodes["x1"],))
         env = Environment(debug=True)
-        controller = ReservationController(env=env, graph=graph, zones=[zone])
+        declared = two_junction_corridor(env, zones={"B-zone": {"members": ["x1"]}})
+        controller = ReservationController(env=env, graph=declared.graph)
         assert not [entity for entity in env.entities.live() if entity.kind in ("segment", "zone")]
         with pytest.raises(RuntimeError, match="activate"):
             controller.network
         env.activate()
         attached = [(entity.kind, entity.id) for entity in env.entities.live()]
         assert attached == [
+            *(("node", node) for node in ("J1", "J2", "a", "b", "x1", "x2", "y1", "y2")),  # bound at preparation
             ("segment", "J1~a"),
             ("segment", "J1~x1"),
             ("segment", "J1~y1"),
@@ -1007,6 +1003,15 @@ class TestLifecycle:
         assert controller.graph is graph
         assert [controller.view.capacity(nodes[n]) for n in ("N0", "N1", "N2")] == [3, 1, 4]
 
+    def test_install_layout_graph_takes_the_declared_capacities(self) -> None:
+        """A declared capacity is the node's; a node without one falls back to the controller's default."""
+        env = Environment()
+        declared = line(env, 3, capacities={"N0": 3})
+        controller = ReservationController(env=env, graph=declared.graph)
+        env.activate()
+        assert controller.graph is declared.canonical_graph()
+        assert [controller.view.capacity(declared.node(n)) for n in ("N0", "N1")] == [3, 1]
+
 
 # --- the view ----------------------------------------------------------------------------------------------
 
@@ -1020,7 +1025,7 @@ class TestView:
         w = world(lambda env: declare(env, limited), {"A": "N0"})
         view = w.controller.view
         n0, n1, n2 = w.nodes["N0"], w.nodes["N1"], w.nodes["N2"]
-        assert view.graph is w.env.layout.prepare().network.graph
+        assert w.declared is not None and view.graph is w.declared.canonical_graph()
         assert view.length(n0, n1) == 10.0
         assert view.speed_limit(n0, n1) == 1.5
         assert view.speed_limit(n1, n2) is None

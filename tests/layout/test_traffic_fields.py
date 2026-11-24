@@ -1174,6 +1174,8 @@ def test_the_controller_reads_the_layout_zones_at_bind():
 
 
 def test_authored_and_layout_zones_both_apply_and_a_repeated_id_is_an_error():
+    # the controller's own zones (L13 removes the argument, and the rule about an id defined in both places): Task 9
+    # decides this test
     env = Environment()
     layout, controller = _line_with_zone(env, (Zone("mine", ()),))  # an authored zone cannot name layout nodes
     layout.prepare()
@@ -1724,6 +1726,7 @@ def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_give
     hold_back, capacity, form
 ):
     """Node and pair members, in a five-node world: every leg claims the same resources either way."""
+    # the controller's own zones against the declaration (L13 removes the argument): Task 9 decides this test
     graph, nodes = five_nodes()
     declared = {
         "z": {
