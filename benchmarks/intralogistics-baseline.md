@@ -174,26 +174,28 @@ The spec leaves this benchmark ungated.
 ## Cost of a layout-built network, 2026-11-24
 
 Task 9b of the layout-only-models work removed most of the run-time and preparation costs named above. The comparison is
-the commit before it (`1bc1e51`) against the commit after it (`d697ca6`), the workload above (20 AGVs, intervals 30 to
-60, seed 42), `--warmup 1 --repeat 5 --processes 3`, on Apple M4 Pro, CPython 3.14.3, the two sides alternating (before,
-after) in five rounds for each mode; the machine was not otherwise idle (one-minute load average 1.4 to 3.6 between the
-rounds, `uptime` in the kept output). Each cell is the median of the five round medians, each of 15 timed runs, with the
-range over the rounds.
+the commit before it (`1bc1e51`) against the commit after its review fixes (`f6179cd`), the workload above (20 AGVs,
+intervals 30 to 60, seed 42), `--warmup 1 --repeat 5 --processes 3`, on Apple M4 Pro, CPython 3.14.3, the two sides
+alternating (before, after) in five rounds for each mode; the machine was not otherwise idle (one-minute load average
+1.2 to 2.8 between the rounds, `uptime` in the kept output). Each cell is the median of the five round medians, each of
+15 timed runs, with the range over the rounds.
 
-| Mode, shifts | `1bc1e51` median s (range) | `d697ca6` median s (range) | After / before, median (range) |
+| Mode, shifts | `1bc1e51` median s (range) | `f6179cd` median s (range) | After / before, median (range) |
 |---|---:|---:|---:|
-| none, 1 | 0.24906 (0.24697 to 0.25586) | 0.23522 (0.23393 to 0.24619) | 0.947 (0.919 to 0.989) |
-| default, 1 | 0.27081 (0.26890 to 0.27839) | 0.26103 (0.25525 to 0.26351) | 0.950 (0.940 to 0.965) |
-| default_logging, 1 | 0.25196 (0.25060 to 0.25573) | 0.23910 (0.23722 to 0.24608) | 0.952 (0.939 to 0.977) |
-| none, 6 | 1.56888 (1.55107 to 1.61095) | 1.51289 (1.50936 to 1.55227) | 0.964 (0.948 to 0.975) |
+| none, 1 | 0.24993 (0.24928 to 0.25102) | 0.23356 (0.23269 to 0.23446) | 0.934 (0.930 to 0.941) |
+| default, 1 | 0.26897 (0.26721 to 0.27016) | 0.25332 (0.25199 to 0.25385) | 0.944 (0.935 to 0.948) |
+| default_logging, 1 | 0.24863 (0.24826 to 0.24925) | 0.23374 (0.23340 to 0.23643) | 0.940 (0.939 to 0.949) |
+| none, 6 | 1.55846 (1.55277 to 1.56226) | 1.48945 (1.48708 to 1.49118) | 0.956 (0.954 to 0.959) |
 
 The ten results of each one-shift row have the orders and hashes of the previous section (1,018 orders, trajectory
-hash `633394be...`); the ten of the six-shift row agree with each other. The explicit build no longer exists. The previous section's
-comparison with it (1.095 at one shift in every mode, about 1.04 on long runs) is the figure for `1bc1e51`. As a check,
-a reference tree of that explicit build (outside the repository) ran alternately with the same two sides in mode none at
-the same settings: one shift, five rounds, `1bc1e51` / explicit 1.096 (1.079 to 1.100) and `d697ca6` / explicit 1.038
-(1.019 to 1.043); six shifts, three rounds, 1.044 (1.040 to 1.045) and 1.012 (1.008 to 1.016). What remains at one shift
-is mostly the preparation of the network, 5.9 ms for this graph of 16 nodes (14 ms before, 2.5 % of the run), and about
-one point of run time that was not separated further; at six shifts, 0.4 % is preparation. Preparation of larger
-networks is in `specs/research/2026-11-23-layout-only-models-acceptance.md`, section "Cost of a layout-built network
-(Task 9b)".
+hash `633394be...`); the ten of the six-shift row agree with each other. The explicit build no longer exists. The previous
+section's comparison with it (1.095 at one shift in every mode, about 1.04 on long runs) is the figure for `1bc1e51`. As a
+check, a reference tree of that explicit build (outside the repository) ran alternately with the same two sides in mode
+none at the same settings: one shift, five rounds, `1bc1e51` / explicit 1.093 (1.086 to 1.095) and `f6179cd` / explicit
+1.022 (1.019 to 1.042); six shifts, three rounds, 1.045 (1.043 to 1.046) and 0.999 (0.997 to 1.004). What remains at one
+shift is the preparation of the network, 5.8 ms for this graph of 16 nodes (14 ms before, 2.5 % of the run); at six shifts
+the two builds are equal within the spread. The head against itself with the graph's containers replaced by an explicit
+graph's `defaultdict` adjacency (15 alternating repetitions in one process, identical results): 0.9957 at one shift, 0.9956
+at three, 0.9959 at six, so the lookups cost no more than an explicit graph's. Preparation of larger networks and the
+activation of production models are in `specs/research/2026-11-23-layout-only-models-acceptance.md`, section "Cost of a
+layout-built network (Task 9b)".
