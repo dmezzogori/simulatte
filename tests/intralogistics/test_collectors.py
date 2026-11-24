@@ -11,6 +11,9 @@ from simulatte.environment import Environment
 from simulatte.intralogistics import (
     AGV,
     AGVState,
+    Arc,
+    LayoutGraph,
+    Node,
     FleetCoordinator,
     FleetKPIs,
     FleetTimeSeries,
@@ -28,6 +31,7 @@ from simulatte.intralogistics.events import (
     TrafficWaitStarted,
     TrafficWaitStuck,
 )
+from simulatte.layout import Explicit, NodeRef
 from simulatte.typing import ProcessGenerator
 
 EMA_FIELDS = (
@@ -37,6 +41,7 @@ EMA_FIELDS = (
     "ema_travel_time_loaded",
     "ema_late_orders",
 )
+ROLES = ("WH_A_OUT", "N1", "N2", "N3", "WH_B_IN")  # the nodes of `build_simple_system`, in line order
 KPI_NAMES = (
     "fulfillment_time",
     "dispatch_delay",
@@ -51,7 +56,7 @@ KPI_NAMES = (
 
 def _two_orders(env: Environment, **options: Any) -> tuple[FleetCoordinator, list[TransferOrder]]:
     """One AGV and two orders submitted before activation: the second waits in the pending queue."""
-    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=1, **options)
+    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=1, layout=env.layout, **options)
     sku_a, sku_b = list(wh_a.inventory)
     orders = [
         coordinator.create_order(sku=sku_a, quantity=2, origin=wh_a, destination=wh_b),
@@ -66,6 +71,23 @@ def _times(order: TransferOrder) -> tuple[float, float, float, float]:
     """``(created_at, dispatched_at, picked_at, delivered_at)`` of a completed order."""
     assert order.dispatched_at is not None and order.picked_at is not None and order.delivered_at is not None
     return order.created_at, order.dispatched_at, order.picked_at, order.delivered_at
+
+
+def _declare_lines(env: Environment, *prefixes: str) -> None:
+    """Declare the line of `build_simple_system` once per prefix, its node ids prefixed, as the network of `env`'s
+    layout: the network of several builder systems in one environment."""
+    nodes: list[Node] = []
+    arcs: list[Arc] = []
+    for prefix in prefixes:
+        line = [Node(f"{prefix}{role}", 5.0 * i, 0.0) for i, role in enumerate(ROLES)]
+        nodes += line
+        arcs += [Arc(a, b) for a, b in zip(line, line[1:], strict=False)]
+    env.layout.set_network(Explicit(LayoutGraph(nodes, arcs)))
+
+
+def _roles(env: Environment, prefix: str) -> dict[str, NodeRef]:
+    """The ``nodes`` mapping of `build_simple_system` for the line of `prefix` declared by `_declare_lines`."""
+    return {role: env.layout.node(f"{prefix}{role}") for role in ROLES}
 
 
 def _stream(env: Environment, coordinator: FleetCoordinator, stream: str) -> ProcessGenerator:
@@ -91,8 +113,10 @@ def _stream(env: Environment, coordinator: FleetCoordinator, stream: str) -> Pro
 
 def test_default_metrics_opt_out() -> None:
     env = Environment()
-    graph = build_simple_system(Environment())[4]
-    fleet = FleetCoordinator(env=env, graph=graph, fleet=[], warehouses=[], charging_stations=[], default_metrics=False)
+    env.layout.set_network(Explicit(LayoutGraph([Node("A", 0.0, 0.0)], [])))
+    fleet = FleetCoordinator(
+        env=env, graph=env.layout.graph(), fleet=[], warehouses=[], charging_stations=[], default_metrics=False
+    )
     assert fleet.metrics is None
     assert env.collectors == ()
     assert not env.wants(OrderStatusChanged)  # nothing listens: the unobserved fast path stays
@@ -125,7 +149,7 @@ def test_default_order_ema_collector() -> None:
 
 def test_order_ema_collector_attached_by_hand() -> None:
     env = Environment()
-    coordinator, _, wh_a, wh_b, graph = build_simple_system(env, n_agvs=1)
+    coordinator, _, wh_a, wh_b, graph = build_simple_system(env, n_agvs=1, layout=env.layout)
     other = FleetCoordinator(
         env=env, graph=graph, fleet=[], warehouses=[], charging_stations=[], default_metrics=False, name="other"
     )
@@ -185,7 +209,7 @@ def test_fleet_utilization_from_events_without_touching_agv_state(monkeypatch: p
 
     def run(patched: bool) -> list[tuple[float, float]]:
         env = Environment(seed=3)
-        coordinator, *_ = build_simple_system(env, n_agvs=3, agv_battery_capacity=80.0)
+        coordinator, *_ = build_simple_system(env, n_agvs=3, agv_battery_capacity=80.0, layout=env.layout)
         series = FleetTimeSeries(coordinator).attach(env)
         reference: list[tuple[float, float]] = []
         if patched:
@@ -210,9 +234,10 @@ def test_fleet_utilization_from_events_without_touching_agv_state(monkeypatch: p
 def test_fleet_time_series_counts_direct_transitions() -> None:
     """An ``AGV.transition_to`` outside the coordinator also changes the series; other AGVs do not."""
     env = Environment()
-    coordinator, agvs, *_ = build_simple_system(env, n_agvs=2)
+    _declare_lines(env, "", "x-")  # one network for the two systems
+    coordinator, agvs, *_ = build_simple_system(env, n_agvs=2, layout=env.layout, nodes=_roles(env, ""))
     series = FleetTimeSeries(coordinator).attach(env)
-    outsider = build_simple_system(env, n_agvs=1, prefix="x-")[1][0]
+    outsider = build_simple_system(env, n_agvs=1, prefix="x-", layout=env.layout, nodes=_roles(env, "x-"))[1][0]
     env.run(until=4)
     agvs[0].transition_to(AGVState.TRAVELING_EMPTY)
     outsider.transition_to(AGVState.TRAVELING_EMPTY)
@@ -226,8 +251,13 @@ def test_fleet_time_series_counts_direct_transitions() -> None:
 # ---------------------------------------------------------------------------------------------------------
 
 
-def _scoped_system(env: Environment, prefix: str) -> dict[str, Any]:
-    coordinator, *_ = build_simple_system(env, n_agvs=2, agv_battery_capacity=80.0, prefix=prefix)
+def _scoped_system(env: Environment, prefix: str, *, shared: bool = False) -> dict[str, Any]:
+    """A prefixed builder system with its order stream and collectors; `shared`: on the lines declared by
+    `_declare_lines`, else on its own line."""
+    nodes = _roles(env, prefix) if shared else None
+    coordinator, *_ = build_simple_system(
+        env, n_agvs=2, agv_battery_capacity=80.0, prefix=prefix, layout=env.layout, nodes=nodes
+    )
     env.process(_stream(env, coordinator, f"{prefix}orders"))
     return {
         "fleet": coordinator,
@@ -257,7 +287,8 @@ def test_two_fleets_one_env_scoped() -> None:
         alone[prefix] = _results(system)
 
     env = Environment(seed=5)
-    systems = {prefix: _scoped_system(env, prefix) for prefix in ("a-", "b-")}
+    _declare_lines(env, "a-", "b-")  # one network for the two systems
+    systems = {prefix: _scoped_system(env, prefix, shared=True) for prefix in ("a-", "b-")}
     env.run(until=300)
     for prefix, system in systems.items():
         together = _results(system)
@@ -320,7 +351,7 @@ def test_fleet_kpis_window_excludes_warmup_orders() -> None:
 
 def test_fleet_kpis_without_observations() -> None:
     env = Environment()
-    coordinator, *_ = build_simple_system(env, n_agvs=2)
+    coordinator, *_ = build_simple_system(env, n_agvs=2, layout=env.layout)
     kpis = FleetKPIs(coordinator).attach(env)
     assert kpis.scalars() == {}  # nothing observed, empty window
 
@@ -332,7 +363,7 @@ def test_fleet_kpis_without_observations() -> None:
 def test_fleet_kpis_prelude_events() -> None:
     """State changes before activation reach the collector first; the accumulators start from the state then."""
     env = Environment()
-    coordinator, agvs, *_ = build_simple_system(env, n_agvs=2)
+    coordinator, agvs, *_ = build_simple_system(env, n_agvs=2, layout=env.layout)
     kpis = FleetKPIs(coordinator).attach(env)
     agvs[0].transition_to(AGVState.TRAVELING_EMPTY)  # a prelude event, before the accumulators exist
     env.run(until=10)
@@ -341,7 +372,7 @@ def test_fleet_kpis_prelude_events() -> None:
 
 def test_fleet_kpis_need_agvs() -> None:
     env = Environment()
-    graph = build_simple_system(env)[4]
+    graph = build_simple_system(env, layout=env.layout)[4]
     empty = FleetCoordinator(env=env, graph=graph, fleet=[], warehouses=[], charging_stations=[], name="empty")
     kpis = FleetKPIs(empty).attach(env)
     env.run(until=5)
@@ -358,7 +389,7 @@ def test_collectors_are_pure_observers() -> None:
 
     def run(observed: bool) -> list[tuple[str, str, float | None]]:
         env = Environment(seed=9, debug=True)
-        coordinator, _, wh_a, _, _ = build_simple_system(env, n_agvs=2, agv_battery_capacity=80.0)
+        coordinator, _, wh_a, _, _ = build_simple_system(env, n_agvs=2, agv_battery_capacity=80.0, layout=env.layout)
         if observed:
             FleetTimeSeries(coordinator).attach(env)
             FleetKPIs(coordinator).attach(env)
@@ -405,7 +436,7 @@ def _script(env: Environment, steps: list[tuple[float, Any]]) -> None:
 
 def test_traffic_kpis_on_a_scripted_scenario() -> None:
     env = Environment()
-    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2)
+    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2, layout=env.layout)
     first, second = agvs[0].id, agvs[1].id
     order = coordinator.create_order(sku=next(iter(wh_a.inventory)), quantity=1, origin=wh_a, destination=wh_b)
     kpis = TrafficKPIs(coordinator).attach(env)
@@ -445,7 +476,7 @@ def test_traffic_kpis_on_a_scripted_scenario() -> None:
 def _blocked_time(warmup: float, until: float, steps: list[tuple[float, Any]]) -> float:
     env = Environment()
     env.configure_kpis(warmup=warmup)
-    coordinator, agvs, *_ = build_simple_system(env, n_agvs=1)
+    coordinator, agvs, *_ = build_simple_system(env, n_agvs=1, layout=env.layout)
     kpis = TrafficKPIs(coordinator).attach(env)
     _script(env, [(at, event(agvs[0].id)) for at, event in steps])
     env.run(until=until)
@@ -464,7 +495,7 @@ def test_traffic_kpis_clip_waits_to_the_window() -> None:
 
 def test_traffic_kpis_absent_with_free_flow() -> None:
     env = Environment(seed=3)
-    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2)
+    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2, layout=env.layout)
     kpis = TrafficKPIs(coordinator).attach(env)
     order = coordinator.create_order(sku=next(iter(wh_a.inventory)), quantity=1, origin=wh_a, destination=wh_b)
     coordinator.submit(order)
@@ -477,7 +508,7 @@ def test_traffic_kpis_leave_the_digest_alone() -> None:
     def digest(observed: bool) -> str | None:
         env = Environment(seed=5)
         env.enable_digest()
-        coordinator, agvs, *_ = build_simple_system(env, n_agvs=1)
+        coordinator, agvs, *_ = build_simple_system(env, n_agvs=1, layout=env.layout)
         if observed:
             TrafficKPIs(coordinator).attach(env)
         _script(env, [(1.0, _wait_started(agvs[0].id)), (2.0, _wait_ended(agvs[0].id))])

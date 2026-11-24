@@ -88,7 +88,7 @@ def _assert_parity(name: str, recorded: dict[str, Any], expected: dict[str, Any]
 def _simple_system(seed: int) -> dict[str, Any]:
     """The generator's ``simple-<seed>`` system, built with the new collectors."""
     env = Environment(seed=seed)
-    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=3, agv_battery_capacity=170.0)
+    coordinator, _, wh_a, wh_b, _ = build_simple_system(env, n_agvs=3, agv_battery_capacity=170.0, layout=env.layout)
     series = FleetTimeSeries(coordinator).attach(env)
     skus = list(wh_a.inventory)
 

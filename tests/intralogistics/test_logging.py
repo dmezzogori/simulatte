@@ -24,7 +24,7 @@ class _Unreachable:
 
 
 def _run_one_order(env: Environment, *, unreachable_parking: bool = False) -> None:
-    coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, n_agvs=1)
+    coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, n_agvs=1, layout=env.layout)
     if unreachable_parking:
         coordinator._repositioning_policy = _Unreachable()
     sku = list(wh_a.inventory.keys())[0]
