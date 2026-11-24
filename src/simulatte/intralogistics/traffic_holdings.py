@@ -304,9 +304,8 @@ class HoldingsLedger:
             if not renewed:
                 self._since.setdefault(resource, {})[agv] = now
             if isinstance(resource, Node):
-                binding = self._env.entities.node_binding(resource)
-                if binding is None:
-                    continue
+                binding = self._env.entities.node_binding(resource)  # the layout binds every node of the network
+                assert binding is not None
                 binding.reserved_by.append(agv.id)
                 build.insert(binding.id, "reserved_by", len(binding.reserved_by) - 1, agv.id)
             elif isinstance(resource, Segment):
@@ -350,9 +349,8 @@ class HoldingsLedger:
             direction = self._holders[resource].pop(agv)
             self._observe(resource, now - self._since[resource].pop(agv))
             if isinstance(resource, Node):
-                binding = self._env.entities.node_binding(resource)
-                if binding is None:
-                    continue
+                binding = self._env.entities.node_binding(resource)  # the layout binds every node of the network
+                assert binding is not None
                 binding.reserved_by.remove(agv.id)
                 build.remove(binding.id, "reserved_by", agv.id)
             elif isinstance(resource, Segment):

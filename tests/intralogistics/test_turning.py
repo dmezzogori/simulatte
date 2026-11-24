@@ -31,7 +31,6 @@ from simulatte.intralogistics.events import (
     TrafficWaitEnded,
     TrafficWaitStarted,
 )
-from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.intralogistics.traffic import Disposition, Reroute
@@ -231,49 +230,6 @@ def test_the_heading_change_is_the_wrapped_absolute_difference(first: float, sec
     w.env.run()
     assert spy.angles == [pytest.approx(expected, abs=1e-9)]
     assert 0.0 <= spy.angles[0] <= math.pi
-
-
-def test_an_arc_whose_chord_has_no_direction_leaves_the_heading_unchanged() -> None:
-    """``N1`` and ``N2`` coincide: the turn at ``N1`` into the zero-length arc is 0, and the turn at ``N2`` is measured
-    from the last known heading, east."""
-    # Explicit mode, built here by hand: the layout rejects an arc between two nodes at one position (spec L16), and
-    # this test goes with that support.
-    nodes = {name: Node(name, x, y) for name, x, y in (("N0", 0, 0), ("N1", 10, 0), ("N2", 10, 0), ("N3", 10, 10))}
-    graph = LayoutGraph(
-        nodes.values(), [Arc(nodes[a], nodes[b]) for a, b in (("N0", "N1"), ("N1", "N2"), ("N2", "N3"))]
-    )
-
-    def explicit_world(start: str, agv_type: AGVType) -> World:
-        env = Environment(debug=True)
-        replay = FullReplay(env)
-        controller = ReservationController(env=env, graph=graph)
-        agv = AGV(env=env, agv_type=agv_type, agv_id="A", initial_node=nodes[start])
-        fleet = StillFleet(
-            env=env,
-            graph=graph,
-            fleet=[agv],
-            warehouses=[],
-            charging_stations=[],
-            traffic_controller=controller,
-            default_metrics=False,
-        )
-        TrafficInvariants(env, controller)
-        env.activate()
-        return World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
-
-    spy = Spy(lambda angle: 0.0)
-    w = explicit_world("N0", turning(turn_time=spy))
-    w.go("A", "N3")
-    w.env.run()
-    assert spy.angles == [0.0, pytest.approx(RIGHT)]
-    assert w.agvs["A"].heading == pytest.approx(RIGHT)
-
-    # a vehicle that has never had a direction turns for free across it and after it
-    spy = Spy(lambda angle: 0.0)
-    w = explicit_world("N1", turning(turn_time=spy))
-    w.go("A", "N3")
-    w.env.run()
-    assert spy.angles == []
 
 
 # --- values ------------------------------------------------------------------------------------------------------

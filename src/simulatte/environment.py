@@ -145,7 +145,6 @@ class Environment(simpy.Environment):
         self._initializers: list[Callable[[], object]] = []
         self._commands: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = []
         self._layout: Layout | None = None  # created by Layout(env), env.layout or activation
-        self._explicit_graph_use = False
         self._activation_started = False
         self._initializers_done = False  # set once the initializer loop of activate() finished
         self._activated = False
@@ -366,8 +365,7 @@ class Environment(simpy.Environment):
 
         ``Layout(env, file=..., limits=...)`` creates it with a file layer or limits; it must come before the first
         use of this property. Without either, activation creates the layout. The layout package is imported only
-        when the layout is created. An environment with an explicit graph consumer (a concrete ``LayoutGraph`` or
-        ``Node`` given to a component) has no layout: this raises `LayoutError`.
+        when the layout is created.
         """
         layout = self._layout
         if layout is None:
@@ -375,18 +373,6 @@ class Environment(simpy.Environment):
 
             layout = Layout(self)
         return layout
-
-    def _register_graph_use(self) -> None:
-        """Record a validated explicit graph consumer before its publication."""
-        self._explicit_graph_use = True
-
-    def _has_explicit_consumers(self) -> bool:
-        """Whether a component of this environment took a concrete graph or node: such an environment has no layout."""
-        if self._explicit_graph_use:
-            return True
-        from simulatte.layout.binding import has_existing_endpoints
-
-        return has_existing_endpoints(self)
 
     def _guard_layout_advance(self) -> None:
         # Activation finalized the layout for good (prepare() succeeded before it, and a finalized layout stays
@@ -416,13 +402,13 @@ class Environment(simpy.Environment):
             return
         if self._activation_started:
             raise RuntimeError("activation is in progress or failed; the environment cannot be activated again")
-        if self._layout is None and not self._has_explicit_consumers():
+        layout = self._layout
+        if layout is None:
             from simulatte.layout.layout import Layout
 
-            Layout(self)  # no layout was asked for: activation creates it (spec §5.5)
+            layout = Layout(self)  # no layout was asked for: activation creates it (spec §5.5)
         self._activation_started = True
-        if self._layout is not None:
-            self._layout.prepare()
+        layout.prepare()
         initializers = self._initializers
         index = 0
         while index < len(initializers):  # initializers may register further initializers
@@ -610,12 +596,11 @@ class Environment(simpy.Environment):
             seed, time_unit, provenance, warmup = (
                 inputs if inputs is not None else (self._seed, self.time_unit, self._provenance, self._warmup)
             )
-            layout_metadata = None
-            if self._layout is not None:
-                result = self._layout._coordinator._result
-                layout_metadata = (
-                    {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
-                )
+            layout = self._layout  # every environment has one; before its first use it is not created yet
+            result = None if layout is None else layout._coordinator._result
+            layout_metadata = (
+                {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
+            )
             requested = build_requested(
                 seed=seed,
                 time_unit=time_unit,
@@ -666,7 +651,7 @@ class Environment(simpy.Environment):
         as ``cancelled``.
         """
 
-        if not self._activated and (self._layout is not None or not self._has_explicit_consumers()):
+        if not self._activated:
             self._guard_layout_advance()
             from simulatte.layout.errors import LayoutError
 

@@ -67,7 +67,7 @@ class World:
     replay: FullReplay
     invariants: TrafficInvariants
     declared: Declared | None = None
-    """The graph declared on the layout; ``None`` for an `explicit_world`."""
+    """The graph declared on the layout."""
 
     def seg(self, a: str, b: str) -> Segment:
         return self.controller.network.segment(self.nodes[a], self.nodes[b])
@@ -141,42 +141,6 @@ def world(
         env.on_activate(lambda: [controller.place(agv, agv.current_node) for agv in vehicles.values()])
     env.activate()
     return World(env, controller, {node.id: node for node in graph.nodes}, vehicles, replay, invariants, declared)
-
-
-def explicit_world(
-    graph_nodes: tuple[LayoutGraph, dict[str, Node]],
-    agvs: dict[str, str | tuple[str, AGVType]],
-    *,
-    bind: bool = True,
-    place: bool = True,
-    **options: Any,
-) -> World:
-    """`world` in explicit mode, on a graph of concrete nodes, for the tests of explicit-mode behaviour (nodes without
-    a binding) that Task 9 removes with that mode."""
-    graph, nodes = graph_nodes
-    env = Environment(debug=True)
-    replay = FullReplay(env)
-    if bind:
-        for node in graph.nodes:
-            env.entities.bind_node(node)
-    controller = ReservationController(env=env, graph=graph, **options)
-    vehicles: dict[str, AGV] = {}
-    for name, start in agvs.items():
-        node, agv_type = (start, cart()) if isinstance(start, str) else start
-        vehicles[name] = AGV(env=env, agv_type=agv_type, agv_id=name, initial_node=nodes[node])
-    fleet = SimpleNamespace(fleet=tuple(vehicles.values()), parking_areas=(), charging_stations=(), graph=graph)
-    controller.register_fleet(fleet)  # type: ignore[arg-type]
-    invariants = TrafficInvariants(env, controller)
-    if place:
-        env.on_activate(lambda: [controller.place(agv, agv.current_node) for agv in vehicles.values()])
-    env.activate()
-    return World(env, controller, nodes, vehicles, replay, invariants)
-
-
-def explicit_line(n: int) -> tuple[LayoutGraph, dict[str, Node]]:
-    """The graph of ``traffic_support.line`` with concrete nodes, for `explicit_world`."""
-    nodes = {f"N{i}": Node(f"N{i}", 10 * i, 0) for i in range(n)}
-    return LayoutGraph(nodes.values(), [Arc(nodes[f"N{i}"], nodes[f"N{i + 1}"]) for i in range(n - 1)]), nodes
 
 
 def step(w: World, agv: str, route: str, index: int) -> None:
@@ -935,21 +899,6 @@ class TestLifecycle:
         with pytest.raises(ValueError, match="'tug' has no length"):
             w.controller.request(stray, Claim((ClaimItem(w.seg("N0", "N1"), "forward"),), 1), fake_hooks())
 
-    def test_a_node_without_binding_records_nothing(self) -> None:
-        w = explicit_world(explicit_line(3), {"A": "N0"}, bind=False)  # explicit mode: Task 9 removes this test
-        assert w.held("A") == ["N0"]
-        assert w.replay.of(TrafficReserved) == []
-        assert w.leg("A", "N0 N1 N2").granted
-        w.move("A", "N1")
-        w.release("A", "N0")  # freed, but nothing to record
-        assert w.holders("N0") == []
-        w.release("A", w.seg("N0", "N1"))
-        assert w.events() == [
-            ("traffic.reserved", "A", ("N0~N1",)),
-            ("traffic.released", "A", ("N0~N1",)),
-        ]
-        assert w.holders("N1") == ["A"]
-
     @pytest.mark.parametrize(
         ("length", "min_gap"), [(-1.0, 0.0), (math.inf, 0.0), (math.nan, 0.0), (1.0, -0.5), (1.0, math.inf)]
     )
@@ -991,17 +940,6 @@ class TestLifecycle:
             controller.graph
         prepared = layout.prepare()
         assert controller.graph is prepared.network.graph
-
-    def test_install_layout_graph_takes_explicit_capacities(self) -> None:
-        # explicit mode (the controller's own capacities): Task 9 removes this test with them
-        graph, nodes = explicit_line(3)
-        env = Environment()
-        controller = ReservationController(env=env, graph=explicit_line(2)[0], capacities={nodes["N2"]: 4})
-        network = SimpleNamespace(graph=graph, capacities={nodes["N0"]: 3, nodes["N1"]: None, nodes["N2"]: 2}, zones=())
-        controller._install_layout_graph(network)  # type: ignore[arg-type]
-        env.activate()
-        assert controller.graph is graph
-        assert [controller.view.capacity(nodes[n]) for n in ("N0", "N1", "N2")] == [3, 1, 4]
 
     def test_install_layout_graph_takes_the_declared_capacities(self) -> None:
         """A declared capacity is the node's; a node without one falls back to the controller's default."""
@@ -1169,17 +1107,6 @@ class TestMeanHold:
         w.env.run(until=12.0)
         w.release("A", segment)
         assert w.controller.view.mean_hold(segment) == 12.0
-
-    def test_a_node_without_an_entity_is_still_observed(self) -> None:
-        # explicit mode: Task 9 removes this test
-        w = explicit_world(
-            explicit_line(2), {"A": "N0"}, place=False, bind=False, derive_corridors=False, hold_back_dead_ends=False
-        )
-        n1 = w.nodes["N1"]
-        assert w.ask("A", n1).granted
-        w.env.run(until=8.0)
-        w.release("A", n1)
-        assert w.controller.view.mean_hold(n1) == 8.0
 
     def test_values_do_not_depend_on_what_observes_the_run(self) -> None:
         def run(subscribed: bool) -> list[float]:

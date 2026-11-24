@@ -14,7 +14,7 @@ from jsonschema import Draft202012Validator
 from simulatte import Environment, Layout
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
-from simulatte.intralogistics.network import Zone
+from simulatte.intralogistics.network import TrafficNetwork, Zone
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.speed import TrapezoidalProfile
 from simulatte.layout import (
@@ -1147,7 +1147,7 @@ def test_a_zone_can_be_unset_by_a_later_layer():
 # --- binding ------------------------------------------------------------------------------------------------------
 
 
-def _line_with_zone(env, authored: tuple[Zone, ...] = ()):
+def _line_with_zone(env):
     layout = Layout.from_dict(
         env,
         {
@@ -1158,9 +1158,7 @@ def _line_with_zone(env, authored: tuple[Zone, ...] = ()):
             ),
         },
     )
-    # the controller's own zones (`authored`) only for the test of both kinds of zones, which Task 9 decides
-    options = {"zones": authored} if authored else {}
-    return layout, ReservationController(env=env, graph=layout.graph(), **options)
+    return layout, ReservationController(env=env, graph=layout.graph())
 
 
 def test_the_controller_reads_the_layout_zones_at_bind():
@@ -1171,20 +1169,6 @@ def test_the_controller_reads_the_layout_zones_at_bind():
     env.activate()
     assert [(zone.id, zone.capacity) for zone in controller.network.zones] == [("gate", 2)]
     assert [entity for entity, state in env.initial_state.items() if state["$kind"] == "zone"] == ["gate"]
-
-
-def test_authored_and_layout_zones_both_apply_and_a_repeated_id_is_an_error():
-    # the controller's own zones (L13 removes the argument, and the rule about an id defined in both places): Task 9
-    # decides this test
-    env = Environment()
-    layout, controller = _line_with_zone(env, (Zone("mine", ()),))  # an authored zone cannot name layout nodes
-    layout.prepare()
-    env.activate()
-    assert [zone.id for zone in controller.network.zones] == ["mine", "gate"]
-    env = Environment()
-    layout, _ = _line_with_zone(env, (Zone("gate", ()),))
-    with pytest.raises(ValueError, match="gate"):
-        layout.prepare()
 
 
 def test_a_corrupted_1_1_bundle_is_rejected():
@@ -1722,11 +1706,11 @@ ZONE_MEMBERS = {
 @pytest.mark.parametrize("form", sorted(ZONE_MEMBERS))
 @pytest.mark.parametrize("hold_back", [False, True])
 @pytest.mark.parametrize("capacity", [1, 2])
-def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_given_to_the_controller(
+def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_given_to_a_traffic_network(
     hold_back, capacity, form
 ):
-    """Node and pair members, in a five-node world: every leg claims the same resources either way."""
-    # the controller's own zones against the declaration (L13 removes the argument): Task 9 decides this test
+    """Node and pair members, in a five-node world: every leg claims the same resources as a `TrafficNetwork` built
+    directly with the runtime `Zone` (the controller builds its network from the declared zones only, L13)."""
     graph, nodes = five_nodes()
     declared = {
         "z": {
@@ -1736,15 +1720,7 @@ def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_give
         }
     }
     from_layout = declared_network(graph, zones=declared)
-    env = Environment()
-    env.layout.set_network(Explicit(graph))
-    controller = ReservationController(
-        env=env,
-        graph=env.layout.graph(),
-        zones=[Zone("z", (nodes["N3"], (nodes["N1"], nodes["N2"])), capacity, hold_back)],
-    )
-    env.activate()
-    from_controller = controller.network
+    direct = TrafficNetwork(graph, zones=[Zone("z", (nodes["N3"], (nodes["N1"], nodes["N2"])), capacity, hold_back)])
     assert [zone.id for zone in from_layout.zones] == ["z"]
 
     def legs(network) -> dict[tuple[str, str], list[tuple[str, str | None]]]:
@@ -1754,7 +1730,7 @@ def test_a_zone_declared_on_the_network_derives_the_claims_of_the_same_zone_give
                 found[u.id, v.id] = [(item.resource.id, item.direction) for item in network.leg(u, v)]
         return found
 
-    assert legs(from_layout) == legs(from_controller)
+    assert legs(from_layout) == legs(direct)
     assert len(legs(from_layout)) == 8  # four two-way arcs
     assert any("z" in {name for name, _ in claim} for claim in legs(from_layout).values())
     (zone,) = from_layout.zones

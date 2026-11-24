@@ -235,18 +235,25 @@ def test_shared_graph_two_fleets_one_binding_per_node() -> None:
 
 
 def test_same_id_different_node_raises() -> None:
-    # Explicit mode only: without a layout any node can be bound, so a second node with a bound id, an equal node and a
-    # reserved id reach the registry's own checks; a layout binds only its canonical nodes, and refuses any other
-    # node first (test_shared_graph_two_fleets_one_binding_per_node). Task 9 decides this test.
+    """The layout binds every node of its network at preparation, and only those: binding a canonical node again
+    returns its binding, a node equal to it finds the binding, a different node with a bound id is refused, and a
+    network node with a reserved id fails the preparation."""
     env = Environment()
-    bound = env.entities.bind_node(Node(id="A", x=0.0, y=0.0))
-    assert env.entities.bind_node(Node(id="A", x=0.0, y=0.0)) is bound  # an equal node: the existing binding
-    with pytest.raises(ValueError, match="already bound to a different node"):
-        env.entities.bind_node(Node(id="A", x=1.0, y=0.0))
-    assert env.entities.node_binding(Node(id="A", x=1.0, y=0.0)) is None
+    world = declare(env, _line_graph()[1])
+    out = world.node("OUT")  # prepares the layout
+    bound = env.entities.node_binding(out)
+    assert bound is not None and env.entities.bind_node(out) is bound  # bound at preparation: the existing binding
+    assert env.entities.node_binding(Node(id="OUT", x=0.0, y=0.0)) is bound  # an equal node
+    with pytest.raises(LayoutError, match="exact canonical"):
+        env.entities.bind_node(Node(id="OUT", x=1.0, y=0.0))
+    assert env.entities.node_binding(Node(id="OUT", x=1.0, y=0.0)) is None
     assert env.entities.node_binding(Node(id="B", x=0.0, y=0.0)) is None
-    with pytest.raises(ValueError, match="reserved"):
-        env.entities.bind_node(Node(id="node-3", x=0.0, y=0.0))
+    reserved = Environment()
+    a, b = Node(id="node-3", x=0.0, y=0.0), Node(id="B", x=1.0, y=0.0)
+    declare(reserved, LayoutGraph([a, b], [Arc(a, b)]))
+    with pytest.raises(LayoutError, match="reserved"):
+        reserved.layout.prepare()
+    assert not any(entity.kind == "node" for entity in reserved.entities.live())
 
 
 def test_agv_moves_update_node_agvs() -> None:
@@ -269,25 +276,6 @@ def test_agv_moves_update_node_agvs() -> None:
     assert binding(nodes[3]).agvs == [agv.id]
     agv.current_node = None
     assert all(not binding(node).agvs for node in nodes)
-
-
-def test_an_agv_moved_off_the_graph_leaves_its_node() -> None:
-    """An AGV moved to a node outside the graph leaves the ``agvs`` of its node, and returns from there.
-
-    Explicit mode only: a layout refuses such a node (the ``LayoutError`` of ``test_agv_moves_update_node_agvs``); Task
-    9 removes this test."""
-    env = Environment()
-    nodes, graph = _line_graph()
-    agv = AGV(env=env, agv_type=_agv_type())
-    loose = Node(id="LOOSE", x=9.0, y=9.0)  # never bound
-    FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[])
-    binding = env.entities.bind_node
-
-    agv.current_node = nodes[0]
-    agv.current_node = loose
-    assert binding(nodes[0]).agvs == []
-    agv.current_node = nodes[3]
-    assert binding(nodes[3]).agvs == [agv.id]
 
 
 def test_node_state_tracks_positions_and_reservations_during_a_run() -> None:

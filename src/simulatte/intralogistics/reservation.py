@@ -49,7 +49,7 @@ from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from simulatte.intralogistics.traffic_view import ReservationView
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 
     from simpy.events import Timeout
 
@@ -96,9 +96,11 @@ class _Pending:
 class ReservationController:
     """Grants claims all or nothing and enforces the occupancy of nodes, segments, zones and corridors (spec §7.7).
 
-    The :class:`TrafficNetwork` is built by an activation initializer registered here, from the graph, the capacities
-    (explicit ones, then the parking areas and charging stations of the registered fleets, then ``node_capacity``),
-    the authored ``zones`` and the derivation flags; its warnings are logged once. The same initializer attaches one
+    ``graph`` is ``layout.graph()`` of the environment's layout; the controller is constructed before the layout is
+    prepared, which hands it the resolved network. The :class:`TrafficNetwork` is built by an activation initializer
+    registered here, from the graph, the capacities (those declared on the network, then the parking areas and
+    charging stations of the registered fleets, then ``node_capacity``), the zones declared on the network and the
+    derivation flags; its warnings are logged once. The same initializer attaches one
     ``segment`` entity per segment and one ``zone`` entity per zone and corridor, each group in id order. Fleets must
     register before activation and their vehicle types must have a ``length``. ``policy`` defaults to
     :class:`~simulatte.intralogistics.traffic_policy.StandardTrafficPolicy`. ``ledger`` (a
@@ -112,24 +114,19 @@ class ReservationController:
         self,
         *,
         env: Environment,
-        graph: LayoutGraph | GraphRef,
+        graph: GraphRef,
         node_capacity: int = 1,
-        capacities: Mapping[Node, int] | None = None,
-        zones: Sequence[Zone] = (),
         derive_corridors: bool = True,
         hold_back_dead_ends: bool = True,
         policy: TrafficPolicy | None = None,
         priority_fn: Callable[[AGV], float] | None = None,
     ) -> None:
         self._env = env
-        self._graph, self._pending_graph = graph_input(env, graph)
-        if env._layout is not None:
-            env._layout._register_manager(self)
-        else:
-            env._register_graph_use()
+        self._graph, self._pending_graph = graph_input(env, graph, component="ReservationController")
+        env.layout._register_manager(self)
         self._node_capacity = node_capacity
-        self._capacities: dict[Node, int] = dict(capacities or {})
-        self._zones = tuple(zones)
+        self._capacities: dict[Node, int] = {}  # the network's, installed at binding
+        self._zones: tuple[Zone, ...] = ()
         self._derive_corridors = derive_corridors
         self._hold_back_dead_ends = hold_back_dead_ends
         self._policy: TrafficPolicy = StandardTrafficPolicy() if policy is None else policy
@@ -158,14 +155,8 @@ class ReservationController:
     def _install_layout_graph(self, network: ResolvedNetwork) -> None:
         self._graph = network.graph
         self._pending_graph = None
-        layout = {node: capacity for node, capacity in network.capacities.items() if capacity is not None}
-        self._capacities = {**layout, **self._capacities}
-        known = {zone.id for zone in self._zones}
-        for zone in network.zones:
-            if zone.id in known:
-                raise ValueError(f"zone id {zone.id!r} is defined both by the controller and by the layout")
-            known.add(zone.id)
-        self._zones = (*self._zones, *network.zones)
+        self._capacities = {node: capacity for node, capacity in network.capacities.items() if capacity is not None}
+        self._zones = tuple(network.zones)
 
     @property
     def network(self) -> TrafficNetwork:

@@ -43,7 +43,7 @@ class TestFreeFlowController:
         world = line(env, 4)
         agv = _make_agv(env, world.ref("N0"))
         controller = FreeFlowController()
-        controller.register_fleet(SimpleNamespace(graph=world.canonical_graph()))  # type: ignore[arg-type]
+        controller.register_fleet(SimpleNamespace(env=env, graph=world.canonical_graph()))  # type: ignore[arg-type]
         return controller, env, agv, {f"N{i}": world.node(f"N{i}") for i in range(4)}
 
     def test_satisfies_the_protocols(self) -> None:
@@ -111,26 +111,28 @@ class TestFreeFlowController:
         assert view.branch_root(n0) is False
 
     def test_view_graph_is_the_registered_fleets_and_fleets_on_it_share(self) -> None:
-        controller, _, _, _ = self._controller()
+        controller, env, _, _ = self._controller()
         graph = controller.view.graph
-        controller.register_fleet(SimpleNamespace(graph=graph))  # type: ignore[arg-type]
+        controller.register_fleet(SimpleNamespace(env=env, graph=graph))  # type: ignore[arg-type]
         assert controller.view.graph is graph
 
     def test_a_fleet_on_another_graph_is_refused(self) -> None:
         controller, _, _, _ = self._controller()
         graph = controller.view.graph
-        with pytest.raises(ValueError, match="each graph needs its own FreeFlowController"):
-            controller.register_fleet(SimpleNamespace(graph=line(Environment(), 2).canonical_graph()))  # type: ignore[arg-type]
+        other = Environment()
+        with pytest.raises(ValueError, match="each environment needs its own FreeFlowController"):
+            controller.register_fleet(SimpleNamespace(env=other, graph=line(other, 2).canonical_graph()))  # type: ignore[arg-type]
         assert controller.view.graph is graph
 
-    def test_two_built_systems_cannot_share_one_controller(self) -> None:
+    def test_built_systems_of_two_environments_cannot_share_one_controller(self) -> None:
+        """The successor of the explicit-mode rule for two graphs in one environment: one environment has one network
+        (spec §5.6), so the controller refuses only a fleet of another environment's layout."""
         from simulatte.intralogistics import build_simple_system
 
-        env = Environment()
         controller = FreeFlowController()
-        build_simple_system(env, prefix="a.", traffic_controller=controller)
-        with pytest.raises(ValueError, match="each graph needs its own FreeFlowController"):
-            build_simple_system(env, prefix="b.", traffic_controller=controller)
+        build_simple_system(Environment(), traffic_controller=controller)
+        with pytest.raises(ValueError, match="another environment's layout"):
+            build_simple_system(Environment(), traffic_controller=controller)
 
     def test_two_fleets_on_one_graph_share_one_controller(self) -> None:
         from simulatte.intralogistics.fleet import FleetCoordinator

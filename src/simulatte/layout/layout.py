@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
 from .auto import AutoLayer, TargetMetadata, auto_layout
-from .binding import bind_components, check_existing_endpoints
+from .binding import bind_components
 from .dependencies import MISSING, DependencyClosure
 from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
 from .io import load_layout, save_layout
@@ -24,6 +24,12 @@ if TYPE_CHECKING:
     from simulatte.entities import Entity
     from simulatte.environment import Environment
     from simulatte.intralogistics.graph import Node
+
+_FINALIZED_NETWORK = (
+    "the layout is finalized when it is prepared, at env.activate() or the first env.run(): declare the network on "
+    "env.layout before activating; components with handles may still be added later"
+)
+"""Why a network cannot be declared, or first used, once the layout is finalized, and what to do (spec §5.5)."""
 
 _BUILTINS = {
     "server",
@@ -92,11 +98,6 @@ class Layout:
                 "and before activation",
                 code="lifecycle-error",
             )
-        if env._activation_started or env._explicit_graph_use or env.now != 0:
-            raise LayoutError(
-                "Layout requires an unactivated environment without explicit graph consumers", code="lifecycle-error"
-            )
-        check_existing_endpoints(env)
         self.env, self.limits = env, limits
         layer = FileLayer({"schema_version": "1.0"}) if file is None else load_layout(file, limits=limits)
         self._placed: set[str] = set()
@@ -198,6 +199,8 @@ class Layout:
     def set_network(self, spec: Lattice | Lanes | Explicit) -> None:
         if not isinstance(spec, (Lattice, Lanes, Explicit)):
             raise LayoutError("network must be Lattice, Lanes or Explicit")
+        if self._coordinator.state is PreparationState.FINALIZED:
+            raise LayoutError(f"cannot declare the network: {_FINALIZED_NETWORK}", code="lifecycle-error")
         self._coordinator.declare({"network": {"type": type(spec).__name__.lower(), **_data(spec, self)}})
 
     def override(self, override: NetworkOverride) -> None:
@@ -281,6 +284,12 @@ class Layout:
 
     def _graph_of(self, network: ResolvedNetwork):
         if self._coordinator.values.at(("network",), explicit=True).state != "present":
+            if self._coordinator.state is PreparationState.FINALIZED:
+                raise LayoutError(
+                    f"graph reference requires a declared network: {_FINALIZED_NETWORK}",
+                    code="missing-handle",
+                    path=("network",),
+                )
             raise LayoutError("graph reference requires a declared network", code="missing-handle", path=("network",))
         return network.graph
 
@@ -307,6 +316,12 @@ class Layout:
     def _register_manager(self, manager: Any) -> None:
         """Register a built-in traffic controller (``ReservationController``) as the owner of the graph's resources;
         it gets the resolved graph and capacities at binding (``_install_layout_graph``)."""
+        if self._coordinator.state is PreparationState.FINALIZED:
+            raise LayoutError(
+                f"{type(manager).__name__} must be constructed before the layout is prepared: it takes the network's "
+                "resources at binding, which env.layout.prepare() and env.activate() finish",
+                code="lifecycle-error",
+            )
         self._coordinator._mutable()
         if self._resource_owner is not None and self._resource_owner is not manager:
             raise LayoutError("one shared resource owner is allowed per layout graph")
@@ -345,7 +360,6 @@ class Layout:
             raise LayoutError("custom traffic controller requires explicit resource owner and binder registration")
 
     def _validate(self, coordinator: PreparationCoordinator) -> ResolvedValues:
-        check_existing_endpoints(self.env)
         if (
             self._resource_managers
             or self._custom_managers

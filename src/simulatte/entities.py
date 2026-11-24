@@ -310,11 +310,9 @@ class EntityRegistry:
             self._check_name(name)
             entity_id = name
         layout = self._env._layout
-        if layout is not None:
-            if not self._env._activated:  # after activation the layout is final and new entities are no targets
-                layout._before_attach(obj, entity_id)
-        elif getattr(obj, "_uses_explicit_graph", False):
-            self._env._register_graph_use()
+        # after activation the layout is final and new entities are no targets
+        if layout is not None and not self._env._activated:
+            layout._before_attach(obj, entity_id)
         if name is None:
             self._counters[kind] = n + 1
         else:
@@ -374,20 +372,16 @@ class EntityRegistry:
     def bind_node(self, node: Node) -> NodeBinding:
         """The environment-local entity of the graph `node`, created and attached on first use (spec §5.2).
 
-        Binding an equal `Node` again (two fleets sharing a graph) returns the existing binding. Raises
-        `ValueError` for a different `Node` with the id of a bound one, and for a node id that is not a valid,
-        unused entity name.
+        The layout binds every node of its network when it is prepared; binding the node again returns the existing
+        binding. Raises `LayoutError` for a node that is not a canonical node of the layout's network.
         """
-        if self._env._layout is not None:
-            self._env._layout._validate_node(node)
+        self._env.layout._validate_node(node)
         binding = self._nodes.get(node.id)
         if binding is None:
             from simulatte.intralogistics.graph import NodeBinding  # lazy: the intralogistics subsystem is optional
 
             binding = NodeBinding(self._env, node)
             self._nodes[node.id] = binding
-        elif binding.node != node:
-            raise ValueError(f"node id {node.id!r} is already bound to a different node: {binding.node!r}")
         return binding
 
     def node_binding(self, node: Node) -> NodeBinding | None:

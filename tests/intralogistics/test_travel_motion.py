@@ -40,7 +40,6 @@ from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics.test_travel import ARC, Plain, World, steady, vehicle, world
 from tests.intralogistics.traffic_support import (
     FullReplay,
-    StillFleet,
     TrafficInvariants,
     build,
     declare,
@@ -520,41 +519,6 @@ def test_non_positive_limits_stall_the_run(v_max: float, accel: float) -> None:
     (ended,) = w.of(AgvMoveEnded)
     assert (ended.t, ended.node) == (5.0, "N0")
     assert w.held("A") == ["N0"]
-
-
-@pytest.mark.parametrize("reserve", [False, True])
-def test_zero_length_arc_is_traversed_in_zero_time(reserve: bool) -> None:
-    # Explicit mode, built here by hand: the layout rejects an arc between two nodes at one position (spec L16), and
-    # this test goes with that support.
-    nodes = {name: Node(name, x, 0) for name, x in (("N0", 0), ("Z1", 10), ("Z2", 10), ("N3", 20))}
-    graph = LayoutGraph(
-        nodes.values(), [Arc(nodes[a], nodes[b]) for a, b in (("N0", "Z1"), ("Z1", "Z2"), ("Z2", "N3"))]
-    )
-    env = Environment(debug=True)
-    replay = FullReplay(env)
-    controller: Any = ReservationController(env=env, graph=graph) if reserve else FreeFlowController()
-    agv = AGV(env=env, agv_type=vehicle(), agv_id="A", initial_node=nodes["N0"])
-    fleet = StillFleet(
-        env=env,
-        graph=graph,
-        fleet=[agv],
-        warehouses=[],
-        charging_stations=[],
-        traffic_controller=controller,
-        default_metrics=False,
-    )
-    if reserve:
-        TrafficInvariants(env, controller)
-    env.activate()
-    w = World(env, fleet, nodes, {"A": agv}, replay, len(replay.events))
-    w.go("A", "N3")
-    w.env.run()
-    started = {e.from_node: e for e in w.of(AgvMoveStarted)}
-    zero = started["Z1"]
-    assert dict(zero.motion) == {"curve": "linear"} and zero.t_end == zero.t
-    assert {e.node: e.t for e in w.of(AgvMoveEnded)}["Z2"] == zero.t == started["Z2"].t
-    assert w.of(AgvMoveEnded)[-1].t == pytest.approx(steady().travel_time(20.0), rel=1e-9)
-    assert w.agvs["A"].heading == 0.0
 
 
 class NoLimits:

@@ -105,8 +105,9 @@ class FleetCoordinator(Entity, kind="fleet"):
     of a parking area takes a slot of the area (``area.enter``) at the decision and gives it back (``area.leave``) when
     the AGV next departs from that node or when the move does not arrive.
 
-    Its id is ``name`` when given, otherwise ``fleet-<n>``. Construction binds the graph's nodes (sorted by id)
-    in the environment, registers the fleet with its traffic controller (``traffic_controller``, default
+    Its id is ``name`` when given, otherwise ``fleet-<n>``. ``graph`` is ``layout.graph()`` of the environment's
+    layout, whose preparation binds the network's nodes (sorted by id). Construction registers the fleet with its
+    traffic controller (``traffic_controller``, default
     :class:`~simulatte.intralogistics.traffic.FreeFlowController`) and registers an activation initializer that places
     the AGVs on their starting nodes with it (``place``). Travels run through a
     :class:`~simulatte.intralogistics.travel.TravelExecutor`, on routes of ``router`` (default
@@ -140,7 +141,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         self,
         *,
         env: Environment,
-        graph: LayoutGraph | GraphRef,
+        graph: GraphRef,
         fleet: list[AGV],
         warehouses: list[Warehouse],
         charging_stations: list[ChargingStation],
@@ -164,7 +165,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         if not (math.isfinite(lookahead_margin) and lookahead_margin >= 0):
             raise ValueError(f"lookahead_margin must be finite and >= 0, got {lookahead_margin}")
         self.env = env
-        self._graph, self._pending_graph = graph_input(env, graph)
+        self._graph, self._pending_graph = graph_input(env, graph, component="FleetCoordinator")
         self.fleet = tuple(fleet)
         self.warehouses = tuple(warehouses)
         self.charging_stations = tuple(charging_stations)
@@ -176,14 +177,13 @@ class FleetCoordinator(Entity, kind="fleet"):
         """The traffic controller that grants the claims of this fleet's travels (spec §7)."""
         self.router: Router = ShortestDistanceRouter() if router is None else router
         """The router of this fleet's travels (spec §10)."""
-        if env._layout is not None:
-            env._layout._validate_fleet(
-                (*self.fleet, *self.warehouses, *self.charging_stations, *self.parking_areas), self.traffic_controller
-            )
-            if any(agv.fleet is not None for agv in self.fleet) or len(set(self.fleet)) != len(self.fleet):
-                from simulatte.layout.errors import LayoutError
+        env.layout._validate_fleet(
+            (*self.fleet, *self.warehouses, *self.charging_stations, *self.parking_areas), self.traffic_controller
+        )
+        if any(agv.fleet is not None for agv in self.fleet) or len(set(self.fleet)) != len(self.fleet):
+            from simulatte.layout.errors import LayoutError
 
-                raise LayoutError("AGV already belongs to a fleet or occurs twice")
+            raise LayoutError("AGV already belongs to a fleet or occurs twice")
         self.traffic_controller.register_fleet(self)
         self._executor = TravelExecutor(self)
         self.clear_service_nodes = clear_service_nodes
@@ -234,16 +234,12 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
-        self._uses_explicit_graph = env._layout is None and True
         env.entities.attach(self, name=name, label=label)
         self.metrics: OrderEMACollector | None = (
             OrderEMACollector(self, alpha=ema_alpha).attach(env) if default_metrics else None
         )
         """The default :class:`OrderEMACollector` (``ema_*`` averages of delivered orders), or None when built with
         ``default_metrics=False``."""
-        if env._layout is None:
-            for node in sorted(self.graph.nodes, key=lambda node: node.id):
-                env.entities.bind_node(node)
         for agv in self.fleet:
             agv.fleet = self
             if env.wants(FleetAgvAdded):
@@ -263,8 +259,7 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     @graph.setter
     def graph(self, value: LayoutGraph) -> None:
-        readonly(self.env, "graph")
-        self._graph = value
+        readonly("graph")
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: the ids of the pending orders, in queue order."""

@@ -124,7 +124,6 @@ class NodeBinding(Entity, kind="node"):
             if entity.kind == "agv" and getattr(entity, "_current_node", None) == node
         ]
         self.reserved_by: list[str] = []
-        self._uses_explicit_graph = env._layout is None
         env.entities.attach(self, name=node.id)
 
     def snapshot(self) -> dict[str, Any]:

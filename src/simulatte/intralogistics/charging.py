@@ -63,7 +63,7 @@ class ChargingStation(Entity, kind="charging_station"):
         *,
         env: Environment,
         name: str,
-        node: Node | NodeRef | PortRef,
+        node: NodeRef | PortRef,
         n_slots: int,
         recharge_time: SamplerDescription[float] | float | Callable[[float, float], float] | None = None,
         supports_swap: bool = False,
@@ -74,7 +74,7 @@ class ChargingStation(Entity, kind="charging_station"):
     ) -> None:
         self.env = env
         self.name = name
-        self._node, self._pending_node = node_input(env, node)
+        self._node, self._pending_node = node_input(env, node, component="ChargingStation", parameter="node")
         self.supports_swap = supports_swap
         self.swap_time = swap_time
         self.swap_recharge_time = swap_recharge_time
@@ -91,7 +91,6 @@ class ChargingStation(Entity, kind="charging_station"):
         self.total_recharges: int = 0
         self.total_swaps: int = 0
         self.total_occupied_time: float = 0.0
-        self._uses_explicit_graph = env._layout is None and True
         env.entities.attach(self, name=name, label=label)
         self._recharge_time: Callable[..., float] | None = (
             None
@@ -108,8 +107,7 @@ class ChargingStation(Entity, kind="charging_station"):
 
     @node.setter
     def node(self, value: Node) -> None:
-        readonly(self.env, "node")
-        self._node = value
+        readonly("node")
 
     @property
     def n_slots(self) -> int:

@@ -1,8 +1,7 @@
 """Every environment owns a layout (spec §5.1, §5.5, §5.8 of ``specs/2026-11-23-layout-only-models-design.md``).
 
 ``env.layout`` creates the layout on first access, activation creates it when nothing else did, and the trace of a
-production-only model carries it. Until explicit mode is removed, an environment with an explicit graph consumer has
-no layout: ``env.layout`` raises for it and activation creates none.
+production-only model carries it.
 """
 
 from __future__ import annotations
@@ -20,14 +19,12 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.entities import EntityCreated
 from simulatte.events import DomainEvent
 from simulatte.intralogistics.builders import build_simple_system
-from simulatte.intralogistics.graph import LayoutGraph, Node
 from simulatte.job import ProductionJob
-from simulatte.layout import LayoutError, LayoutLimits
+from simulatte.layout import GraphRef, LayoutError, LayoutLimits
 from simulatte.layout.lifecycle import PreparationState
 from simulatte.server import Server
 from simulatte.trace import Trace
 from tests.core.test_g1_acceptance import _GOLDEN_PLATFORM, GOLDEN_REFERENCE, HORIZON, SEED, build_reference_shop
-from tests.layout.test_binding import vehicle
 
 
 def test_a_fresh_environment_has_a_layout_created_on_first_access() -> None:
@@ -174,46 +171,25 @@ def test_an_initializer_cannot_step() -> None:
 
 
 def test_checks_for_a_layout_create_none() -> None:
-    """Library code that asks whether a layout exists reads ``env._layout``: building, manifests and explicit
-    builders leave a fresh environment without a layout until activation."""
+    """Library code that asks whether a layout exists reads ``env._layout``: building and manifests leave a fresh
+    environment without a layout until activation. The transport builder uses ``env.layout`` (spec §5.7)."""
     env = Environment(seed=1)
     build_immediate_release_system(env=env)
     env.manifest()
     assert env._layout is None
-    explicit = Environment()
-    _, _, _, _, graph = build_simple_system(explicit)
-    assert isinstance(graph, LayoutGraph) and explicit._layout is None
+    transport = Environment()
+    _, _, _, _, graph = build_simple_system(transport)
+    assert isinstance(graph, GraphRef) and graph.owner is transport._layout is transport.layout
 
 
-def test_an_environment_with_explicit_graph_consumers_has_no_layout() -> None:
+def test_a_production_model_and_a_transport_system_share_the_environments_layout() -> None:
     env = Environment(seed=1)
     build_immediate_release_system(env=env)
     _, _, _, _, graph = build_simple_system(env)
-    assert isinstance(graph, LayoutGraph)
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        env.layout
+    assert graph.owner is env.layout
     env.run(until=10)
-    assert env._layout is None and env.manifest().requested["layout"] is None
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        env.layout
-
-
-def test_an_environment_with_explicit_graph_consumers_steps_without_activation_as_before() -> None:
-    env = Environment()
-    vehicle(env, Node("A", 0, 0))
-    env.timeout(1)
-    env.step()
-    assert env.now == 1 and env._layout is None and not env.activated
-
-
-def test_a_mutated_explicit_consumer_keeps_its_environment_without_layout() -> None:
-    env = Environment()
-    cart = vehicle(env, None)
-    cart.current_node = Node("A", 0, 0)
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        env.layout
-    env.run(until=1)
-    assert env._layout is None and cart.current_node == Node("A", 0, 0)
+    assert env.manifest().requested["layout"] == env.layout.prepare().bundle.manifest()
+    assert {"wc-0", "shopfloor", "WH-A", "vehicle-0"} <= set(env.layout.prepare().values.targets)
 
 
 def test_a_layout_created_at_activation_imports_no_fleet_traffic_or_agv_module() -> None:

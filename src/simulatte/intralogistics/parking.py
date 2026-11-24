@@ -45,17 +45,16 @@ class ParkingArea(Entity, kind="parking_area"):
         *,
         env: Environment,
         name: str,
-        node: Node | NodeRef | PortRef,
+        node: NodeRef | PortRef,
         capacity: int,
         label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
-        self._node, self._pending_node = node_input(env, node)
+        self._node, self._pending_node = node_input(env, node, component="ParkingArea", parameter="node")
         self._resource = simpy.Resource(env, capacity=capacity)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
         self._pending_entries: dict[AGV, _PendingEntry] = {}
-        self._uses_explicit_graph = env._layout is None and True
         env.entities.attach(self, name=name, label=label)
 
     @property
@@ -67,8 +66,7 @@ class ParkingArea(Entity, kind="parking_area"):
 
     @node.setter
     def node(self, value: Node) -> None:
-        readonly(self.env, "node")
-        self._node = value
+        readonly("node")
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: the ids of the parked AGVs, in order of arrival."""
@@ -140,4 +138,5 @@ class ParkingArea(Entity, kind="parking_area"):
             )
 
     def __repr__(self) -> str:
-        return f"ParkingArea(name={self.name!r}, node={self.node.id!r}, capacity={self._resource.capacity})"
+        node = "unbound" if self._node is None else repr(self._node.id)  # unbound until the layout is prepared
+        return f"ParkingArea(name={self.name!r}, node={node}, capacity={self._resource.capacity})"

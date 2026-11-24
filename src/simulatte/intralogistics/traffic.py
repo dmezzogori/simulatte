@@ -327,12 +327,6 @@ class _FreeFlowView:
         return 0.0
 
 
-def _graph_of(fleet: FleetCoordinator) -> object:
-    """The fleet's graph, or its layout reference while the layout is not prepared."""
-    pending = getattr(fleet, "_pending_graph", None)
-    return fleet.graph if pending is None else pending
-
-
 class FreeFlowController:
     """Grants every claim at once: AGVs never wait for one another. It creates no entities and emits no events."""
 
@@ -343,17 +337,18 @@ class FreeFlowController:
         self.view: TrafficView = _FreeFlowView(self)
 
     def register_fleet(self, fleet: FleetCoordinator) -> None:
-        """Serve `fleet`; it must be on the graph of the fleets already registered (spec §7.6).
+        """Serve `fleet`; it must be on the network of the fleets already registered (spec §7.6).
 
-        Raises `ValueError` for a fleet on another graph: the view exposes one graph to the routers, so each graph
-        needs its own controller. A fleet whose graph is still a layout reference is compared by that reference.
+        A fleet's graph is ``layout.graph()`` of its environment's layout, and an environment has one network (spec
+        §5.6 of the layout-only design), so the fleets of one environment share it. Raises `ValueError` for a fleet of
+        another environment's layout: the view exposes one graph to the routers.
         """
         if self._fleet is None:
             self._fleet = fleet
-        elif _graph_of(fleet) != _graph_of(self._fleet):
+        elif fleet.env.layout is not self._fleet.env.layout:
             raise ValueError(
-                "register_fleet: this FreeFlowController already serves another graph; "
-                "each graph needs its own FreeFlowController"
+                "register_fleet: this FreeFlowController already serves the network of another environment's layout; "
+                "each environment needs its own FreeFlowController"
             )
 
     def place(self, agv: AGV, node: Node) -> None:

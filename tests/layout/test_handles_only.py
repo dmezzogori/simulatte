@@ -1,0 +1,249 @@
+"""Components take only handles of their environment's layout (spec §5.3 to §5.6 of the layout-only design, L1, L2).
+
+A concrete `LayoutGraph` or `Node` raises with a message that names the fix; physical fields are read after the layout
+is prepared; components constructed after preparation resolve their handles at once; one network per environment.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+import pytest
+
+from simulatte import Environment
+from simulatte.intralogistics.agv import AGV, AGVType
+from simulatte.intralogistics.charging import ChargingStation
+from simulatte.intralogistics.events import AgvPlaced
+from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.parking import ParkingArea
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.traffic import FreeFlowController
+from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import Explicit, Layout, LayoutError, LayoutNotReady
+
+CART = AGVType("cart", TrapezoidalProfile(2, 1, 1), 100, 100, 100, length=0.5)
+GRAPH_FIX = "takes layout.graph(); declare the graph with env.layout.set_network(Explicit(graph))"
+NODE_FIX = "takes layout.node(id) or layout.port(...) handles, not Node objects"
+
+
+def _graph() -> LayoutGraph:
+    a, b = Node("A", 0, 0), Node("B", 2, 0)
+    return LayoutGraph([a, b], [Arc(a, b)])
+
+
+def _declared(env: Environment) -> Layout:
+    env.layout.set_network(Explicit(_graph()))
+    return env.layout
+
+
+def _warehouse(env: Environment, name: str = "wh", *, input_bays=(), output_bays=()) -> Warehouse:
+    return Warehouse(
+        env=env,
+        name=name,
+        input_bays=list(input_bays),
+        output_bays=list(output_bays),
+        n_slots=1,
+        products=[],
+        pick_time=0,
+        put_time=0,
+    )
+
+
+def _fleet(env: Environment, graph: Any, **options: Any) -> FleetCoordinator:
+    return FleetCoordinator(env=env, graph=graph, fleet=[], warehouses=[], charging_stations=[], **options)
+
+
+CASES = {
+    "FleetCoordinator(graph=...)": lambda env, graph, node: _fleet(env, graph),
+    "ReservationController(graph=...)": lambda env, graph, node: ReservationController(env=env, graph=graph),
+    "Warehouse(input_bays=...)": lambda env, graph, node: _warehouse(env, input_bays=[node]),
+    "Warehouse(output_bays=...)": lambda env, graph, node: _warehouse(env, output_bays=[node]),
+    "AGV(initial_node=...)": lambda env, graph, node: AGV(env=env, agv_type=CART, initial_node=node),
+    "ChargingStation(node=...)": lambda env, graph, node: ChargingStation(env=env, name="cs", node=node, n_slots=1),
+    "ParkingArea(node=...)": lambda env, graph, node: ParkingArea(env=env, name="pa", node=node, capacity=1),
+}
+
+
+@pytest.mark.parametrize("declared", [False, True], ids=["no-network", "network"])
+@pytest.mark.parametrize("case", sorted(CASES))
+def test_a_concrete_graph_or_node_raises_with_the_fix(case: str, declared: bool) -> None:
+    env = Environment()
+    if declared:
+        _declared(env)
+    graph = _graph()
+    fix = GRAPH_FIX if case.endswith("(graph=...)") else NODE_FIX
+    before = env.entities.live()
+    with pytest.raises(LayoutError, match=f"^{re.escape(f'{case} {fix}')}$") as raised:
+        CASES[case](env, graph, graph.nodes[0])
+    assert raised.value.diagnostics[0].code == "foreign-handle"
+    assert env.entities.live() == before
+
+
+@pytest.mark.parametrize("case", sorted(CASES))
+def test_a_handle_of_another_environments_layout_raises(case: str) -> None:
+    env, other = Environment(), Environment()
+    _declared(env)
+    foreign = _declared(other)
+    before = env.entities.live()
+    with pytest.raises(LayoutError, match="same layout") as raised:
+        CASES[case](env, foreign.graph(), foreign.node("A"))
+    assert raised.value.diagnostics[0].code == "foreign-handle"
+    assert env.entities.live() == before
+
+
+def test_an_agv_without_a_node_and_a_warehouse_without_bays_are_accepted() -> None:
+    env = Environment()
+    cart = AGV(env=env, agv_type=CART, agv_id="cart", initial_node=None)
+    empty = _warehouse(env, "empty")
+    assert empty.input_bays == empty.output_bays == ()
+    env.activate()
+    assert cart.current_node is None
+    assert empty.input_bays == empty.output_bays == ()
+    assert env.initial_state["cart"]["node"] is None
+
+
+def _system(env: Environment, layout: Layout) -> dict[str, tuple[Any, str]]:
+    controller = ReservationController(env=env, graph=layout.graph())
+    cart = AGV(env=env, agv_type=CART, agv_id="cart", initial_node=layout.node("A"))
+    origin = _warehouse(env, "origin", input_bays=[layout.node("A")], output_bays=[layout.node("A")])
+    station = ChargingStation(env=env, name="cs", node=layout.node("B"), n_slots=1)
+    parking = ParkingArea(env=env, name="pa", node=layout.node("A"), capacity=1)
+    fleet = FleetCoordinator(
+        env=env,
+        graph=layout.graph(),
+        fleet=[cart],
+        warehouses=[origin],
+        charging_stations=[station],
+        parking_areas=[parking],
+        traffic_controller=controller,
+    )
+    return {
+        "AGV.current_node": (cart, "current_node"),
+        "Warehouse.input_bays": (origin, "input_bays"),
+        "Warehouse.output_bays": (origin, "output_bays"),
+        "ChargingStation.node": (station, "node"),
+        "ParkingArea.node": (parking, "node"),
+        "FleetCoordinator.graph": (fleet, "graph"),
+        "ReservationController.graph": (controller, "graph"),
+    }
+
+
+def test_reading_before_preparation_names_the_fix() -> None:
+    env = Environment()
+    getters = _system(env, _declared(env))
+    assert len(getters) == 7  # the physical getters of spec §2
+    for name, (component, field) in getters.items():
+        with pytest.raises(LayoutNotReady) as raised:
+            getattr(component, field)
+        message = str(raised.value)
+        assert message.startswith(f"{name} is unresolved"), message
+        assert "env.layout.prepare()" in message and "env.activate()" in message, message
+    env.layout.prepare()
+    for component, field in getters.values():
+        getattr(component, field)
+
+
+def test_a_component_repr_reads_no_physical_field_before_preparation() -> None:
+    env = Environment()
+    getters = _system(env, _declared(env))
+    components = {name.split(".")[0]: component for name, (component, _) in getters.items()}
+    before = {name: repr(component) for name, component in components.items()}
+    assert before["ParkingArea"] == "ParkingArea(name='pa', node=unbound, capacity=1)"
+    env.layout.prepare()
+    after = {name: repr(component) for name, component in components.items()}
+    assert after["ParkingArea"] == "ParkingArea(name='pa', node='A', capacity=1)"
+    assert {name for name in before if before[name] != after[name]} == {"ParkingArea"}
+
+
+def test_physical_fields_are_read_only() -> None:
+    env = Environment()
+    getters = _system(env, _declared(env))
+    env.layout.prepare()
+    for name, (component, field) in getters.items():
+        if name in ("AGV.current_node", "ReservationController.graph"):
+            continue  # an AGV moves; the controller's graph has no setter
+        with pytest.raises(LayoutError, match=f"^{field} is read-only"):
+            setattr(component, field, getattr(component, field))
+
+
+def test_late_components_resolve_at_once() -> None:
+    env = Environment()
+    layout = _declared(env)
+    early = AGV(env=env, agv_type=CART, agv_id="early", initial_node=layout.node("A"))
+    _fleet(env, layout.graph(), name="early-fleet")  # a fleet before activation, on free flow
+    env.activate()
+    network = layout.prepare().network
+    a, b = network.node(layout.node("A").address), network.node(layout.node("B").address)
+    placed = []
+    env.bus.subscribe(lambda event: placed.append((event.agv, event.node, event.previous)), (AgvPlaced,))
+    late = AGV(env=env, agv_type=CART, agv_id="late", initial_node=layout.node("B"))
+    parking = ParkingArea(env=env, name="late-pa", node=layout.node("A"), capacity=1)
+    assert late.current_node is b and parking.node is a
+    assert early.current_node is a
+    assert env.entities.node_binding(b).agvs == ["late"]
+    assert placed == [("late", "B", None)]
+    fleet = _fleet(env, layout.graph(), name="late-fleet")
+    assert fleet.graph is network.graph
+    with pytest.raises(LayoutError, match="must be constructed before the layout is prepared"):
+        ReservationController(env=env, graph=layout.graph())
+
+
+@pytest.mark.parametrize("finalize", ["activate", "run", "prepare"])
+def test_the_network_is_declared_before_the_layout_is_finalized(finalize: str) -> None:
+    """Ruling T4-a: a network, or a first fleet on it, after activation raises, naming the cause and the fix."""
+    env = Environment()
+    {"activate": env.activate, "run": env.run, "prepare": env.layout.prepare}[finalize]()
+    cause = "the layout is finalized when it is prepared, at env.activate() or the first env.run()"
+    fix = "declare the network on env.layout before activating; components with handles may still be added later"
+    with pytest.raises(LayoutError, match=re.escape(f"cannot declare the network: {cause}: {fix}")):
+        env.layout.set_network(Explicit(_graph()))
+    with pytest.raises(LayoutError, match=re.escape(f"graph reference requires a declared network: {cause}: {fix}")):
+        _fleet(env, env.layout.graph())
+    assert not any(entity.kind == "fleet" for entity in env.entities.live())
+
+
+def test_one_network_per_environment() -> None:
+    env = Environment()
+    layout = _declared(env)
+    first = _fleet(env, layout.graph(), name="first")
+    second = _fleet(env, layout.graph(), name="second")
+    result = layout.prepare()
+    assert first.graph is second.graph is result.network.graph
+    with pytest.raises(LayoutError, match="cannot declare the network"):
+        layout.set_network(Explicit(_graph()))
+
+
+def test_two_fleets_of_one_environment_share_a_free_flow_controller_and_another_environment_is_refused() -> None:
+    env, other = Environment(), Environment()
+    controller = FreeFlowController()
+    first = _fleet(env, _declared(env).graph(), traffic_controller=controller)
+    _fleet(env, env.layout.graph(), traffic_controller=controller)
+    with pytest.raises(ValueError, match="another environment's layout"):
+        _fleet(other, _declared(other).graph(), traffic_controller=controller)
+    env.layout.prepare()
+    assert controller.view.graph is first.graph
+
+
+def test_the_controller_takes_no_capacities_or_zones() -> None:
+    """Node capacities and zones are declared on the network (L13); the controller has no such arguments."""
+    env = Environment()
+    layout = _declared(env)
+    for argument in ("capacities", "zones"):
+        with pytest.raises(TypeError, match=argument):
+            ReservationController(env=env, graph=layout.graph(), **{argument: {}})
+
+
+def test_explicit_rejects_an_arc_between_two_nodes_at_one_position() -> None:
+    """L16: a lift or a transfer point is two nodes a small distance apart with an explicit ``length``."""
+    a, b = Node("A", 1, 1), Node("B", 1, 1)
+    with pytest.raises(LayoutError, match="zero-length"):
+        Explicit(LayoutGraph([a, b], [Arc(a, b, length=3.0)]))
+    apart = Node("B", 1, 1.001)
+    explicit = Explicit(LayoutGraph([a, apart], [Arc(a, apart, length=3.0)]))
+    env = Environment()
+    env.layout.set_network(explicit)
+    graph = env.layout.prepare().network.graph
+    assert graph.length(*graph.nodes) == 3.0

@@ -200,7 +200,7 @@ def test_noncanonical_movement_is_atomic_before_equality_or_motion_clear(endpoin
     assert binding is not None and binding.agvs == [cart.id]
 
 
-def test_static_bindings_reject_assignment_but_no_layout_keeps_mutable_api():
+def test_static_bindings_reject_assignment():
     env = Environment()
     layout = line(env)
     manager = ReservationController(env=env, graph=layout.graph())
@@ -219,23 +219,10 @@ def test_static_bindings_reject_assignment_but_no_layout_keeps_mutable_api():
             setattr(component, field, getattr(component, field))
     with pytest.raises(AttributeError):
         origin.input_bays.append(fleet.graph.nodes[0])
-    plain = Environment()
-    node = Node("x", 0, 0)
-    wh = warehouse(plain, "wh", node)
-    wh.input_bays.append(node)
-    wh.input_bays = [node]
-    wh.output_bays = [node]
-    st = ChargingStation(env=plain, name="charger", node=node, n_slots=1)
-    pa = ParkingArea(env=plain, name="parking", node=node, capacity=1)
-    st.node = pa.node = node
-    graph = LayoutGraph([node], [])
-    fc = FleetCoordinator(env=plain, graph=graph, fleet=[], warehouses=[wh], charging_stations=[st])
-    fc.graph = graph
-    assert isinstance(wh.input_bays, list) and fc.graph is graph
 
 
 @pytest.mark.parametrize("consumer", ["agv", "warehouse", "charger", "parking", "fleet", "traffic", "node_binding"])
-def test_explicit_consumers_before_layout_and_direct_values_in_layout_rejected(consumer):
+def test_direct_values_in_layout_rejected(consumer):
     def create(env, node, graph):
         return {
             "agv": lambda: vehicle(env, node),
@@ -249,10 +236,6 @@ def test_explicit_consumers_before_layout_and_direct_values_in_layout_rejected(c
 
     node = Node("a", 0, 0)
     graph = LayoutGraph([node], [])
-    plain = Environment()
-    create(plain, node, graph)
-    with pytest.raises(LayoutError):
-        Layout(plain)
     env = Environment()
     line(env)
     before = env.entities.live()
@@ -360,23 +343,22 @@ def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
 
 
 @pytest.mark.parametrize("mode", ["off", "full", "debug"])
-def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_path):
+def test_speed_limited_transport_reproduces_the_fingerprint_both_modes_agreed_on(mode, tmp_path):
+    """The run reproduces the fingerprint pinned at the last commit with explicit mode (e4afae4), where the same model
+    built with concrete objects gave the same initial and final states and fingerprint; and it is deterministic."""
     outcomes = []
-    for use_layout in (False, True):
+    for run in range(2):
         env = Environment(seed=17, debug=mode == "debug")
         env.enable_digest()
         if mode == "full":
-            TraceRecorder(env, tmp_path / f"{use_layout}.trace")
+            TraceRecorder(env, tmp_path / f"{run}.trace")
         if mode == "debug":
             FleetReplay(env)
         a, b = Node("A", 0, 0), Node("B", 2, 0)
         graph = LayoutGraph([a, b], [Arc(a, b, speed_limit=0.5)])
-        if use_layout:
-            layout = Layout(env)
-            layout.set_network(Explicit(graph))
-            supplied_graph, supplied_a, supplied_b = layout.graph(), layout.node("A"), layout.node("B")
-        else:
-            supplied_graph, supplied_a, supplied_b = graph, a, b
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+        supplied_graph, supplied_a, supplied_b = layout.graph(), layout.node("A"), layout.node("B")
         manager = ReservationController(env=env, graph=supplied_graph)
         cart = vehicle(env, supplied_b, "cart")
         origin, destination = warehouse(env, "origin", supplied_a), warehouse(env, "destination", supplied_b)
@@ -398,6 +380,7 @@ def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_p
         outcomes.append((env.initial_state, env.entities.snapshot(), env.fingerprint()))
         env.close()
     assert outcomes[0] == outcomes[1]
+    assert outcomes[1][2].digest == "489efea0a9cb922c03a4e0a87af29885cdaa2f4f6034f99e4fdbe560793349e3"
 
 
 def test_a_controller_without_occupancy_needs_no_registration():
@@ -469,21 +452,25 @@ def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication
 
 
 @pytest.mark.parametrize("consumer", ["agv", "input_bays", "output_bays"])
-def test_preexisting_public_mutation_to_concrete_nodes_blocks_layout_attachment(consumer):
+def test_public_mutation_to_concrete_nodes_is_rejected(consumer):
+    """A component never holds a concrete node: an AGV refuses one and the bays are a tuple from construction."""
     env = Environment()
     concrete = Node("A", 0, 0)
     if consumer == "agv":
         cart = vehicle(env, None)
-        cart.current_node = concrete
+        before = env.entities.snapshot()
+        with pytest.raises(LayoutError, match="canonical"):
+            cart.current_node = concrete
     else:
         wh = Warehouse(
             env=env, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
         )
-        getattr(wh, consumer).append(concrete)
-    before = env.entities.snapshot()
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        Layout(env)
-    assert env._layout is None and env.entities.snapshot() == before
+        before = env.entities.snapshot()
+        with pytest.raises(AttributeError):
+            getattr(wh, consumer).append(concrete)
+    assert env.entities.snapshot() == before
+    env.activate()  # nothing concrete was taken: the environment's layout prepares
+    assert env.initial_state == before
 
 
 def test_preexisting_empty_bays_seal_and_unplaced_agv_remains_supported():
@@ -499,13 +486,13 @@ def test_preexisting_empty_bays_seal_and_unplaced_agv_remains_supported():
     for field in ("input_bays", "output_bays"):
         with pytest.raises(AttributeError):
             getattr(wh, field).append(Node("outside", 0, 0))
-    plain = Environment()
+    fresh = Environment()  # bays are sealed at construction, before the environment's layout exists
     unchanged = Warehouse(
-        env=plain, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
+        env=fresh, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
     )
-    assert isinstance(unchanged.input_bays, list)
-    unchanged.input_bays.append(Node("outside", 0, 0))
-    assert isinstance(unchanged.input_bays, list)
+    assert fresh._layout is None and unchanged.input_bays == ()
+    with pytest.raises(AttributeError):
+        unchanged.input_bays.append(Node("outside", 0, 0))
 
 
 def test_preexisting_bay_alias_cannot_introduce_concrete_nodes_during_preparation():
@@ -515,11 +502,11 @@ def test_preexisting_bay_alias_cannot_introduce_concrete_nodes_during_preparatio
     )
     old_bays = wh.input_bays
     layout = line(env)
-    assert isinstance(old_bays, list)
-    old_bays.append(Node("outside", 0, 0))
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        layout.prepare()
-    assert not any(entity.kind == "node" for entity in env.entities.live())
+    assert old_bays == ()
+    with pytest.raises(AttributeError):
+        old_bays.append(Node("outside", 0, 0))
+    layout.prepare()
+    assert wh.input_bays == () and [entity.id for entity in env.entities.live() if entity.kind == "node"] == ["A", "B"]
 
 
 class ConstantSpeed:

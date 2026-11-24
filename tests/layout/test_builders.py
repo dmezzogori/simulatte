@@ -124,7 +124,7 @@ def test_mapping_without_network_and_foreign_layout_fail_before_attachment():
         build_simple_system(env, nodes=roles(layout))
     with pytest.raises(LayoutError, match="environment"):
         build_simple_system(Environment(), layout=layout)
-    with pytest.raises(LayoutError, match="layout"):
+    with pytest.raises(LayoutError, match="already declared network"):  # the fresh environment's own layout has none
         build_simple_system(Environment(), nodes=roles(layout))
     assert not list(env.entities.live())
 
@@ -213,11 +213,9 @@ def test_plain_bay_inside_warehouse_obstacle_has_no_owner_exemption():
     assert "connector" in (build_simple_system.__doc__ or "")
 
 
-def transport(layout_mode):
+def transport():
     with Environment(seed=17, debug=True) as env:
         env.enable_digest()
-        if layout_mode:
-            Layout(env)
         fleet, _, origin, destination, _ = build_simple_system(env, prefix="line.")
         kpis = FleetKPIs(fleet).attach(env)
         trajectory = []
@@ -231,8 +229,7 @@ def transport(layout_mode):
             orders.append(order)
         env.run(until=120)
         assert all(order.status is OrderStatus.COMPLETED for order in orders)
-        # Prelude attachment counts differ because node binding is deferred; event
-        # sequence numbers are envelopes, not transport trajectories.
+        # Event sequence numbers are envelopes, not transport trajectories.
         observed = [
             (
                 type(event),
@@ -247,8 +244,22 @@ def transport(layout_mode):
         return env.fingerprint(), kpis.scalars(), observed, env.entities.snapshot(), env.initial_state
 
 
-def test_prefixed_explicit_and_layout_trajectories_and_kpis_match():
-    assert transport(False) == transport(True)
+def test_prefixed_trajectories_and_kpis_reproduce_the_run_both_modes_agreed_on():
+    """The fingerprint and KPIs pinned at the last commit with explicit mode (e4afae4), where the same prefixed system
+    built with concrete objects gave the same fingerprint, KPIs, trajectory and states; and the run is deterministic."""
+    fingerprint, kpis, *_ = outcome = transport()
+    assert fingerprint.digest == "77a8b6d962f20c3de75cef5b8c9ead0ce5e487f9d1dfca6608f83fd31309bbf9"
+    assert kpis == {
+        "line.fleet/dispatch_delay": 10.488157894736842,
+        "line.fleet/fulfillment_time": 40.383891547049444,
+        "line.fleet/late_fraction": 0.0,
+        "line.fleet/pending_orders": 0.34960526315789475,
+        "line.fleet/throughput": 0.03333333333333333,
+        "line.fleet/travel_time_empty": 10.791666666666666,
+        "line.fleet/travel_time_loaded": 19.104066985645936,
+        "line.fleet/utilization": 0.4982622275385433,
+    }
+    assert transport() == outcome
 
 
 @pytest.mark.parametrize("path", ["type", "network"])

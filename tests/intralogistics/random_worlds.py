@@ -1,12 +1,12 @@
-"""Random intralogistics worlds described as pure data, built two ways, and an independent monitor of their runs.
+"""Random intralogistics worlds described as pure data, built through the layout, and an independent monitor of their
+runs.
 
 `world_spec(seed)` draws a world: a grid with removed links, chains, spurs, one-way arcs, passing segments, speed
 limits, arcs with explicit lengths, block lengths, zones with and without hold-back, nodes of capacity 2,
 warehouses, chargers, parking areas, low batteries, cancellations and interruptions, and sometimes a second fleet on
-the same traffic controller. No two nodes share a position. `build_world` builds it with concrete graph objects
-(``mode="explicit"``) or through ``Explicit`` and the handles of the environment's layout (``mode="layout"``); AGVs
-are constructed with ``agv_id=`` and every component is named, so ids are equal in both modes. `run_world` runs a
-world with a `Monitor` and a `StreamRecorder` and returns a `RunRecord`, which compares equal for equal runs.
+the same traffic controller. No two nodes share a position. `build_world` builds it through ``Explicit`` and the
+handles of the environment's layout; AGVs are constructed with ``agv_id=`` and every component is named. `run_world`
+runs a world with a `Monitor` and a `StreamRecorder` and returns a `RunRecord`, which compares equal for equal runs.
 `present` and `exercised` name the features a spec contains and those a recorded run used.
 
 The `Monitor` takes its geometry from the spec (`reference_graph`), not from the graph the run built, and reports a
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal
 
@@ -66,10 +66,9 @@ from simulatte.intralogistics.events import (
     TrafficWaitStuck,
 )
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
-from simulatte.intralogistics.network import Corridor, Segment, Zone
+from simulatte.intralogistics.network import Corridor, Segment
 from simulatte.intralogistics.order import TransferOrder
 
-Mode = Literal["explicit", "layout"]
 ROUTERS = ("shortest", "fastest", "congestion")
 """The three routers; ``"default"`` passes none, which is ``ShortestDistanceRouter()``."""
 CONTROLLERS = ("reservation", "free")
@@ -159,7 +158,7 @@ class FleetSpec:
 
 @dataclass(frozen=True)
 class WorldSpec:
-    """A world as plain data: what `build_world` builds in either mode."""
+    """A world as plain data: what `build_world` builds."""
 
     seed: int
     nodes: tuple[tuple[str, float, float], ...]
@@ -562,7 +561,6 @@ def _layout_zones(spec: WorldSpec) -> dict[str, Any] | None:
 class BuiltWorld:
     env: Environment
     spec: WorldSpec
-    mode: Mode
     controller: Any
     fleets: tuple[FleetCoordinator, ...]
     agvs: dict[str, AGV]
@@ -577,44 +575,29 @@ def build_world(
     env: Environment,
     spec: WorldSpec,
     *,
-    mode: Mode,
     router: str = "default",
     controller: Literal["reservation", "free"] = "reservation",
 ) -> BuiltWorld:
-    """Build `spec` in `env` with concrete objects (``"explicit"``) or through ``Explicit`` and handles (``"layout"``).
+    """Build `spec` in `env` through ``Explicit`` and the handles of the environment's layout: the block length,
+    per-node capacities and zones are declared with the network. The order and disturbance processes are started
+    here."""
+    from simulatte.layout import Explicit
 
-    Per-node capacities and zones go to the controller's ``capacities=`` and ``zones=`` in explicit mode and to
-    ``Explicit(capacities=..., zones=...)`` in layout mode. The order and disturbance processes are started here.
-    """
-    graph = graph_of(spec)
-    if mode == "layout":
-        from simulatte.layout import Explicit, Layout
-
-        layout = Layout(env)
-        layout.set_network(
-            Explicit(graph, block_length=spec.block_length, capacities=dict(spec.capacities), zones=_layout_zones(spec))
+    layout = env.layout
+    layout.set_network(
+        Explicit(
+            graph_of(spec),
+            block_length=spec.block_length,
+            capacities=dict(spec.capacities),
+            zones=_layout_zones(spec),
         )
-        supplied_graph: Any = layout.graph()
-        node: Callable[[str], Any] = layout.node
-        capacities: dict[Node, int] = {}
-        zones: tuple[Zone, ...] = ()
-    elif mode == "explicit":
-        graph = reference_graph(spec)
-        supplied_graph = graph
-        values = {n.id: n for n in graph.nodes}
-        node = values.__getitem__
-        capacities = {values[n]: capacity for n, capacity in spec.capacities}
-        zones = tuple(
-            Zone(zone.id, zone_members(spec, zone, graph), zone.capacity, zone.hold_back) for zone in spec.zones
-        )
-    else:
-        raise ValueError(f"unknown mode {mode!r}")
+    )
+    supplied_graph = layout.graph()
+    node = layout.node
     if controller == "reservation":
         traffic: Any = ReservationController(
             env=env,
             graph=supplied_graph,
-            capacities=capacities,
-            zones=zones,
             derive_corridors=spec.derive_corridors,
             hold_back_dead_ends=spec.hold_back_dead_ends,
             priority_fn=_priority if spec.priority else None,
@@ -626,7 +609,7 @@ def build_world(
     skus = [SKU(id=f"s{k}", weight=weight, volume=0.1) for k, weight in enumerate(spec.skus)]
     chargers = tuple(ChargingStation(env=env, name=name, node=node(at), n_slots=n) for name, at, n in spec.chargers)
     parking = tuple(ParkingArea(env=env, name=name, node=node(at), capacity=n) for name, at, n in spec.parking)
-    world = BuiltWorld(env, spec, mode, traffic, (), {}, chargers, parking)
+    world = BuiltWorld(env, spec, traffic, (), {}, chargers, parking)
     fleets = []
     for fleet_spec in spec.fleets:
         warehouses = [
@@ -750,7 +733,6 @@ class RunRecord:
 def run_world(
     spec: WorldSpec,
     *,
-    mode: Mode,
     router: str = "default",
     controller: Literal["reservation", "free"] = "reservation",
     until: float | None = None,
@@ -758,7 +740,7 @@ def run_world(
     """Build and run `spec` with a `Monitor`; the final checks run when the run ended with an empty queue."""
     env = Environment(seed=spec.seed, log_level="CRITICAL")
     with env:
-        world = build_world(env, spec, mode=mode, router=router, controller=controller)
+        world = build_world(env, spec, router=router, controller=controller)
         monitor = Monitor(world)
         recorder = StreamRecorder(env)
         env.enable_digest()
@@ -1060,7 +1042,7 @@ class _Slot:
 KNOWN_LIMIT = "parking slot kept while charging on the way to park"
 """The known limit: an AGV takes a parking slot when it sets off to park, starts a charge before it gets there (at a
 charger it turned to, or one on its route), and keeps the slot while it charges, until the charge ends (fleet behaviour,
-the same in both modes)."""
+the same in both modes while explicit mode existed)."""
 
 
 class Monitor:
@@ -1124,7 +1106,7 @@ class Monitor:
         self._ready = True
 
     def _compare_geometry(self, built: LayoutGraph) -> None:
-        """The graph the mode under test built against the one the spec describes, node by node and arc by arc."""
+        """The graph the layout built against the one the spec describes, node by node and arc by arc."""
 
         def arcs(graph: LayoutGraph) -> dict[tuple[str, str], tuple[float, float | None, bool]]:
             found = {}

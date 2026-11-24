@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.charging import ChargingStation
@@ -19,29 +19,6 @@ if TYPE_CHECKING:
     from simulatte.layout import GraphRef, Layout, NodeRef, PortRef
 
 
-@overload
-def build_simple_system(
-    env: Environment,
-    *,
-    n_agvs: int = 2,
-    agv_max_speed: float = 2.0,
-    agv_acceleration: float = 1.0,
-    agv_battery_capacity: float = 100.0,
-    agv_weight_capacity: float = 500.0,
-    agv_volume_capacity: float = 10.0,
-    products: list[SKU] | None = None,
-    initial_inventory_a: dict[SKU, int] | None = None,
-    initial_inventory_b: dict[SKU, int] | None = None,
-    prefix: str = "",
-    layout: Layout,
-    nodes: Mapping[str, NodeRef | PortRef] | None = None,
-    traffic_controller: TrafficController | None = None,
-    router: Router | None = None,
-    agv_length: float | None = None,
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef]: ...
-
-
-@overload
 def build_simple_system(
     env: Environment,
     *,
@@ -60,28 +37,7 @@ def build_simple_system(
     traffic_controller: TrafficController | None = None,
     router: Router | None = None,
     agv_length: float | None = None,
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph | GraphRef]: ...
-
-
-def build_simple_system(
-    env: Environment,
-    *,
-    n_agvs: int = 2,
-    agv_max_speed: float = 2.0,
-    agv_acceleration: float = 1.0,
-    agv_battery_capacity: float = 100.0,
-    agv_weight_capacity: float = 500.0,
-    agv_volume_capacity: float = 10.0,
-    products: list[SKU] | None = None,
-    initial_inventory_a: dict[SKU, int] | None = None,
-    initial_inventory_b: dict[SKU, int] | None = None,
-    prefix: str = "",
-    layout: Layout | None = None,
-    nodes: Mapping[str, NodeRef | PortRef] | None = None,
-    traffic_controller: TrafficController | None = None,
-    router: Router | None = None,
-    agv_length: float | None = None,
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph | GraphRef]:
+) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef]:
     """Create a complete intralogistics system with sensible defaults.
 
     Builds a 5-node linear graph::
@@ -93,16 +49,13 @@ def build_simple_system(
 
     Entities are named ``f"{prefix}{default}"``: nodes as above, warehouses ``WH-A`` and ``WH-B``, charging
     station ``CS-CENTER``, parking area ``PA-N1`` and coordinator ``fleet``. AGVs are named ``f"{prefix}agv-{i}"``
-    when a prefix is given; without one their ids are generated (``agv-<n>``). A prefix keeps several systems
-    apart in one environment.
+    when a prefix is given and ``vehicle-<i>`` without one. A prefix keeps several systems apart in one environment.
 
-    ``layout`` defaults to the environment's layout if it already exists (``Layout(env)`` or ``env.layout`` used
-    before this call); otherwise the builder uses a concrete graph. With a layout, all consumers
-    receive handles and the fifth return value is a ``GraphRef``. Physical getters
-    become available after ``layout.prepare()`` or environment activation. Without
-    a prefix, layout AGVs have explicit names ``vehicle-0``, ``vehicle-1``, etc.
+    ``layout`` defaults to ``env.layout``. All components receive handles of it and the fifth return value is
+    ``layout.graph()``, a ``GraphRef``. Physical getters become available after ``layout.prepare()`` or environment
+    activation.
 
-    If no network is declared, layout mode declares the same five-node line.
+    If no network is declared, the builder declares the five-node line.
     Otherwise ``nodes`` is required: its exact role keys are ``WH_A_OUT``, ``N1``,
     ``N2``, ``N3``, ``WH_B_IN`` (unprefixed), with node/port refs from this layout.
     Declare a union network and pass distinct mappings to compose independent lines;
@@ -118,32 +71,20 @@ def build_simple_system(
     Returns:
         ``(coordinator, agvs, warehouse_a, warehouse_b, graph)``
     """
-    layout = env._layout if layout is None else layout
-    if layout is not None and layout.env is not env:
+    layout = env.layout if layout is None else layout
+    if layout.env is not env:
         from simulatte.layout import LayoutError
 
         raise LayoutError("builder layout belongs to another environment")
-    if layout is None and nodes is not None:
-        from simulatte.layout import LayoutError
-
-        raise LayoutError("nodes mapping requires a layout")
 
     # -- Default products --
     if products is None:
         products = [SKU("A", 1.0, 0.1), SKU("B", 2.0, 0.2)]
 
     # -- Graph --
-    graph: LayoutGraph | GraphRef
-    bays_a: list[Node] | list[NodeRef | PortRef]
-    bays_b: list[Node] | list[NodeRef | PortRef]
-    if layout is None:
-        graph = _simple_graph(prefix)
-        wh_a_out, n1, n2, _, wh_b_in = graph.nodes
-        bays_a, bays_b = [wh_a_out], [wh_b_in]
-    else:
-        graph, endpoints = _layout_graph(layout, nodes, prefix)
-        wh_a_out, n1, n2, _, wh_b_in = endpoints
-        bays_a, bays_b = [wh_a_out], [wh_b_in]
+    graph, endpoints = _layout_graph(layout, nodes, prefix)
+    wh_a_out, n1, n2, _, wh_b_in = endpoints
+    bays_a, bays_b = [wh_a_out], [wh_b_in]
 
     # -- Default inventories --
     if initial_inventory_a is None:
@@ -176,9 +117,8 @@ def build_simple_system(
         put_time=1.0,
     )
 
-    if layout is not None:
-        layout.place(warehouse_a, obstacle=False)
-        layout.place(warehouse_b, obstacle=False)
+    layout.place(warehouse_a, obstacle=False)
+    layout.place(warehouse_b, obstacle=False)
 
     # -- Charging station at N2 (center) --
     charging_station = ChargingStation(
@@ -211,7 +151,7 @@ def build_simple_system(
         AGV(
             env=env,
             agv_type=agv_type,
-            agv_id=f"{prefix}agv-{i}" if prefix else (f"vehicle-{i}" if layout is not None else None),
+            agv_id=f"{prefix}agv-{i}" if prefix else f"vehicle-{i}",
             initial_node=n1,
         )
         for i in range(n_agvs)

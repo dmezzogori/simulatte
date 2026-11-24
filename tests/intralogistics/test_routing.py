@@ -495,16 +495,6 @@ class TestFastestRouter:
         assert east is not None and east.nodes == (a, b, d) and east.cost == 13.0  # the corner at B costs 3.0
         assert north is not None and north.nodes == (a, c, d) and north.cost == 13.0  # the corner at C costs 3.0
 
-    def test_an_arc_without_direction_leaves_the_heading_unknown(self) -> None:
-        nodes = {name: Node(name, x, y) for name, x, y in [("A", 0, 0), ("B", 10, 0), ("Z", 10, 0), ("D", 10, 10)]}
-        arcs = [Arc(nodes["A"], nodes["B"]), Arc(nodes["B"], nodes["Z"], length=1.0), Arc(nodes["Z"], nodes["D"])]
-        graph = LayoutGraph(nodes.values(), arcs)
-        spy = Turns(lambda a: 1.0)
-        route = fastest(graph, nodes["A"], nodes["D"], cart(Plain(), turn_time=spy))
-        assert route is not None and route.nodes == tuple(nodes.values())
-        assert 0.0 in spy.angles
-        assert route.cost == 11.5  # 10.5 and one turn, at B into the arc without direction; none at Z (heading unknown)
-
     def test_a_route_is_never_a_loop(self) -> None:
         """Eight gentle turns round an octagon through ``A`` cost less than the one sharp turn at ``A`` on the way from
         ``X`` to ``Y``: the search walks the octagon and the route is cut where it returns to ``A``."""

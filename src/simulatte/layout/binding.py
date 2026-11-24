@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from .errors import LayoutError, LayoutNotReady
 from .lifecycle import PreparationState
@@ -20,30 +20,40 @@ if TYPE_CHECKING:
     from .layout import Layout
 
 
-def node_input(env: Environment, value: Any, *, optional: bool = False) -> tuple[Node | None, NodeRef | PortRef | None]:
+def node_input(
+    env: Environment, value: Any, *, component: str, parameter: str, optional: bool = False
+) -> tuple[Node | None, NodeRef | PortRef | None]:
+    """The node of a component's `parameter`: a handle of the environment's layout, resolved at once when the layout
+    is finalized, else kept as pending. A concrete `Node` raises `LayoutError` naming the fix (spec §5.3); a handle of
+    another layout raises too. ``None`` is accepted when `optional`."""
     from simulatte.intralogistics.graph import Node
 
     if value is None and optional:
         return None, None
-    layout = env._layout
-    if layout is None:
-        if not isinstance(value, Node):
-            raise LayoutError("node references require their owning Layout environment", code="foreign-handle")
-        return value, None
+    if isinstance(value, Node):
+        raise LayoutError(
+            f"{component}({parameter}=...) takes layout.node(id) or layout.port(...) handles, not Node objects",
+            code="foreign-handle",
+        )
+    layout = env.layout
     layout._accept_reference(value, (NodeRef, PortRef))
     if layout._coordinator.state is PreparationState.FINALIZED:
         return layout._resolve_node(value), None
     return None, value
 
 
-def graph_input(env: Environment, value: Any) -> tuple[LayoutGraph | None, GraphRef | None]:
+def graph_input(env: Environment, value: Any, *, component: str) -> tuple[LayoutGraph | None, GraphRef | None]:
+    """The graph of a component: ``layout.graph()`` of the environment's layout, resolved at once when the layout is
+    finalized, else kept as pending. A concrete `LayoutGraph` raises `LayoutError` naming the fix (spec §5.3)."""
     from simulatte.intralogistics.graph import LayoutGraph
 
-    layout = env._layout
-    if layout is None:
-        if not isinstance(value, LayoutGraph):
-            raise LayoutError("graph references require their owning Layout environment", code="foreign-handle")
-        return value, None
+    if isinstance(value, LayoutGraph):
+        raise LayoutError(
+            f"{component}(graph=...) takes layout.graph(); declare the graph with "
+            "env.layout.set_network(Explicit(graph))",
+            code="foreign-handle",
+        )
+    layout = env.layout
     layout._accept_reference(value, (GraphRef,))
     if layout._coordinator.state is PreparationState.FINALIZED:
         return layout._graph_of(layout._coordinator.network), None
@@ -53,16 +63,18 @@ def graph_input(env: Environment, value: Any) -> tuple[LayoutGraph | None, Graph
 def pending(component: Any, field: str) -> None:
     env = getattr(component, "env", None) or component._env
     raise LayoutNotReady(
-        f"{type(component).__name__}.{field} is unresolved while {env._layout._coordinator.state.value}",
+        f"{type(component).__name__}.{field} is unresolved while {env._layout._coordinator.state.value}: it is bound "
+        "when the layout is prepared; call env.layout.prepare() or env.activate() before reading it",
         code="lifecycle-error",
         target=getattr(component, "id", None),
         path=("bindings", field),
     )
 
 
-def readonly(env: Environment, field: str) -> None:
-    if env._layout is not None:
-        raise LayoutError(f"{field} is read-only in layout mode", code="lifecycle-error", path=("bindings", field))
+def readonly(field: str) -> NoReturn:
+    raise LayoutError(
+        f"{field} is read-only: it is bound from the layout's handles", code="lifecycle-error", path=("bindings", field)
+    )
 
 
 def _loaded(module: str, name: str) -> tuple[Any, ...]:
@@ -73,28 +85,6 @@ def _loaded(module: str, name: str) -> tuple[Any, ...]:
     """
     cls = getattr(sys.modules.get(module), name, None)
     return () if cls is None else (cls,)
-
-
-def has_existing_endpoints(env: Environment) -> bool:
-    """Whether a live AGV or warehouse holds a concrete node, including mutable no-layout inputs changed later."""
-    agv: tuple[type[AGV], ...] = _loaded("simulatte.intralogistics.agv", "AGV")
-    warehouse: tuple[type[Warehouse], ...] = _loaded("simulatte.intralogistics.warehouse", "Warehouse")
-    for entity in env.entities.live():
-        concrete = isinstance(entity, agv) and entity._current_node is not None
-        if isinstance(entity, warehouse):
-            concrete = any(
-                getattr(entity, "_pending_" + field) is None and bool(getattr(entity, "_" + field))
-                for field in ("input_bays", "output_bays")
-            )
-        if concrete:
-            return True
-    return False
-
-
-def check_existing_endpoints(env: Environment) -> None:
-    """Reject concrete consumers, including mutable no-layout inputs changed later."""
-    if has_existing_endpoints(env):
-        raise LayoutError("Layout cannot adopt existing explicit graph consumers", code="foreign-handle")
 
 
 def bind_components(layout: Layout) -> None:
@@ -127,8 +117,6 @@ def bind_components(layout: Layout) -> None:
                     nodes = tuple(layout._bind_node(ref, entity.id, f"{field}/{i}") for i, ref in enumerate(refs))
                     setattr(entity, "_" + field, nodes)
                     setattr(entity, "_pending_" + field, None)
-                else:
-                    setattr(entity, "_" + field, tuple(getattr(entity, "_" + field)))
         elif isinstance(entity, stations) and entity._pending_node is not None:
             entity._node = layout._bind_node(entity._pending_node, entity.id, "node")
             entity._pending_node = None

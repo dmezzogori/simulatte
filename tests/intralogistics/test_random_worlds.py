@@ -1,5 +1,5 @@
-"""The random worlds of ``random_worlds.py``: a deterministic description, equal runs in both modes, a monitor that
-detects a violation."""
+"""The random worlds of ``random_worlds.py``: a deterministic description, runs that reproduce the fingerprints both
+modes agreed on while explicit mode existed, a monitor that detects a violation."""
 
 from __future__ import annotations
 
@@ -37,7 +37,8 @@ FINGERPRINTS = {
     619: "bf99183019763d143b258513bf38c4b1caaf0cc98fc393b513f2e5383d85c618",
 }
 """``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
-router), equal in both modes when pinned, at the last commit where both existed."""
+router), pinned at the last commit with explicit mode (e4afae4), where the run built with concrete objects and the run
+built through the layout gave equal run records."""
 
 
 def test_world_spec_is_deterministic_per_seed():
@@ -65,12 +66,11 @@ def test_every_world_has_vehicles_in_every_fleet():
 
 
 @pytest.mark.parametrize("seed", sorted(EXERCISED))
-def test_a_world_runs_alike_built_explicitly_and_through_the_layout(seed):
+def test_a_world_reproduces_the_run_both_modes_agreed_on(seed):
     spec = world_spec(seed)
-    explicit = run_world(spec, mode="explicit", controller="reservation")
-    layout = run_world(spec, mode="layout", controller="reservation")
+    layout = run_world(spec, controller="reservation")
     assert layout.events and layout.quiescent and not layout.violations
-    assert explicit == layout and layout.fingerprint.digest == FINGERPRINTS[seed]
+    assert layout.fingerprint.digest == FINGERPRINTS[seed]
     assert EXERCISED[seed] <= exercised(spec, layout.events) <= present(spec) | NOT_IN_A_SPEC
 
 
@@ -83,7 +83,7 @@ def test_the_monitor_reports_an_admission_that_ignores_node_capacity(monkeypatch
         return admit(self, agv, item, among)
 
     monkeypatch.setattr(HoldingsLedger, "blockers", blockers)
-    record = run_world(world_spec(88), mode="layout", controller="reservation")
+    record = run_world(world_spec(88), controller="reservation")
     found = {violation[1] for violation in record.violations}
     assert {"PHYSICAL node over capacity", "LEDGER node over capacity"} <= found
 
@@ -99,7 +99,7 @@ def test_the_monitor_reports_a_built_network_that_differs_from_the_spec(monkeypa
         object.__setattr__(self, "arcs", tuple(dataclasses.replace(arc, length=None) for arc in self.arcs))
 
     monkeypatch.setattr(types.Explicit, "__init__", without_lengths)
-    record = run_world(world_spec(88), mode="layout", controller="reservation")
+    record = run_world(world_spec(88), controller="reservation")
     assert "built arcs differ from the spec" in {violation[1] for violation in record.violations}
 
 
@@ -107,7 +107,7 @@ def test_the_monitor_reports_a_move_on_an_arc_the_spec_lacks_and_goes_on(monkeyp
     """The reference graph loses the first arc a vehicle uses: the geometry violation is kept, then the move is
     reported, and the run is not cut short by an exception."""
     spec = world_spec(88)
-    probe = run_world(spec, mode="layout", controller="reservation")
+    probe = run_world(spec, controller="reservation")
     moves = [dict(fields) for kind, fields in probe.events if kind is logistics_events.AgvMoveStarted]
     used = {moves[0]["from_node"], moves[0]["to_node"]}
     reference = random_worlds.reference_graph
@@ -124,7 +124,7 @@ def test_the_monitor_reports_a_move_on_an_arc_the_spec_lacks_and_goes_on(monkeyp
         return LayoutGraph(list(graph.nodes), arcs)
 
     monkeypatch.setattr(random_worlds, "reference_graph", without_the_used_arc)
-    record = run_world(spec, mode="layout", controller="reservation")
+    record = run_world(spec, controller="reservation")
     found = {violation[1] for violation in record.violations}
     assert {"built arcs differ from the spec", "move on an arc the spec does not have"} <= found
     assert record.quiescent and len(record.events) == len(probe.events)
@@ -155,7 +155,7 @@ def test_the_monitor_reports_a_node_capacity_the_layout_resolves_wrongly(monkeyp
         object.__setattr__(explicit, "nodes", nodes)
 
     _declared_with(monkeypatch, lose_one)
-    record = run_world(spec, mode="layout", controller="reservation")
+    record = run_world(spec, controller="reservation")
     assert "built node capacities differ from the spec" in {violation[1] for violation in record.violations}
 
 
@@ -179,7 +179,7 @@ def test_the_monitor_reports_a_zone_the_layout_resolves_wrongly(monkeypatch, wha
         object.__setattr__(explicit, "zones", zones)
 
     _declared_with(monkeypatch, alter)
-    record = run_world(spec, mode="layout", controller="reservation")
+    record = run_world(spec, controller="reservation")
     assert "built zones differ from the spec" in {violation[1] for violation in record.violations}
 
 
@@ -189,11 +189,11 @@ def test_the_features_are_named_once():
 
 def test_a_parking_slot_kept_while_charging_on_the_way_to_park_is_the_known_limit_not_a_violation():
     """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0, charges from
-    148.6 to 220.1 and leaves P0 as the charge ends. Fleet behaviour, the same in both modes."""
+    148.6 to 220.1 and leaves P0 as the charge ends. Fleet behaviour, the same in both modes while explicit mode
+    existed (the fingerprint pinned then)."""
     spec = world_spec(619)
-    explicit = run_world(spec, mode="explicit", controller="free", router="shortest")
-    layout = run_world(spec, mode="layout", controller="free", router="shortest")
-    assert explicit == layout and not layout.violations
+    layout = run_world(spec, controller="free", router="shortest")
+    assert not layout.violations
     assert layout.fingerprint.digest == FINGERPRINTS[619]
     (case,) = layout.known_limits
     assert case[1:4] == (KNOWN_LIMIT, "P0", "agv-a")
@@ -202,6 +202,6 @@ def test_a_parking_slot_kept_while_charging_on_the_way_to_park_is_the_known_limi
 
 def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation(monkeypatch):
     monkeypatch.setattr(ParkingArea, "leave", lambda self, agv: None)  # slots are never given back
-    record = run_world(world_spec(619), mode="layout", controller="free", router="shortest")
+    record = run_world(world_spec(619), controller="free", router="shortest")
     assert not record.known_limits
     assert "parking slot of an AGV resting elsewhere" in {violation[1] for violation in record.violations}

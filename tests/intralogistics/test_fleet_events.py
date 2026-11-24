@@ -649,29 +649,6 @@ def test_agv_placed_at_bound_node_and_on_direct_assignment(after_activation: boo
     assert replay.state["OUT"]["agvs"] == (first.id,)
 
 
-@pytest.mark.parametrize("after_activation", [False, True])
-def test_agv_placed_from_a_node_outside_the_network(after_activation: bool) -> None:
-    """An AGV created on a node outside the graph and moved by assignment onto a bound node.
-
-    Explicit mode only: a layout refuses a node that is not a canonical node of its network (the ``LayoutError`` of
-    ``test_agv_placed_at_bound_node_and_on_direct_assignment``); Task 9 removes this test."""
-    env = Environment(debug=True)
-    replay = FleetReplay(env, FLEET_KINDS | {"node"})
-    nodes, graph = _line_graph()
-    first = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[0])
-    if after_activation:
-        env.activate()
-    FleetCoordinator(env=env, graph=graph, fleet=[first], warehouses=[], charging_stations=[])
-    placed: list[AgvPlaced] = []
-    env.bus.subscribe(placed.append, (AgvPlaced,))
-
-    unbound = AGV(env=env, agv_type=_agv_type(), initial_node=Node(id="LOOSE", x=0.0, y=0.0))
-    unbound.current_node = nodes[1]
-
-    assert [(e.agv, e.node, e.previous) for e in placed] == [(unbound.id, "C1", "LOOSE")]
-    assert replay.state["C1"]["agvs"] == (unbound.id,)
-
-
 # --- replay over a busy run --------------------------------------------------------------------------------
 
 

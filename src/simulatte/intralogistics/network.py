@@ -32,7 +32,10 @@ class Segment:
 
 @dataclass(frozen=True)
 class Zone:
-    """An authored set of nodes and segments (node pairs) with an exclusive capacity."""
+    """An authored set of nodes and segments (node pairs) with an exclusive capacity.
+
+    A model declares its zones with the network on the layout; the layout resolves them to these zones of canonical
+    nodes, which the :class:`~simulatte.intralogistics.ReservationController` takes at binding."""
 
     id: str
     members: tuple[Node | tuple[Node, Node], ...]
@@ -87,10 +90,10 @@ def _key(u: Node, v: Node) -> tuple[str, str]:
 class TrafficNetwork:
     """Traffic resources derived from ``graph``, and the claims over them.
 
-    Capacity of a node is the first of ``capacities`` (explicit), ``facility_capacities`` (the sum over the facilities
-    on the node) and ``node_capacity``. ``zones`` are authored; corridors are derived when ``derive_corridors`` is
-    true; ``hold_back_dead_ends`` turns the dead-end rule of :meth:`claim` on or off. ``warnings`` collects the
-    problems found while deriving, in a fixed order.
+    Capacity of a node is the first of ``capacities`` (declared with the network), ``facility_capacities`` (the sum over
+    the facilities on the node) and ``node_capacity``. ``zones`` are authored (declared with the network); corridors
+    are derived when ``derive_corridors`` is true; ``hold_back_dead_ends`` turns the dead-end rule of :meth:`claim` on
+    or off. ``warnings`` collects the problems found while deriving, in a fixed order.
     """
 
     def __init__(

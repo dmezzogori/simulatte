@@ -64,8 +64,8 @@ def test_manifest_requested_is_fixed_by_activation_and_deterministic() -> None:
     before = env.manifest()
     env.activate()
     after = env.manifest()
-    # The layout is created at activation (spec §5.5): before it the manifest has none, after it the layout's.
-    assert before.requested["layout"] is None
+    # Every environment has a layout (spec §5.1), unresolved before activation; after it the manifest has the layout's.
+    assert before.requested["layout"] == {"schema_version": "1.0", "status": "unresolved"}
     assert after.requested["layout"] == env.layout.prepare().bundle.manifest()
     assert {**before.requested, "layout": None} == {**after.requested, "layout": None}
     assert after.requested is env.manifest().requested

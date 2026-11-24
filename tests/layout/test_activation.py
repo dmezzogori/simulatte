@@ -442,16 +442,15 @@ def test_port_binding_aliases_share_canonical_graph_node_and_capacity():
     assert result.auto.derived_positions[cart.id] == Point(-1, 0)
 
 
-def test_rejected_constructor_does_not_register_explicit_graph_use():
-    from simulatte.intralogistics.graph import Node
+def test_rejected_constructors_leave_the_layout_usable():
     from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
-    with pytest.raises(ValueError):
-        vehicle(env, Node("A", 0, 0), "")
+    with pytest.raises(ValueError, match="name"):
+        vehicle(env, env.layout.node("A"), "")
     with pytest.raises(LayoutError):
         ReservationController(env=env, graph="not a graph")  # ty: ignore[invalid-argument-type]
-    assert Layout(env).prepare() is not None
+    assert env.layout.prepare() is not None and env.entities.live() == ()
 
 
 def test_retired_targets_are_not_final_static_entities():

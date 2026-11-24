@@ -129,13 +129,15 @@ class AGV(Entity, kind="agv"):
         env: Environment,
         agv_type: AGVType,
         agv_id: str | None = None,
-        initial_node: Node | NodeRef | PortRef | None = None,
+        initial_node: NodeRef | PortRef | None = None,
         label: str | None = None,
     ) -> None:
         self.env = env
         self.agv_type = agv_type
-        self._current_node, self._pending_node = node_input(env, initial_node, optional=True)
-        initial_node = self._current_node
+        self._current_node, self._pending_node = node_input(
+            env, initial_node, component="AGV", parameter="initial_node", optional=True
+        )
+        node = self._current_node
         self.current_load: dict[SKU, int] | None = None
         self.fleet: FleetCoordinator | None = None
         """The coordinator that took this AGV (owner field, spec §5.2)."""
@@ -145,7 +147,7 @@ class AGV(Entity, kind="agv"):
         """The active movement segment ``{from, to, t_start, t_end, description}`` (spec §6.5), or None."""
         self.heading: float | None = None
         """The direction of the last arc traversed, in radians (``atan2`` of its chord, spec §9.4); None after
-        placement. An arc whose chord has length 0 has no direction and leaves it unchanged."""
+        placement."""
 
         self.battery = Battery(
             capacity=agv_type.battery_capacity,
@@ -161,26 +163,25 @@ class AGV(Entity, kind="agv"):
         """The time up to which idle power has been accounted (:meth:`accrue_idle_power`)."""
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
 
-        self._uses_explicit_graph = env._layout is None and initial_node is not None
         env.entities.attach(self, name=agv_id, label=label)
         self._load_time = env.bind(agv_type.load_time, kind="scalar", stream=f"{self.id}/load", owner=self.id)
         self._unload_time = env.bind(agv_type.unload_time, kind="scalar", stream=f"{self.id}/unload", owner=self.id)
-        if initial_node is not None:
-            binding = env.entities.node_binding(initial_node)
-            if binding is not None:  # bound before this AGV existed: its create delta did not list it
-                binding.agvs.append(self.id)
-                if env.wants(AgvPlaced):
-                    env.emit(
-                        AgvPlaced(
-                            agv=self.id,
-                            node=initial_node.id,
-                            previous=None,
-                            deltas=Deltas.build()
-                            .set(self.id, "node", initial_node.id)
-                            .insert(binding.id, "agvs", len(binding.agvs) - 1, self.id)
-                            .done(),
-                        )
+        if node is not None:  # resolved at once: the layout is prepared and bound its nodes before this AGV existed
+            binding = env.entities.node_binding(node)
+            assert binding is not None
+            binding.agvs.append(self.id)  # its create delta did not list it
+            if env.wants(AgvPlaced):
+                env.emit(
+                    AgvPlaced(
+                        agv=self.id,
+                        node=node.id,
+                        previous=None,
+                        deltas=Deltas.build()
+                        .set(self.id, "node", node.id)
+                        .insert(binding.id, "agvs", len(binding.agvs) - 1, self.id)
+                        .done(),
                     )
+                )
 
     def sample_load_time(self) -> float:
         """Draw the duration of the next load from the AGV's ``<id>/load`` binding."""
@@ -229,7 +230,8 @@ class AGV(Entity, kind="agv"):
     def _relocate(self, node: Node | None) -> tuple[NodeBinding | None, NodeBinding | None]:
         """Set the current node and update the ``agvs`` lists of the bound nodes.
 
-        Returns the binding the AGV was removed from and the binding it was appended to (None when unchanged).
+        Returns the binding the AGV was removed from and the binding it was appended to (None when unchanged). Both
+        nodes are canonical nodes of the layout's network, which binds every one of them at preparation.
         """
         self._validate_node(node)
         previous = self._current_node
@@ -237,22 +239,19 @@ class AGV(Entity, kind="agv"):
         entities = self.env.entities
         left = entered = None
         if previous is not None:
-            binding = entities.node_binding(previous)
-            if binding is not None and self.id in binding.agvs:
-                binding.agvs.remove(self.id)
-                left = binding
+            left = entities.node_binding(previous)
+            assert left is not None
+            left.agvs.remove(self.id)
         if node is not None:
-            binding = entities.node_binding(node)
-            if binding is not None:
-                binding.agvs.append(self.id)
-                entered = binding
+            entered = entities.node_binding(node)
+            assert entered is not None
+            entered.agvs.append(self.id)
         return left, entered
 
     def _validate_node(self, node: Node | None) -> None:
-        if self.env._layout is not None:
-            if self._pending_node is not None:
-                pending(self, "current_node")
-            self.env._layout._validate_node(node)
+        if self._pending_node is not None:
+            pending(self, "current_node")
+        self.env.layout._validate_node(node)
 
     def _node_deltas(self, node: Node | None, left: NodeBinding | None, entered: NodeBinding | None) -> DeltaBuilder:
         """Deltas of a :meth:`_relocate` to `node`: the AGV's ``node`` and the ``agvs`` lists it changed."""

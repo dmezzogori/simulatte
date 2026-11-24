@@ -131,10 +131,11 @@ def _described(profile: ArcProfile) -> MotionDescription:
 
     When the entry speed, the length and every phase value are exact floats, which ``freeze`` keeps as they are, the
     map is built directly with the phases as they are (tuples), without ``freeze``'s recursion over them; otherwise
-    (a profile without phases, or numbers of another type) it is the plain description, which ``freeze`` converts.
+    (numbers of another type) it is the plain description, which ``freeze`` converts. A run's arcs have a positive
+    length, so its profiles have phases.
     """
     phases, v_in, length = profile.phases, profile.v_in, profile.length
-    if not phases or type(v_in) is not float or type(length) is not float:
+    if type(v_in) is not float or type(length) is not float:
         return profile.description()
     for duration, accel in phases:
         if type(duration) is not float or type(accel) is not float:
@@ -341,13 +342,13 @@ class TravelExecutor:
         """Move the AGV to `node` at the end of a segment, clear its motion and emit ``agv.move_ended``.
 
         With `source`, the node the segment started from, the AGV's heading becomes the direction of the chord from
-        `source` to `node` (unchanged for a chord of length 0). With `moved` false (a stalled segment stopped at its
+        `source` to `node`. With `moved` false (a stalled segment stopped at its
         departure node `node`, spec §8.3) only the motion is cleared: no relocation, and the battery is unchanged.
         """
         agv._validate_node(node)
         agv.motion = None
         relocated = agv._relocate(node) if moved else None
-        if relocated is not None and source is not None and (node.x != source.x or node.y != source.y):
+        if relocated is not None and source is not None:
             agv.heading = math.atan2(node.y - source.y, node.x - source.x)
         env = self.fleet.env
         if env.wants(AgvMoveEnded):

@@ -57,10 +57,9 @@ _HEADING_TOLERANCE = 1e-9
 """Heading changes below this many radians are taken as 0 (spec §9.4)."""
 
 
-def arc_direction(source: Node, target: Node) -> float | None:
-    """The direction of the chord from `source` to `target` in radians; None for a chord of length 0, which has none."""
-    if source.x == target.x and source.y == target.y:
-        return None
+def arc_direction(source: Node, target: Node) -> float:
+    """The direction of the chord from `source` to `target` in radians. The two nodes of an arc never share a position
+    (spec L16 of the layout-only design), so every arc has a direction."""
     return math.atan2(target.y - source.y, target.x - source.x)
 
 
@@ -77,15 +76,11 @@ def heading_changes(nodes: Sequence[Node], heading: float | None) -> tuple[float
     arc that leaves it (spec §9.4).
 
     The arc that enters the first node is the one that gave the AGV `heading`; None means it is unknown, and so is the
-    change at every node until an arc with a direction has been traversed. An arc whose chord has length 0 has no
-    direction: it leaves the heading unchanged, so the change at its ends is measured from the last known one.
+    change at the first node.
     """
     changes: list[float | None] = []
     for source, target in zip(nodes, nodes[1:]):
         direction = arc_direction(source, target)
-        if direction is None:
-            changes.append(None if heading is None else 0.0)
-            continue
         changes.append(None if heading is None else heading_change(heading, direction))
         heading = direction
     return tuple(changes)
@@ -269,16 +264,10 @@ class _Timing:
 
     def step(self, u: Node, v: Node, heading: float | None, cap_in: float | None) -> tuple[float, float | None, float]:
         """The cost of leaving `u` for `v` after entering it with `heading` and speed cap `cap_in` (None at rest), and
-        the heading and cap after the leg. An arc without direction has heading change 0 and leaves the heading
-        unknown."""
+        the heading and cap after the leg."""
         time, cap = self.leg(u, v)
         direction = arc_direction(u, v)
-        if heading is None:
-            angle = None
-        elif direction is None:
-            angle = 0.0
-        else:
-            angle = heading_change(heading, direction)
+        angle = None if heading is None else heading_change(heading, direction)
         return self.turn(angle, cap_in, cap) + time, direction, cap
 
     def path_cost(
@@ -401,9 +390,7 @@ class FastestRouter:
     turning model (``corner_speed`` for a profile with limits, or ``turn_time``) the search state is the node and the
     arc that entered it, and a node is never left for the node the AGV came from. The route is the least-cost walk
     cut to a simple path: where a turn time makes a walk that returns to a node cheaper, it is cut at the first visit
-    and its cost is that of the cut route. It is therefore not guaranteed to be the least-cost simple path. An arc
-    whose chord has length 0 has no direction: the heading change into it is 0 and the heading after it is unknown
-    here (the next turn is free), whereas the executor measures the next turn from the last known heading.
+    and its cost is that of the cut route. It is therefore not guaranteed to be the least-cost simple path.
 
     A request without an AGV is routed by length, as :class:`ShortestDistanceRouter` does, and its cost is a length:
     a cost is comparable only within one router and one kind of request. A leg is excluded when it enters an avoided

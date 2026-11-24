@@ -300,13 +300,13 @@ Existing scripts remain valid without opting into layout mode:
 ```python { .run }
 from simulatte import Environment
 from simulatte.intralogistics.builders import build_simple_system
-from simulatte.intralogistics.graph import LayoutGraph
+from simulatte.layout import GraphRef
 
 with Environment(seed=7) as env:
     fleet, carts, origin, destination, graph = build_simple_system(env)
-    assert isinstance(graph, LayoutGraph)
-    assert fleet.graph is graph
-    assert carts[0].current_node in graph.nodes
+    assert isinstance(graph, GraphRef)
+    env.layout.prepare()
+    assert carts[0].current_node in fleet.graph.nodes
     env.run(until=1)
 ```
 
