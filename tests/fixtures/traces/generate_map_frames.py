@@ -265,10 +265,12 @@ def frame_of(
     """The fixture of `recording` at time `t`; `example` names the patch constants, `layout_patched` the layout."""
     cursor = recording.cursor_at(t)
     state = recording.state((t, LARGE_SEQ))
-    initial = recording.state(recording.trace.cursor_range[0])  # type: ignore[index]
+    bounds = recording.trace.cursor_range
+    assert bounds is not None
+    initial = recording.state(bounds[0])
     if patch and example is not None:
         patch_state(state, recording.events, (t, LARGE_SEQ), example)
-        patch_state(initial, [], recording.trace.cursor_range[0], example)  # type: ignore[arg-type,index]
+        patch_state(initial, [], bounds[0], example)
     return {
         "cursor": [cursor[0], cursor[1]],
         "initialState": initial,

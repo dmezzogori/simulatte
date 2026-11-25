@@ -1,7 +1,8 @@
 // The render harness: one fixture frame drawn by the scene at a fixed size, for the screenshots of
 // harness/render.mjs. Query parameters: frame, scale, x, y, select, labels, panel (1: the Overview panel beside the
 // canvas, with default options), detail (an id: its click detail beside the canvas; a ref re-renders it for that id
-// and selects it in the scene). Unknown parameters are ignored.
+// and selects it in the scene), then (a second fixture: once the page is ready, `globalThis.renderThen()` renders the
+// scene, the panel and the detail again with it, and sets the title to "then"). Unknown parameters are ignored.
 import { Scene, describe, overview, renderDetail } from "@simulatte/scene";
 import type { PreparedFrame } from "@simulatte/playback";
 import { createOverviewPanel, renderOverview } from "../apps/viewer/src/overview-panel";
@@ -21,12 +22,11 @@ function number(params: URLSearchParams, name: string): number | null {
   return value;
 }
 
-async function main(): Promise<void> {
-  const params = new URLSearchParams(location.search);
-  const name = params.get("frame") ?? "";
+/** The fixture `name` as the frame a viewer prepares at its cursor. */
+function frameOf(name: string): PreparedFrame {
   const file = fixtures[`../fixtures/map/${name}.json`];
   if (!file) throw new Error(`no fixture named "${name}"`);
-  const frame: PreparedFrame = {
+  return {
     ...file,
     mode: "continuous",
     catalog: {},
@@ -35,6 +35,14 @@ async function main(): Promise<void> {
     crossedEvents: [],
     crossingsComplete: true,
   };
+}
+
+/** What is written again for a second frame: the panel and the detail, when they are mounted. */
+const refreshers: ((frame: PreparedFrame) => void)[] = [];
+
+async function main(): Promise<void> {
+  const params = new URLSearchParams(location.search);
+  const frame = frameOf(params.get("frame") ?? "");
   const scene = new Scene();
   scene.decorativeTransfers = false;
   scene.labels = params.get("labels") !== "0";
@@ -53,6 +61,15 @@ async function main(): Promise<void> {
   if (params.get("panel") === "1") await mountPanel(scene);
   const detail = params.get("detail");
   if (detail) await mountDetail(scene, frame, detail);
+  const then = params.get("then");
+  if (then) {
+    const second = frameOf(then);
+    (globalThis as unknown as { renderThen: () => void }).renderThen = () => {
+      scene.render(second);
+      for (const refresh of refreshers) refresh(second);
+      document.title = "then";
+    };
+  }
   document.title = "ready";
 }
 
@@ -71,6 +88,7 @@ async function mountPanel(scene: Scene): Promise<void> {
     });
   };
   refresh();
+  refreshers.push(refresh);
 }
 
 /** The click detail of `id` beside the canvas, as the viewer wires it: a ref selects its id in the scene and shows its detail. */
@@ -81,9 +99,11 @@ async function mountDetail(scene: Scene, frame: PreparedFrame, id: string): Prom
   root.className = "inspector panel-padding";
   root.style.cssText = `position:absolute;left:${WIDTH + 10}px;top:0;width:420px;height:${HEIGHT}px;background:#fff`;
   document.body.append(root);
+  let current = { frame, target: id };
   const show = (target: string): void => {
+    current = { ...current, target };
     const map = scene.map;
-    const lines = map ? describe(map, frame.state, target) : null;
+    const lines = map ? describe(map, current.frame.state, target) : null;
     scene.select(target);
     if (lines) renderDetail(root, lines, (next) => {
       scene.focus(next);
@@ -92,6 +112,10 @@ async function mountDetail(scene: Scene, frame: PreparedFrame, id: string): Prom
     else root.textContent = `No detail for ${target}`;
   };
   show(id);
+  refreshers.push((next) => {
+    current = { ...current, frame: next };
+    show(current.target);
+  });
 }
 
 main().catch((error: unknown) => {

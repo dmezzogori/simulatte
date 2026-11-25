@@ -264,6 +264,28 @@ test("a vehicle chosen in the entity list shows its readable detail, and the off
   await offline.getByRole("button", { name: "Next event", exact: true }).click();
   await expect(offline.locator("output")).toContainText("seq");
   await expect(offline.locator("canvas")).toHaveCount(1);
+  // The player's selection shows the readable detail above its raw state view (spec section 5.8): click a warehouse
+  // where the canvas draws it, found by its fill colour (packages/scene/src/draw/palette.ts, warehouse).
+  const warehouse = await offline.locator("canvas").evaluate((source: HTMLCanvasElement) => {
+    const copy = document.createElement("canvas");
+    copy.width = source.width;
+    copy.height = source.height;
+    const context = copy.getContext("2d")!;
+    context.drawImage(source, 0, 0);
+    const { data } = context.getImageData(0, 0, copy.width, copy.height);
+    const rect = source.getBoundingClientRect();
+    for (let i = 0; i < data.length; i += 4)
+      if (Math.abs(data[i]! - 0xfd) <= 4 && Math.abs(data[i + 1]! - 0xe6) <= 4 && Math.abs(data[i + 2]! - 0x8a) <= 4) {
+        const x = (i / 4) % copy.width,
+          y = Math.floor(i / 4 / copy.width);
+        // a few pixels inside the first fill pixel met, row by row
+        return { x: rect.left + ((x + 4) * rect.width) / copy.width, y: rect.top + ((y + 4) * rect.height) / copy.height };
+      }
+    return null;
+  });
+  expect(warehouse).not.toBeNull();
+  await offline.mouse.click(warehouse!.x, warehouse!.y);
+  await expect(offline.locator("#detail .detail-line").first()).toContainText("warehouse");
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });

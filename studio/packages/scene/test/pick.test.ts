@@ -4,6 +4,7 @@ import { Projector, type Projection } from "../src/project";
 import type { MapModel } from "../src/map/model";
 import { onMap, pickMap } from "../src/draw/pick";
 import { NODE_PX } from "../src/draw/node";
+import { facilityBox } from "../src/draw/facility";
 import type { Glyph } from "../src/project";
 import { loadFrame } from "./fixtures";
 
@@ -136,5 +137,32 @@ describe("what a map draws and picks (M24)", () => {
     const at = screen(camera, far);
     expect(pickMap(map, [...projection.glyphs, far], camera, at.x, at.y)).toBeNull();
     expect(pickMap(map, [...projection.glyphs, far], camera, at.x, at.y, (kind) => kind === "order")).toBe("order-x");
+  });
+});
+
+describe("a parking symbol grows for the vehicles at rest on its node only", () => {
+  const map = mapOf(projectionOf("corridor-wait"));
+  const nodes = new Map(map.nodes.map((n) => [n.id, n]));
+  const siding = map.facilities.find((f) => f.id === "Siding")!;
+  const s = nodes.get("S")!;
+  const base = map.vehicles.find((v) => v.id === "AGV-3")!;
+  const on = (id: string, shown: "moving" | "idle", offset: number) => ({
+    ...base,
+    id,
+    x: s.x,
+    y: s.y,
+    shown,
+    offset: { x: offset, y: 0 },
+  });
+  const box = (vehicles: (typeof base)[]) => facilityBox(siding, { ...map, vehicles }, nodes, 8, "symbol");
+  it("keeps its size for a vehicle passing through", () => {
+    expect(box([on("V-1", "moving", -60)])).toMatchObject({ holds: false, hw: box([]).hw });
+  });
+  it("holds the idle one, sized by it alone beside a moving one", () => {
+    const grown = box([on("V-1", "moving", -60), on("V-2", "idle", 12)]);
+    expect(grown.holds).toBe(true);
+    // the idle symbol reaches 12 + 11 px, with 4 px of padding: the moving one 60 px away does not widen it
+    expect(grown.hw * 8).toBeCloseTo(27, 9);
+    expect(box([on("V-2", "idle", 12)])).toEqual(grown);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PreparedFrame } from "@simulatte/playback";
 import { Projector } from "../src/project";
 import { SYMBOL_PX, detailAt, type MapModel } from "../src/map/model";
+import { buildFloor } from "../src/map/floor";
 import { loadFrame } from "./fixtures";
 
 const project = (name: string, frame: PreparedFrame = loadFrame(name)) =>
@@ -132,5 +133,47 @@ describe("the static part of the map model", () => {
     expect(models[1]!.strips.filter((s) => s.held).map((s) => s.id)).not.toEqual(
       models[0]!.strips.filter((s) => s.held).map((s) => s.id),
     );
+    // the facilities are read from each frame too: stock, occupancy and waiting orders differ
+    const facility = (i: number, id: string) => models[i]!.facilities.find((f) => f.id === id)!;
+    expect(facility(0, "East")).toMatchObject({ count: "49", stock: { crate: 49 }, badge: 1 });
+    expect(facility(1, "East")).toMatchObject({ count: "50", stock: { crate: 50 }, badge: 0 });
+    expect(facility(0, "Siding").count).toBe("0 / 3");
+    expect(facility(1, "Siding").count).toBe("2 / 3");
+  });
+  it("is rebuilt for another layout object on a reused projector, equal or with a node moved", () => {
+    const first = loadFrame("corridor-wait");
+    const shared = new Projector(first.initialState ?? first.state);
+    const before = shared.project(first).map!;
+    const copy = structuredClone(first.layout)!;
+    expect(shared.project({ ...first, layout: copy }).map).toEqual(before);
+    const moved = structuredClone(first.layout)!;
+    const placements = (moved["resolved"] as { placements: Record<string, { position: number[] }> }).placements;
+    placements["C"]!.position = [35, 3, 0];
+    const after = shared.project({ ...first, layout: moved }).map!;
+    expect(after.nodes.find((n) => n.id === "C")).toMatchObject({ x: 35, y: 3 });
+    const cd = after.strips.find((s) => s.id === "C~D")!;
+    expect([cd.a, cd.b]).toContainEqual({ x: 35, y: 3 });
+    // and back to the first layout object
+    expect(shared.project(first).map).toEqual(before);
+  });
+});
+
+describe("strip ids", () => {
+  it("order the two node ids by code unit, not by locale", () => {
+    const positions = new Map([
+      ["a", { x: 0, y: 0 }],
+      ["B", { x: 1, y: 0 }],
+      ["a_b", { x: 0, y: 1 }],
+      ["aB", { x: 1, y: 1 }],
+    ]);
+    const arcs = [
+      { source: "a", target: "B" },
+      { source: "a_b", target: "aB" },
+    ];
+    const nodes = [...positions.keys()].map((id) => ({ id }));
+    const layout = { network: { graph: { arcs, nodes } } };
+    const floor = buildFloor({ time: 0, layout, state: {}, positions, vehicles: [] })!;
+    // localeCompare would give "a~B" and "a_b~aB"
+    expect(floor.strips.map((s) => s.id)).toEqual(["B~a", "aB~a_b"]);
   });
 });
