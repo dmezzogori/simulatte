@@ -2,7 +2,8 @@ import type { Graphics } from "pixi.js";
 import type { Point } from "../project";
 import type { Detail, MapModel } from "../map/model";
 import type { Overlay } from "../map/overlay";
-import { hitsFacility, type FacilityBox } from "./facility";
+import type { FacilityItem, MapNode } from "../map/model";
+import { BAY_PX, boundNodes, hitsFacility, type FacilityBox } from "./facility";
 import { PALETTE } from "./palette";
 import { drawWaitLine, reachPx } from "./traffic";
 import { vehicleFrame } from "./vehicle";
@@ -192,4 +193,20 @@ export function outlineFacility(g: Graphics, box: FacilityBox, scale: number): v
       [-1, 1],
     ].flatMap(([a, b]) => [ring.x + a! * ring.hw * c - b! * ring.hh * s, ring.y + a! * ring.hw * s + b! * ring.hh * c]),
   ).stroke({ color: PALETTE.selected, width: OUTLINE_PX / scale, join: "round" });
+}
+
+/** The selection outline of a facility's bays (spec section 5.5): a square around each node it is bound to. */
+export function outlineBays(
+  g: Graphics,
+  facility: FacilityItem,
+  nodes: ReadonlyMap<string, MapNode>,
+  scale: number,
+): void {
+  const half = (BAY_PX / 2 + OUTLINE_GAP_PX) / scale;
+  for (const bay of boundNodes(facility, nodes))
+    g.rect(bay.x - half, bay.y - half, 2 * half, 2 * half).stroke({
+      color: PALETTE.selected,
+      width: OUTLINE_PX / scale,
+      join: "round",
+    });
 }

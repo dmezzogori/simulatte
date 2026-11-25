@@ -178,6 +178,8 @@ export function buildWaitLines(vehicles: readonly VehicleItem[]): WaitLine[] {
   const at = new Map(vehicles.map((v) => [v.id, v]));
   const lines: WaitLine[] = [];
   for (const vehicle of vehicles) {
+    // a stale wait (a stranded vehicle keeps its last one) draws no line
+    if (vehicle.shown !== "waiting") continue;
     const blocker = vehicle.wait?.blockers.find((id) => at.has(id));
     if (blocker === undefined) continue;
     const to = at.get(blocker)!;

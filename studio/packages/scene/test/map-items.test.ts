@@ -137,7 +137,12 @@ describe("sprites", () => {
   });
   it("does not count a stranded vehicle as waiting", () => {
     expect(map.traffic.waiting).toBe(1);
-    expect(map.waitLines.map((l) => l.agv).sort()).toEqual(["A1", "A2"]);
+    expect(map.waitLines.map((l) => l.agv)).toEqual(["A2"]);
+  });
+  it("draws no wait line for a vehicle that is not shown as waiting", () => {
+    expect(vehicle(map, "A1").wait).not.toBeNull();
+    expect(map.waitLines.some((l) => l.agv === "A1")).toBe(false);
+    expect(overlayFor(map, "A1")!.waitLine).toBeNull();
   });
   it("shows a resting vehicle with a route as heading for its goal", () => {
     expect(vehicle(map, "A7")).toMatchObject({ shown: "resting", goal: "n7", line: "A7 · to n7" });
@@ -347,6 +352,17 @@ describe("expandHolds", () => {
   it("keeps an id that is neither a zone nor on the floor, and expands nothing for none", () => {
     expect([...expandHolds(map, ["nowhere"])]).toEqual(["nowhere"]);
     expect(expandHolds(map, []).size).toBe(0);
+  });
+  it("reads no inherited property as a zone, and keeps a zone named __proto__", () => {
+    expect([...expandHolds(map, ["constructor", "toString"])]).toEqual(["constructor", "toString"]);
+    const frame = loadFrame("corridor-wait");
+    const odd = {
+      ...frame,
+      state: { ...frame.state, ["__proto__"]: { $kind: "zone", members: ["M1"], reserved_by: [] } },
+    };
+    const model = mapOf("corridor-wait", odd);
+    expect(Object.hasOwn(model.zones, "__proto__")).toBe(true);
+    expect([...expandHolds(model, ["__proto__"])]).toEqual(["M1"]);
   });
 });
 

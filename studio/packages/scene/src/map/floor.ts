@@ -39,7 +39,8 @@ export function buildFloor(input: FloorInput): MapModel | null {
   const threshold = SYMBOL_PX.vehicle / (length || 1);
 
   const heldIds = new Set<string>();
-  const zones: Record<string, readonly string[]> = {};
+  // no prototype: a zone may be named "__proto__", and a hold id such as "constructor" is not a zone
+  const zones: Record<string, readonly string[]> = Object.create(null);
   for (const [id, fields] of Object.entries(input.state)) {
     const kind = fields["$kind"];
     if (kind === "segment" && (held(fields["forward"]) || held(fields["backward"]))) heldIds.add(id);

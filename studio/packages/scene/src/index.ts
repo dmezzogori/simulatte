@@ -23,6 +23,7 @@ import {
   OUTLINE_REACH_PX,
   drawOverlay,
   drawRouteAhead,
+  outlineBays,
   outlineFacility,
   outlinedBox,
   type OverlayContext,
@@ -641,6 +642,7 @@ export class Scene {
       if (!onScreen(box)) continue;
       if (outlined.has(facility.id)) outlineFacility(dynamic, box, scale);
       drawFacility(dynamic, facility, box, nodesById, scale);
+      if (outlined.has(facility.id)) outlineBays(dynamic, facility, nodesById, scale);
       const places = facilityLabels(facility, box, map, nodesById, scale),
         texts = outlined.has(facility.id) ? facilityLabels(facility, outlinedBox(box, scale), map, nodesById, scale) : places;
       this.#text(visible, `${facility.id}\u0000name`, clipLabel(facility.label), texts.name.x, texts.name.y, PALETTE.text, {

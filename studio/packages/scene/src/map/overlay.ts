@@ -38,7 +38,8 @@ function routeAhead(model: MapModel, vehicle: VehicleItem): Point[] {
 /** The node and segment ids a list of holds covers: a zone id stands for its members, any other id for itself. */
 export function expandHolds(model: MapModel, ids: readonly string[]): Set<string> {
   const covered = new Set<string>();
-  for (const id of ids) for (const member of model.zones[id] ?? [id]) covered.add(member);
+  for (const id of ids)
+    for (const member of Object.hasOwn(model.zones, id) ? model.zones[id]! : [id]) covered.add(member);
   return covered;
 }
 
