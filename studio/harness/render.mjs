@@ -37,7 +37,9 @@ const SHOTS = [
   { name: "two-fleets", frame: "two-fleets", scale: 8 },
   { name: "bare", frame: "bare-layout" },
   { name: "sprites-symbol", frame: "sprites", scale: 8 },
-  { name: "sprites-true", frame: "sprites", scale: 30 },
+  // the sprite row is about 80 m long, 2400 px at true size: two shots of 40 m each
+  { name: "sprites-true-west", frame: "sprites", scale: 30, x: 18.5 },
+  { name: "sprites-true-east", frame: "sprites", scale: 30, x: 60 },
   { name: "production", frame: "production" },
   { name: "no-layout", frame: "no-layout" },
 ];

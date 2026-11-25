@@ -15,6 +15,9 @@ import { drawFloor, drawGrid } from "./draw/floor";
 import { drawNode, NODE_PX } from "./draw/node";
 import { PALETTE } from "./draw/palette";
 import { drawScaleBar } from "./draw/scale-bar";
+import { BADGE_PX, drawBayLines, drawFacility, facilityBox, facilityLabels } from "./draw/facility";
+import { LABEL, drawVehicle, ringPx, vehicleFrame } from "./draw/vehicle";
+import { pickMap } from "./draw/pick";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress, motionSpeed } from "./motion";
 export {
@@ -50,6 +53,14 @@ export interface EditorPointer {
 /** Kinds with no placement (M24): in the map model for the panel, not drawn on a map. */
 const UNPLACEABLE = new Set(["order", "fleet"]);
 const FACILITIES = new Set(["warehouse", "parking_area", "charging_station"]);
+/** Pixels kept around the map when it is fitted: a facility symbol moved clear of its bay, with its name. */
+const FIT_MARGIN_PX = 64;
+/** Characters of a label shown on the map; a longer one ends in an ellipsis (the detail shows it whole). */
+const MAP_LABEL_CHARS = 32;
+const clip = (label: string): string => {
+  const chars = [...label];
+  return chars.length > MAP_LABEL_CHARS ? `${chars.slice(0, MAP_LABEL_CHARS - 1).join("")}…` : label;
+};
 // Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
 // also clears global pools; only the last scene may release shared resources.
 let liveScenes = 0;
@@ -324,11 +335,18 @@ export class Scene {
           minY = Math.min(minY, end.y - strip.width / 2);
           maxY = Math.max(maxY, end.y + strip.width / 2);
         }
-    const scale = Math.min(
-      this.app.screen.width / (maxX - minX + 4),
-      this.app.screen.height / (maxY - minY + 4),
-      120,
-    );
+    // On a map, symbols and their texts are a fixed number of pixels: the margin is in pixels.
+    const scale = map
+      ? Math.min(
+          Math.max(this.app.screen.width - 2 * FIT_MARGIN_PX, 1) / (maxX - minX + 1),
+          Math.max(this.app.screen.height - 2 * FIT_MARGIN_PX, 1) / (maxY - minY + 1),
+          120,
+        )
+      : Math.min(
+          this.app.screen.width / (maxX - minX + 4),
+          this.app.screen.height / (maxY - minY + 4),
+          120,
+        );
     this.#camera = {
       x: this.app.screen.width / 2 - ((minX + maxX) / 2) * scale,
       y: this.app.screen.height / 2 + ((minY + maxY) / 2) * scale,
@@ -367,6 +385,10 @@ export class Scene {
   private pick(x: number, y: number): string | null {
     const point = this.screenToWorld(x, y);
     const map = this.#projection?.map;
+    if (map)
+      return pickMap(map, this.#projection!.glyphs.filter((g) => this.#onMap(g)), this.#camera, x, y, (kind) =>
+        this.#renderers.has(kind),
+      );
     for (const g of [...(this.#projection?.glyphs ?? [])].reverse()) {
       if (map && !this.#onMap(g)) continue;
       const dx = point.x - g.x,
@@ -568,7 +590,15 @@ export class Scene {
         sy = y - p.y * scale;
       return sx >= -200 && sy >= -100 && sx <= width + 200 && sy <= height + 100;
     };
-    const glyphs = projection.glyphs.filter((g) => this.#onMap(g) && onScreen(g));
+    // Vehicles and facilities of the map model are drawn as sprites unless a renderer is registered for their kind;
+    // the others (a vehicle without a position, in the unplaced row) keep their glyph.
+    const custom = (kind: string): boolean => this.#renderers.has(kind);
+    const spriteVehicles = custom("agv") ? [] : map.vehicles,
+      spriteFacilities = map.facilities.filter((f) => !custom(f.kind)),
+      sprites = new Set([...spriteVehicles.map((v) => v.id), ...spriteFacilities.map((f) => f.id)]),
+      nodesById = new Map(map.nodes.map((n) => [n.id, n])),
+      boundToSprite = new Set(spriteFacilities.flatMap((f) => f.nodes));
+    const glyphs = projection.glyphs.filter((g) => this.#onMap(g) && !sprites.has(g.id) && onScreen(g));
     const facilities = glyphs.filter((g) => FACILITIES.has(g.kind)),
       vehicles = glyphs.filter((g) => g.kind === "agv"),
       nodes = glyphs.filter((g) => g.kind === "node"),
@@ -591,6 +621,30 @@ export class Scene {
       this.glyph(dynamic, item, scale);
       label(item);
     }
+    const px = 1 / scale;
+    const boxes = spriteFacilities.map((facility) => facilityBox(facility, map, nodesById, scale, detail));
+    // bay lines can be long (a warehouse beside its first bay, spec M28): they are not culled
+    spriteFacilities.forEach((facility, i) => drawBayLines(dynamic, facility, boxes[i]!, nodesById, scale));
+    for (const [i, facility] of spriteFacilities.entries()) {
+      const box = boxes[i]!;
+      if (!onScreen(box)) continue;
+      drawFacility(dynamic, facility, box, nodesById, scale);
+      const places = facilityLabels(facility, box, map, nodesById, scale);
+      this.#text(visible, `${facility.id}\u0000name`, clip(facility.label), places.name.x, places.name.y, PALETTE.text, {
+        anchorY: places.name.anchorY,
+        bold: true,
+      });
+      if (facility.count)
+        this.#text(visible, `${facility.id}\u0000count`, facility.count, places.count.x, places.count.y, PALETTE.text, {
+          anchorY: places.count.anchorY,
+        });
+      if (facility.kind === "warehouse" && facility.badge > 0)
+        this.#text(visible, `${facility.id}\u0000badge`, String(facility.badge), places.badge.x, places.badge.y, PALETTE.badgeText, {
+          anchorY: 0.5,
+          bold: true,
+          size: BADGE_PX + 3,
+        });
+    }
     for (const port of projection.ports) dynamic.circle(port.x, port.y, 3 / scale).fill(PALETTE.port);
     if (this.#renderers.has("node"))
       for (const item of nodes) {
@@ -601,12 +655,32 @@ export class Scene {
       for (const node of map.nodes) {
         const selected = node.id === this.#selected;
         if ((detail !== "true" && !selected) || !onScreen(node)) continue;
-        drawNode(dynamic, node, scale, selected);
+        // a node bound to a facility is drawn as its bay or inside it (spec section 5.4); its id stays
+        if (selected || !boundToSprite.has(node.id)) drawNode(dynamic, node, scale, selected);
         this.#text(visible, node.id, node.id, node.x, node.y - (NODE_PX + 2) / scale, PALETTE.nodeText);
       }
     for (const item of [...generic, ...vehicles]) {
       this.glyph(dynamic, item, scale);
       label(item);
+    }
+    for (const vehicle of spriteVehicles) {
+      const frame = vehicleFrame(vehicle, scale, detail);
+      if (!onScreen(frame)) continue;
+      drawVehicle(dynamic, vehicle, scale, detail);
+      const fill = LABEL[vehicle.shown],
+        reach = vehicle.shown === "waiting" ? ringPx(frame, scale) : (Math.hypot(frame.length, frame.width) / 2) * scale;
+      if (detail === "true") {
+        const line = vehicle.line.startsWith(vehicle.label)
+          ? clip(vehicle.label) + vehicle.line.slice(vehicle.label.length)
+          : clip(vehicle.line);
+        this.#text(visible, `${vehicle.id}\u0000line`, line, frame.x, frame.y + (reach + 2) * px, fill, {
+          anchorY: 1,
+          bold: true,
+        });
+      } else if (vehicle.short)
+        this.#text(visible, `${vehicle.id}\u0000short`, vehicle.short, frame.x, frame.y - (reach + 1) * px, fill, {
+          bold: true,
+        });
     }
     for (const [id, text] of this.#texts)
       if (!visible.has(id)) {
@@ -617,16 +691,38 @@ export class Scene {
     this.#front.scale.set(scale, -scale);
     if (this.decorativeTransfers) this.#drawTrails(this.#front, scale);
   }
-  /** A label below a point of the world, of fixed pixel size; ids not added to `visible` are removed. */
-  #text(visible: Set<string>, id: string, content: string, x: number, y: number, fill: number): void {
+  /**
+   * A label centred on a point of the world, of fixed pixel size: below it, or above it with `anchorY` 1. Keys not
+   * added to `visible` are removed.
+   */
+  #text(
+    visible: Set<string>,
+    id: string,
+    content: string,
+    x: number,
+    y: number,
+    fill: number,
+    options: { anchorY?: number; bold?: boolean; size?: number } = {},
+  ): void {
     visible.add(id);
     let text = this.#texts.get(id);
     if (!text) {
-      text = new Text({ text: "", style: { fontFamily: "system-ui", fontSize: 12, fill } });
-      text.anchor.set(0.5, 0);
+      text = new Text({
+        text: "",
+        style: {
+          fontFamily: "system-ui",
+          fontSize: options.size ?? 12,
+          fontWeight: options.bold ? "600" : "normal",
+          fill,
+        },
+      });
       this.#texts.set(id, text);
       this.#labels.addChild(text);
     }
+    // the side of a facility's texts and the colour of a vehicle's label change with the level and the state;
+    // a style is changed only when it differs
+    text.anchor.set(0.5, options.anchorY ?? 0);
+    if (text.style.fill !== fill) text.style.fill = fill;
     text.text = content;
     text.position.set(x, y);
     text.scale.set(1 / this.#camera.scale, -1 / this.#camera.scale);

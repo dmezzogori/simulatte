@@ -29,6 +29,14 @@ export const PALETTE = {
   charging: 0x16a34a,
   stranded: 0xdc2626,
   load: 0x92400e,
+  /** The short label of a vehicle, darker shades of its state colour so that text stays legible. */
+  movingText: 0x1d4ed8,
+  waitingText: 0xb45309,
+  idleText: 0x475569,
+  chargingText: 0x15803d,
+  strandedText: 0xb91c1c,
+  /** Fleet stripes, in fleet id order; none of them is a state colour. */
+  fleets: [0x7c3aed, 0x0891b2, 0xdb2777, 0x0f172a, 0x65a30d, 0xa16207],
   /** Held floor and wait lines (spec section 5.5); drawn from Task 6 on. */
   held: 0x2563eb,
   waitLine: 0xd97706,
@@ -39,7 +47,12 @@ export const PALETTE = {
   parking: 0x15803d,
   chargingStation: 0xdcfce7,
   chargingOutline: 0x15803d,
-  /** The light outline every sprite carries. */
+  /** The inside of a parking area at true-size level, and of a warehouse's bay. */
+  bay: 0xffffff,
+  /** The count of orders waiting at a warehouse: a white number in this circle. */
+  badge: 0xb45309,
+  badgeText: 0xffffff,
+  /** The light outline every sprite carries, and the marks on a vehicle's body. */
   outline: 0xffffff,
   /** Reserved for the facilities of a later release; nothing draws them yet. */
   rack: 0xcbd5e1,
