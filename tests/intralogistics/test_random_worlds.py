@@ -226,7 +226,7 @@ def test_a_trip_to_park_that_turns_to_charge_gives_its_parking_slot_back_as_it_t
     """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0 and gives the
     slot back then; it charges from 148.6 to 220.1. Until the fix it kept the slot until the charge ended."""
     record = run_world(world_spec(619), controller="free", router="shortest")
-    assert record.quiescent and not record.violations and not record.known_limits
+    assert record.quiescent and not record.violations
     assert record.fingerprint.digest == FINGERPRINTS[619]
     events = [(kind, dict(fields)) for kind, fields in record.events if dict(fields).get("agv") == "agv-a"]
     (entered, *_), (left, *_) = (
@@ -245,10 +245,9 @@ def test_a_trip_to_park_that_turns_to_charge_gives_its_parking_slot_back_as_it_t
     assert started["t"] == pytest.approx(148.587, abs=1e-3)
 
 
-def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation(monkeypatch):
+def test_a_parking_slot_held_by_an_agv_resting_elsewhere_is_a_violation(monkeypatch):
     monkeypatch.setattr(ParkingArea, "leave", lambda self, agv: None)  # slots are never given back
     record = run_world(world_spec(619), controller="free", router="shortest")
-    assert not record.known_limits
     assert "parking slot of an AGV resting elsewhere" in {violation[1] for violation in record.violations}
 
 
@@ -270,7 +269,7 @@ def test_waits_left_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_r
     no report. Now the withdrawal runs the detection again, at the same instant, and the run ends with every wait
     granted, resolved or reported."""
     record = run_world(world_spec(seed), controller="reservation", router=router)
-    assert record.quiescent and not record.violations and not record.known_limits
+    assert record.quiescent and not record.violations
     events = [(kind, dict(fields)) for kind, fields in record.events]
     (at,) = [
         index
@@ -299,7 +298,7 @@ def test_a_member_left_outside_a_deadlock_when_its_set_is_forgotten_gets_its_rev
     have, from that instant: the review 30 later reports it stuck. Before, nothing looked at agv-b again and the run
     ended with its wait open and unreported."""
     record = run_world(world_spec(8103801), controller="reservation", router="fastest")
-    assert record.quiescent and not record.violations and not record.known_limits
+    assert record.quiescent and not record.violations
     events = [(kind, dict(fields)) for kind, fields in record.events]
     formed = max(  # the last report of the set: at 844.5, when agv-b's wait opens into it
         index
@@ -385,7 +384,6 @@ def _blind_after_a_members_withdrawal(monkeypatch):
 def test_an_open_wait_with_no_report_is_a_violation(monkeypatch, patch, seed, router):
     patch(monkeypatch)
     record = run_world(world_spec(seed), controller="reservation", router=router)
-    assert not record.known_limits
     assert "open wait with no report" in {violation[1] for violation in record.violations}
 
 
@@ -394,6 +392,6 @@ def test_a_run_of_the_safety_check_returns_with_no_violation(seed, controller, r
     spec = world_spec(seed)
     record = run_world(spec, controller=controller, router=router)
     features, digest = SAFETY[seed, controller, router]
-    assert record.quiescent and not record.violations and not record.known_limits
+    assert record.quiescent and not record.violations
     assert record.fingerprint.digest == digest
     assert features <= exercised(spec, record.events) <= present(spec) | NOT_IN_A_SPEC

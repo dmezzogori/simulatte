@@ -11,10 +11,9 @@ at the end of a run that ended on its own. The wall-clock limit of each run is a
 that is cut is never a pass.
 
 The script prints the counts of worlds, runs and events, the runs that raised, the runs that did not return within the
-limit, the monitor's violations by kind with their seeds, the known limits the monitor recognised by kind with counts
-and seeds, and, per feature of the worlds, how many worlds contain it, in how many a run exercised it, and how many
-runs exercised it. The exit status is 1 when a run raised, did not return or shows a violation; known limits alone
-leave it 0. The wall-clock limit uses ``SIGALRM``, so the script runs on POSIX only.
+limit, the monitor's violations by kind with their seeds, and, per feature of the worlds, how many worlds contain it, in
+how many a run exercised it, and how many runs exercised it. The exit status is 1 when a run raised, did not return or
+shows a violation. The wall-clock limit uses ``SIGALRM``, so the script runs on POSIX only.
 """
 
 from __future__ import annotations
@@ -82,7 +81,6 @@ def world(seed: int, limit: float) -> list[dict[str, Any]]:
                 row["events"] = len(found.events)
                 row["returned"] = found.quiescent
                 row["violations"] = [(round(at, 3), kind, *rest) for at, kind, *rest in found.violations]
-                row["known limits"] = [case[1] for case in found.known_limits]
                 row["exercised"] = exercised(spec, found.events)
             rows.append(row)
     rows[0]["present"] = present(spec)
@@ -116,7 +114,6 @@ def main(argv: list[str] | None = None) -> int:
                 rows.extend(found)
     failed: dict[str, list[dict[str, Any]]] = {"raised": [], "did not return": []}
     violations: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    limits: dict[str, list[dict[str, Any]]] = defaultdict(list)
     counts: Counter[str] = Counter()
     for row in rows:
         counts["runs"] += 1
@@ -126,11 +123,8 @@ def main(argv: list[str] | None = None) -> int:
             continue
         counts["not returned on their own"] += not row["returned"]
         counts["with violations"] += bool(row["violations"])
-        counts["with a known limit"] += bool(row["known limits"])
         for violation in row["violations"]:
             violations[violation[1]].append({**row, "violation": violation})
-        for kind in set(row["known limits"]):
-            limits[kind].append(row)
     print(
         f"worlds {len(seeds)} (seeds {seeds.start}..{seeds.stop - 1}), runs {counts['runs']}, events {counts['events']}"
     )
@@ -138,15 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         f"runs that raised {len(failed['raised'])}, "
         f"runs that did not return within the limit {len(failed['did not return'])}, "
         f"runs that ended with the queue not empty {counts['not returned on their own']}, "
-        f"runs with monitor violations {counts['with violations']}, "
-        f"runs with a known limit {counts['with a known limit']}"
+        f"runs with monitor violations {counts['with violations']}"
     )
     print(f"wall-clock limit {args.limit:g} s per run, {time.perf_counter() - started:.0f} s")
-    print("known limits: kind: cases, runs")
-    for kind, cases in sorted(limits.items()):
-        print(f"  {kind}: {sum(case['known limits'].count(kind) for case in cases)}, {len(cases)}")
-        for case in cases:
-            print(f"    seed {case['seed']} {case['controller']} {case['router']}: {case['known limits'].count(kind)}")
     print("feature: worlds that contain it, worlds where a run exercised it, runs that exercised it")
     for feature in FEATURES:
         contain = sum(feature in row.get("present", ()) for row in rows)

@@ -29,6 +29,7 @@ def test_clean_runs_exit_zero_and_are_counted(capsys):
     out = capsys.readouterr().out
     assert "worlds 2 (seeds 5..6), runs 12," in out
     assert "runs that raised 0, runs that did not return within the limit 0" in out
+    assert "runs with monitor violations 0\n" in out and "known limit" not in out
 
 
 def test_a_run_that_raises_exits_one(monkeypatch, capsys):
