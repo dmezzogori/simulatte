@@ -18,6 +18,7 @@ from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import (
     AgvMoveInterrupted,
+    AgvMoveStarted,
     AgvRouted,
     AgvStateChanged,
     AgvStranded,
@@ -829,6 +830,123 @@ def test_a_parked_agv_that_makes_way_departs_from_its_slot() -> None:
     m.env.run()
     assert parked(m, "P") == []
     assert m.areas["P"].available_capacity == 1
+
+
+def park_and_charge(env: Environment) -> Declared:
+    """``S - D - X - FAR - E`` along a row (10, 10, 20 and 10 m) with ``CH`` 5 m off ``D``."""
+    return build(
+        env,
+        [("S", 0, 0), ("D", 10, 0), ("X", 20, 0), ("FAR", 40, 0), ("E", 50, 0), ("CH", 10, 5)],
+        [("S", "D"), ("D", "X"), ("X", "FAR"), ("FAR", "E"), ("D", "CH")],
+    )
+
+
+def trip_to_park(charger: str | None, *, reserve: bool = True) -> Mission:
+    """A, at S with 37 of 100, delivers from S to D (27 left, not low) and is sent to park on FAR, an area of one slot.
+    Arrived at X with 17 it cannot afford the arc to FAR (20): it charges on the way, at CH (15 back from X), at X when
+    the charger is there, or strands at X without one. B rests on E with a full battery."""
+    m = mission_world(
+        park_and_charge,
+        {"A": "S", "B": "E"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        chargers={} if charger is None else {"CS": (charger, 1)},
+        reserve=reserve,
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=NearestParkingPolicy(),
+    )
+    m.order("WH-S", "WH-D")
+    return m
+
+
+@pytest.mark.parametrize("reserve", [True, False], ids=["reservation", "free"])
+@pytest.mark.parametrize("charger", ["CH", "X"], ids=["turns to a charger", "charger on the route"])
+def test_a_trip_to_park_that_charges_on_the_way_gives_the_slot_back_as_it_turns_to_charge(
+    charger: str, reserve: bool
+) -> None:
+    """The trip to park ends where A turns to charge, at X: the slot goes back then (spec §7.10), before the travel to
+    the charger or the charge, and B can take it during A's charge. After the charge A is idle where it charged: the
+    trip to park is not resumed and no slot is taken again."""
+    m = trip_to_park(charger, reserve=reserve)
+    a, b, area = m.agvs["A"], m.agvs["B"], m.areas["P"]
+    during: list[tuple[list[str], int, bool]] = []
+
+    def charging() -> Any:
+        while not m.events(ChargingStarted):
+            yield m.env.timeout(0.5)
+        during.append((parked(m, "P"), area.available_capacity, m.fleet.make_way(b, m.nodes["FAR"])))
+
+    m.env.process(charging())
+    m.env.run()
+    assert m.routed("A")[1:] == [("travel", "D", "FAR")] + ([("travel", "X", "CH")] if charger == "CH" else [])
+    (left,) = m.events(ParkingLeft)
+    (started,) = m.events(ChargingStarted)
+    turned = [e for e in m.events(AgvStateChanged, agv="A") if e.t > m.events(ParkingEntered)[0].t][0]
+    assert turned.state == ("TRAVELING_EMPTY" if charger == "CH" else "CHARGING")  # the first event of the turn
+    assert (left.agv, left.area, left.t) == ("A", "P", turned.t)
+    sequence = m.replay.of(ParkingLeft, AgvStateChanged, ChargingStarted)
+    assert sequence.index(left) == sequence.index(turned) - 1 < sequence.index(started)
+    assert during == [([], 1, True)]  # free during the charge: B's make-way move takes the slot
+    assert [e.agv for e in m.events(ParkingEntered)] == ["A", "B"]
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes[charger])
+    assert parked(m, "P") == ["B"] and b.current_node is m.nodes["FAR"]
+
+
+def test_a_trip_to_park_interrupted_during_its_charge_gave_the_slot_back_as_it_turned() -> None:
+    m = trip_to_park("CH")
+    order = m.orders[0]
+
+    def interrupt() -> Any:
+        while not m.events(ChargingStarted):
+            yield m.env.timeout(0.5)
+        yield m.env.timeout(10.0)
+        m.fleet._active_missions[order.id].interrupt("breakdown")
+
+    m.env.process(interrupt())
+    m.env.run()
+    (left,) = m.events(ParkingLeft)
+    (turned,) = [e for e in m.events(AgvRouted, agv="A") if e.destination == "CH"]
+    assert left.t == turned.t < m.events(ChargingStarted)[0].t
+    assert (m.agvs["A"].state, m.agvs["A"].current_node) == (AGVState.IDLE, m.nodes["CH"])
+    assert m.areas["P"].available_capacity == 1
+
+
+def test_a_trip_to_park_that_strands_gives_the_slot_back_as_it_strands() -> None:
+    m = trip_to_park(None)
+    m.env.run()
+    (stranded,) = m.events(AgvStranded)
+    (left,) = m.events(ParkingLeft)
+    assert (stranded.agv, stranded.node, stranded.reason) == ("A", "X", "no_reachable_charger")
+    assert (left.agv, left.t) == ("A", stranded.t)
+    assert m.agvs["A"].state is AGVState.STRANDED and m.areas["P"].available_capacity == 1
+
+
+def test_a_parked_agv_that_leaves_to_charge_gives_the_slot_back_as_it_departs() -> None:
+    """A parks on FAR (10 of 25 spent), and its next mission cannot afford the first arc, FAR to X (20, with 15 left):
+    it turns to the charger on E from the parking node, and the slot goes back as it departs from FAR."""
+    m = mission_world(
+        park_and_charge,
+        {"A": "E"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": ("E", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 25.0},
+    )
+    assert m.fleet.make_way(m.agvs["A"], m.nodes["FAR"]) is True
+    m.env.run()
+    assert parked(m, "P") == ["A"]
+    order = m.order("WH-S", "WH-D", at=m.env.now)
+    m.env.run()
+    assert order.status is OrderStatus.COMPLETED
+    (left,) = m.events(ParkingLeft)
+    departed = [e for e in m.events(AgvMoveStarted, agv="A") if e.from_node == "FAR"][0]
+    (started,) = m.events(ChargingStarted)
+    assert (left.agv, left.t) == ("A", departed.t)
+    sequence = m.replay.of(ParkingLeft, AgvMoveStarted, ChargingStarted)
+    assert sequence.index(left) == sequence.index(departed) + 1 < sequence.index(started)
+    assert m.routed("A")[1:3] == [("travel", "FAR", "S"), ("travel", "FAR", "E")]  # turned to the charger at once
 
 
 def test_standard_target_for_an_idle_agv_prefers_the_cheapest_parking_area_with_a_free_slot() -> None:

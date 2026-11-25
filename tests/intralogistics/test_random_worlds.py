@@ -19,7 +19,6 @@ from simulatte.intralogistics.traffic_holdings import HoldingsLedger
 from tests.intralogistics import random_worlds
 from tests.intralogistics.random_worlds import (
     FEATURES,
-    KNOWN_LIMIT,
     exercised,
     present,
     run_world,
@@ -42,11 +41,12 @@ FINGERPRINTS = {
     182: "e36b053f438b2090df7cb1fe932b0d9dd2ed678619929b5c234804deabfa9024",
     236: "761629ac3bcb4ab91b8c6835cf4ef40de65ce15312eb1ad879a88a6001aa0bca",
     272: "b4f29be8b9f03f51449ca4b261f5e90c4b3f324ad0fbc6833096ec3227df05bf",
-    619: "bf99183019763d143b258513bf38c4b1caaf0cc98fc393b513f2e5383d85c618",
+    619: "d48e693d3dc0de65a73b199c1939765d11f3e5b5607e77294f6aaf3d49b00284",
 }
 """``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
 router), pinned at the last commit with explicit mode (e4afae4), where the run built with concrete objects and the run
-built through the layout gave equal run records."""
+built through the layout gave equal run records. 619 is pinned again since a parking slot is given back when the trip to
+park turns to charge: its ``parking.left`` comes at 122.0 instead of 220.1, and no other event changes."""
 
 
 SAFETY = {
@@ -222,17 +222,27 @@ def test_the_features_are_named_once():
     assert len(set(FEATURES)) == len(FEATURES) and NOT_IN_A_SPEC <= set(FEATURES)
 
 
-def test_a_parking_slot_kept_while_charging_on_the_way_to_park_is_the_known_limit_not_a_violation():
-    """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0, charges from
-    148.6 to 220.1 and leaves P0 as the charge ends. Fleet behaviour, pinned by a fingerprint taken while both
-    modes existed."""
-    spec = world_spec(619)
-    layout = run_world(spec, controller="free", router="shortest")
-    assert not layout.violations
-    assert layout.fingerprint.digest == FINGERPRINTS[619]
-    (case,) = layout.known_limits
-    assert case[1:4] == (KNOWN_LIMIT, "P0", "agv-a")
-    assert case[4] == pytest.approx(97.003, abs=1e-3) and case[5] == pytest.approx(220.061, abs=1e-3)
+def test_a_trip_to_park_that_turns_to_charge_gives_its_parking_slot_back_as_it_turns():
+    """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0 and gives the
+    slot back then; it charges from 148.6 to 220.1. Until the fix it kept the slot until the charge ended."""
+    record = run_world(world_spec(619), controller="free", router="shortest")
+    assert record.quiescent and not record.violations and not record.known_limits
+    assert record.fingerprint.digest == FINGERPRINTS[619]
+    events = [(kind, dict(fields)) for kind, fields in record.events if dict(fields).get("agv") == "agv-a"]
+    (entered, *_), (left, *_) = (
+        [fields for kind, fields in events if kind is cls and fields["area"] == "P0"]
+        for cls in (logistics_events.ParkingEntered, logistics_events.ParkingLeft)
+    )
+    turned = next(
+        index
+        for index, (kind, fields) in enumerate(events)
+        if kind is logistics_events.AgvRouted and fields["destination"] == "c08"
+    )
+    (started, *_) = [fields for kind, fields in events if kind is logistics_events.ChargingStarted]
+    assert entered["t"] == pytest.approx(97.003, abs=1e-3)
+    assert events[turned - 2] == (logistics_events.ParkingLeft, left)  # before the turn's state change and route
+    assert left["t"] == events[turned][1]["t"] == pytest.approx(122.048, abs=1e-3)
+    assert started["t"] == pytest.approx(148.587, abs=1e-3)
 
 
 def test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation(monkeypatch):

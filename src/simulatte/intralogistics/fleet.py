@@ -103,7 +103,8 @@ class FleetCoordinator(Entity, kind="fleet"):
     ``clear_service_nodes`` (default true) an AGV that would become idle on a service node (a bay of a warehouse or the
     node of a charging station) first moves off it, when the traffic controller controls occupancy. A move to the node
     of a parking area takes a slot of the area (``area.enter``) at the decision and gives it back (``area.leave``) when
-    the AGV next departs from that node or when the move does not arrive.
+    the AGV next departs from that node or when the move ends without arriving, which for a move that turns to charge
+    is when it turns.
 
     Its id is ``name`` when given, otherwise ``fleet-<n>``. ``graph`` is ``layout.graph()`` of the environment's
     layout, whose preparation binds the network's nodes (sorted by id). Construction registers the fleet with its
@@ -1048,7 +1049,8 @@ class FleetCoordinator(Entity, kind="fleet"):
     def _idle_travel(self, agv: AGV, target: Node, purpose: str = "travel") -> ProcessGenerator:
         """Travel `agv` unloaded to `target` and return the outcome. The parking slot that :meth:`_take_slot` took for
         `target` is given back, whatever the outcome and for an interrupt, unless the AGV stands on `target` (an
-        interrupt takes effect at the first node where the AGV can be at rest, which may be `target`)."""
+        interrupt takes effect at the first node where the AGV can be at rest, which may be `target`); a travel that
+        turns to charge gave it back already, as it turned (:meth:`_charge_agv`)."""
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
         except simpy.Interrupt:
@@ -1093,6 +1095,13 @@ class FleetCoordinator(Entity, kind="fleet"):
         if not areas:
             del self._slots[agv]
 
+    def _release_slots_elsewhere(self, agv: AGV) -> None:
+        """Give back the slots `agv` holds in parking areas away from its node: those of a trip to park that ends
+        without arriving because the AGV turns to charge (spec §7.10). A slot of the node it stands on goes when it
+        departs."""
+        for area in [area for area in self._slots.get(agv, ()) if area.node != agv.current_node]:
+            self._release_slots(agv, area.node)
+
     def _initial_placement(self) -> None:
         """Activation initializer: place every AGV that has a node with the traffic controller (S1).
 
@@ -1117,6 +1126,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             )
             return
 
+        self._release_slots_elsewhere(agv)  # a trip to park that turns to charge ends here
         self._low_battery_flags.add(agv)
 
         for cb in self._hooks_on_battery_low:
