@@ -43,6 +43,11 @@ describe("pickMap at symbol level", () => {
     // the symbol is moved east of the bay, so a point beyond the true position is inside it
     expect(pick(bay.x + 23, bay.y)).toBe("East");
     expect(pick(screen(camera, east).x + 20, bay.y)).toBe("East");
+    // Without the move the 28 px symbol would span 2 px left to 26 px right of the bay: 33 px right is inside only
+    // because of the move, 3 px right is outside only because of it.
+    expect(screen(camera, east).x - bay.x).toBe(12);
+    expect(pick(bay.x + 33, bay.y)).toBe("East");
+    expect(pick(bay.x + 3, bay.y)).toBeNull();
   });
   it("does not pick nodes", () => {
     const m1 = screen(camera, map.nodes.find((n) => n.id === "M1")!);

@@ -5,6 +5,19 @@ import { PALETTE } from "./palette";
 
 /** Pixels across a vehicle symbol: the mockup's proportions, 16 by 29, at `SYMBOL_PX.vehicle` long. */
 export const VEHICLE_SYMBOL_WIDTH = 12;
+/** Characters of a label shown on the map; a longer one ends in an ellipsis (the detail shows it whole). */
+export const MAP_LABEL_CHARS = 32;
+/** A label for the map: at most `MAP_LABEL_CHARS` characters, the last an ellipsis when it is cut. */
+export const clipLabel = (label: string): string => {
+  const chars = [...label];
+  return chars.length > MAP_LABEL_CHARS ? `${chars.slice(0, MAP_LABEL_CHARS - 1).join("")}…` : label;
+};
+/**
+ * The text drawn beside a vehicle: its short label at symbol level, its one-line label at true size. Both are
+ * clipped whole, as the line carries ids from the state (a goal, a blocker) as well as the label.
+ */
+export const vehicleText = (vehicle: VehicleItem, detail: Detail): string =>
+  clipLabel(detail === "true" ? vehicle.line : vehicle.short);
 /** Pixels of the light outline. */
 const OUTLINE_PX = 1.5;
 
@@ -100,8 +113,10 @@ export function drawVehicle(g: Graphics, vehicle: VehicleItem, scale: number, de
     }
   g.poly(polygon(body)).fill(BODY[vehicle.shown]).stroke({ color: PALETTE.outline, width: OUTLINE_PX * px, join: "round" });
 
-  const unit = Math.min(W, 0.55 * L),
-    stripe = 0.16 * L;
+  // With a fleet stripe (about a quarter of the body) the load and the state mark move toward the nose.
+  const striped = vehicle.fleetIndex !== null,
+    unit = Math.min(W, 0.55 * L),
+    stripe = 0.22 * L;
   if (vehicle.fleetIndex !== null) {
     const colour = PALETTE.fleets[vehicle.fleetIndex % PALETTE.fleets.length]!;
     const inset = OUTLINE_PX * px * 0.5;
@@ -120,7 +135,7 @@ export function drawVehicle(g: Graphics, vehicle: VehicleItem, scale: number, de
   }
   if (vehicle.loaded) {
     const side = 0.5 * unit,
-      centre = -0.19 * L;
+      centre = striped ? -0.12 * L : -0.19 * L;
     g.poly(
       polygon([
         [centre - side / 2, -side / 2],
@@ -132,14 +147,24 @@ export function drawVehicle(g: Graphics, vehicle: VehicleItem, scale: number, de
       .fill(PALETTE.load)
       .stroke({ color: PALETTE.outline, width: px });
   }
-  // The state mark sits on the body, ahead of the load; it is drawn upright so that it reads the same way at any heading.
-  const mark = at(vehicle.loaded ? 0.15 * L : -0.06 * L, 0);
+  // The state mark sits on the body, ahead of the load. The pause bars turn with the body; the bolt and the cross
+  // are drawn upright so that they read the same way at any heading.
+  const along = vehicle.loaded ? (striped ? 0.17 * L : 0.15 * L) : striped ? 0.05 * L : -0.06 * L,
+    mark = at(along, 0);
   switch (vehicle.shown) {
     case "waiting": {
-      // two bars a bar's width apart, as in the mockup
+      // two bars across the body, a bar's width apart, as in the mockup
       const bar = Math.max(2 * px, 0.17 * unit),
         height = 0.6 * unit;
-      for (const x of [mark.x - bar * 1.5, mark.x + bar * 0.5]) g.rect(x, mark.y - height / 2, bar, height);
+      for (const from of [along - bar * 1.5, along + bar * 0.5])
+        g.poly(
+          polygon([
+            [from, -height / 2],
+            [from + bar, -height / 2],
+            [from + bar, height / 2],
+            [from, height / 2],
+          ]),
+        );
       g.fill(PALETTE.outline);
       dashedCircle(g, { x: frame.x, y: frame.y }, (ringPx(frame, scale) - 1) * px, 4 * px, 3 * px);
       g.stroke({ color: PALETTE.waiting, width: 2 * px });

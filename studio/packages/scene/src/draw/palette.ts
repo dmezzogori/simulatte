@@ -35,8 +35,8 @@ export const PALETTE = {
   idleText: 0x475569,
   chargingText: 0x15803d,
   strandedText: 0xb91c1c,
-  /** Fleet stripes, in fleet id order; none of them is a state colour. */
-  fleets: [0x7c3aed, 0x0891b2, 0xdb2777, 0x0f172a, 0x65a30d, 0xa16207],
+  /** Fleet stripes, in fleet id order: yellow, magenta, navy, black, light cyan, pink; each contrasts with every state colour. */
+  fleets: [0xfacc15, 0xc026d3, 0x1e1b4b, 0x0a0a0a, 0x67e8f9, 0xf9a8d4],
   /** Held floor and wait lines (spec section 5.5); drawn from Task 6 on. */
   held: 0x2563eb,
   waitLine: 0xd97706,

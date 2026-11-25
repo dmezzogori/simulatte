@@ -1,6 +1,6 @@
 import type { Graphics } from "pixi.js";
 import type { Point } from "../project";
-import { SYMBOL_PX, type Detail, type FacilityItem, type MapModel, type MapNode } from "../map/model";
+import { SYMBOL_PX, type Detail, type FacilityItem, type MapModel, type MapNode, type Shown } from "../map/model";
 import { PALETTE } from "./palette";
 import { bolt } from "./vehicle";
 
@@ -36,6 +36,9 @@ export interface FacilityBox extends Point {
   /** Symbol level: vehicles fanned out on the facility's position stand in the symbol, below its mark. */
   holds: boolean;
 }
+
+/** The shown states of a vehicle standing at a parking area or charging station rather than passing it. */
+const AT_REST = new Set<Shown>(["idle", "charging", "resting", "working"]);
 
 const key = (p: Point): string => `${p.x.toFixed(6)}|${p.y.toFixed(6)}`;
 
@@ -107,8 +110,9 @@ export function facilityBox(
     }
   } else {
     const here = facility.offset.x === 0 && facility.offset.y === 0 ? key(facility) : null;
+    // only vehicles at rest there: one passing through or waiting to cross does not resize the symbol
     const spread = map.vehicles
-      .filter((v) => here !== null && key(v) === here)
+      .filter((v) => here !== null && AT_REST.has(v.shown) && key(v) === here)
       .reduce((m, v) => Math.max(m, Math.abs(v.offset.x) + SYMBOL_PX.vehicle / 2 + HOLDER_PAD_PX), 0);
     if (spread > 0) {
       // the vehicles in a row across the node, the mark in a row above them

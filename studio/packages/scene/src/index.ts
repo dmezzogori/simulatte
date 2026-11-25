@@ -16,7 +16,7 @@ import { drawNode, NODE_PX } from "./draw/node";
 import { PALETTE } from "./draw/palette";
 import { drawScaleBar } from "./draw/scale-bar";
 import { BADGE_PX, drawBayLines, drawFacility, facilityBox, facilityLabels } from "./draw/facility";
-import { LABEL, drawVehicle, ringPx, vehicleFrame } from "./draw/vehicle";
+import { LABEL, clipLabel, drawVehicle, ringPx, vehicleFrame, vehicleText } from "./draw/vehicle";
 import { pickMap } from "./draw/pick";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress, motionSpeed } from "./motion";
@@ -55,12 +55,6 @@ const UNPLACEABLE = new Set(["order", "fleet"]);
 const FACILITIES = new Set(["warehouse", "parking_area", "charging_station"]);
 /** Pixels kept around the map when it is fitted: a facility symbol moved clear of its bay, with its name. */
 const FIT_MARGIN_PX = 64;
-/** Characters of a label shown on the map; a longer one ends in an ellipsis (the detail shows it whole). */
-const MAP_LABEL_CHARS = 32;
-const clip = (label: string): string => {
-  const chars = [...label];
-  return chars.length > MAP_LABEL_CHARS ? `${chars.slice(0, MAP_LABEL_CHARS - 1).join("")}…` : label;
-};
 // Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
 // also clears global pools; only the last scene may release shared resources.
 let liveScenes = 0;
@@ -630,7 +624,7 @@ export class Scene {
       if (!onScreen(box)) continue;
       drawFacility(dynamic, facility, box, nodesById, scale);
       const places = facilityLabels(facility, box, map, nodesById, scale);
-      this.#text(visible, `${facility.id}\u0000name`, clip(facility.label), places.name.x, places.name.y, PALETTE.text, {
+      this.#text(visible, `${facility.id}\u0000name`, clipLabel(facility.label), places.name.x, places.name.y, PALETTE.text, {
         anchorY: places.name.anchorY,
         bold: true,
       });
@@ -669,16 +663,13 @@ export class Scene {
       drawVehicle(dynamic, vehicle, scale, detail);
       const fill = LABEL[vehicle.shown],
         reach = vehicle.shown === "waiting" ? ringPx(frame, scale) : (Math.hypot(frame.length, frame.width) / 2) * scale;
-      if (detail === "true") {
-        const line = vehicle.line.startsWith(vehicle.label)
-          ? clip(vehicle.label) + vehicle.line.slice(vehicle.label.length)
-          : clip(vehicle.line);
-        this.#text(visible, `${vehicle.id}\u0000line`, line, frame.x, frame.y + (reach + 2) * px, fill, {
+      if (detail === "true")
+        this.#text(visible, `${vehicle.id}\u0000line`, vehicleText(vehicle, detail), frame.x, frame.y + (reach + 2) * px, fill, {
           anchorY: 1,
           bold: true,
         });
-      } else if (vehicle.short)
-        this.#text(visible, `${vehicle.id}\u0000short`, vehicle.short, frame.x, frame.y - (reach + 1) * px, fill, {
+      else if (vehicle.short)
+        this.#text(visible, `${vehicle.id}\u0000short`, vehicleText(vehicle, detail), frame.x, frame.y - (reach + 1) * px, fill, {
           bold: true,
         });
     }
