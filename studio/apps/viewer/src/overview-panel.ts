@@ -55,9 +55,9 @@ function build(value: Overview, current: string | null, root: HTMLElement): HTML
   const vehicles = section("Vehicles");
   if (!value.vehicles.length) vehicles.append(el("p", "No vehicles", "ov-empty"));
   for (const group of value.vehicles) {
-    const counts = STATES.filter((s) => group.counts[s] > 0).map((s) => `${group.counts[s]} ${s}`);
+    const counts = countsText(group.counts);
     const heading = el("h4", undefined, "ov-group");
-    heading.append(el("span", group.fleet || "No fleet", "ov-fleet"), el("span", counts.join(" · "), "ov-counts"));
+    heading.append(el("span", group.fleet || "No fleet", "ov-fleet"), el("span", counts, "ov-counts"));
     vehicles.append(heading);
     if (!group.lines.length && !group.hidden) vehicles.append(el("p", "No vehicle matches", "ov-empty"));
     for (const entry of group.lines) vehicles.append(line(entry, current, root));
@@ -78,9 +78,32 @@ function build(value: Overview, current: string | null, root: HTMLElement): HTML
   return [vehicles, goods, traffic, facilities];
 }
 
-/** Tags, classes and line ids of a subtree, not its texts: equal shapes can be updated in place. */
-function shapeOf(node: Element): string {
-  return `${node.tagName}.${node.className}#${(node as HTMLElement).dataset["id"] ?? ""}(${Array.from(node.children, shapeOf).join(",")})`;
+/** The counts of a group heading, named as the lines name the states: a vehicle at rest on its way is "stopped". */
+export const countsText = (counts: Readonly<Record<(typeof STATES)[number], number>>): string =>
+  STATES.filter((s) => counts[s] > 0)
+    .map((s) => `${counts[s]} ${s === "resting" ? "stopped" : s}`)
+    .join(" · ");
+
+/**
+ * Whether a refresh of the panel waits for the 250 ms interval: whenever the status is unchanged and not paused
+ * (playing, and a live session that follows and reports buffering). A status change and a new frame while paused are
+ * written at once.
+ */
+export const throttled = (status: string, statusChanged: boolean): boolean => !statusChanged && status !== "paused";
+
+type Shape = [string, string, string, Shape[]];
+const shapeTree = (node: Element): Shape => [
+  node.tagName,
+  node.className,
+  (node as HTMLElement).dataset["id"] ?? "",
+  Array.from(node.children, shapeTree),
+];
+/**
+ * Tags, classes and line ids of a subtree, not its texts: equal shapes can be updated in place. Built as nested arrays
+ * through `JSON.stringify`, so that ids holding punctuation cannot make two different trees equal.
+ */
+export function shapeOf(node: Element): string {
+  return JSON.stringify(shapeTree(node));
 }
 
 /** Copies the texts and the line attributes of `next` onto `old`, which has the same shape. */

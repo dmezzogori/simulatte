@@ -396,9 +396,11 @@ input[type="range"] {
   flex-wrap: wrap;
 }
 
+/* top: the scale bar of a map is drawn in the canvas's bottom-left corner */
 .scene-legend {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
+  bottom: auto;
   left: 12px;
   z-index: 1;
   color: #516158;

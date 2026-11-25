@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 import { resolve } from "node:path";
 
-// The config is loaded from studio/ (the test command runs there), so this is the absolute path `vite` needs.
-const harness = resolve("harness/vite.config.ts");
+// The absolute path `vite` needs, from this file's directory (studio/) whatever the current directory. Playwright
+// loads this config as CommonJS (studio/package.json has no "type": "module"), so `__dirname` is defined.
+const harness = resolve(__dirname, "harness/vite.config.ts");
 const scene = "pnpm --filter @simulatte/scene exec vite";
 export default defineConfig({
   testDir: "browser",

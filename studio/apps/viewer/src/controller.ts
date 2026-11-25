@@ -13,7 +13,7 @@ import {
 } from "@simulatte/trace";
 import { Session, Playback, type PreparedFrame, type Position } from "@simulatte/playback";
 import { Scene, describe, overview, renderDetail } from "@simulatte/scene";
-import { createOverviewPanel, renderOverview } from "./overview-panel";
+import { createOverviewPanel, renderOverview, throttled } from "./overview-panel";
 export const format = (v: unknown): string =>
   JSON.stringify(
     v,
@@ -233,6 +233,20 @@ export class Controller {
         init: () => {},
       }),
     });
+    // The Overview is not computed while its tab is hidden (refreshOverview); it is written when it is shown again.
+    // Every panel object the dock creates for it (reset, restored layout) is followed.
+    const added = this.dock.onDidAddPanel((panel) => {
+      if (panel.id !== "overview") return;
+      const shown = panel.api.onDidVisibilityChange(({ isVisible }) => {
+        if (isVisible) this.refreshOverview();
+      });
+      const removed = this.dock.onDidRemovePanel((gone) => {
+        if (gone !== panel) return;
+        shown.dispose();
+        removed.dispose();
+      });
+    });
+    this.#clean.push(() => added.dispose());
     this.resetLayout();
     try {
       const saved = localStorage.getItem("simulatte-panel-layout-v1");
@@ -514,11 +528,12 @@ export class Controller {
       this.updateInspector();
       this.updateKpis(frame);
     }
-    // The panel follows the frame at 4 Hz while playing; it is flushed at once for a new frame while not playing
-    // and when the status changes (`Playback.pause()` re-emits the same frame, so the frame test cannot see it).
+    // The panel follows the frame at 4 Hz while the status stays and is not paused (playing, or a live session that
+    // follows and reports buffering); it is flushed at once for a new frame while paused and when the status changes
+    // (`Playback.pause()` re-emits the same frame, so the frame test cannot see it).
     const statusChanged = status !== this.#overviewStatus;
     this.#overviewStatus = status;
-    if (statusChanged || changed) this.refreshOverview(status === "playing" && !statusChanged);
+    if (statusChanged || changed) this.refreshOverview(throttled(status, statusChanged));
     const legend = scene.map ? `${LEGEND}. Lane width is nominal.` : LEGEND;
     if (this.#legend.textContent !== legend) this.#legend.textContent = legend;
   }
@@ -531,14 +546,15 @@ export class Controller {
     this.refreshOverview();
   }
   /**
-   * Rewrites the Overview panel and the selection's detail from the scene's map; `throttled` skips both within
-   * 250 ms of the last write.
+   * Rewrites the Overview panel and the selection's detail from the scene's map; `throttle` skips both within
+   * 250 ms of the last write. The panel is not computed while its tab is hidden: it is written when shown again.
    */
-  refreshOverview(throttled = false): void {
+  refreshOverview(throttle = false): void {
     const now = performance.now();
-    if (throttled && now - this.#overviewAt < OVERVIEW_INTERVAL_MS) return;
+    if (throttle && now - this.#overviewAt < OVERVIEW_INTERVAL_MS) return;
     this.#overviewAt = now;
     this.#refreshDetail();
+    if (!this.dock.getPanel("overview")?.api.isVisible) return;
     const scene = this.scene,
       map = scene?.map ?? null;
     renderOverview(
@@ -556,6 +572,8 @@ export class Controller {
     this.#overviewStatus = "";
     renderOverview(this.#overview.body, null, () => {}, null);
     this.#showDetail(false);
+    // "Lane width is nominal." belongs to the trace that had a map
+    this.#legend.textContent = LEGEND;
   }
   /**
    * The Inspector's readable detail of the selection, with the raw fields below it in a collapsed section. An entity

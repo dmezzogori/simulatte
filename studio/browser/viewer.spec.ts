@@ -208,6 +208,32 @@ test("the Overview panel is docked with the Inspector, which stays the active ta
   await expect(page.getByRole("tab", { name: "Overview", exact: true })).toHaveAttribute("aria-selected", "false");
 });
 
+test("the scene legend keeps clear of the scale bar in the bottom-left corner of the canvas", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("input[type=file]").setInputFiles(traffic);
+  await expect(page.locator(".status")).toHaveText("paused");
+  const legend = page.locator(".scene-legend");
+  await expect(legend).toContainText("Lane width is nominal.");
+  const box = (await legend.boundingBox())!;
+  const canvas = (await page.locator(".scene-host canvas").boundingBox())!;
+  // the scale bar and its length: 16 px from the left and bottom edges, at most 150 px long
+  const corner = { left: canvas.x, right: canvas.x + 180, top: canvas.y + canvas.height - 40, bottom: canvas.y + canvas.height };
+  const intersects =
+    box.x < corner.right && box.x + box.width > corner.left && box.y < corner.bottom && box.y + box.height > corner.top;
+  expect(intersects, JSON.stringify({ legend: box, canvas })).toBe(false);
+});
+
+test("the Overview panel written while it was hidden shows the current frame when its tab is chosen", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("input[type=file]").setInputFiles(traffic);
+  await expect(page.locator(".status")).toHaveText("paused");
+  await page.getByRole("button", { name: "Next event", exact: true }).click();
+  await expect(page.locator("output")).toContainText("seq");
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  await expect(page.locator(".overview .ov-line").first()).toBeVisible();
+  await expect(page.locator(".overview")).toContainText("AGV-1");
+});
+
 test("a vehicle chosen in the entity list shows its readable detail, and the offline HTML of that trace opens from file", async ({
   page,
   context,
