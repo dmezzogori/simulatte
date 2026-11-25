@@ -514,6 +514,62 @@ def test_a_segment_granted_against_a_body_is_a_violation(monkeypatch):
     assert "ADMITTED against a body on a segment" in _kinds(run_world(world_spec(58), controller="reservation"))
 
 
+def test_the_monitor_reports_the_admission_against_a_body_before_the_physical_conflict():
+    """Seed 8101904 (`FastestRouter`): agv-c re-claims g0_2~g1_0 in its new direction while its body still lies on it
+    as it arrived, and agv-g is granted the segment the other way at the same instant (471.171). The admission is
+    reported at agv-g's grant (its `traffic.reserved`), three events before agv-g's move starts and the bodies meet. T3
+    fixes the conflict and deletes this test."""
+    record = run_world(world_spec(8101904), controller="reservation", router="fastest")
+    kinds = [violation[1] for violation in record.violations]
+    assert kinds == ["ADMITTED against a body on a segment", "PHYSICAL opposite directions on a segment"]
+    admitted = record.violations[0]
+    assert admitted[2:] == ("g0_2~g1_0", "agv-c", "forward", "agv-g", "backward")
+    assert admitted[0] == record.violations[1][0] == pytest.approx(471.171, abs=1e-3)
+
+
+@pytest.mark.xfail(strict=True, reason="a direction re-claim admits a vehicle against a body (audit (ii)); T3 fixes it")
+@pytest.mark.parametrize(("seed", "router"), [(8101904, "fastest")])
+def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body(seed, router):
+    record = run_world(world_spec(seed), controller="reservation", router=router)
+    assert record.quiescent and not record.violations
+
+
+@pytest.mark.xfail(strict=True, reason="a gate waiver leaves a sleeping wait stuck, unreported (hole A); T4 fixes it")
+@pytest.mark.parametrize(("seed", "router"), [(7702388, "shortest")])
+def test_a_run_with_a_gate_waiver_ends_with_every_open_wait_reported(seed, router):
+    record = run_world(world_spec(seed), controller="reservation", router=router)
+    assert record.quiescent and not record.violations
+
+
+@pytest.mark.xfail(
+    strict=True, reason="the stuck chain stops at a wait already reported (hole R, audit (i)); T4 fixes it"
+)
+@pytest.mark.parametrize(
+    ("seed", "router"),
+    [
+        (8102359, "congestion"),
+        (8103231, "shortest"),
+        (100281, "shortest"),
+        (100281, "fastest"),
+        (7700058, "shortest"),
+        (7700058, "fastest"),
+        (7700058, "congestion"),
+        (7701490, "fastest"),
+        (4100399, "congestion"),
+        (4102230, "shortest"),
+        (4103675, "fastest"),
+        (4106591, "shortest"),
+        (4106711, "congestion"),
+        (4109344, "shortest"),
+        (4109857, "fastest"),
+        (4109857, "congestion"),
+    ],
+)
+def test_a_run_with_a_wait_behind_a_reported_wait_ends_with_every_open_wait_reported(seed, router):
+    record = run_world(world_spec(seed), controller="reservation", router=router)
+    assert record.quiescent and not record.violations
+
+
 @pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))
 def test_a_run_of_the_safety_check_returns_with_no_violation(seed, controller, router):
     spec = world_spec(seed)
