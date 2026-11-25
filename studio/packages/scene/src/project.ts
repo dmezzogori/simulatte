@@ -1,6 +1,8 @@
 import type { PreparedFrame } from "@simulatte/playback";
 import { isKnownLayoutVersion, type State } from "@simulatte/trace";
 import { motionProgress } from "./motion";
+import { buildFloor } from "./map/floor";
+import type { MapModel } from "./map/model";
 export interface Point {
   x: number;
   y: number;
@@ -25,6 +27,8 @@ export interface Projection {
   links: readonly (readonly [Point, Point])[];
   fallback: boolean;
   ports: readonly Point[];
+  /** The map of the floor; null without a layout or a network, absent for editor projections. */
+  map?: MapModel | null;
 }
 export const object = (v: unknown): Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v)
@@ -48,7 +52,9 @@ export function equipment(location: unknown): string | null {
 }
 export class Projector {
   readonly #fallback = new Map<string, Point>();
+  readonly #vehicles: string[];
   constructor(initial: State) {
+    this.#vehicles = Object.keys(initial).filter((id) => initial[id]?.["$kind"] === "agv");
     Object.keys(initial)
       .filter(
         (id) =>
@@ -238,7 +244,16 @@ export class Projector {
                     : "",
       });
     }
-    return { glyphs, links, ports, fallback: !layout };
+    const map = layout
+      ? buildFloor({
+          time: frame.time,
+          layout,
+          state: frame.state,
+          positions: nodes,
+          vehicles: this.#vehicles,
+        })
+      : null;
+    return { glyphs, links, ports, fallback: !layout, map };
   }
 }
 

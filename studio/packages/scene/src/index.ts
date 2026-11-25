@@ -10,8 +10,10 @@ import {
   type Projection,
   type Point,
 } from "./project";
+import type { MapModel } from "./map/model";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress } from "./motion";
+export { detailAt, SYMBOL_PX, type Detail, type MapModel } from "./map/model";
 export interface Camera {
   x: number;
   y: number;
@@ -76,6 +78,10 @@ export class Scene {
   #cleanup: (() => void)[] = [];
   onSelect: ((id: string | null) => void) | null = null;
   onEditorPointer: ((event: EditorPointer) => boolean) | null = null;
+  /** The map of the last projection; null without a layout or a network. */
+  get map(): MapModel | null {
+    return this.#projection?.map ?? null;
+  }
   screenToWorld(x: number, y: number): Point {
     return {x: (x - this.#camera.x) / this.#camera.scale, y: -(y - this.#camera.y) / this.#camera.scale};
   }
