@@ -11,13 +11,16 @@ from pathlib import Path
 
 import pytest
 
+from simulatte.environment import Environment
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.network import Segment
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.traffic import Disposition
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
+from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics import random_worlds
 from tests.intralogistics.random_worlds import (
     FEATURES,
@@ -472,15 +475,104 @@ def _stuck_reported_twice(monkeypatch):
     monkeypatch.setattr(ReservationController, "_report_one", twice)
 
 
+def _stuck_on_direct_blockers_only(monkeypatch):
+    """The stuck rule of spec §7.9 applied to the wait's own blockers only: a waiting blocker counts whatever its own
+    wait is blocked by, so a wait is reported while a blocker of a blocker moves or serves."""
+
+    def stuck(self, waiting, blockers):
+        found = {}
+        for blocker in blockers:
+            motion = blocker.agv.motion
+            if motion is not None and motion.get("stalled"):
+                found[blocker.agv.id] = "STALLED"
+            elif blocker.disposition in (Disposition.IDLE, Disposition.STRANDED, Disposition.WAITING):
+                found[blocker.agv.id] = blocker.disposition.name
+            else:
+                return None
+        return found
+
+    monkeypatch.setattr(ReservationController, "_stuck", stuck)
+
+
+def _stuck_with_a_moving_blocker_left_out(monkeypatch):
+    """A blocker that moves or serves is left out of the stuck rule and of the report, instead of making the wait not
+    stuck."""
+
+    def stuck(self, waiting, blockers):
+        found = {}
+        reached = {waiting}
+        todo = [(waiting, blockers)]
+        while todo:
+            current, current_blockers = todo.pop()
+            for blocker in current_blockers:
+                if blocker.disposition not in (Disposition.IDLE, Disposition.STRANDED, Disposition.WAITING):
+                    continue
+                if current is waiting:
+                    found[blocker.agv.id] = blocker.disposition.name
+                if blocker.disposition is Disposition.WAITING and self._pending[blocker.agv] not in reached:
+                    behind = self._pending[blocker.agv]
+                    reached.add(behind)
+                    todo.append((behind, self._blocking(behind)))
+        return found
+
+    monkeypatch.setattr(ReservationController, "_stuck", stuck)
+
+
+def _deadlock_reports_changed(monkeypatch, change):
+    """Every `traffic.deadlock` is replaced by `change(event)`, or dropped when it returns None."""
+    emit = Environment.emit
+
+    def changed(self, event):
+        if isinstance(event, logistics_events.TrafficDeadlock):
+            event = change(event)
+            if event is None:
+                return None
+        return emit(self, event)
+
+    monkeypatch.setattr(Environment, "emit", changed)
+
+
+def _resolved_deadlocks_not_reported(monkeypatch):
+    _deadlock_reports_changed(monkeypatch, lambda event: None if event.victim is not None else event)
+
+
+def _resolved_deadlocks_reported_one_member_short(monkeypatch):
+    """A resolved report of three AGVs or more leaves out its last member that is not the victim: what is listed is
+    still deadlocked, but not the whole deadlocked set."""
+
+    def short(event):
+        if event.victim is None or len(event.agvs) < 3:
+            return event
+        drop = [agv for agv in event.agvs if agv != event.victim][-1]
+        agvs = tuple(agv for agv in event.agvs if agv != drop)
+        return logistics_events.TrafficDeadlock(agvs=agvs, victim=event.victim, action=event.action)
+
+    _deadlock_reports_changed(monkeypatch, short)
+
+
 @pytest.mark.parametrize(
     ("patch", "seed", "router", "kind"),
     [
-        (_report_unresolved_instead_of_stuck, 26, "shortest", "deadlock report lists AGVs that are not deadlocked"),
-        (_detect_without_the_reduction, 26, "shortest", "deadlock report lists AGVs that are not deadlocked"),
+        (_report_unresolved_instead_of_stuck, 26, "shortest", "deadlock report differs from the deadlocked set"),
+        (_detect_without_the_reduction, 26, "shortest", "deadlock report differs from the deadlocked set"),
         (_forget_unresolved_deadlocks, 2000228, "fastest", "deadlock not reported"),
         (_stuck_reported_with_no_blocker, 26, "shortest", "stuck report with no blocker"),
         (_stuck_reported_with_dispositions_swapped, 26, "shortest", "stuck report gives a blocker another disposition"),
         (_stuck_reported_twice, 26, "shortest", "stuck report repeated for one wait"),
+        (_stuck_on_direct_blockers_only, 26, "shortest", "stuck report of a wait that reaches a blocker not at rest"),
+        (
+            _stuck_with_a_moving_blocker_left_out,
+            26,
+            "shortest",
+            "stuck report leaves out a holder that blocks the wait",
+        ),
+        (_resolved_deadlocks_not_reported, 26, "shortest", "deadlock not reported"),
+        (
+            _resolved_deadlocks_reported_one_member_short,
+            26,
+            "shortest",
+            "deadlock report differs from the deadlocked set",
+        ),
     ],
 )
 def test_a_wrong_or_missing_traffic_report_is_a_violation(monkeypatch, patch, seed, router, kind):
@@ -497,6 +589,38 @@ def test_a_slot_kept_while_its_agv_travels_to_a_charger_elsewhere_is_a_violation
     record = run_world(world_spec(619), controller="free", router="shortest")
     (found, *_) = [v for v in record.violations if v[1] == "parking slot held during a travel elsewhere"]
     assert found[0] == pytest.approx(122.048, abs=1e-3) and found[2:] == ("P0", "agv-a", "c08")
+
+
+def _slot_given_back_after_arrival(monkeypatch, delay):
+    """A trip to park that arrives gives its slot back `delay` later, while the AGV rests on the area's node (0: as it
+    arrives), instead of when it next departs."""
+    travel = FleetCoordinator._idle_travel
+
+    def idle_travel(self, agv, target, purpose="travel"):
+        outcome = yield from travel(self, agv, target, purpose)
+        if outcome is TravelOutcome.ARRIVED and agv in self._slots:
+
+            def later():
+                yield self.env.timeout(delay)
+                if agv.current_node == target and agv.state.name == "IDLE":
+                    self._release_slots(agv, target)
+
+            self.env.process(later())
+        return outcome
+
+    monkeypatch.setattr(FleetCoordinator, "_idle_travel", idle_travel)
+
+
+@pytest.mark.parametrize(("delay", "at"), [(0.0, 163.078), (5.0, 168.078)])
+def test_a_slot_given_back_while_its_agv_rests_parked_is_a_violation(monkeypatch, delay, at):
+    """Seed 619 (`FreeFlowController`): agv-b arrives on P1's node at 163.1 and rests there, parked; a slot given back
+    then, or 5 later, is reported at that instant (spec §7.10: it goes back when the AGV next departs)."""
+    _slot_given_back_after_arrival(monkeypatch, delay)
+    record = run_world(world_spec(619), controller="free", router="shortest")
+    (found, *_) = [
+        v for v in record.violations if v[1] == "parking slot given back while the AGV rests on the area's node"
+    ]
+    assert found[0] == pytest.approx(at, abs=1e-3) and found[2:] == ("P1", "agv-b")
 
 
 def test_a_segment_granted_against_a_body_is_a_violation(monkeypatch):
@@ -527,47 +651,70 @@ def test_the_monitor_reports_the_admission_against_a_body_before_the_physical_co
     assert admitted[0] == record.violations[1][0] == pytest.approx(471.171, abs=1e-3)
 
 
-@pytest.mark.xfail(strict=True, reason="a direction re-claim admits a vehicle against a body (audit (ii)); T3 fixes it")
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="a direction re-claim admits a vehicle against a body (audit (ii)); T3 fixes it",
+)
 @pytest.mark.parametrize(("seed", "router"), [(8101904, "fastest")])
 def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body(seed, router):
     record = run_world(world_spec(seed), controller="reservation", router=router)
     assert record.quiescent and not record.violations
 
 
-@pytest.mark.xfail(strict=True, reason="a gate waiver leaves a sleeping wait stuck, unreported (hole A); T4 fixes it")
-@pytest.mark.parametrize(("seed", "router"), [(7702388, "shortest")])
+GATE_WAIVER = [(7702388, "shortest")]
+"""The run that ends with a wait left stuck and unreported after a gate waiver (hole A of audit (i))."""
+BEHIND_A_REPORTED_WAIT = [
+    (8102359, "congestion"),
+    (8103231, "shortest"),
+    (100281, "shortest"),
+    (100281, "fastest"),
+    (7700058, "shortest"),
+    (7700058, "fastest"),
+    (7700058, "congestion"),
+    (7701490, "fastest"),
+    (4100399, "congestion"),
+    (4102230, "shortest"),
+    (4103675, "fastest"),
+    (4106591, "shortest"),
+    (4106711, "congestion"),
+    (4109344, "shortest"),
+    (4109857, "fastest"),
+    (4109857, "congestion"),
+]
+"""The runs that end with a wait behind a reported wait, stuck and unreported (hole R of audit (i))."""
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="a gate waiver leaves a sleeping wait stuck, unreported (hole A); T4 fixes it",
+)
+@pytest.mark.parametrize(("seed", "router"), GATE_WAIVER)
 def test_a_run_with_a_gate_waiver_ends_with_every_open_wait_reported(seed, router):
     record = run_world(world_spec(seed), controller="reservation", router=router)
     assert record.quiescent and not record.violations
 
 
 @pytest.mark.xfail(
-    strict=True, reason="the stuck chain stops at a wait already reported (hole R, audit (i)); T4 fixes it"
+    strict=True,
+    raises=AssertionError,
+    reason="the stuck chain stops at a wait already reported (hole R, audit (i)); T4 fixes it",
 )
-@pytest.mark.parametrize(
-    ("seed", "router"),
-    [
-        (8102359, "congestion"),
-        (8103231, "shortest"),
-        (100281, "shortest"),
-        (100281, "fastest"),
-        (7700058, "shortest"),
-        (7700058, "fastest"),
-        (7700058, "congestion"),
-        (7701490, "fastest"),
-        (4100399, "congestion"),
-        (4102230, "shortest"),
-        (4103675, "fastest"),
-        (4106591, "shortest"),
-        (4106711, "congestion"),
-        (4109344, "shortest"),
-        (4109857, "fastest"),
-        (4109857, "congestion"),
-    ],
-)
+@pytest.mark.parametrize(("seed", "router"), BEHIND_A_REPORTED_WAIT)
 def test_a_run_with_a_wait_behind_a_reported_wait_ends_with_every_open_wait_reported(seed, router):
     record = run_world(world_spec(seed), controller="reservation", router=router)
     assert record.quiescent and not record.violations
+
+
+@pytest.mark.parametrize(("seed", "router"), [*GATE_WAIVER, *BEHIND_A_REPORTED_WAIT])
+def test_a_controller_that_reports_waits_stuck_too_eagerly_does_not_clear_the_hole_runs(monkeypatch, seed, router):
+    """A wrong fix of the holes: the stuck rule applied to a wait's own blockers only reports the waits of these runs,
+    but at instants when a wait behind a blocker is blocked by an AGV that moves or serves. The monitor reports that,
+    so none of these runs comes out clean."""
+    _stuck_on_direct_blockers_only(monkeypatch)
+    record = run_world(world_spec(seed), controller="reservation", router=router)
+    assert "stuck report of a wait that reaches a blocker not at rest" in _kinds(record)
 
 
 @pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))

@@ -16,10 +16,11 @@ initial state), and, under a `ReservationController`, that the bodies respect no
 admission, that no other holder of a single-lane segment holds it against a body that lies on it, that the holdings
 cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and that the entities agree with the
 holdings ledger. It follows the waits and their reports from the traffic events alone: what a stuck report says of the
-wait and its blockers, that a reported deadlock is one by its own admission test over the replayed holdings and that
-every deadlock is reported, and, at the end, that every open wait carries a report. It follows the parking slots from
-the parking events: a slot is held by an AGV at rest on the area's node or travelling there. It records violations
-instead of raising, so a run always ends.
+wait and its blockers (the rule of the stuck report, as far as the holdings decide it), that a reported deadlock is the
+deadlocked set by its own admission test over the replayed holdings and that every deadlock is reported, and, at the
+end, that every open wait carries a report. It follows the parking slots from the parking events: a slot is held by an
+AGV at rest on the area's node or travelling there, and given back as the AGV departs from the node or when its travel
+there does not arrive. It records violations instead of raising, so a run always ends.
 """
 
 from __future__ import annotations
@@ -57,6 +58,7 @@ from simulatte.intralogistics.events import (
     AgvMoveInterrupted,
     AgvMoveStarted,
     AgvRouted,
+    AgvStateChanged,
     AgvStranded,
     ChargingStarted,
     OrderStatusChanged,
@@ -1057,7 +1059,8 @@ class Monitor:
     capacities, lengths and extents from the world's spec. It still reads the controller for the comparison of the
     ledger with the entities (`_check_ledger`, the holdings of `_exact` and the bodies' coverage), for the pending claim
     of an AGV that is not travelling (`_exact`), and for the review timers and pending claims at quiescence (`final`);
-    events cannot show those.
+    events cannot show those. It also waits for the ledger to have placed every AGV before it builds the bodies, and
+    wraps each fleet's travel executor to check the holdings at every exit of a travel.
     """
 
     def __init__(self, world: BuiltWorld, *, replay: bool = True) -> None:
@@ -1077,14 +1080,15 @@ class Monitor:
         self.waits: dict[str, OpenWait] = {}
         self.standing: list[tuple[str, ...]] = []
         self._ended: dict[str, tuple[float, str, tuple[Item, ...]]] = {}  # the last wait of each AGV that ended
-        self._detect_due = False  # a wait opened, or ended otherwise than by a grant, in this instant
-        self._unreported: set[tuple[str, ...]] = set()
+        self._expected: list[tuple[str, ...]] = []  # deadlocked sets found at a wait event of this instant
         self._placed: set[tuple[str, str]] = set()  # (resource, agv) held since the placement and not taken again
         self._against: set[tuple[str, str, str]] = set()
         self.routes: dict[str, tuple[str, ...]] = {}
         self.goals: dict[str, str] = {}
         self.slots: dict[tuple[str, str], None] = {}
         self._slot_bad: dict[tuple[str, str], str] = {}
+        self._left: dict[tuple[str, str], bool] = {}  # slots given back in this instant: whether a travel ended since
+        self._departed: set[tuple[str, str]] = set()  # (agv, node) of the moves started in this instant
         fleet_of = {agv_id: fleet.vehicle for fleet in world.spec.fleets for agv_id, _ in fleet.agvs}
         self.extents = {agv_id: vehicle.length + vehicle.min_gap for agv_id, vehicle in fleet_of.items()}
         self.env.bus.subscribe(self.on, "*")
@@ -1099,11 +1103,9 @@ class Monitor:
         self.graph = graph
         self._compare_geometry(world.fleets[0].graph)
         self.nodes = {node.id: node for node in graph.nodes}
-        facilities: dict[str, int] = {}
-        for area in world.parking:
-            facilities[area.node.id] = facilities.get(area.node.id, 0) + area.capacity
-        for station in world.chargers:
-            facilities[station.node.id] = facilities.get(station.node.id, 0) + station.n_slots
+        facilities: dict[str, int] = {}  # every facility is the first fleet's, which uses them all
+        for _, node, capacity in (*world.spec.parking, *world.spec.chargers):
+            facilities[node] = facilities.get(node, 0) + capacity
         declared = dict(world.spec.capacities)
         self.cap = {n: declared.get(n, facilities.get(n, 1)) for n in self.nodes}
         self.around: dict[str, set[str]] = {n: set() for n in self.nodes}
@@ -1280,6 +1282,7 @@ class Monitor:
                 if mine != theirs:
                     self.violation("corridor derivation differs", mine, theirs)
         if isinstance(event, AgvMoveStarted):
+            self._departed.add((event.agv, event.from_node))
             self._move_started(event, t)
         elif isinstance(event, AgvMoveEnded):
             self._move_ended(event, t)
@@ -1289,6 +1292,12 @@ class Monitor:
                 self.goals[event.agv] = event.destination
         elif isinstance(event, ParkingEntered | ParkingLeft):
             self._track_slot(event)
+        elif isinstance(
+            event, AgvStateChanged
+        ):  # a travel that ends leaves the travelling state, at least for an instant
+            for key in self._left:
+                if key[1] == event.agv:
+                    self._left[key] = True
         elif isinstance(event, TrafficWaitStarted | TrafficWaitEnded | TrafficWaitStuck | TrafficDeadlock):
             self._track_wait(event, t)
         self.checked += 1
@@ -1297,11 +1306,10 @@ class Monitor:
 
     def _close_instant(self) -> None:
         """The checks of a complete instant: events of one instant come in sequence, so a slot taken at a decision
-        before the route of its move, or a deadlock reported after the stop that formed it, is judged at its end."""
+        before the route of its move, a slot given back before the move it is given back for, or a deadlock reported
+        after the stop that formed it, is judged at its end."""
         self._check_slots()
-        if self._detect_due:
-            self._detect_due = False
-            self._check_detection()
+        self._check_detection()
 
     def _replay(self, event: Any) -> None:
         env = self.env
@@ -1373,7 +1381,11 @@ class Monitor:
     def _track_slot(self, event: ParkingEntered | ParkingLeft) -> None:
         key = (event.area, event.agv)
         if isinstance(event, ParkingLeft):
-            self.slots.pop(key, None)
+            if key not in self.slots:
+                self.violation("parking slot given back that was not held", event.area, event.agv)
+                return
+            del self.slots[key]
+            self._left[key] = False
             return
         self.slots[key] = None
         if sum(area == event.area for area, _ in self.slots) > self.areas[event.area][1]:
@@ -1406,6 +1418,24 @@ class Monitor:
             if self._slot_bad.get(key) != bad[key]:
                 self.violation(bad[key], area, agv_id, *details, at=self._instant)
         self._slot_bad = bad
+        # A slot is given back when the AGV departs from the area's node, or when its travel there does not arrive (a
+        # turn to charge elsewhere included): never while it rests on the node or still travels to it. A travel that did
+        # not arrive may be followed in the same instant by a new travel to the same node, after a change of state.
+        for key, ended in self._left.items():
+            area, agv_id = key
+            node = self.areas[area][0]
+            if key in self.slots or (agv_id, node) in self._departed:
+                continue
+            if self.bodies[agv_id].at == node:
+                self.violation(
+                    "parking slot given back while the AGV rests on the area's node", area, agv_id, at=self._instant
+                )
+            elif not ended and self.state[agv_id]["state"] in TRAVELING and self.goals.get(agv_id) == node:
+                self.violation(
+                    "parking slot given back during a travel to the area's node", area, agv_id, at=self._instant
+                )
+        self._left.clear()
+        self._departed.clear()
 
     # Waits and their reports (spec §7.8, §7.9), from the traffic events
 
@@ -1421,13 +1451,13 @@ class Monitor:
     def _track_wait(self, event: Any, t: float) -> None:
         if isinstance(event, TrafficWaitStarted):
             self.waits[event.agv] = OpenWait(t, self._claim_items(event.agv, event.resources))
-            self._detect_due = True
+            self._expect_report()
         elif isinstance(event, TrafficWaitEnded):
             wait = self.waits.pop(event.agv, None)
             self._ended[event.agv] = (t, event.reason, () if wait is None else wait.items)
             self.standing = [ids for ids in self.standing if event.agv not in ids]
             if event.reason != "granted":
-                self._detect_due = True
+                self._expect_report()
         elif isinstance(event, TrafficWaitStuck):
             self._check_stuck(event)
         else:
@@ -1458,9 +1488,9 @@ class Monitor:
                 self.violation("wait for a resource the spec does not have", agv_id, resource)
         return tuple(items)
 
-    def _blocked(self, agv: str, item: Item, among: Collection[str]) -> bool:
-        """Whether `item` is inadmissible for `agv` given only the holdings of the AGVs in `among` (spec §7.3), by
-        the monitor's own test over the replayed entity state; the claimant's own holdings never block it."""
+    def _blockers(self, agv: str, item: Item, among: Collection[str] | None = None) -> list[str]:
+        """The holders that make `item` inadmissible for `agv` (spec §7.3), by the monitor's own test over the replayed
+        entity state; with `among`, only the holdings of those AGVs exist. The claimant's holdings never block it."""
         kind, resource, direction = item
         state = self.state.get(resource, {})
         if kind == "segment":
@@ -1468,23 +1498,24 @@ class Monitor:
                 (holder, way)
                 for way in ("forward", "backward")
                 for holder in state.get(way, ())
-                if holder != agv and holder in among
+                if holder != agv and (among is None or holder in among)
             ]
             if self.passing[resource]:  # opposite traffic passes: only the holders in the same direction count
                 others = [(holder, way) for holder, way in others if way == direction]
             extents = math.fsum([*(self.extents[holder] for holder, _ in others), self.extents[agv]])
             if others and extents > self.lengths[resource]:
-                return True
-            return any(way != direction for _, way in others)
-        holders = [holder for holder in state.get("reserved_by", ()) if holder != agv and holder in among]
+                return [holder for holder, _ in others]
+            return [holder for holder, way in others if way != direction]
+        holders = [h for h in state.get("reserved_by", ()) if h != agv and (among is None or h in among)]
         if kind == "corridor":  # holders placed inside hold it without orientation and do not count
-            oriented = [holder for holder in holders if (resource, holder) not in self._placed]
-            return bool(oriented) and state["orientation"] not in (None, direction)
+            if state["orientation"] in (None, direction):
+                return []
+            return [holder for holder in holders if (resource, holder) not in self._placed]
         capacity = self.cap[resource] if kind == "node" else self.zone_members[resource][1]
-        return len(holders) >= capacity
+        return holders if len(holders) >= capacity else []
 
     def _admissible(self, agv: str, items: Sequence[Item], among: Collection[str]) -> bool:
-        return not any(self._blocked(agv, item, among) for item in items)
+        return not any(self._blockers(agv, item, among) for item in items)
 
     def _deadlocked(self, claims: Mapping[str, Sequence[Item]]) -> set[str]:
         """The reduction of spec §7.8 over `claims` (AGV id to what its claim needs): remove an AGV whose claim is
@@ -1496,43 +1527,63 @@ class Monitor:
                 return remaining
             remaining.discard(free)
 
-    def _check_detection(self) -> None:
-        """Every deadlock is reported: at the end of an instant in which a wait opened or ended otherwise than by a
-        grant, the deadlocked set of the open waits is empty or a standing unresolved report lists exactly it."""
+    def _expect_report(self) -> None:
+        """At a wait that opens, or ends otherwise than by a grant, the deadlocked set of the open waits must be
+        reported in the same instant, unless the same set stands already (spec §7.8)."""
         found = tuple(sorted(self._deadlocked({agv: wait.items for agv, wait in self.waits.items()})))
-        if found and found not in self.standing and found not in self._unreported:
-            self._unreported.add(found)
-            self.violation("deadlock not reported", found, at=self._instant)
+        if found and found not in self.standing and found not in self._expected:
+            self._expected.append(found)
+
+    def _check_detection(self) -> None:
+        """Every deadlock is reported: each set expected in the instant was named by a ``traffic.deadlock`` of the
+        instant, or stands."""
+        for found in self._expected:
+            if found not in self.standing:
+                self.violation("deadlock not reported", found, at=self._instant)
+        self._expected.clear()
 
     def _check_deadlock(self, event: TrafficDeadlock, t: float) -> None:
         """A ``traffic.deadlock`` lists AGVs with an open wait (the victim's ended just before, with the reason of the
-        action) whose claims are each inadmissible given the holdings of the listed AGVs alone; an unresolved report
-        is not repeated while the same set stands."""
+        action), and exactly the deadlocked set of those waits and the victim's; an unresolved report is not repeated
+        while the same set stands."""
         ids = tuple(event.agvs)
-        claims: dict[str, tuple[Item, ...]] = {}
+        claims = {agv: wait.items for agv, wait in self.waits.items()}
         for agv in ids:
-            wait = self.waits.get(agv)
             ended = self._ended.get(agv)
-            if wait is not None:
-                claims[agv] = wait.items
-            elif agv == event.victim and ended is not None and ended[:2] == (t, ENDED_BY.get(event.action)):
+            if agv in claims:
+                continue
+            if agv == event.victim and ended is not None and ended[:2] == (t, ENDED_BY.get(event.action)):
                 claims[agv] = ended[2]
             else:
                 self.violation("deadlock lists an AGV with no open wait", agv, ids, event.victim, event.action)
-        if len(claims) == len(ids):
-            free = [agv for agv in ids if self._admissible(agv, claims[agv], ids)]
-            if free:
-                self.violation("deadlock report lists AGVs that are not deadlocked", ids, free, event.action)
+        found = tuple(sorted(self._deadlocked(claims)))
+        if found != ids:
+            self.violation("deadlock report differs from the deadlocked set", ids, found, event.action)
+        if ids in self._expected:
+            self._expected.remove(ids)
         if event.action == "unresolved":
             if ids in self.standing:
                 self.violation("unresolved deadlock reported again while it stands", ids)
             else:
                 self.standing.append(ids)
 
+    def _disposition(self, agv: str) -> str:
+        """What an observer knows of `agv`: ``STALLED`` on a stalled arc, else ``WAITING`` with an open wait, else the
+        state of its replayed entity."""
+        assert self.bodies is not None
+        arc = self.bodies[agv].arc
+        if arc is not None and arc[6]:
+            return "STALLED"
+        if agv in self.waits:
+            return "WAITING"
+        return self.state[agv]["state"]
+
     def _check_stuck(self, event: TrafficWaitStuck) -> None:
         """A ``traffic.wait_stuck`` names an open wait that had no report, at least one blocker, and each blocker in
-        the disposition it gives, as an observer knows it: stalled from the body's motion, waiting from an open wait,
-        idle or stranded from the AGV's state."""
+        the disposition it gives, as an observer knows it; and the rule of spec §7.9 holds as far as the holdings decide
+        it: every holder that blocks the wait is listed, and no wait reached from it through waiting blockers is
+        blocked by a holder that is neither stalled, waiting, idle nor stranded. The AGVs whose earlier claims gate a
+        wait (§7.4) emit nothing and are not checked."""
         assert self.bodies is not None
         wait = self.waits.get(event.agv)
         if wait is None:
@@ -1545,15 +1596,39 @@ class Monitor:
         if not blockers:
             self.violation("stuck report with no blocker", event.agv)
         for blocker, given in sorted(blockers.items()):
-            arc = self.bodies[blocker].arc
-            if arc is not None and arc[6]:
-                found = "STALLED"
-            elif blocker in self.waits:
-                found = "WAITING"
-            else:
-                found = self.state[blocker]["state"]
+            if blocker not in self.bodies:
+                self.violation("stuck report names an AGV the world does not have", event.agv, blocker)
+                return
+            found = self._disposition(blocker)
             if found != given:
                 self.violation("stuck report gives a blocker another disposition", event.agv, blocker, given, found)
+        if wait is None:
+            return
+        holding = {holder for item in wait.items for holder in self._blockers(event.agv, item)}
+        if not holding <= set(blockers):
+            self.violation(
+                "stuck report leaves out a holder that blocks the wait", event.agv, sorted(holding - set(blockers))
+            )
+        reached = {event.agv}
+        todo = sorted(blocker for blocker in blockers if blocker in self.waits)
+        while todo:
+            current = todo.pop()
+            if current in reached:
+                continue
+            reached.add(current)
+            for item in self.waits[current].items:
+                for holder in self._blockers(current, item):
+                    found = self._disposition(holder)
+                    if found == "WAITING":
+                        todo.append(holder)
+                    elif found not in ("STALLED", "IDLE", "STRANDED"):
+                        self.violation(
+                            "stuck report of a wait that reaches a blocker not at rest",
+                            event.agv,
+                            current,
+                            holder,
+                            found,
+                        )
 
     # Reservation checks
 
