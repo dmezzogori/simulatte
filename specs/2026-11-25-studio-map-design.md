@@ -163,7 +163,7 @@ Davide's decisions are marked **D**; the others are calls made in this design, w
 | M25 | The screenshot comparison runs on Linux Chromium in CI with labels hidden; the images Davide reviews are separate renders with labels. |
 | M26 | At symbol level a lane is never drawn thinner than a fixed number of pixels, as vehicles and facilities are symbols of a fixed size there. The corridor example's vehicle is 1.2 m long, so its nominal lane is 0.84 m, 7 px at the fitted scale. Added after the plan reviews of 2026-11-25. |
 | M27 | The Overview panel always exists in the dock and says "No map for this trace" when there is none, so that saved panel arrangements stay valid. Added after the plan reviews. |
-| M28 | A warehouse with several bays is placed beside its first input bay; the other bays are joined to it by a line. The mean of the bays, the first draft's rule, puts the advanced example's bulk storage 47 m from both of its bays, in the middle of the network. Added after the plan reviews; put to Davide on 2026-11-25. |
+| M28 **D** | A warehouse with several bays is placed beside its first input bay; the other bays are joined to it by a line. The mean of the bays, the first draft's rule, puts the advanced example's bulk storage 47 m from both of its bays, in the middle of the network. Davide chose it on 2026-11-25 over the midpoint when the bays are close, and over explicit positions in the example. |
 
 ## 5. Design: the scene
 
