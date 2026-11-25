@@ -6,10 +6,12 @@ const object = (v: unknown): Fields =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Fields) : {};
 const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const named = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
+const CLOSED = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 const KINDS = ["warehouse", "parking_area", "charging_station"] as const;
 type Kind = (typeof KINDS)[number];
 
-/** Every order in the state: orders retire when they end, so these are the open ones. */
+/** Every order in the state, with `open` false for those that ended but are not yet retired. */
 export function buildOrders(state: Readonly<Record<string, Fields>>): OrderItem[] {
   const orders: OrderItem[] = [];
   for (const [id, fields] of Object.entries(state)) {
@@ -24,6 +26,7 @@ export function buildOrders(state: Readonly<Record<string, Fields>>): OrderItem[
       agv: text(fields["agv"]),
       picked: fields["picked_at"] !== null && fields["picked_at"] !== undefined,
       createdAt: finite(fields["created_at"]) ?? 0,
+      open: !CLOSED.has(String(fields["status"])),
     });
   }
   return orders;
@@ -91,7 +94,7 @@ export function buildFacilities(input: FacilityInput): FacilityItem[] {
       kind,
       x: at.x,
       y: at.y,
-      label: text(object(place["visual"])["label"]) ?? text(fields["label"]) ?? id,
+      label: named(object(place["visual"])["label"]) ?? named(fields["label"]) ?? id,
       width: size(footprint["width"]),
       depth: size(footprint["depth"]),
       rotation: ((finite(place["rotation"]) ?? 0) * Math.PI) / 180,

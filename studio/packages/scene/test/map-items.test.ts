@@ -28,7 +28,17 @@ const edit = (frame: PreparedFrame, id: string, fields: Record<string, unknown>)
   state: { ...frame.state, [id]: { ...frame.state[id]!, ...fields } },
 });
 
+const HOLDS_AGV1 = ["C", "C~M1", "corridor:M1"];
+const HOLDS_IDLE_AGV1 = ["J1", "J1~W_S", "W", "W_S", "W~W_N", "W~W_S", "corridor:M1"];
+
 describe("corridor-wait", () => {
+  it("carries the time of the frame", () => {
+    expect(mapOf("corridor-wait").time).toBe(loadFrame("corridor-wait").time);
+  });
+  it("opens the orders that have not ended", () => {
+    const map = mapOf("corridor-wait");
+    expect(map.orders.every((o) => o.open)).toBe(true);
+  });
   const map = mapOf("corridor-wait");
   it("shows AGV-1 waiting for AGV-2", () => {
     const agv = vehicle(map, "AGV-1");
@@ -39,7 +49,7 @@ describe("corridor-wait", () => {
     expect(agv.line).toBe("AGV-1 · waiting 6 s for AGV-2");
     expect(agv.short).toBe("1");
     expect(agv.goal).toBe("East");
-    expect(agv.holds).toEqual(expect.arrayContaining(["C", "C~M1", "corridor:M1"]));
+    expect(agv.holds).toEqual(HOLDS_AGV1);
     expect(agv).toMatchObject({ x: 35, y: 0, heading: 0, order: "order-0", fleet: "tuggers", fleetIndex: null });
     expect(agv.wait).toMatchObject({ node: "D", blockers: ["AGV-2"], resources: ["corridor:M2", "C~D", "D"] });
     expect(agv.route).toMatchObject({ destination: "E", reason: "travel" });
@@ -95,6 +105,7 @@ describe("corridor-wait", () => {
       agv: "AGV-1",
       picked: true,
       createdAt: 0,
+      open: true,
     });
     expect(map.orders.find((o) => o.id === "order-3")).toMatchObject({ agv: null, picked: false, status: "PENDING" });
   });
@@ -127,6 +138,28 @@ describe("sprites", () => {
   it("does not count a stranded vehicle as waiting", () => {
     expect(map.traffic.waiting).toBe(1);
     expect(map.waitLines.map((l) => l.agv).sort()).toEqual(["A1", "A2"]);
+  });
+  it("shows a resting vehicle with a route as heading for its goal", () => {
+    expect(vehicle(map, "A7")).toMatchObject({ shown: "resting", goal: "n7", line: "A7 · to n7" });
+  });
+  it("keeps a stranded vehicle stranded in its line", () => {
+    expect(vehicle(map, "A1").line).toBe("A1 · stranded");
+  });
+  it("gives a short label as it is, else the trailing digits of the id, else nothing", () => {
+    expect(vehicle(map, "A1").short).toBe("A1");
+    const frame = loadFrame("corridor-wait");
+    const renamed = edit(edit(frame, "AGV-1", { label: "Forklift" }), "AGV-2", { label: "Forklift" });
+    const named = { ...renamed, state: { ...renamed.state } };
+    named.state["Tug"] = { ...frame.state["AGV-3"]!, label: "Forklift" };
+    const items = mapOf("corridor-wait", { ...named, initialState: { ...(frame.initialState ?? frame.state), Tug: named.state["Tug"]! } });
+    expect(vehicle(items, "AGV-1").short).toBe("1");
+    expect(vehicle(items, "Tug").short).toBe("");
+  });
+  it("falls back to the id for an empty label and to unknown for a missing state", () => {
+    const frame = edit(edit(loadFrame("corridor-wait"), "AGV-3", { label: "" }), "AGV-2", { state: undefined, motion: null });
+    const map = mapOf("corridor-wait", frame);
+    expect(vehicle(map, "AGV-3").label).toBe("AGV-3");
+    expect(vehicle(map, "AGV-2")).toMatchObject({ shown: "unknown", doing: "unknown", state: "" });
   });
   it("keeps the recorded state of an unknown one", () => {
     expect(vehicle(map, "A8").state).toBe("REBOOTING");
@@ -166,6 +199,59 @@ describe("sprites", () => {
     const two = mapOf("two-fleets");
     expect(vehicle(two, "AGV-1").fleetIndex).toBe(1);
     expect(vehicle(two, "AGV-3").fleetIndex).toBe(0);
+  });
+});
+
+describe("rules the fixtures do not exercise", () => {
+  const frame = loadFrame("corridor-wait");
+  it("shows a vehicle with a wait and a motion as waiting", () => {
+    const moving = frame.state["AGV-2"]!["motion"];
+    const map = mapOf("corridor-wait", edit(frame, "AGV-1", { motion: moving }));
+    expect(vehicle(map, "AGV-1").shown).toBe("waiting");
+  });
+  it("draws the wait line to the first blocker that is in the frame", () => {
+    const wait = { ...(frame.state["AGV-1"]!["wait"] as object), blockers: ["ghost", "AGV-2"] };
+    const map = mapOf("corridor-wait", edit(frame, "AGV-1", { wait }));
+    expect(map.waitLines.map((l) => [l.agv, l.blocker])).toEqual([["AGV-1", "AGV-2"]]);
+    expect(vehicle(map, "AGV-1").doing).toBe("waiting 6 s for ghost");
+  });
+  it("takes the heading of a moving vehicle from its arc, not from the record", () => {
+    const map = mapOf("corridor-wait", edit(frame, "AGV-2", { heading: 1 }));
+    expect(vehicle(map, "AGV-2").heading).toBeCloseTo(Math.PI, 9);
+  });
+  it("has an empty load for a null record", () => {
+    expect(vehicle(mapOf("sprites"), "A5")).toMatchObject({ load: {}, loaded: false });
+  });
+  it("names the goal by the label of the facility, not its id", () => {
+    const facilityLabelled: PreparedFrame = {
+      ...frame,
+      state: { ...frame.state, East: { ...frame.state["East"]!, label: "East dock" } },
+    };
+    expect(vehicle(mapOf("corridor-wait", facilityLabelled), "AGV-1").goal).toBe("East dock");
+  });
+  it("holds what is reserved through the forward list of a segment, each id once", () => {
+    const idle = mapOf("corridor-idle");
+    expect(vehicle(idle, "AGV-1").holds).toEqual(HOLDS_IDLE_AGV1);
+    const twice = edit(loadFrame("corridor-wait"), "C", { reserved_by: ["AGV-1", "AGV-1"] });
+    expect(vehicle(mapOf("corridor-wait", twice), "AGV-1").holds).toEqual(HOLDS_AGV1);
+  });
+  it("treats a non-finite time as 0 and never shows negative seconds", () => {
+    const nan = mapOf("corridor-wait", { ...frame, time: Number.NaN });
+    expect(nan.traffic.longestWait).toBe(0);
+    expect(vehicle(nan, "AGV-1").doing).toBe("waiting 0 s for AGV-2");
+    const early = mapOf("corridor-wait", { ...frame, time: 100 });
+    expect(early.traffic.longestWait).toBe(0);
+    expect(vehicle(early, "AGV-1").doing).toBe("waiting 0 s for AGV-2");
+  });
+});
+
+describe("completed orders", () => {
+  const map = mapOf("advanced-charging");
+  it("are listed but not open, and draw no flow", () => {
+    expect(map.orders.find((o) => o.id === "order-50")!.open).toBe(false);
+    expect(vehicle(map, "AGV-3").order).toBe("order-50");
+    expect(overlayFor(map, "AGV-3")!.flow).toBeNull();
+    expect(overlayFor(map, "order-50")!.flow).toBeNull();
   });
 });
 
@@ -220,7 +306,7 @@ describe("overlayFor on corridor-wait", () => {
     expect(overlay.route.at(-1)).toEqual({ x: e.x, y: e.y });
     expect(overlay.route.length).toBeGreaterThan(2);
     expect(overlay.holds).toEqual(vehicle(map, "AGV-1").holds);
-    expect(overlay.holds).toEqual(expect.arrayContaining(["C", "C~M1", "corridor:M1"]));
+    expect(overlay.holds).toEqual(HOLDS_AGV1);
     expect(overlay.waitLine).toEqual(map.waitLines[0]);
     expect(overlay.flow).toEqual([{ x: at("West").x, y: at("West").y }, { x: at("East").x, y: at("East").y }]);
   });
@@ -250,6 +336,24 @@ describe("overlayFor on corridor-wait", () => {
     expect(overlayFor(map, "nobody")).toBeNull();
     expect(overlayFor(mapOf("sprites"), "Belt")).toBeNull();
     expect(overlayFor(mapOf("corridor-wait"), "C")).toBeNull();
+  });
+});
+
+describe("the route ahead", () => {
+  const frame = loadFrame("corridor-wait");
+  it("starts at the node the vehicle stands on, found by id", () => {
+    const route = overlayFor(mapOf("corridor-wait"), "AGV-1")!.route;
+    const map = mapOf("corridor-wait");
+    const ids = ["D", "M2", "J2", "E_S", "E"];
+    expect(route).toEqual([{ x: 35, y: 0 }, ...ids.map((id) => ({ x: map.nodes.find((n) => n.id === id)!.x, y: map.nodes.find((n) => n.id === id)!.y }))]);
+  });
+  it("is empty for a vehicle on a node that is not in its route", () => {
+    const map = mapOf("corridor-wait", edit(frame, "AGV-1", { node: "S" }));
+    expect(overlayFor(map, "AGV-1")!.route).toEqual([]);
+  });
+  it("is empty for a vehicle at the end of its route", () => {
+    const map = mapOf("corridor-wait", edit(frame, "AGV-1", { node: "E" }));
+    expect(overlayFor(map, "AGV-1")!.route).toEqual([]);
   });
 });
 
@@ -292,6 +396,20 @@ describe("motionSpeed", () => {
     for (const curve of ["constant", "linear"])
       expect(motionSpeed({ t_start: 0, t_end: 4, description: { curve, distance: 10 } }, 1)).toBe(2.5);
     expect(motionSpeed({ t_start: 0, t_end: 4, description: { curve: "linear" } }, 1)).toBeNull();
+  });
+  it("follows a trapezoidal profile: zero at the start and the end, the peak in cruise", () => {
+    // 2 m/s peak at 1 m/s^2 up and down over 10 m: 2 s up, 3 s cruise, 2 s down.
+    const motion = { t_start: 0, t_end: 7, description: { curve: "trapezoidal", distance: 10, v_max: 2, accel: 1, decel: 1 } };
+    expect(motionSpeed(motion, 0)).toBe(0);
+    expect(motionSpeed(motion, 1)).toBeCloseTo(1, 12);
+    expect(motionSpeed(motion, 3.5)).toBe(2);
+    expect(motionSpeed(motion, 6)).toBeCloseTo(1, 12);
+    expect(motionSpeed(motion, 7)).toBeCloseTo(0, 12);
+    expect(motionSpeed({ ...motion, t_end: 8 }, 3)).toBeNull();
+  });
+  it("is null for keyframes", () => {
+    const keyframes = { t_start: 0, t_end: 2, description: { curve: "keyframes", accuracy: 0, keyframes: [[0, 0], [2, 1]] } };
+    expect(motionSpeed(keyframes, 1)).toBeNull();
   });
   it("is null wherever the progress is approximate or cannot be evaluated", () => {
     const bad = { ...piecewise, description: { ...piecewise.description, phases: [[4, 0]] } };

@@ -236,6 +236,24 @@ export function motionSpeed(value: unknown, time: number): number | null {
     return typeof distance === "number" && Number.isFinite(distance) && distance > 0
       ? distance / (end - start)
       : null;
+  if (d["curve"] === "trapezoidal") {
+    // motionProgress accepted the description: the same quantities as there.
+    const top = d["v_max"] as number,
+      accel = d["accel"] as number,
+      decel = d["decel"] as number,
+      length = d["distance"] as number;
+    if (length === 0) return null;
+    const peak = Math.min(top, Math.sqrt((2 * length * accel * decel) / (accel + decel)));
+    const ta = peak / accel,
+      td = peak / decel,
+      tc = Math.max(0, (length - (peak * ta) / 2 - (peak * td) / 2) / peak),
+      elapsed = Math.max(0, Math.min(end - start, time - start));
+    return elapsed < ta
+      ? accel * elapsed
+      : elapsed < ta + tc
+        ? peak
+        : Math.max(0, decel * (ta + tc + td - elapsed));
+  }
   if (d["curve"] !== "piecewise") return null;
   // motionProgress accepted the description, so v0 and the phases are well formed.
   let speed = d["v0"] as number,

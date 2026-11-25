@@ -63,6 +63,10 @@ export interface VehicleItem extends Point {
   /** Index in `MapModel.fleets`; null with fewer than two fleets. */
   fleetIndex: number | null;
   order: string | null;
+  /** The recorded node the vehicle is at; null when none is recorded. */
+  node: string | null;
+  /** The arc under way, by node id; null without a motion. */
+  arc: { from: string; to: string } | null;
   wait: Wait | null;
   route: Route | null;
   /** The label of the facility bound to the route's destination, else that node id, else null. */
@@ -115,9 +119,13 @@ export interface OrderItem {
   agv: string | null;
   picked: boolean;
   createdAt: number;
+  /** False once the order is `COMPLETED`, `FAILED` or `CANCELLED`: it may stay in the state a while. */
+  open: boolean;
 }
 export interface TrafficSummary {
+  /** Vehicles shown as waiting; a stranded vehicle with a stale wait is not counted. */
   waiting: number;
+  /** The longest of their waits so far, in seconds. */
   longestWait: number;
   /** Counters summed over the fleets; null when no fleet records them. */
   waits: number | null;

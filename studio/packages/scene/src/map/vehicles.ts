@@ -18,6 +18,8 @@ const object = (v: unknown): Fields =>
   v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Fields) : {};
 const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const named = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
+const finiteTime = (t: number): number => (Number.isFinite(t) ? t : 0);
 const strings = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : [];
 
@@ -76,9 +78,9 @@ function holdings(state: Readonly<Record<string, Fields>>): Map<string, string[]
       kind === "node" || kind === "zone"
         ? strings(fields["reserved_by"])
         : kind === "segment"
-          ? [...new Set([...strings(fields["forward"]), ...strings(fields["backward"])])]
+          ? [...strings(fields["forward"]), ...strings(fields["backward"])]
           : [];
-    for (const holder of holders) add(holder, id);
+    for (const holder of new Set(holders)) add(holder, id);
   }
   return held;
 }
@@ -87,7 +89,7 @@ function holdings(state: Readonly<Record<string, Fields>>): Map<string, string[]
 export function buildVehicles(input: VehicleInput): VehicleItem[] {
   const placements = object(object(input.layout["resolved"])["placements"]);
   const held = holdings(input.state);
-  const time = Number.isFinite(input.time) ? input.time : 0;
+  const time = finiteTime(input.time);
   const items: Omit<VehicleItem, "offset">[] = [];
   for (const [id, place] of input.places) {
     const fields = input.state[id];
@@ -103,7 +105,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
     const wait = parseWait(fields["wait"], time);
     const route = parseRoute(fields["route"]);
     const shown = shownOf(state, wait, moving);
-    const label = text(object(object(placements[id])["visual"])["label"]) ?? text(fields["label"]) ?? id;
+    const label = named(object(object(placements[id])["visual"])["label"]) ?? named(fields["label"]) ?? id;
     const load: Record<string, number> = {};
     for (const [sku, quantity] of Object.entries(object(fields["load"])))
       if (finite(quantity) !== null) load[sku] = quantity as number;
@@ -121,7 +123,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       shown === "stranded"
         ? "stranded"
         : shown === "waiting"
-          ? `waiting ${Math.floor(time - wait!.since)} s${wait!.blockers.length ? ` for ${wait!.blockers[0]}` : ""}`
+          ? `waiting ${Math.max(0, Math.floor(time - wait!.since))} s${wait!.blockers.length ? ` for ${wait!.blockers[0]}` : ""}`
           : shown === "charging"
             ? "charging"
             : state === "WAITING_LOAD"
@@ -134,7 +136,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
                     ? "stopped"
                     : shown === "idle"
                       ? "idle"
-                      : state.toLowerCase();
+                      : (state.toLowerCase() || "unknown");
     items.push({
       id,
       x: place.point.x,
@@ -151,15 +153,19 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       fleet,
       fleetIndex: fleetIndex >= 0 ? fleetIndex : null,
       order: text(fields["order"]),
+      node: text(fields["node"]),
+      arc: moving && text(motion["from"]) !== null && text(motion["to"]) !== null
+        ? { from: text(motion["from"])!, to: text(motion["to"])! }
+        : null,
       wait,
       route,
       goal,
       holds: held.get(id) ?? [],
-      speed: moving ? motionSpeed(fields["motion"], input.time) : null,
+      speed: moving ? motionSpeed(fields["motion"], time) : null,
       battery: finite(fields["battery"]),
       batteryCapacity: finite(fields["battery_capacity"]),
       doing,
-      line: `${label} · ${shown === "moving" && goal !== null ? `to ${goal}` : doing}`,
+      line: `${label} · ${(shown === "moving" || shown === "resting") && goal !== null ? `to ${goal}` : doing}`,
     });
   }
   items.sort((a, b) => naturalCompare(a.id, b.id));
@@ -186,6 +192,7 @@ export function summarizeTraffic(
   vehicles: readonly VehicleItem[],
   state: Readonly<Record<string, Fields>>,
 ): TrafficSummary {
+  const now = finiteTime(time);
   const waiting = vehicles.filter((v) => v.shown === "waiting");
   const total = (field: string): number | null => {
     let sum: number | null = null;
@@ -197,7 +204,7 @@ export function summarizeTraffic(
   };
   return {
     waiting: waiting.length,
-    longestWait: waiting.reduce((m, v) => Math.max(m, time - v.wait!.since), 0),
+    longestWait: waiting.reduce((m, v) => Math.max(m, now - v.wait!.since), 0),
     waits: total("waits"),
     stuckWaits: total("stuck_waits"),
     deadlocks: total("deadlocks"),
