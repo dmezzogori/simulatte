@@ -912,6 +912,58 @@ def test_a_trip_to_park_interrupted_during_its_charge_gave_the_slot_back_as_it_t
     assert m.areas["P"].available_capacity == 1
 
 
+def detour(env: Environment) -> Declared:
+    """``S - D - X - FAR - E`` along a row, 10 m apart, with ``Y`` off the row joined to ``X`` and ``FAR``."""
+    return build(
+        env,
+        [("S", 0, 0), ("D", 10, 0), ("X", 20, 0), ("FAR", 30, 0), ("E", 40, 0), ("Y", 25, 20)],
+        [("S", "D"), ("D", "X"), ("X", "FAR"), ("FAR", "E"), ("X", "Y"), ("Y", "FAR")],
+    )
+
+
+@pytest.mark.parametrize("reserve", [True, False], ids=["reservation", "free"])
+def test_a_trip_to_park_that_turns_to_a_charger_on_the_parking_node_keeps_its_slot(reserve: bool) -> None:
+    """A, with 27 left after its delivery on D, is sent to park on FAR the long way round (D, X, Y, FAR). At X, with 17
+    left, it cannot afford the arc to Y (20.6) and turns to the charger on FAR itself, 10 away: its slot is the one of
+    the node it now travels to, and it keeps it. The area never shows a free slot, B's make-way move to FAR is refused,
+    and after the charge A rests on FAR, parked. The slot goes when A next departs from FAR."""
+    m = mission_world(
+        detour,
+        {"A": "S", "B": "E"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": ("FAR", 1)},
+        reserve=reserve,
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=NearestParkingPolicy(),
+        router=Via({("D", "FAR"): ("D", "X", "Y", "FAR")}),
+    )
+    a, b, area = m.agvs["A"], m.agvs["B"], m.areas["P"]
+    free: list[int] = []
+    m.env.bus.subscribe(lambda e: free.append(area.available_capacity) if m.events(ParkingEntered) else None, "*")
+    refused: list[bool] = []
+
+    def charging() -> Any:
+        while not m.events(ChargingStarted):
+            yield m.env.timeout(0.5)
+        refused.append(m.fleet.make_way(b, m.nodes["FAR"]))
+
+    m.order("WH-S", "WH-D")
+    m.env.process(charging())
+    m.env.run()
+    assert m.routed("A")[1:] == [("travel", "D", "FAR"), ("travel", "X", "FAR")]  # the trip, then the turn at X
+    assert (started := m.events(ChargingStarted)[0]).station == "CS" and started.agv == "A"
+    assert refused == [False] and m.routed("B") == []
+    assert set(free) == {0} and m.events(ParkingLeft) == []
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"]) and parked(m, "P") == ["A"]
+    m.order("WH-S", "WH-D", at=m.env.now)  # A, nearest, is dispatched and departs from FAR
+    m.env.run()
+    left = m.events(ParkingLeft)[0]
+    departed = [e for e in m.events(AgvMoveStarted, agv="A") if e.from_node == "FAR"][0]
+    assert (left.agv, left.t) == ("A", departed.t)
+
+
 def test_a_trip_to_park_that_strands_gives_the_slot_back_as_it_strands() -> None:
     m = trip_to_park(None)
     m.env.run()

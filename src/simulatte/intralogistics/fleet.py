@@ -1095,11 +1095,13 @@ class FleetCoordinator(Entity, kind="fleet"):
         if not areas:
             del self._slots[agv]
 
-    def _release_slots_elsewhere(self, agv: AGV) -> None:
-        """Give back the slots `agv` holds in parking areas away from its node: those of a trip to park that ends
-        without arriving because the AGV turns to charge (spec §7.10). A slot of the node it stands on goes when it
-        departs."""
-        for area in [area for area in self._slots.get(agv, ()) if area.node != agv.current_node]:
+    def _release_slots_elsewhere(self, agv: AGV, charger: Node) -> None:
+        """Give back the slots `agv` holds in parking areas away from its node and from `charger`, the node it turns to
+        charge on: those of a trip to park that ends without arriving because the AGV turns to charge elsewhere (spec
+        §7.10). A slot of the node it stands on goes when it departs; one of the charger's node is kept, and the AGV
+        rests there, parked, after the charge."""
+        kept = (agv.current_node, charger)
+        for area in [area for area in self._slots.get(agv, ()) if area.node not in kept]:
             self._release_slots(agv, area.node)
 
     def _initial_placement(self) -> None:
@@ -1126,7 +1128,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             )
             return
 
-        self._release_slots_elsewhere(agv)  # a trip to park that turns to charge ends here
+        self._release_slots_elsewhere(agv, station.node)  # a trip to park that turns to charge elsewhere ends here
         self._low_battery_flags.add(agv)
 
         for cb in self._hooks_on_battery_low:
