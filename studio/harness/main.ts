@@ -1,7 +1,8 @@
 // The render harness: one fixture frame drawn by the scene at a fixed size, for the screenshots of
 // harness/render.mjs. Query parameters: frame, scale, x, y, select, labels, panel (1: the Overview panel beside the
-// canvas, with default options). Unknown parameters are ignored.
-import { Scene, overview } from "@simulatte/scene";
+// canvas, with default options), detail (an id: its click detail beside the canvas; a ref re-renders it for that id
+// and selects it in the scene). Unknown parameters are ignored.
+import { Scene, describe, overview, renderDetail } from "@simulatte/scene";
 import type { PreparedFrame } from "@simulatte/playback";
 import { createOverviewPanel, renderOverview } from "../apps/viewer/src/overview-panel";
 
@@ -50,6 +51,8 @@ async function main(): Promise<void> {
   const select = params.get("select");
   if (select) scene.select(select);
   if (params.get("panel") === "1") await mountPanel(scene);
+  const detail = params.get("detail");
+  if (detail) await mountDetail(scene, frame, detail);
   document.title = "ready";
 }
 
@@ -68,6 +71,27 @@ async function mountPanel(scene: Scene): Promise<void> {
     });
   };
   refresh();
+}
+
+/** The click detail of `id` beside the canvas, as the viewer wires it: a ref selects its id in the scene and shows its detail. */
+async function mountDetail(scene: Scene, frame: PreparedFrame, id: string): Promise<void> {
+  await import("../apps/viewer/src/style.css");
+  const root = document.createElement("div");
+  root.id = "detail";
+  root.className = "inspector panel-padding";
+  root.style.cssText = `position:absolute;left:${WIDTH + 10}px;top:0;width:420px;height:${HEIGHT}px;background:#fff`;
+  document.body.append(root);
+  const show = (target: string): void => {
+    const map = scene.map;
+    const lines = map ? describe(map, frame.state, target) : null;
+    scene.select(target);
+    if (lines) renderDetail(root, lines, (next) => {
+      scene.focus(next);
+      show(next);
+    });
+    else root.textContent = `No detail for ${target}`;
+  };
+  show(id);
 }
 
 main().catch((error: unknown) => {

@@ -69,3 +69,25 @@ output {
   background: #f2ebd8;
   color: #72592c;
 }
+
+#detail {
+  margin-bottom: 8px;
+  font: 12px/1.5 system-ui;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#detail .detail-line {
+  padding: 1px 0;
+}
+#detail .detail-ref {
+  padding: 0 6px;
+  margin: 1px 2px 1px 0;
+  font: inherit;
+  font-size: 11px;
+  border-radius: 3px;
+}
+#raw {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+}

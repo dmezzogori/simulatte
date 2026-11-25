@@ -39,6 +39,10 @@ export interface VehicleInput {
   facilities: readonly FacilityItem[];
 }
 
+/** A target `size` is `[length, width]`, both positive. */
+const hasSize = (v: unknown): boolean =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0);
+
 const parseWait = (v: unknown, time: number): Wait | null => {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
   const w = object(v);
@@ -88,6 +92,7 @@ function holdings(state: Readonly<Record<string, Fields>>): Map<string, string[]
 /** The vehicles of a frame, in natural id order. */
 export function buildVehicles(input: VehicleInput): VehicleItem[] {
   const placements = object(object(input.layout["resolved"])["placements"]);
+  const targets = object(input.layout["targets"]);
   const held = holdings(input.state);
   const time = finiteTime(input.time);
   const items: Omit<VehicleItem, "offset">[] = [];
@@ -146,6 +151,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       heading,
       length: size(footprint["width"]),
       width: size(footprint["depth"]),
+      sized: hasSize(object(targets[id])["size"]),
       shown,
       state,
       load,

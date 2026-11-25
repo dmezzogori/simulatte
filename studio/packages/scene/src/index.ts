@@ -53,6 +53,8 @@ export {
   type OverviewLine,
   type OverviewOptions,
 } from "./map/overview";
+export { describe, type DetailLine } from "./map/describe";
+export { renderDetail } from "./map/detail-view";
 export { scaleBar } from "./draw/scale-bar";
 export { PALETTE } from "./draw/palette";
 export interface Camera {

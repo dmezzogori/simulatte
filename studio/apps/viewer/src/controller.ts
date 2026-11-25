@@ -12,7 +12,7 @@ import {
   type TraceEvent,
 } from "@simulatte/trace";
 import { Session, Playback, type PreparedFrame, type Position } from "@simulatte/playback";
-import { Scene, overview } from "@simulatte/scene";
+import { Scene, describe, overview, renderDetail } from "@simulatte/scene";
 import { createOverviewPanel, renderOverview } from "./overview-panel";
 export const format = (v: unknown): string =>
   JSON.stringify(
@@ -62,6 +62,11 @@ export class Controller {
   #entityPage = 0;
   #entities: HTMLDivElement;
   #fields: HTMLDivElement;
+  /** The readable detail of the selection, and the collapsed raw fields below it (spec section 5.7). */
+  #detail: HTMLDivElement;
+  #recorded: HTMLDetailsElement;
+  #inspection: HTMLDivElement;
+  #detailOn = false;
   #schema: HTMLDivElement;
   #schemaKey = "";
   #entityTitle: HTMLHeadingElement;
@@ -120,6 +125,11 @@ export class Controller {
     this.#entities = el("div", undefined, "entities");
     this.#entityTitle = el("h3", "Select an entity");
     this.#fields = el("div");
+    this.#detail = el("div", undefined, "detail");
+    this.#recorded = el("details", undefined, "recorded");
+    this.#recorded.append(el("summary", "Recorded fields"));
+    this.#inspection = el("div", undefined, "inspection");
+    this.#inspection.append(this.#fields);
     const schema = el("details");
     schema.hidden = true;
     schema.append(el("summary", "Entity schema"));
@@ -141,7 +151,7 @@ export class Controller {
       prev,
       next,
       this.#entityTitle,
-      this.#fields,
+      this.#inspection,
       schema,
     );
     const history = el("div", undefined, "history panel-padding");
@@ -520,11 +530,15 @@ export class Controller {
     this.updateInspector();
     this.refreshOverview();
   }
-  /** Rewrites the Overview panel from the scene's map; `throttled` skips it within 250 ms of the last write. */
+  /**
+   * Rewrites the Overview panel and the selection's detail from the scene's map; `throttled` skips both within
+   * 250 ms of the last write.
+   */
   refreshOverview(throttled = false): void {
     const now = performance.now();
     if (throttled && now - this.#overviewAt < OVERVIEW_INTERVAL_MS) return;
     this.#overviewAt = now;
+    this.#refreshDetail();
     const scene = this.scene,
       map = scene?.map ?? null;
     renderOverview(
@@ -541,6 +555,33 @@ export class Controller {
     this.#overviewAt = -Infinity;
     this.#overviewStatus = "";
     renderOverview(this.#overview.body, null, () => {}, null);
+    this.#showDetail(false);
+  }
+  /**
+   * The Inspector's readable detail of the selection, with the raw fields below it in a collapsed section. An entity
+   * the detail does not cover (or a trace without a map) keeps today's Inspector.
+   */
+  #refreshDetail(): void {
+    const map = this.scene?.map ?? null,
+      frame = this.#frame;
+    const lines = map && frame && this.#selected !== null ? describe(map, frame.state, this.#selected) : null;
+    if (lines)
+      renderDetail(this.#detail, lines, (id) => {
+        this.select(id);
+        this.scene?.focus(id);
+      });
+    this.#showDetail(lines !== null);
+  }
+  #showDetail(on: boolean): void {
+    if (on === this.#detailOn) return;
+    this.#detailOn = on;
+    if (on) {
+      this.#recorded.append(this.#fields);
+      this.#inspection.replaceChildren(this.#detail, this.#recorded);
+    } else {
+      this.#detail.replaceChildren();
+      this.#inspection.replaceChildren(this.#fields);
+    }
   }
   get presentation(): LayoutBundle | null {
     const playback = this.playback;

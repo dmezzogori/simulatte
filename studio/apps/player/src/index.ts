@@ -1,7 +1,7 @@
 import notices from "../../../THIRD_PARTY_NOTICES.md?raw";
 import { openRecording } from "@simulatte/trace";
 import { Session, Playback } from "@simulatte/playback";
-import { Scene } from "@simulatte/scene";
+import { Scene, describe, renderDetail } from "@simulatte/scene";
 const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
   const e = document.createElement(tag);
   if (text) e.textContent = text;
@@ -14,6 +14,8 @@ const header = make("header"),
   fit = make("button", "Fit"),
   host = make("main"),
   aside = make("aside"),
+  detail = make("div"),
+  raw = make("pre"),
   footer = make("footer"),
   back = make("button", "Previous event"),
   play = make("button", "Play"),
@@ -23,6 +25,9 @@ const header = make("header"),
   slider = make("input"),
   error = make("div"),
   diagnostics = make("div");
+detail.id = "detail";
+raw.id = "raw";
+aside.append(detail, raw);
 diagnostics.id = "diagnostics";
 diagnostics.setAttribute("role", "status");
 error.id = "error";
@@ -108,7 +113,20 @@ async function start() {
   const update = () => {
     const frame = playback.frame;
     if (!frame) return;
-    aside.textContent = showLicenses
+    // the readable lines of the selection (spec section 5.7) above its raw state view
+    const lines =
+      !showLicenses && !showMetadata && selected !== null && scene.map
+        ? describe(scene.map, frame.state, selected)
+        : null;
+    if (lines)
+      renderDetail(detail, lines, (id) => {
+        selected = id;
+        scene.select(id);
+        scene.focus(id);
+        update();
+      });
+    else detail.replaceChildren();
+    raw.textContent = showLicenses
       ? notices
       : showMetadata
         ? text({
@@ -127,7 +145,7 @@ async function start() {
               schema: recording.kinds[String(frame.state[selected]?.["$kind"])],
             })
           : text({ kpis: frame.kpis });
-    aside.hidden = !aside.textContent || aside.textContent === "{}";
+    aside.hidden = !lines && (!raw.textContent || raw.textContent === "{}");
   };
   playback.subscribe((frame, status, failure) => {
     scene.setPlaying(status === "playing");

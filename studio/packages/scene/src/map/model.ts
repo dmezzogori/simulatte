@@ -54,6 +54,8 @@ export interface VehicleItem extends Point {
   length: number;
   /** Metres across it. */
   width: number;
+  /** The footprint came from the vehicle's type (the layout target carries `size`), not from the default. */
+  sized: boolean;
   shown: Shown;
   /** The recorded state. */
   state: string;

@@ -566,3 +566,26 @@ input[type="range"] {
 .ov-line[data-shown="stranded"] .ov-mark {
   background: #dc2626;
 }
+/* The click detail of the Inspector (spec section 5.7): a line of text, then a button for each id it names. */
+.detail {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.detail-line {
+  padding: 1px 0;
+}
+.detail-ref {
+  padding: 0 6px;
+  margin: 1px 2px 1px 0;
+  font: inherit;
+  font-size: 11px;
+  border-radius: 3px;
+}
+.recorded > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #516158;
+  margin: 4px 0;
+}
