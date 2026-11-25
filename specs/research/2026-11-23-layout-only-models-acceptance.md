@@ -2199,9 +2199,13 @@ the world's spec and the monitor's reference graph, and positions from the monit
    - every deadlock is reported, resolved or not: at each `traffic.wait_started`, and at each `traffic.wait_ended`
      whose reason is not `granted`, the reduction over the open waits is taken; a set that is not empty and does not
      stand must be named by a `traffic.deadlock` of the same instant, or stand at its end (`deadlock not reported`).
-     The instant is complete when the clock moves, and at the end of the run. (Before fix round 1 the reduction was
-     taken at the end of the instant only, which misses a deadlock that a victim resolved within the instant, and the
-     listed set had only to be self-sustaining.)
+     The instant is complete when the clock moves, and at the end of the run. And at the end of each instant in which
+     a wait opened or ended, the reduction over the waits still open is empty or stands (`deadlock left at the end of
+     the instant`, once per set). (Before fix round 1 the reduction was taken at the end of the instant only, which
+     misses a deadlock that a victim resolved within the instant, and the listed set had only to be self-sustaining;
+     fix round 1 dropped the end-of-instant reduction and fix round 2 restored it beside the reduction at the event.)
+   - the victim of a resolved report has no open wait, and its wait ended in the same instant with the reason of the
+     action (`deadlock report names a victim whose wait did not end`; fix round 2);
    - an unresolved report is not repeated while the same set stands (`unresolved deadlock reported again while it
      stands`).
    The second half is checked, not left out: the reduction can be made exact from events (validation below). No read
@@ -2224,9 +2228,11 @@ the world's spec and the monitor's reference graph, and positions from the monit
    from the node at quiescence` is gone: the same case is now one of these two kinds. The other way round (added in fix
    round 1): at the end of the instant of a `parking.left`, unless the AGV took a slot of the same area again in it,
    the AGV departed from the area's node in that instant (an `agv.move_started` from the node), or its travel there did
-   not arrive: its body does not rest on the node, and it does not travel to it unless its state changed after the
-   `parking.left`: a trip to park that did not arrive may be followed, in the same instant and after the AGV became
-   idle, by the travel of an order to the same node, without a slot. Before this exception 18 runs of 4300000..4301999
+   not arrive: its body does not rest on the node, and it does not travel to it unless its state changed to one that is
+   not travelling after the `parking.left` (a change into `TRAVELING_EMPTY` does not count: the coordinator sets it
+   after taking a slot, so it would excuse a slot given back at the decision; fix round 2): a trip to park that did not
+   arrive may be followed, in the same instant and after the AGV became idle, by the travel of an order to the same
+   node, without a slot. Before this exception 18 runs of 4300000..4301999
    and 4310000..4310599 were flagged at this head, every one of this kind (`scratch-a3-T2/r1/left-cases.out`: the trip
    gave up in 10, was interrupted in 4 and ended at another node in 4; then `IDLE`, then an order).
    Otherwise `parking slot given back while the AGV rests on the area's node` or `parking slot given back during a
@@ -2252,7 +2258,10 @@ network that differs from the spec can give it; the monitor reports that differe
 - Each fleet's `fleet._executor.travel` is wrapped so that `_exact` runs at every exit of a travel (`holdings != body`
   at `exit:...`): those verdicts depend on the wrap.
 - The bodies are built from the live `agv.agv_type` (length and gap) and `agv.current_node` at activation; `final` reads
-  `agv.motion` (`motion left at quiescence`). Node capacities come from the spec's parking areas and chargers since fix
+  `agv.motion` (`motion left at quiescence`); `_check` reads `agv.state.name` to decide whether `_exact` runs for a
+  vehicle that is not travelling (its verdicts depend on it). The replay compares the replayed state with the live
+  `env.entities.snapshot()`, and the seeded replay starts from `env._initial_state` (`replay differs`, `seeded replay
+  differs`: verdicts by design). Node capacities come from the spec's parking areas and chargers since fix
   round 1 (before, from the built `ParkingArea` and `ChargingStation` objects; the values are the same).
 
 None of the five changes reads the controller.
@@ -2305,7 +2314,7 @@ the kind each test asks for is absent; the first six runs show no violation at a
 seed 619: `parking slot of an AGV resting elsewhere` 55 times, from 149.151, once the charge has started):
 
 - a stuck wait reported as an unresolved deadlock of its AGV alone, and remembered as one, so that the report would
-  explain the wait (26 `shortest`): `deadlock report lists AGVs that are not deadlocked`;
+  explain the wait (26 `shortest`): `deadlock report differs from the deadlocked set`;
 - detection that takes every stopped wait for deadlocked, a report it should not make (26 `shortest`): the same kind;
 - an unresolved deadlock neither reported nor remembered, a missed report (2000228 `fastest`): `deadlock not reported`;
 - a stuck report with no blocker (26 `shortest`): `stuck report with no blocker`;
@@ -2331,8 +2340,19 @@ red1.out`):
   `FreeFlowController`, `shortest`): `parking slot given back while the AGV rests on the area's node` at 163.078 and
   168.078 (P1, agv-b).
 
-The two deadlock mutants of the list above now give `deadlock report differs from the deadlocked set`, the kind that
-replaces `deadlock report lists AGVs that are not deadlocked`.
+Added in fix round 2 (`scratch-a3-T2/red2.out`, the run under the monitor of `07db611`):
+
+- a deadlock reported once as resolved by its first member giving up, nothing staged (26 `shortest`): `deadlock report
+  names a victim whose wait did not end` and `deadlock left at the end of the instant`, both absent under `07db611`
+  (which gave `deadlock not reported` on this seed);
+- a slot given back as soon as it is taken, at the decision (88 `shortest`): `parking slot given back during a travel
+  to the area's node`, absent under `07db611`;
+- a stuck report that also names a blocker that is no AGV of the world (26 `shortest`): `stuck report names an AGV the
+  world does not have`; and every `parking.left` emitted twice (88 `shortest`): `parking slot given back that was not
+  held`. Both kinds existed under `07db611` but had no test.
+
+Before fix round 1 the first two mutants of the first list gave `deadlock report lists AGVs that are not deadlocked`,
+the kind that `deadlock report differs from the deadlocked set` replaces.
 
 The seven mutant runs of `test_an_open_wait_with_no_report_is_a_violation` still end with `open wait with no report`;
 the three of the mutant "blind after a member's withdrawal" also give `deadlock not reported`.
@@ -2447,6 +2467,12 @@ open:
 - The gate part of a stuck report: that it names every AGV whose earlier claim gates the wait, and that the waits
   reached through a gate are stuck. Gates emit nothing (§7.4, §11.2), so an observer cannot recompute them; the
   holding part is checked (change 2).
+- What the parking exception of change 5 lets through: a slot given back, then in the same instant a change of the
+  AGV's state to one that is not travelling, then a travel to the same node that takes no slot. The scratch mutant
+  `scratch-a3-T2/mymut2.py` (after a give-back, a new trip to park on the same node in the same instant takes no slot)
+  changes 6 of 1,800 runs of 4316000..4316299 (both controllers, three routers) and none is flagged
+  (`scratch-a3-T2/r2/rv-slot_skipped.jsonl`). The AGV then rests on the node without a slot, which the monitor does not
+  check: an AGV may rest on a parking node without a slot (an order brings it there).
 - `passing` segments during a reversal (Ruling A3-f): change 4 leaves them out and there is no criterion a run could
   fail.
 - A holder's recorded direction against its own body (check M1 of audit (ii)), until T3 adds it with the rule.
@@ -2480,7 +2506,34 @@ reservation runs change and all 139 are flagged (`stuck report of a wait that re
 blocker left out of the report, 266 changed, 266 flagged; resolved reports not emitted, 364 changed, 364 flagged
 (`deadlock not reported`); a resolved report one member short, 248 changed, 248 flagged (`deadlock report differs from
 the deadlocked set`); slot given back on arrival and 5 after arrival, both controllers, 519 and 507 of 900 runs
-flagged (`parking slot given back while the AGV rests on the area's node`); under the first of these, 15 reservation
-runs whose fingerprint changes are not flagged: in the one traced (4315027 `shortest`) the `parking.left` events are
-the same as without the mutant (time, area, AGV), only their place within an instant moves. No mutant and the
+flagged (`parking slot given back while the AGV rests on the area's node`); under the first of these, 20 runs whose
+fingerprint changes are not flagged (15 under `ReservationController`, 5 under `FreeFlowController`): in each of the 20
+the events are the same as without the mutant, as a multiset, and only their order within an instant moves
+(`scratch-a3-T2/r2/arrival-unflagged.out`). No mutant and the
 reviewer's copy of `_resolve` without a change: 1 run of 450 with a violation, 4315085 `fastest`, hole R (known).
+
+**Fix round 2.** The re-review found two gaps in fix round 1, both fixed: a resolved `traffic.deadlock` whose victim
+still waits passed, and the end-of-instant reduction had been dropped (both rules are back: the victim's wait must have
+ended in the instant with the action's reason, and the deadlocked set of the waits open at the end of an instant with a
+wait event must stand); and the parking exception counted any change of state, the change into `TRAVELING_EMPTY` that
+follows a slot taken at the decision included (now only a change to a state that is not travelling counts). A stuck
+report with an unknown blocker is checked for its other blockers too. Tests for the three kinds that had none.
+
+Rerun with the monitor of the round (`scratch-a3-T2/r2/`): seeds 4300000..4301999, both controllers, 12,000 runs,
+13,525,559 events, 0 raised, 0 cut, 0 not returned, 2 runs with a violation, `open wait with no report` in 4300647
+`fastest` and 4301217 `shortest` as before; fresh seeds 4320000..4320999, both controllers, 6,000 runs, 6,505,949
+events, 0 raised, 0 cut, 0 not returned, 1 run with a violation, `open wait with no report` in 4320963 `congestion`
+(bot-x, agv-e, bot-y, agv-b): hole R in its stranding form by the episode detector of audit (i), four episodes that last
+to the end of the run, closed by `p_min` and `p_sweep2` and not by `base` (`r2/classify-4320963.out`). Free flow: no
+violation.
+
+The reviewer's mutants on 4316000..4316299, both controllers, three routers (`r2/rvsum.out`): `fake_resolution` changes
+738 runs and flags 738 (`deadlock report names a victim whose wait did not end` 738, `deadlock left at the end of the
+instant` 738, `deadlock not reported` 400); `park_release_at_decision` changes 1,046 and flags 1,025 (`parking slot
+given back during a travel to the area's node`); the 21 others carry the same events as without the mutant, as a
+multiset, only reordered within an instant (`r2/decision-unflagged.out`); `park_left_twice` 998 of 998 (`parking slot
+given back that was not held`); `stuck_names_unknown_blocker` 535 of 535 (`stuck report names an AGV the world does not
+have`). No mutant: 1 run of 1,800 with a violation, 4316274 `shortest`, `open wait with no report` (agv-f): hole R in
+its stranding form by the episode detector of audit (i) (one episode, to the end of the run), closed by `p_min` and
+`p_sweep2` and not by `base` (`r2/classify-4316274.out`).
+
