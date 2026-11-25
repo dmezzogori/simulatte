@@ -141,6 +141,8 @@ export interface MapModel {
   threshold: number;
   strips: readonly Strip[];
   nodes: readonly MapNode[];
+  /** The members (node and segment ids) of every zone of the frame, held or not, by zone id. */
+  zones: Readonly<Record<string, readonly string[]>>;
   vehicles: readonly VehicleItem[];
   facilities: readonly FacilityItem[];
   waitLines: readonly WaitLine[];

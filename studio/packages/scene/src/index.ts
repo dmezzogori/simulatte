@@ -18,6 +18,16 @@ import { drawScaleBar } from "./draw/scale-bar";
 import { BADGE_PX, drawBayLines, drawFacility, facilityBox, facilityLabels } from "./draw/facility";
 import { LABEL, clipLabel, drawVehicle, ringPx, vehicleFrame, vehicleText } from "./draw/vehicle";
 import { pickMap } from "./draw/pick";
+import { drawHeld, drawWaitLine } from "./draw/traffic";
+import {
+  OUTLINE_REACH_PX,
+  drawOverlay,
+  drawRouteAhead,
+  outlineFacility,
+  outlinedBox,
+  type OverlayContext,
+} from "./draw/overlay";
+import { expandHolds, focusPoint, overlayFor } from "./map/overlay";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress, motionSpeed } from "./motion";
 export {
@@ -348,12 +358,14 @@ export class Scene {
     };
     this.draw();
   }
+  /** Centres on an element; on a map, an order is centred on its vehicle, else on its origin facility. */
   focus(id: string): void {
-    const glyph = this.#projection?.glyphs.find((g) => g.id === id);
-    if (glyph) {
-      this.#camera.x = this.app.screen.width / 2 - glyph.x * this.#camera.scale;
+    const map = this.#projection?.map ?? null;
+    const point = (map && focusPoint(map, id)) ?? this.#projection?.glyphs.find((g) => g.id === id);
+    if (point) {
+      this.#camera.x = this.app.screen.width / 2 - point.x * this.#camera.scale;
       this.#camera.y =
-        this.app.screen.height / 2 + glyph.y * this.#camera.scale;
+        this.app.screen.height / 2 + point.y * this.#camera.scale;
       this.draw();
     }
   }
@@ -553,7 +565,7 @@ export class Scene {
     this.#scaleBarText.visible = this.labels;
     drawScaleBar(this.#scaleBarGraphics, this.#scaleBarText, scale, this.app.screen.height);
   }
-  /** The layers of spec section 5.1, bottom to top. The held tint, wait lines and the overlay come in later. */
+  /** The layers of spec section 5.1, bottom to top. */
   #drawMap(map: MapModel): void {
     const projection = this.#projection!;
     const { x, y, scale } = this.#camera,
@@ -599,6 +611,11 @@ export class Scene {
       generic = glyphs.filter((g) => !FACILITIES.has(g.kind) && g.kind !== "agv" && g.kind !== "node");
     const dynamic = this.#graphics;
     dynamic.clear();
+    // The held tint, under everything but the floor; what the selected vehicle holds in the stronger tint.
+    const overlay = overlayFor(map, this.#selected);
+    drawHeld(dynamic, map, scale, detail, expandHolds(map, overlay?.holds ?? []));
+    // the selected element and the related ones carry a selection outline, their labels outside it
+    const outlined = new Set(overlay ? [this.#selected!, ...overlay.related] : []);
     const visible = new Set<string>();
     const label = (item: Glyph): void => {
       if (scale > 20 && item.kind !== "job" && (item.kind !== "node" || item.id === this.#selected))
@@ -622,15 +639,17 @@ export class Scene {
     for (const [i, facility] of spriteFacilities.entries()) {
       const box = boxes[i]!;
       if (!onScreen(box)) continue;
+      if (outlined.has(facility.id)) outlineFacility(dynamic, box, scale);
       drawFacility(dynamic, facility, box, nodesById, scale);
-      const places = facilityLabels(facility, box, map, nodesById, scale);
-      this.#text(visible, `${facility.id}\u0000name`, clipLabel(facility.label), places.name.x, places.name.y, PALETTE.text, {
-        anchorY: places.name.anchorY,
+      const places = facilityLabels(facility, box, map, nodesById, scale),
+        texts = outlined.has(facility.id) ? facilityLabels(facility, outlinedBox(box, scale), map, nodesById, scale) : places;
+      this.#text(visible, `${facility.id}\u0000name`, clipLabel(facility.label), texts.name.x, texts.name.y, PALETTE.text, {
+        anchorY: texts.name.anchorY,
         bold: true,
       });
       if (facility.count)
-        this.#text(visible, `${facility.id}\u0000count`, facility.count, places.count.x, places.count.y, PALETTE.text, {
-          anchorY: places.count.anchorY,
+        this.#text(visible, `${facility.id}\u0000count`, facility.count, texts.count.x, texts.count.y, PALETTE.text, {
+          anchorY: texts.count.anchorY,
         });
       if (facility.kind === "warehouse" && facility.badge > 0)
         this.#text(visible, `${facility.id}\u0000badge`, String(facility.badge), places.badge.x, places.badge.y, PALETTE.badgeText, {
@@ -653,6 +672,13 @@ export class Scene {
         if (selected || !boundToSprite.has(node.id)) drawNode(dynamic, node, scale, selected);
         this.#text(visible, node.id, node.id, node.x, node.y - (NODE_PX + 2) / scale, PALETTE.nodeText);
       }
+    const context: OverlayContext = {
+      map,
+      scale,
+      detail,
+      boxes: new Map(spriteFacilities.map((facility, i) => [facility.id, boxes[i]!])),
+    };
+    if (overlay) drawRouteAhead(dynamic, overlay, this.#selected!, context);
     for (const item of [...generic, ...vehicles]) {
       this.glyph(dynamic, item, scale);
       label(item);
@@ -662,7 +688,9 @@ export class Scene {
       if (!onScreen(frame)) continue;
       drawVehicle(dynamic, vehicle, scale, detail);
       const fill = LABEL[vehicle.shown],
-        reach = vehicle.shown === "waiting" ? ringPx(frame, scale) : (Math.hypot(frame.length, frame.width) / 2) * scale;
+        reach =
+          (vehicle.shown === "waiting" ? ringPx(frame, scale) : (Math.hypot(frame.length, frame.width) / 2) * scale) +
+          (outlined.has(vehicle.id) ? OUTLINE_REACH_PX : 0);
       if (detail === "true")
         this.#text(visible, `${vehicle.id}\u0000line`, vehicleText(vehicle, detail), frame.x, frame.y + (reach + 2) * px, fill, {
           anchorY: 1,
@@ -673,6 +701,10 @@ export class Scene {
           bold: true,
         });
     }
+    // Wait lines; the selected vehicle's is drawn thicker with the overlay.
+    for (const line of map.waitLines)
+      if (!overlay?.waitLine || line.agv !== overlay.waitLine.agv) drawWaitLine(dynamic, line, map, scale, detail);
+    if (overlay) drawOverlay(dynamic, overlay, this.#selected!, context);
     for (const [id, text] of this.#texts)
       if (!visible.has(id)) {
         text.destroy();

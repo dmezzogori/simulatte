@@ -37,9 +37,15 @@ export const PALETTE = {
   strandedText: 0xb91c1c,
   /** Fleet stripes, in fleet id order: yellow, magenta, navy, black, light cyan, pink; each contrasts with every state colour. */
   fleets: [0xfacc15, 0xc026d3, 0x1e1b4b, 0x0a0a0a, 0x67e8f9, 0xf9a8d4],
-  /** Held floor and wait lines (spec section 5.5); drawn from Task 6 on. */
+  /** Held floor and wait lines (spec section 5.5), translucent over the floor: plain, and held by the selection. */
   held: 0x2563eb,
+  heldAlpha: 0.3,
+  heldSelectedAlpha: 0.6,
   waitLine: 0xd97706,
+  /** The selected vehicle's route ahead: the moving blue in a light casing. */
+  route: 0x2563eb,
+  /** The origin-to-destination arrow of an order (M12). */
+  flow: 0x1e293b,
   /** Facilities (spec section 5.4); drawn from Task 5 on. */
   warehouse: 0xfde68a,
   warehouseShelf: 0xd9a520,

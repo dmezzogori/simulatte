@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PreparedFrame } from "@simulatte/playback";
 import { Projector } from "../src/project";
 import { motionSpeed } from "../src/motion";
-import { overlayFor } from "../src/map/overlay";
+import { expandHolds, focusPoint, overlayFor } from "../src/map/overlay";
 import type { MapModel, Shown, VehicleItem } from "../src/map/model";
 import { loadFrame } from "./fixtures";
 
@@ -336,6 +336,41 @@ describe("overlayFor on corridor-wait", () => {
     expect(overlayFor(map, "nobody")).toBeNull();
     expect(overlayFor(mapOf("sprites"), "Belt")).toBeNull();
     expect(overlayFor(mapOf("corridor-wait"), "C")).toBeNull();
+  });
+});
+
+describe("expandHolds", () => {
+  const map = mapOf("corridor-wait");
+  it("replaces a zone by its members and keeps nodes and segments", () => {
+    expect([...expandHolds(map, HOLDS_AGV1)].sort()).toEqual(["C", "C~M1", "J1~M1", "M1"]);
+  });
+  it("keeps an id that is neither a zone nor on the floor, and expands nothing for none", () => {
+    expect([...expandHolds(map, ["nowhere"])]).toEqual(["nowhere"]);
+    expect(expandHolds(map, []).size).toBe(0);
+  });
+});
+
+describe("focusPoint", () => {
+  const map = mapOf("corridor-wait");
+  const at = (id: string) => {
+    const item = map.vehicles.find((v) => v.id === id) ?? map.facilities.find((f) => f.id === id)!;
+    return { x: item.x, y: item.y };
+  };
+  it("centres a vehicle or a facility on its position", () => {
+    expect(focusPoint(map, "AGV-2")).toEqual(at("AGV-2"));
+    expect(focusPoint(map, "East")).toEqual(at("East"));
+  });
+  it("centres an order on its vehicle, else on its origin facility", () => {
+    expect(focusPoint(map, "order-0")).toEqual(at("AGV-1"));
+    expect(focusPoint(map, "order-3")).toEqual(at("East"));
+    expect(focusPoint(map, "order-4")).toEqual(at("West"));
+  });
+  it("has no point for an order whose vehicle and origin are not in the frame, or another id", () => {
+    const frame = loadFrame("corridor-wait");
+    const order = { ...frame.state["order-3"]!, origin: "nowhere" };
+    expect(focusPoint(mapOf("corridor-wait", edit(frame, "order-3", order)), "order-3")).toBeNull();
+    expect(focusPoint(map, "C")).toBeNull();
+    expect(focusPoint(map, "nobody")).toBeNull();
   });
 });
 

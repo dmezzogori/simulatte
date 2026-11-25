@@ -39,12 +39,15 @@ export function buildFloor(input: FloorInput): MapModel | null {
   const threshold = SYMBOL_PX.vehicle / (length || 1);
 
   const heldIds = new Set<string>();
+  const zones: Record<string, readonly string[]> = {};
   for (const [id, fields] of Object.entries(input.state)) {
     const kind = fields["$kind"];
     if (kind === "segment" && (held(fields["forward"]) || held(fields["backward"]))) heldIds.add(id);
     else if (kind === "node" && held(fields["reserved_by"])) heldIds.add(id);
-    else if (kind === "zone" && held(fields["reserved_by"]))
-      for (const member of ids(fields["members"])) heldIds.add(member);
+    else if (kind === "zone") {
+      zones[id] = ids(fields["members"]);
+      if (held(fields["reserved_by"])) for (const member of zones[id]) heldIds.add(member);
+    }
   }
 
   // Both directions between two nodes make one strip; its first arc fixes the direction of a one-way one.
@@ -99,6 +102,7 @@ export function buildFloor(input: FloorInput): MapModel | null {
     threshold,
     strips,
     nodes,
+    zones,
     vehicles: [],
     facilities: [],
     waitLines: [],

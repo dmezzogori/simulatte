@@ -35,6 +35,25 @@ function routeAhead(model: MapModel, vehicle: VehicleItem): Point[] {
   return ahead.length ? [{ x: vehicle.x, y: vehicle.y }, ...ahead] : [];
 }
 
+/** The node and segment ids a list of holds covers: a zone id stands for its members, any other id for itself. */
+export function expandHolds(model: MapModel, ids: readonly string[]): Set<string> {
+  const covered = new Set<string>();
+  for (const id of ids) for (const member of model.zones[id] ?? [id]) covered.add(member);
+  return covered;
+}
+
+/**
+ * Where `scene.focus` centres on a map: a vehicle or a facility on its position, an order on its vehicle, else on
+ * its origin facility. Null for any other id, or an order with neither in the frame.
+ */
+export function focusPoint(model: MapModel, id: string): Point | null {
+  const order = model.orders.find((o) => o.id === id);
+  const item =
+    model.vehicles.find((v) => v.id === (order ? order.agv : id)) ??
+    model.facilities.find((f) => f.id === (order ? order.origin : id));
+  return item ? { x: item.x, y: item.y } : null;
+}
+
 /** The highlights of a selection; null for no selection, an unknown id or a kind the map does not select. */
 export function overlayFor(model: MapModel, id: string | null): Overlay | null {
   if (id === null) return null;

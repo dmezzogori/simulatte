@@ -93,6 +93,19 @@ describe("held resources", () => {
     const map = mapOf("advanced-charging");
     expect(map.strips.some((s) => s.held)).toBe(false);
     expect(map.nodes.some((n) => n.held)).toBe(false);
+    expect(map.zones).toEqual({});
+  });
+  it("lists the members of every zone, held or not", () => {
+    expect(mapOf("corridor-wait").zones).toEqual({
+      "corridor:M1": ["C~M1", "M1", "J1~M1"],
+      "corridor:M2": ["D~M2", "M2", "J2~M2"],
+    });
+  });
+  it("keeps only the string members of a zone", () => {
+    const frame = loadFrame("corridor-wait");
+    const zone = { ...frame.state["corridor:M1"]!, members: ["M1", 3, null, "C~M1"] };
+    const odd = { ...frame, state: { ...frame.state, "corridor:M1": zone, "corridor:M2": { $kind: "zone" } } };
+    expect(project("corridor-wait", odd).map!.zones).toEqual({ "corridor:M1": ["M1", "C~M1"], "corridor:M2": [] });
   });
 });
 
