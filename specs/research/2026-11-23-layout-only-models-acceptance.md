@@ -158,7 +158,9 @@ beyond it:
 
 ### Known limits met by the random worlds
 
-**A parking slot kept while charging on the way to park.** An AGV takes a slot of a parking area when it sets off to
+**A parking slot kept while charging on the way to park.** **Fixed** (Assignment 2, B2): since `61e5b27` the slot goes
+back as the trip to park turns to charge, and the monitor no longer exempts the case (`4bc6624`); see B2. What follows
+describes the fleet before the fix. An AGV takes a slot of a parking area when it sets off to
 park (`parking.entered`). When it starts a charge before it gets there, at a charger it turns to because its battery
 is low or at one on its route, it keeps the slot while it charges at the charger's node, and releases it
 (`parking.left`) only when the charge ends. The slot is withheld from other AGVs meanwhile. In seed 619
@@ -871,7 +873,9 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
 ### What changed in the monitor
 
 - Since `5b3bb91` (Assignment 2, B1) the second known limit is fixed and this exemption, its orphan tracking and its tests
-  are removed; what follows describes the monitor from `ab4d430` to `6ff842f`.
+  are removed; what follows describes the monitor from `ab4d430` to `6ff842f`. Since `4bc6624` (Assignment 2, B2) the
+  first known limit is fixed too, its exemption is removed, and the monitor, `RunRecord` and `layout_safety.py` have no
+  known limits any more.
 - It recognises the second known limit (see "Known limits met by the random worlds"), and only while the case stands.
   It follows the unresolved deadlocks the controller reports. The members left when a wait of a set ends with reason
   `interrupted` (the end that comes from `withdraw`) become orphans, until a later report covers them (a
@@ -1598,14 +1602,18 @@ These statements hold for the seeds run: 8,000 worlds here, the recorded safety 
 unresolved, X stops behind B and the policy now reroutes A; B gets its `on_blocked` call and a review, in the order A,
 B, X; the test fails without the call in `stopped()` and with it moved after the stopping wait's own call), and the
 order "detection, then the waits left" in a member's withdrawal by an `on_blocked` assertion in
-`test_what_is_left_of_a_set_when_a_members_wait_is_withdrawn_is_examined_again` (it fails with the two swapped). The guide's clause on members with no review names the
-exception of a blocker that strands, and the changelog line is wrapped.
+`test_what_is_left_of_a_set_when_a_members_wait_is_withdrawn_is_examined_again` (it fails with the two swapped). The
+guide's clause on members with no review names the exception of a blocker that strands, and the changelog line is
+wrapped.
 
 Where the statements of B1 hold. "No open wait without a report" holds for the runs measured or run here: seeds
 100000..100999, 2000000..2000999, 52000..53999 and 8100000..8103999 under the three routers (the paired measurement,
 at `c6cb563`); the safety ranges 100000..100999 and 2000000..2000999 under both controllers (at `ac4d837`); and the
 unmutated controls of 2000150..2000449 and 500000..500299. The review of B1 ran 7700000..7702999 too (18,000 runs) and
-found one run that is not this defect, below; it does not extend to other seeds.
+found one run that is not this defect, below; it does not extend to other seeds. The monitor's rule counts a wait
+queued behind a reported wait as explained, without a report of its own (see "A sleeping wait queued behind a reported
+one" under "What the monitor does not check"): this is why seeds 100281, 8102359 and 8103231, listed there, lie inside
+ranges for which no open wait without a report is stated.
 
 Found beyond this task (open, not changed here, for the maintainer): seed 7702388, `ReservationController`,
 `ShortestDistanceRouter`, ends with `open wait with no report ['agv-e']` at 586.206, identical at `6ff842f`, `687ad66`
@@ -1619,6 +1627,158 @@ is now stuck by the rule of §7.9 and is never reported; agv-c and agv-d, behind
 (529.5, 552.9), and that chain does not reach forward to agv-e. A one-line scratch prototype of the reviewer, which
 counts the waiver as a change, clears the run; it was not measured further. Frequency: 1 run in the 18,000 of seeds
 7700000..7702999, none in the other 48,000 runs of the review.
+
+### B2. Parking slots during a charge elsewhere
+
+Decided by the maintainer on 2026-11-24: fix the first known limit before 0.18.0 is tagged and delete the monitor's
+exemption for it. Commits `61e5b27` (`fix(intralogistics): a parking slot is released when the trip to it ends
+elsewhere`) and `4bc6624` (`test(intralogistics): the monitor no longer exempts a parking slot kept during a charge`),
+base `f6171ac`.
+
+**Cause.** `FleetCoordinator._take_slot` takes the slot when an idle AGV is sent to a parking node (a repositioning, a
+service-node clearance or a make-way move), and `_idle_travel` gives it back when the travel returns without arriving.
+A travel whose next arc the battery cannot cover calls `_lacking_energy` (`travel.py`), which runs
+`FleetCoordinator._charge_agv` inside the same travel: a travel to the charger and the charge, or the charge at once
+when the AGV stands on a charger's node. Only afterwards does the travel return, with `RETRY_FROM_CURRENT_POSITION`,
+and only then was the slot given back. Traced at the base: seed 619 (`FreeFlowController`, `ShortestDistanceRouter`),
+agv-a enters P0 at 97.0, turns to the charger c08 at 122.0, charges from 148.6 to 220.1 and leaves P0 at 220.1; seed
+100023 (`ReservationController`, `ShortestDistanceRouter`), agv-b enters P2 at 70.6, steps aside five times on the
+way, charges at the charger on whose node it stands from 201.9 to 220.1 and leaves P2 at 220.1; seed 2000345
+(`ReservationController`, `FastestRouter`), agv-f enters P0 at 66.6, charges at the charger on its route from 157.3 to
+199.2 and leaves P0 at 199.2. 0.17.0 took no parking slots (its fleet never called `enter` or `leave`).
+
+**What happens after the charge**, before and after the fix alike: `_lacking_energy` returns
+`RETRY_FROM_CURRENT_POSITION` and no caller of `_idle_travel` retries. After a repositioning (`_run_mission`) the AGV
+becomes `IDLE` where it charged; the repositioning policy is not asked again and the service node is not cleared
+(clearing runs only when the policy gave no target), so it rests on the charger's node until it is dispatched or asked
+to make way. A make-way move and a clearance end the same way. The trip to the parking area is never resumed: it ends
+where the AGV turns to charge. In the three seeds the AGV becomes `IDLE` on the charger's node as the charge ends and
+is dispatched at once to a pending order.
+
+**Change.** `_charge_agv` gives back, before anything else of the charge (the `on_battery_low` hooks, the
+`on_low_battery` callback, the travel to the charger), the slots the AGV holds in parking areas away from its own node
+(`_release_slots_elsewhere`), with `parking.left`. Those are exactly the slots of a trip to park that turns to charge: a
+mission takes no slot, and a slot of the node the AGV stands on (a parked AGV that leaves to charge) still goes when it
+departs, as before. When an AGV charges, which charger, how long, when it strands, parking selection, repositioning,
+make-way and the clearing of service nodes are unchanged; so is everything an AGV does after the charge. In seed 619
+agv-a now leaves P0 at 122.0, just before it turns, and no other event of the run changes.
+
+**Tests.** In `tests/intralogistics/test_idle_traffic.py`: a trip to park on FAR (one slot) that cannot afford its last
+arc turns to a charger off its route, or charges at one on it, under both controllers: the slot goes back at the turn,
+before the turn's state change, B takes it with a make-way move during the charge, and A ends idle where it charged
+with no slot (`test_a_trip_to_park_that_charges_on_the_way_gives_the_slot_back_as_it_turns_to_charge`, four cases); the
+same trip interrupted during its charge gave the slot back once, at the turn
+(`test_a_trip_to_park_interrupted_during_its_charge_gave_the_slot_back_as_it_turned`). These five fail at the base
+(`5 failed, 2 passed`). Pinned, passing at the base too: a trip to park that strands with no reachable charger gives
+the slot back as it strands, and a parked AGV whose next mission turns to charge from the parking node gives it back as
+it departs. Interrupted trips to park were already pinned (`test_an_interrupted_idle_move_...`). In
+`tests/intralogistics/test_random_worlds.py` the pin of the known limit on seed 619 became
+`test_a_trip_to_park_that_turns_to_charge_gives_its_parking_slot_back_as_it_turns` (no violation, the slot left at
+122.0 just before the turn); the test with slots never given back is now
+`test_a_parking_slot_held_by_an_agv_resting_elsewhere_is_a_violation`.
+
+**Monitor.** `KNOWN_LIMIT`, `_Slot`, `_track_slots`, `Monitor.finish`, `Monitor.known_limits` and
+`RunRecord.known_limits` are removed, with the known-limit lines of `benchmarks/layout_safety.py` (the exit status was
+already decided by failures and violations only). A slot held by an AGV that rests elsewhere is always the violation
+`parking slot of an AGV resting elsewhere`.
+
+**Measurement.** The base `f6171ac` and the head (the source of `4bc6624`), each a copy first on `PYTHONPATH`, each
+with its own monitor, on seeds 100000..100999, 2000000..2000999, 52000..53999 and 8100000..8101999 (6,000 worlds, both
+controllers, three routers: 36,000 runs, paired by seed, controller and router; the interval is the 95 % t interval of
+the sum of the paired differences). The measures are counted from the events by the measuring script, the same way for
+both trees. "Trips to park ended in a charge" counts a `charging.started` of an AGV that holds a slot of an area whose
+node it is not on.
+
+| Measure | `f6171ac` | Head | Difference, 95 % interval | Runs that differ |
+|---|---|---|---|---|
+| runs that returned | 36,000 | 36,000 | 0 | 0 |
+| runs with a violation | 1 | 1 | 0 | 0 |
+| known-limit cases (parking slot) | 44 | 0 | -44 [-57.0, -31.0] | 44 |
+| trips to park ended in a charge, slot still held | 44 | 0 | -44 [-57.0, -31.0] | 44 |
+| slot time held during a charge elsewhere | 2,451.8 | 0 | -2,451.8 [-3,314.7, -1,588.9] | 44 |
+| `parking.entered` | 210,448 | 210,452 | +4 [+0.1, +7.9] | 4 |
+| `parking.left` | 177,156 | 177,155 | -1 [-9.5, +7.5] | 4 |
+| `charging.started` | 31,205 | 31,205 | 0 | 0 |
+| charging duration (sum) | 3,263,396.8 | 3,263,395.9 | -0.9 [-2.3, +0.5] | 2 |
+| strandings (`agv.state_changed` to `STRANDED`) | 46,330 | 46,331 | +1 [-7.1, +9.1] | 3 |
+| `traffic.wait_stuck` | 40,123 | 40,122 | -1 [-5.4, +3.4] | 2 |
+| `traffic.deadlock` resolved | 222,361 | 222,363 | +2 [-4.2, +8.2] | 2 |
+| `traffic.deadlock` unresolved | 15,967 | 15,969 | +2 [-0.8, +4.8] | 2 |
+| orders completed | 540,028 | 540,025 | -3 [-6.4, +0.4] | 3 |
+| end time (sum) | 25,311,996.4 | 25,311,996.2 | -0.2 [-0.6, +0.2] | 1 |
+| runs whose fingerprint changed | | | | 51 |
+
+The one violation is `PHYSICAL opposite directions on a segment` in seed 8101904 `fastest` at 471.2, the same at both
+commits (B1; open, not this task's). The known-limit cases were 35 under `ReservationController` and 9 under
+`FreeFlowController`; by range 6, 8, 12 and 18; each is one of the 44 trips counted from the events, and each is gone.
+
+Changed runs. Of the 36,000, 51 changed (record and fingerprint), 42 under `ReservationController` and 9 under
+`FreeFlowController`; the other 35,949 are identical (sha256 of the events, initial and final state, end time and
+fingerprint), among them all 8,604 runs of worlds without parking areas. Each of the 51 has a trip to park that turned
+to charge: at the head its first moved `parking.left` comes right before the state change of the turn. 44 of them are
+the 44 trips above. The other 7 turned to charge and never charged: the travel to the charger stranded with no reachable
+charger (100066 `shortest` and `fastest`, 8101405 `fastest`, 8101818 `congestion`) or stopped critical short of it and
+the AGV stranded as "insufficient after charging" (52596 `congestion`, 8100301 `fastest`, 8100713 `fastest`); the base
+gave the slot back at the stranding (in four of them at the same instant, later in the stream). In 46 of the 51 runs
+only the parking events differ: the time of `parking.left` or its place within the instant, and in 4 of them (52396
+`shortest`, 8100264 `shortest` and `fastest`, 8101926 `congestion`) also the place in the area's list of parked AGVs at
+which a later `parking.entered` inserts (its delta), with the same final state. In 5 another AGV is sent to the area in
+the time the slot was held at the base, which is the effect of the fix: 100800 `congestion` and 52643 `shortest`
+complete the same orders; 52050 `FreeFlowController` with `congestion` and `fastest`, and 8101889 `congestion`, complete
+one order fewer each. In 52050 agv-f, after its delivery at 67.9, is sent to P0 on the slot agv-b gave back at 43.5 (at
+the base agv-b still held it and agv-f stayed idle on the bay); dispatched from there with order-7 at 97.9, it strands at 100.8
+with the order (at the base it completed order-7 and stranded at 119.7, after it). In 8101889 agv-b, parked on P0 and
+asked to make way at 182.9, moves to P2 on the slot agv-g gave back at 159.6 instead of to a node of a block, and the
+run takes another course (5 orders completed instead of 6). No run completes more orders.
+
+Pins. Of the six fingerprints of `test_random_worlds.py`, seed 619 moved and is pinned again: compared event by event
+with the base run, the only difference is its `parking.left` at 122.0 instead of 220.1 (same 394 events otherwise, same
+final state and end time). The five safety pins, the other five fingerprints, `tests/fixtures/traces/generated/`,
+`test_examples.py` and `test_traffic_scenarios.py` hold unchanged (full suite). The stdout of the seven transport and
+layout examples is identical to the base, apart from the tree path in matplotlib's warnings. With `PYTHONHASHSEED` 0, 1
+and 7 the 1,800 runs of seeds 100000..100299 give records identical to those of the measurement.
+
+**Safety run at `4bc6624`** (CPython 3.14.3, Apple M4 Pro, 8 worker processes, from the repository root):
+
+```
+worlds 1000 (seeds 100000..100999), runs 6000, events 6570200
+runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0
+wall-clock limit 120 s per run, 201 s
+```
+
+```
+worlds 1000 (seeds 2000000..2000999), runs 6000, events 6720030
+runs that raised 0, runs that did not return within the limit 0, runs that ended with the queue not empty 0, runs with monitor violations 0
+wall-clock limit 120 s per run, 199 s
+```
+
+Exit status 0 for each. No violation, and no known limit any more: the 14 runs that had the parking-slot limit at
+`ac4d837` are runs without a violation now. The event counts equal those at `ac4d837`.
+
+**Mutant check** (`mutants.py`, adapted from `final-scratch-area2/scripts/mymutants.py`; each mutant applied in every
+worker, nothing on disk; seeds 100000..100299 and 2000150..2000449, both controllers, three routers, 1,800 runs per
+range; the monitor of `4bc6624`):
+
+| Mutant of the slot bookkeeping | Runs with a violation or an exception (100000.. / 2000150..) | Kinds |
+|---|---|---|
+| no mutant | 0 / 0 | |
+| no slot is ever given back (`ParkingArea.leave` does nothing) | 1,019 / 1,097 | resting elsewhere, held at quiescence |
+| a move to park that does not arrive keeps its slot | 210 / 210 | resting elsewhere, held at quiescence; 8 / 16 raise `KeyError` |
+| that slot is given back 5 time units late | 141 / 152 | resting elsewhere; 7 / 4 raise `KeyError` |
+| a slot is taken whether or not the area has one free (two AGVs on one slot) | 39 / 17 | parking over capacity |
+| the fix undone (`_release_slots_elsewhere` does nothing) | 3 / 5 | resting elsewhere |
+
+"Resting elsewhere" is `parking slot of an AGV resting elsewhere`, "held at quiescence" `parking slot held away from the
+node at quiescence`; a `KeyError` (a later `leave` of a slot the mutant left in an inconsistent state) is a run that
+raised, which the safety runner counts as a failure. With the fix undone, the runs with a violation are exactly the runs
+of these ranges that had the known limit at the base (100023 with the three routers; 2000152 `shortest`, 2000345 and
+2000447 with `shortest` and `fastest`), all under `ReservationController`: with the exemption gone the monitor reports
+the old behaviour as a violation.
+
+**Docs.** `docs/guides/intralogistics.md` loses its known limit "Parking and charging", and its "Parking" paragraph
+says that a move that turns to charge gives the slot back as it turns. `CHANGELOG.md` gets no line for this: 0.17.0
+had `ParkingArea` but its fleet took no slots, so nothing a user of 0.17.0 saw changes. The traffic spec (§7.10, T13)
+says the slot goes back "when the travel does not arrive"; the wording to amend is in the task report, not changed here.
 
 ### C. The band of the core overhead gate
 

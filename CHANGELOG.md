@@ -17,10 +17,10 @@ see "Changed", "Removed" and "Migration".
 - Waits, deadlocks and their resolution: the `TrafficPolicy` protocol, `StandardTrafficPolicy(reroute_after=30.0,
   max_detour=1.5, max_resolutions=8)` and the reactions `KeepWaiting`, `Reroute`, `StepAside` and `GiveUp`.
   Deadlocks are detected when an AGV starts to wait, and again among the waits left when a member of an unresolved
-  deadlock stops waiting (a member then in no deadlock gets `on_blocked` and its reviews from that instant), and are
-  reported with `traffic.deadlock`; waits that nothing can end are reported with `traffic.wait_stuck`. An AGV that
-  gives up a travel before pickup re-queues its order (`FleetCoordinator(max_traffic_requeues=3)`, reason
-  `traffic_requeued`).
+  deadlock stops waiting (a member whose wait opened into the set and is then in no deadlock gets `on_blocked` and its
+  reviews from that instant), and are reported with `traffic.deadlock`; waits that nothing can end are reported with
+  `traffic.wait_stuck`. An AGV that gives up a travel before pickup re-queues its order
+  (`FleetCoordinator(max_traffic_requeues=3)`, reason `traffic_requeued`).
 - Idle AGVs make way for waiting ones (`FleetCoordinator.make_way`, `TrafficController.idle`), move off bays and
   charger nodes (`FleetCoordinator(clear_service_nodes=True)`) and take parking slots when they are sent to a parking
   area. The search for a place to rest skips a node inside a zone or corridor that is closed to the AGV now, so idle

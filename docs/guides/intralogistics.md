@@ -238,7 +238,7 @@ An idle AGV that stands in the way of a waiting one is asked to move: the contro
 
 **Service nodes** are the bays of the fleet's warehouses and the nodes of its charging stations. With `FleetCoordinator(clear_service_nodes=True)` (the default) and a controller that enforces occupancy, an AGV that would become idle on a service node, and that the repositioning policy sends nowhere, first moves off it to the standard-search node (`agv.routed` with reason `clear_node`). It stays when there is none, or when an order is pending.
 
-**Parking.** When a repositioning, a service-node clearance or a make-way move targets the node of a parking area with a free slot, the coordinator takes a slot (`parking.entered`) at the decision and gives it back (`parking.left`) when the AGV next departs from that node or when the move does not arrive. A full area is not a valid target: a custom repositioning policy that names one gets no move. This holds under both controllers. AGVs placed on a parking node at activation take no slot.
+**Parking.** When a repositioning, a service-node clearance or a make-way move targets the node of a parking area with a free slot, the coordinator takes a slot (`parking.entered`) at the decision and gives it back (`parking.left`) when the AGV next departs from that node or when the move ends without arriving: a move that turns to charge on the way gives the slot back as it turns. A full area is not a valid target: a custom repositioning policy that names one gets no move. This holds under both controllers. AGVs placed on a parking node at activation take no slot.
 
 ### Deadlocks and stuck waits
 
@@ -267,7 +267,6 @@ The [traffic example](../examples/intralogistics.md#traffic) runs a two-way corr
 - **The fairness rule lapses** when a vehicle that does not hold the corridor rests on a slot of the waiting vehicle's port.
 - **Charging.** Two defects predate the traffic work and are unchanged: a vehicle whose battery is critical and whose charger is more than one arc away stops at the first node of each travel towards the charger and strands without charging; and when an arc of a mission cannot be afforded even with the level a full charge leaves on arrival at the node before it, the vehicle travels between the charger and that node without end, and `env.run()` without `until` does not return.
 - **Late grants.** See [Look-ahead](#look-ahead).
-- **Parking and charging.** An AGV that set off to park and charges on the way keeps its parking slot, which other AGVs cannot use, until the charge ends.
 
 ## Motion
 
