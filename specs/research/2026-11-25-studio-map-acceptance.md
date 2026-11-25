@@ -1,6 +1,6 @@
 # Studio map acceptance
 
-Branch `feature/studio-map`, measured on `a67c5ce` with the bench changes of the commit `test(studio): the map workloads of the bench`; "after" also has the commit `perf(studio): the static part of the map model is computed once per layout`.
+Branch `feature/studio-map`, measured on `a67c5ce` with the bench changes of the commit `test(studio): the map workloads of the bench`; "after" also has the commit `perf(studio): the static part of the map model is computed once per layout`. The figures on the GPU-backed renderer (below) were measured again on `def9c3f`, the fix wave of Stage 1, with the bench changes of the commit `test(studio): the bench runs on a GPU-backed renderer and reports it`.
 
 Machine: bigboss, macOS 27.2.1, Apple M4 Pro (12 cores), 48 GB. CPython 3.14.3, Node 24.13.0, Playwright Chromium 156.0.8078.4, headless, viewport 1440 x 1000, scene 1280 x 720.
 
@@ -19,30 +19,40 @@ Each figure is the median of three runs (one browser process each); "before" is 
 | Trace size | 4,218,142 bytes | same | 7,432,776 bytes | same |
 | Entities at the end | 1,350 (100 vehicles, 12 warehouses, 400 nodes, 760 segments, 77 orders) | same | 2,150 (1,000 vehicles, 100 warehouses, 50 fleets, 100 nodes, 900 orders) | same |
 | Open | 2,113 ms | 2,140 ms | 509 ms | 509 ms |
-| Seek p50 / p95 | 222 / 936 ms | 109 / 470 ms | 520 / 857 ms | 518 / 1,076 ms |
 | Scene p95 | 5.5 ms | 4.8 ms | 32.0 ms | 21.6 ms |
 | of which projection p95 | 4.0 ms | 3.4 ms | 19.1 ms | 8.6 ms |
 | of which the rest of the render p95 | 2.0 ms | 2.0 ms | 14.6 ms | 13.9 ms |
 | Gate (scene p95 below 16.7 ms) | met | met | not met | not met |
 
+Davide accepted the 1,000-vehicle frame time for 0.18.0 on 2026-11-25 as a known limit; the 50 to 100 vehicle target is met.
+
+These runs were made in headless Chromium without a GPU, so WebGL ran on SwiftShader (see "Where the seek time goes"). The scene p95 above times the scene's own `render` call on the main thread and is not affected by that; the seek figures are, and are replaced by those of the GPU-backed renderer below. What the first measurement saw for seek p50 / p95, in software: `fleet100` 222 / 936 ms before and 109 / 470 ms after, `lanes1000` 520 / 857 ms before and 518 / 1,076 ms after.
+
+### On the GPU-backed renderer
+
+Headless Chromium 156.0.8078.4 launched by `studio/bench/run.mjs` with `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`; every run reported the WebGL renderer `ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)` (`softwareRendered` false). Three runs per workload, one browser process each, default page options (`?mode=performance`, 50 first seeks, 240 rendered positions); each figure is the median of the three runs, with the three runs in brackets where they spread. The machine's load average was 4 to 12 during the runs.
+
+| Median of three runs | `fleet100` | `lanes1000` |
+| --- | ---: | ---: |
+| Open | 1,906 ms | 495 ms |
+| Seek p50 / p95 | 15.1 / 29.4 ms (p95 28.3 to 29.7) | 53.4 / 81.2 ms (p95 76.4 to 83.6) |
+| of which prepare p50 / p95 | 9.5 / 21.6 ms | 31.0 / 57.1 ms |
+| of which render p50 / p95 | 5.0 / 7.6 ms | 22.1 / 30.2 ms |
+| Scene p95 | 4.2 ms | 22.1 ms (21.6 to 22.3) |
+| of which projection p95 | 2.8 ms | 9.5 ms |
+| of which the rest of the render p95 | 1.6 ms | 14.4 ms |
+| Gate (scene p95 below 16.7 ms) | met | not met |
+
+The gate result is unchanged: met on `fleet100` and not met on `lanes1000`, whose scene p95 is CPU time on the main thread (projection about 9.5 ms and drawing about 14.4 ms). The seeks are inside the viewer's 200 ms target on both workloads.
+
 The gate is met on `fleet100` and is not met on `lanes1000`, before and after the caching. The caching halved the projection of `lanes1000` (19.1 to 8.6 ms; `boundNodes` scanned the binding table once per facility, 100 facilities against about 1,100 bindings) and left the rest of the render, the drawing of the map and the glyphs, at about 14 ms: drawing alone is still below 16.7 ms and drawing plus projection is not. Nothing else was optimised. The seek figures of the runs vary a great deal between runs (see below).
 
 ### Where the seek time goes
 
-Seek p50 / p95 of 0.1 to 1.1 s is far above the viewer's older 200 ms target. A first seek was split into the playback session's `prepare` (decoding the chunk and reconstructing the state) and the scene's `render` of the frame (`coldPrepare*` and `coldRender*` in the bench result).
+The first measurement found first seeks of 0.1 to 1.1 s, with the time in the playback session's `prepare` only when the scene had drawn a map between two seeks, and could not find the mechanism. The cause is the way the bench ran, not the viewer (`.superpowers/sdd/2026-11-25-studio-map/task-10b-seeks-report.md`, verified with Chrome traces).
 
-| First seek, `lanes1000` | prepare p50 / p95 | render p50 / p95 |
-| --- | ---: | ---: |
-| each seek followed by a scene render, map on (three runs, after) | 495 / 1,053 ms; 1,269 / 3,169 ms; 141 / 243 ms | 22.5 / 25.6 ms |
-| the same, network removed from the frame's layout (`nomap=1`) | 50 / 76 ms | 6.0 / 7.5 ms |
-| no render at all (`norender=1`, three runs) | 28.6 / 56.2; 30.3 / 59.3; 32.1 / 60.8 ms | none |
+Headless Chromium without a GPU runs WebGL on SwiftShader, which rasterizes on the CPU, and composites in software. In that mode every commit of a WebGL canvas reads the whole frame back synchronously on the renderer's main thread (`ProxyMain::BeginMainFrame` > `Commit` > `LayerTreeHost::DoUpdateLayers` > `GLES2::ReadPixels` > `CommandBufferHelper::Finish`), waiting until SwiftShader has rasterized the frame's queued commands. `scene.render()` only queues them and returns in 5 to 22 ms; the commit comes at the next `BeginMainFrame`, which is reached when the next seek's `prepare` first yields to the event loop (a `Blob` read or the `DecompressionStream` of a chunk), so the rasterization of the previous frame was counted in that `prepare`. A map frame issues far more geometry than the glyphs of the SP3 report (strips, held floor, sprites, about 33,000 triangles on `fleet100` and 96,000 on `lanes1000`), so the wait was 100 ms to 1.3 s and varied with the machine's CPU load. Waiting for an animation frame after each render did not separate it, because animation frame callbacks run before the commit; waiting past the paint (an animation frame, then a task) does, and the bench's `settle=1` now does so.
 
-| First seek, `fleet100` | prepare p50 / p95 | render p50 / p95 |
-| --- | ---: | ---: |
-| each seek followed by a scene render, map on (three runs, after) | 104 / 465 ms (median) | 5.1 / 6.6 ms |
-| network removed (`nomap=1`) | 26 / 52 ms | 2.4 / 3.6 ms |
-| no render at all (three runs) | 8.5 / 20.8; 9.9 / 22.5; 10.2 / 23.7 ms | none |
+With a GPU (headless with ANGLE on Metal, or headed) there is no readback on the main thread, and `prepare` after a map render equals `prepare` with nothing drawn: on `lanes1000` 31.0 ms p50 against 28.6 to 32.1 ms with no render at all in the first measurement, and with `settle=1` the wait past the paint was 0.2 / 0.3 ms p50 / p95. The figures above are therefore what a user with a GPU-accelerated browser sees. A browser without GPU acceleration (a blocklisted GPU, a virtual machine, a remote desktop) that falls back to SwiftShader WebGL would show the same wait as frame-to-frame stalls; this follows from the mechanism and was not measured. Safari and Firefox were not measured.
 
-Decoding and reconstructing the state is not slow: 9 to 10 ms (p50) on `fleet100` and about 30 ms on `lanes1000` when nothing is drawn between the seeks, which is inside the 200 ms target. The scene's own `render` is 5 and 22 ms. The time appears when the scene draws a frame with the map between two seeks: the next `prepare` then takes 100 ms to 1.3 s, a different amount in every run of the same trace. With the map off it takes 26 and 50 ms. A CPU profile of the seeks of `lanes1000` accounts for the time as native time outside JavaScript (84 % of the profile is `(program)`, JavaScript decoding is about 1.9 s in total and garbage collection 0.9 s in about 80 s). A full collection after each render (`--js-flags=--expose-gc`, `gc=1`) changed nothing (prepare p50 131 ms with and 126 ms without, in that session), and waiting for the next animation frame after each render took 0.1 ms at the median. The mechanism is therefore not found; it is visible only after drawing the map, not in the decoding, and it is not the projection. It was not so before the map: the SP3 report has first seeks of 4.8 / 7.5 ms for 1,000 vehicles drawn as glyphs. The drawing with the map issues far more graphics work (strips, held floor, sprites) and the cost is paid by the next main-thread task rather than by the `render` call; this is a hypothesis to be tested, for example with a GPU timeline, not a measurement.
-
-The bench page options that produced these figures are `seeks=N`, `nomap=1`, `norender=1`, `settle=1` and `gc=1`; the page and runner are in `studio/bench/`.
+`studio/bench/run.mjs` now launches Chromium on macOS with those flags (`--headed` runs a visible window on any platform), and every result reports `webglRenderer` and `softwareRendered`. The bench page options are `seeks=N`, `nomap=1`, `norender=1`, `settle=1` and `gc=1`; the page and runner are in `studio/bench/`.

@@ -168,6 +168,12 @@ async function run() {
   document.body.append(host);
   const scene = new Scene();
   await scene.init(host, 1280, 720);
+  // The WebGL renderer: seek and frame figures mean something only on a GPU. With SwiftShader (software) every frame
+  // is read back on the main thread at the next commit, and that wait lands in whatever runs next.
+  const gl = (scene.app.renderer as unknown as { gl?: WebGLRenderingContext }).gl;
+  const debugInfo = gl?.getExtension("WEBGL_debug_renderer_info") ?? null;
+  const webglRenderer = gl ? String(gl.getParameter(debugInfo ? debugInfo.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) : null;
+  const softwareRendered = webglRenderer !== null && webglRenderer.includes("SwiftShader");
   const session = new Session(recording),
     range = recording.finiteRange!;
   // ?nomap=1: every frame shown with its layout's network removed, so the scene builds no map model (the seeks and
@@ -197,8 +203,9 @@ async function run() {
     const prepared = performance.now();
     if (!norender) scene.render(show(frame));
     const end = performance.now();
-    // ?settle=1: wait for the next animation frame after each render and time that wait, so the work the render
-    // leaves to the browser (and the graphics process) is counted apart from the next seek.
+    // ?settle=1: wait past the next paint after each render (an animation frame, then a task: the commit runs after
+    // the animation frame callbacks) and time that wait, so the work the render leaves to the browser (and the
+    // graphics process) is counted apart from the next seek.
     const collector = (globalThis as unknown as { gc?: () => void }).gc;
     if (params.get("gc") === "1" && collector) {
       // needs the browser launched with --js-flags=--expose-gc: a full collection after each render, timed apart
@@ -207,7 +214,7 @@ async function run() {
       coldGc.push(performance.now() - mark);
     }
     if (settle) {
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
       coldSettle.push(performance.now() - end);
     }
     cold.push(end - start);
@@ -241,6 +248,9 @@ async function run() {
   const result = {
     mode,
     userAgent: navigator.userAgent,
+    webglRenderer,
+    // a software-rendered run's seek and frame figures are not those of a user's browser
+    softwareRendered,
     openMs: opened,
     coldSeekP50: percentile(cold, 0.5),
     coldSeekP95: percentile(cold, 0.95),

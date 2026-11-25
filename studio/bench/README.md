@@ -2,7 +2,8 @@
 
 These local tools are not shipped in the Python package. Run from the repository
 root unless a command changes directory. See the acceptance report in
-`specs/research/2026-10-11-sp3-acceptance.md` for measured results and limitations.
+`specs/research/2026-11-25-studio-map-acceptance.md` for measured results and limitations (the earlier figures of
+the viewer are in `specs/research/2026-10-11-sp3-acceptance.md`).
 
 ```sh
 pnpm --dir studio build
@@ -24,11 +25,21 @@ In another terminal:
 node studio/bench/run.mjs chromium 'http://127.0.0.1:4182/?mode=performance' /tmp/studio-map-bench/results.json --shot /tmp/studio-map-bench/scene.png
 ```
 
+Seek and frame figures mean something only on a GPU-backed WebGL renderer. Without a GPU, WebGL runs on SwiftShader
+(software) and every frame of the scene is read back on the main thread at the next commit; that wait is then counted
+in whatever runs next, usually the next seek's `prepare`, and the seeks look ten times slower than in a user's
+browser. On macOS `run.mjs` launches headless Chromium with `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`;
+on other platforms headless Chromium keeps its defaults, which may be SwiftShader, and `--headed` runs a visible
+window instead. To check a run, read `webglRenderer` in the result (for example `ANGLE (Apple, ANGLE Metal Renderer:
+Apple M4 Pro, ...)`): `softwareRendered` is true when it names SwiftShader, and such a run's seek and frame figures
+are not to be reported.
+
 `--shot <png>` screenshots the scene after the measurements: a frame late in the run, fitted. The result also
 reports `projectP50`/`projectP95` (the projection alone) and `restOfRenderP95` (what the scene adds to it), and splits the first seeks into `coldPrepare*` (decode and reconstruction) and `coldRender*`.
 Page options: `seeks=N` (number of first seeks, default 50), `nomap=1` (the frames' layouts lose their network, so no map
-model is built), `norender=1` (the seeks draw nothing), `settle=1` (time the wait for an animation frame after each
-render) and `gc=1` (a full collection after each render, needs `--js-flags=--expose-gc`). `serve.py --root <dir>` serves
+model is built), `norender=1` (the seeks draw nothing), `settle=1` (time the wait past the paint after each render:
+an animation frame, then a task, so that what the browser does after a render is not charged to the next seek) and
+`gc=1` (a full collection after each render, needs `--js-flags=--expose-gc`). `serve.py --root <dir>` serves
 another build of the page.
 
 Use `chromium`, `firefox` or `webkit`; install Playwright browsers first. Chromium
