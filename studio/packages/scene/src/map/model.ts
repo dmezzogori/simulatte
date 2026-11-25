@@ -158,6 +158,25 @@ export interface MapModel {
   traffic: TrafficSummary;
 }
 
+/** The strips of a floor without what a frame decides (`held`). */
+export type StaticStrip = Omit<Strip, "held">;
+/**
+ * What the map model takes from the layout alone, computed on first use and reused while the layout object stays
+ * the same: the floor's geometry (strips, nodes, lane width, threshold) and the index of the bindings by facility.
+ * A `Projector` keeps one for its current layout; a frame's state never enters it.
+ */
+export interface StaticMap {
+  readonly layout: object;
+  floor?: {
+    laneWidth: number;
+    threshold: number;
+    strips: readonly StaticStrip[];
+    nodes: readonly Omit<MapNode, "held">[];
+  };
+  /** Facility id to the nodes it is bound to, in binding order, each once. */
+  bindings?: ReadonlyMap<string, readonly string[]>;
+}
+
 /** Pixel sizes of the symbols and the thinnest strip at symbol level. */
 export const SYMBOL_PX = { vehicle: 22, facility: 36, strip: 10 } as const;
 

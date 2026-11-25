@@ -1,5 +1,5 @@
 import type { Point } from "../project";
-import { SYMBOL_PX, type MapModel, type MapNode, type Strip } from "./model";
+import { SYMBOL_PX, type MapModel, type MapNode, type StaticMap, type StaticStrip } from "./model";
 
 type Fields = Record<string, unknown>;
 const object = (v: unknown): Fields =>
@@ -22,11 +22,10 @@ export interface FloorInput {
   vehicles: readonly string[];
 }
 
-/** The floor of the map: strips, nodes, sizes and held resources. Null without arcs. */
-export function buildFloor(input: FloorInput): MapModel | null {
-  const graph = object(object(input.layout["network"])["graph"]);
-  const arcs = Array.isArray(graph["arcs"]) ? graph["arcs"] : [];
-  if (!arcs.length) return null;
+type StaticFloor = NonNullable<StaticMap["floor"]>;
+
+/** The geometry of the floor: what the layout, the positions and the vehicles' footprints decide, not a frame. */
+function staticFloor(input: FloorInput, graph: Fields, arcs: readonly unknown[]): StaticFloor {
   const placements = object(object(input.layout["resolved"])["placements"]);
   let depth = 0,
     length = 0;
@@ -37,19 +36,6 @@ export function buildFloor(input: FloorInput): MapModel | null {
   }
   const laneWidth = depth ? depth + 2 * 0.2 * depth : 1;
   const threshold = SYMBOL_PX.vehicle / (length || 1);
-
-  const heldIds = new Set<string>();
-  // no prototype: a zone may be named "__proto__", and a hold id such as "constructor" is not a zone
-  const zones: Record<string, readonly string[]> = Object.create(null);
-  for (const [id, fields] of Object.entries(input.state)) {
-    const kind = fields["$kind"];
-    if (kind === "segment" && (held(fields["forward"]) || held(fields["backward"]))) heldIds.add(id);
-    else if (kind === "node" && held(fields["reserved_by"])) heldIds.add(id);
-    else if (kind === "zone") {
-      zones[id] = ids(fields["members"]);
-      if (held(fields["reserved_by"])) for (const member of zones[id]) heldIds.add(member);
-    }
-  }
 
   // Both directions between two nodes make one strip; its first arc fixes the direction of a one-way one.
   const seen = new Map<string, { source: string; target: string; both: boolean; passing: boolean }>();
@@ -66,7 +52,7 @@ export function buildFloor(input: FloorInput): MapModel | null {
       known.passing ||= passing;
     }
   }
-  const strips: Strip[] = [];
+  const strips: StaticStrip[] = [];
   for (const [id, strip] of seen) {
     const a = input.positions.get(strip.source),
       b = input.positions.get(strip.target);
@@ -81,15 +67,55 @@ export function buildFloor(input: FloorInput): MapModel | null {
       width: strip.passing ? 2 * laneWidth : laneWidth,
       oneWay,
       passing: strip.passing,
-      held: heldIds.has(id),
     });
   }
 
-  const nodes: MapNode[] = [];
+  const nodes: Omit<MapNode, "held">[] = [];
   for (const raw of Array.isArray(graph["nodes"]) ? graph["nodes"] : []) {
     const id = String(object(raw)["id"]),
       at = input.positions.get(id);
-    if (at) nodes.push({ id, x: at.x, y: at.y, held: heldIds.has(id) });
+    if (at) nodes.push({ id, x: at.x, y: at.y });
+  }
+  return { laneWidth, threshold, strips, nodes };
+}
+
+/** Whether a cached floor still holds: every node it placed is where it was, and no other graph node is placed now. */
+function floorHolds(floor: StaticFloor, graph: Fields, positions: ReadonlyMap<string, Point>): boolean {
+  for (const node of floor.nodes) {
+    const at = positions.get(node.id);
+    if (!at || at.x !== node.x || at.y !== node.y) return false;
+  }
+  let count = 0;
+  for (const raw of Array.isArray(graph["nodes"]) ? graph["nodes"] : [])
+    if (positions.has(String(object(raw)["id"]))) count++;
+  return count === floor.nodes.length;
+}
+
+/**
+ * The floor of the map: strips, nodes, sizes and held resources. Null without arcs. The geometry is computed once per
+ * layout when a `cache` for it is given; `held` and the zones are read from every frame.
+ */
+export function buildFloor(input: FloorInput, cache?: StaticMap): MapModel | null {
+  const graph = object(object(input.layout["network"])["graph"]);
+  const arcs = Array.isArray(graph["arcs"]) ? graph["arcs"] : [];
+  if (!arcs.length) return null;
+  let floor = cache?.floor;
+  if (!floor || !floorHolds(floor, graph, input.positions)) {
+    floor = staticFloor(input, graph, arcs);
+    if (cache) cache.floor = floor;
+  }
+
+  const heldIds = new Set<string>();
+  // no prototype: a zone may be named "__proto__", and a hold id such as "constructor" is not a zone
+  const zones: Record<string, readonly string[]> = Object.create(null);
+  for (const [id, fields] of Object.entries(input.state)) {
+    const kind = fields["$kind"];
+    if (kind === "segment" && (held(fields["forward"]) || held(fields["backward"]))) heldIds.add(id);
+    else if (kind === "node" && held(fields["reserved_by"])) heldIds.add(id);
+    else if (kind === "zone") {
+      zones[id] = ids(fields["members"]);
+      if (held(fields["reserved_by"])) for (const member of zones[id]) heldIds.add(member);
+    }
   }
 
   const fleets = new Set<string>();
@@ -99,10 +125,10 @@ export function buildFloor(input: FloorInput): MapModel | null {
   }
   return {
     time: input.time,
-    laneWidth,
-    threshold,
-    strips,
-    nodes,
+    laneWidth: floor.laneWidth,
+    threshold: floor.threshold,
+    strips: floor.strips.map((strip) => ({ ...strip, held: heldIds.has(strip.id) })),
+    nodes: floor.nodes.map((node) => ({ ...node, held: heldIds.has(node.id) })),
     zones,
     vehicles: [],
     facilities: [],

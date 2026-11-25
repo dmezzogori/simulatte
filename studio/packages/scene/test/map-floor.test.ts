@@ -118,3 +118,19 @@ describe("a frame without a map", () => {
 it("gives the vehicle, facility and strip symbol sizes", () => {
   expect(SYMBOL_PX).toEqual({ vehicle: 22, facility: 36, strip: 10 });
 });
+
+describe("the static part of the map model", () => {
+  it("is reused for frames of one layout object without changing a model", () => {
+    const first = loadFrame("corridor-wait");
+    // another moment of the same layout object: the held floor, the vehicles and the facilities differ
+    const second: PreparedFrame = { ...loadFrame("corridor-idle"), layout: first.layout };
+    const shared = new Projector(first.initialState ?? first.state);
+    const models = [first, second, first].map((frame) => shared.project(frame).map);
+    expect(models[0]).toEqual(project("corridor-wait", first).map);
+    expect(models[1]).toEqual(project("corridor-idle", second).map);
+    expect(models[2]).toEqual(models[0]);
+    expect(models[1]!.strips.filter((s) => s.held).map((s) => s.id)).not.toEqual(
+      models[0]!.strips.filter((s) => s.held).map((s) => s.id),
+    );
+  });
+});

@@ -1,5 +1,5 @@
 import type { Point } from "../project";
-import { SYMBOL_PX, fanOut, naturalCompare, type FacilityItem, type OrderItem } from "./model";
+import { SYMBOL_PX, fanOut, naturalCompare, type FacilityItem, type OrderItem, type StaticMap } from "./model";
 
 type Fields = Record<string, unknown>;
 const object = (v: unknown): Fields =>
@@ -32,17 +32,23 @@ export function buildOrders(state: Readonly<Record<string, Fields>>): OrderItem[
   return orders;
 }
 
-/** The nodes a facility is bound to: `<id>:node`, `<id>:input_bays/<i>` and `<id>:output_bays/<i>`. */
-function boundNodes(bindings: Fields, id: string): string[] {
-  const nodes: string[] = [];
+const BOUND = /^(.*):(?:node|(?:input|output)_bays\/\d+)$/;
+
+/**
+ * The nodes each facility is bound to: `<id>:node`, `<id>:input_bays/<i>` and `<id>:output_bays/<i>`, by facility id,
+ * in binding order, each once. The rest of a key never holds a colon, so the id is all before the last one.
+ */
+export function indexBindings(bindings: Fields): Map<string, string[]> {
+  const index = new Map<string, string[]>();
   for (const [key, value] of Object.entries(bindings)) {
-    if (!key.startsWith(`${id}:`)) continue;
-    const rest = key.slice(id.length + 1);
-    if (rest !== "node" && !/^(?:input|output)_bays\/\d+$/.test(rest)) continue;
+    const id = BOUND.exec(key)?.[1];
+    if (id === undefined) continue;
     const endpoint = text(object(value)["endpoint"]);
-    if (endpoint !== null && !nodes.includes(endpoint)) nodes.push(endpoint);
+    if (endpoint === null) continue;
+    const nodes = index.get(id) ?? index.set(id, []).get(id)!;
+    if (!nodes.includes(endpoint)) nodes.push(endpoint);
   }
-  return nodes;
+  return index;
 }
 
 function stockOf(kind: Kind, fields: Fields): Record<string, number> {
@@ -80,9 +86,13 @@ export interface FacilityInput {
 }
 
 /** Warehouses, parking areas and charging stations that have a position, in natural id order. */
-export function buildFacilities(input: FacilityInput): FacilityItem[] {
+export function buildFacilities(input: FacilityInput, cache?: StaticMap): FacilityItem[] {
   const placements = object(object(input.layout["resolved"])["placements"]);
-  const bindings = object(input.layout["bindings"]);
+  let bound = cache?.bindings;
+  if (!bound) {
+    bound = indexBindings(object(input.layout["bindings"]));
+    if (cache) cache.bindings = bound;
+  }
   const waiting = new Map<string, number>();
   for (const order of input.orders)
     if (order.status === "PENDING") waiting.set(order.origin, (waiting.get(order.origin) ?? 0) + 1);
@@ -106,7 +116,7 @@ export function buildFacilities(input: FacilityInput): FacilityItem[] {
       width: size(footprint["width"]),
       depth: size(footprint["depth"]),
       rotation: ((finite(place["rotation"]) ?? 0) * Math.PI) / 180,
-      nodes: boundNodes(bindings, id),
+      nodes: [...(bound.get(id) ?? [])],
       count: countOf(kind, fields),
       stock: stockOf(kind, fields),
       badge: waiting.get(id) ?? 0,
