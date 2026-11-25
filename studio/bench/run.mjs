@@ -1,9 +1,14 @@
-// Usage: node bench/run.mjs chromium http://127.0.0.1:4182/?mode=performance /tmp/result.json
+// Usage: node bench/run.mjs chromium http://127.0.0.1:4182/?mode=performance /tmp/result.json [--shot /tmp/scene.png]
+// --shot: after the measurements, a screenshot of the scene (a frame late in the run, fitted).
 import { chromium, firefox, webkit } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-const [engine = "chromium", url, output = "/tmp/sp3-bench.json"] =
-  process.argv.slice(2);
+const args = process.argv.slice(2);
+const shotAt = args.indexOf("--shot");
+const shot = shotAt < 0 ? null : args.splice(shotAt, 2)[1];
+if (shotAt >= 0 && !shot) throw new Error("--shot needs a png path");
+const [engine = "chromium", base, output = "/tmp/sp3-bench.json"] = args;
+const url = shot ? `${base}${base.includes("?") ? "&" : "?"}shot=1` : base;
 const browser = await { chromium, firefox, webkit }[engine].launch({
   headless: true,
   ...(engine === "chromium" ? { args: ["--enable-precise-memory-info"] } : {}),
@@ -77,6 +82,7 @@ try {
     ...JSON.parse(document.querySelector("#status").textContent),
     longestTaskMs: Math.max(0, ...globalThis.__longTasks),
   }));
+  if (shot) await page.locator("#host").screenshot({ path: shot });
   result.wallSeconds = (Date.now() - start) / 1000;
   result.errors = errors;
   result.rss = rss;

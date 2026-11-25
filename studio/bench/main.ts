@@ -7,8 +7,8 @@ import {
 } from "../packages/export/node_modules/@zip.js/zip.js/index.js";
 import { openRecording, LiveRecording, type RecordingView, type PrefixDescriptor } from "@simulatte/trace";
 import { sha256 } from "../packages/trace/node_modules/@noble/hashes/sha2.js";
-import { Session } from "@simulatte/playback";
-import { Scene } from "@simulatte/scene";
+import { Session, type PreparedFrame } from "@simulatte/playback";
+import { Scene, Projector } from "@simulatte/scene";
 import { exportMedia, destination } from "@simulatte/export";
 const status = document.getElementById("status")!;
 async function run() {
@@ -163,55 +163,105 @@ async function run() {
     return result;
   }
   const host = document.createElement("div");
+  host.id = "host";
   host.style.cssText = "width:1280px;height:720px";
   document.body.append(host);
   const scene = new Scene();
   await scene.init(host, 1280, 720);
   const session = new Session(recording),
     range = recording.finiteRange!;
+  // ?nomap=1: every frame shown with its layout's network removed, so the scene builds no map model (the seeks and
+  // the scene numbers then say what the map costs).
+  const nomap = params.get("nomap") === "1";
+  const show = (frame: PreparedFrame): PreparedFrame =>
+    nomap && frame.layout ? { ...frame, layout: { ...frame.layout, network: null } as typeof frame.layout } : frame;
+  // ?norender=1: the seeks only prepare their frames (decode and reconstruction), the scene draws none of them.
+  const norender = params.get("norender") === "1",
+    settle = params.get("settle") === "1",
+    coldSettle: number[] = [],
+    coldGc: number[] = [];
   const cold: number[] = [],
+    coldPrepare: number[] = [],
+    coldRender: number[] = [],
     warm: number[] = [],
-    render: number[] = [];
+    render: number[] = [],
+    project: number[] = [];
   let seed = 312;
-  const positions = Array.from({ length: 50 }, () => {
+  const positions = Array.from({ length: Number(params.get("seeks") ?? 50) }, () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return range[0] + ((range[1] - range[0]) * seed) / 2 ** 32;
   });
   for (const time of positions) {
     const start = performance.now();
-    scene.render(
-      await session.prepare({ mode: "continuous", time, cursor: null }),
-    );
-    cold.push(performance.now() - start);
+    const frame = await session.prepare({ mode: "continuous", time, cursor: null });
+    const prepared = performance.now();
+    if (!norender) scene.render(show(frame));
+    const end = performance.now();
+    // ?settle=1: wait for the next animation frame after each render and time that wait, so the work the render
+    // leaves to the browser (and the graphics process) is counted apart from the next seek.
+    const collector = (globalThis as unknown as { gc?: () => void }).gc;
+    if (params.get("gc") === "1" && collector) {
+      // needs the browser launched with --js-flags=--expose-gc: a full collection after each render, timed apart
+      const mark = performance.now();
+      collector();
+      coldGc.push(performance.now() - mark);
+    }
+    if (settle) {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      coldSettle.push(performance.now() - end);
+    }
+    cold.push(end - start);
+    coldPrepare.push(prepared - start);
+    coldRender.push(end - prepared);
     const next = performance.now();
-    scene.render(
-      await session.prepare({ mode: "continuous", time, cursor: null }),
-    );
+    const again = await session.prepare({ mode: "continuous", time, cursor: null });
+    if (!norender) scene.render(show(again));
     warm.push(performance.now() - next);
   }
   // Scene-only moving-glyph workload, independent of seek/decode time.
+  const first = await session.prepare({ mode: "continuous", time: range[0], cursor: null });
+  const projector = new Projector(first.initialState ?? first.state);
   for (let i = 0; i < 240; i++) {
     const frame = await session.prepare({
       mode: "continuous",
       time: range[0] + ((range[1] - range[0]) * i) / 240,
       cursor: null,
     });
+    // The projection alone, by a projector of its own that follows the same frames, then the whole render.
+    const mark = performance.now();
+    projector.project(show(frame));
+    project.push(performance.now() - mark);
     const start = performance.now();
-    scene.render(frame);
+    scene.render(show(frame));
     render.push(performance.now() - start);
     await new Promise((resolve) => requestAnimationFrame(resolve));
   }
   const percentile = (a: number[], p: number) =>
-    a.sort((a, b) => a - b)[Math.floor((a.length - 1) * p)];
+    [...a].sort((a, b) => a - b)[Math.floor((a.length - 1) * p)];
   const result = {
     mode,
     userAgent: navigator.userAgent,
     openMs: opened,
     coldSeekP50: percentile(cold, 0.5),
     coldSeekP95: percentile(cold, 0.95),
+    // the first seek split: the playback session's prepare (decode and reconstruction) and the scene's render
+    coldPrepareP50: percentile(coldPrepare, 0.5),
+    coldPrepareP95: percentile(coldPrepare, 0.95),
+    coldRenderP50: percentile(coldRender, 0.5),
+    coldRenderP95: percentile(coldRender, 0.95),
+    nomap,
+    norender,
+    coldGcP50: percentile(coldGc, 0.5),
+    coldSettleP50: percentile(coldSettle, 0.5),
+    coldSettleP95: percentile(coldSettle, 0.95),
     warmSeekP50: percentile(warm, 0.5),
     warmSeekP95: percentile(warm, 0.95),
     renderP95: percentile(render, 0.95),
+    renderP50: percentile(render, 0.5),
+    projectP50: percentile(project, 0.5),
+    projectP95: percentile(project, 0.95),
+    // render includes its own projection; the rest is what the scene does with it (transfers, drawing)
+    restOfRenderP95: percentile(render.map((value, i) => value - project[i]), 0.95),
     traceBytes: bytes.size,
     live: liveEvidence,
     cache: recording.trace.cacheStats,
@@ -224,6 +274,14 @@ async function run() {
       return m ? { used: m.usedJSHeapSize, total: m.totalJSHeapSize } : null;
     })(),
   };
+  if (params.has("shot")) {
+    // Kept for the runner's screenshot: a frame late in the run, fitted. The scene is not disposed.
+    scene.render(show(await session.prepare({ mode: "continuous", time: range[0] + (range[1] - range[0]) * 0.7, cursor: null })));
+    scene.fit();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    session.dispose();
+    return result;
+  }
   session.dispose();
   scene.dispose();
   return result;

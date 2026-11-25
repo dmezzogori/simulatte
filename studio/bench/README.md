@@ -1,4 +1,4 @@
-# SP3 acceptance harness
+# Bench and acceptance harness
 
 These local tools are not shipped in the Python package. Run from the repository
 root unless a command changes directory. See the acceptance report in
@@ -6,16 +6,30 @@ root unless a command changes directory. See the acceptance report in
 
 ```sh
 pnpm --dir studio build
-(cd studio && pnpm exec vite build --config bench/vite.config.ts)
-uv run python studio/bench/glyphs.py
-uv run python studio/bench/serve.py /tmp/sp3-glyphs1000.simtrace --port 4182
+pnpm --dir studio --filter @simulatte/scene exec vite build --config "$PWD/studio/bench/vite.config.ts"
+uv run --all-extras python studio/bench/glyphs.py --workload fleet100
+uv run python studio/bench/serve.py /tmp/studio-map-bench/fleet100.simtrace --port 4182
 ```
+
+`vite` does not resolve from the `studio/` root, so it is run through the scene package with an absolute path to
+the config, whose `root` is absolute too. The bench page is built to `studio/.build/bench`, which `serve.py` serves.
+The map workloads (`--workload fleet100` or `lanes1000`, written to `/tmp/studio-map-bench/`) are real fleets that
+move on a network declared on the layout: `fleet100` is 100 vehicles on a 20 x 20 `Lattice` under
+`ReservationController`, `lanes1000` is 1,000 vehicles on 50 `Lanes` with the default controller. `--until` and
+`--seed` override the simulated time and the seed.
 
 In another terminal:
 
 ```sh
-node studio/bench/run.mjs chromium 'http://127.0.0.1:4182/?mode=performance' /tmp/glyph-results.json
+node studio/bench/run.mjs chromium 'http://127.0.0.1:4182/?mode=performance' /tmp/studio-map-bench/results.json --shot /tmp/studio-map-bench/scene.png
 ```
+
+`--shot <png>` screenshots the scene after the measurements: a frame late in the run, fitted. The result also
+reports `projectP50`/`projectP95` (the projection alone) and `restOfRenderP95` (what the scene adds to it), and splits the first seeks into `coldPrepare*` (decode and reconstruction) and `coldRender*`.
+Page options: `seeks=N` (number of first seeks, default 50), `nomap=1` (the frames' layouts lose their network, so no map
+model is built), `norender=1` (the seeks draw nothing), `settle=1` (time the wait for an animation frame after each
+render) and `gc=1` (a full collection after each render, needs `--js-flags=--expose-gc`). `serve.py --root <dir>` serves
+another build of the page.
 
 Use `chromium`, `firefox` or `webkit`; install Playwright browsers first. Chromium
 on macOS additionally samples process RSS every 100 ms. First-seek measurements

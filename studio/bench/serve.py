@@ -10,8 +10,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("trace", type=Path)
 parser.add_argument("--port", type=int, default=4180)
 parser.add_argument("--output", type=Path, default=Path("/tmp/sp3-browser"))
+parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1] / ".build" / "bench")
 args = parser.parse_args()
-root = Path(__file__).with_name("dist")
+root = args.root
 
 
 class Handler(SimpleHTTPRequestHandler):
