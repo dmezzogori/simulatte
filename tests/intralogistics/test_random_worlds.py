@@ -387,6 +387,107 @@ def test_an_open_wait_with_no_report_is_a_violation(monkeypatch, patch, seed, ro
     assert "open wait with no report" in {violation[1] for violation in record.violations}
 
 
+def _kinds(record):
+    return {violation[1] for violation in record.violations}
+
+
+def _report_unresolved_instead_of_stuck(monkeypatch):
+    """A stuck wait is reported as an unresolved deadlock of its AGV alone, and remembered as one: the report would
+    explain the wait at the end of the run, though nothing is deadlocked."""
+    report = ReservationController._report_one
+
+    def report_one(self, waiting, blockers):
+        if waiting.stuck or self._unresolved_member(waiting.agv) or self._stuck(waiting, blockers) is None:
+            return report(self, waiting, blockers)
+        ids = (waiting.agv.id,)
+        self._unresolved.append(ids)
+        self._env.emit(logistics_events.TrafficDeadlock(agvs=ids, victim=None, action="unresolved"))
+        return False
+
+    monkeypatch.setattr(ReservationController, "_report_one", report_one)
+
+
+def _detect_without_the_reduction(monkeypatch):
+    """Deadlock detection takes every stopped wait for deadlocked: it reports deadlocks it should not."""
+    reduce = ReservationController._reduce
+    monkeypatch.setattr(
+        ReservationController,
+        "_reduce",
+        lambda self, waiters, *, gates: list(waiters) if not gates else reduce(self, waiters, gates=gates),
+    )
+
+
+def _forget_unresolved_deadlocks(monkeypatch):
+    """A deadlock that no reaction resolves is neither reported nor remembered: it misses a report. (The controller
+    reports a set only when it does not stand already; the mutant makes it look standing, then forgets it.)"""
+    resolve = ReservationController._resolve
+
+    def silent(self, deadlocked):
+        ids = tuple(sorted(waiting.agv.id for waiting in deadlocked))
+        if ids in self._unresolved:
+            return resolve(self, deadlocked)
+        self._unresolved.append(ids)
+        try:
+            return resolve(self, deadlocked)
+        finally:
+            if ids in self._unresolved:
+                self._unresolved.remove(ids)
+
+    monkeypatch.setattr(ReservationController, "_resolve", silent)
+
+
+def _stuck_reported_with_no_blocker(monkeypatch):
+    stuck = ReservationController._stuck
+
+    def empty(self, waiting, blockers):
+        return None if stuck(self, waiting, blockers) is None else {}
+
+    monkeypatch.setattr(ReservationController, "_stuck", empty)
+
+
+def _stuck_reported_with_dispositions_swapped(monkeypatch):
+    """Each blocker of a stuck report is given another disposition: idle and stranded swapped, the others idle."""
+    stuck = ReservationController._stuck
+    swapped = {"IDLE": "STRANDED", "STRANDED": "IDLE", "WAITING": "IDLE", "STALLED": "IDLE"}
+
+    def swap(self, waiting, blockers):
+        found = stuck(self, waiting, blockers)
+        return None if found is None else {agv: swapped[state] for agv, state in found.items()}
+
+    monkeypatch.setattr(ReservationController, "_stuck", swap)
+
+
+def _stuck_reported_twice(monkeypatch):
+    report = ReservationController._report_one
+
+    def twice(self, waiting, blockers):
+        reported = report(self, waiting, blockers)
+        if reported:
+            waiting.stuck = False
+            report(self, waiting, blockers)
+        return reported
+
+    monkeypatch.setattr(ReservationController, "_report_one", twice)
+
+
+@pytest.mark.parametrize(
+    ("patch", "seed", "router", "kind"),
+    [
+        (_report_unresolved_instead_of_stuck, 26, "shortest", "deadlock report lists AGVs that are not deadlocked"),
+        (_detect_without_the_reduction, 26, "shortest", "deadlock report lists AGVs that are not deadlocked"),
+        (_forget_unresolved_deadlocks, 2000228, "fastest", "deadlock not reported"),
+        (_stuck_reported_with_no_blocker, 26, "shortest", "stuck report with no blocker"),
+        (_stuck_reported_with_dispositions_swapped, 26, "shortest", "stuck report gives a blocker another disposition"),
+        (_stuck_reported_twice, 26, "shortest", "stuck report repeated for one wait"),
+    ],
+)
+def test_a_wrong_or_missing_traffic_report_is_a_violation(monkeypatch, patch, seed, router, kind):
+    """What a `traffic.wait_stuck` or a `traffic.deadlock` says is checked at its event, and every deadlock is
+    reported, by the monitor's own reading of the events and of the replayed holdings."""
+    patch(monkeypatch)
+    assert kind in _kinds(run_world(world_spec(seed), controller="reservation", router=router))
+
+
 @pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))
 def test_a_run_of_the_safety_check_returns_with_no_violation(seed, controller, router):
     spec = world_spec(seed)
