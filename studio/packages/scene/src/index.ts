@@ -10,7 +10,11 @@ import {
   type Projection,
   type Point,
 } from "./project";
-import type { MapModel } from "./map/model";
+import { detailAt, type MapModel } from "./map/model";
+import { drawFloor, drawGrid } from "./draw/floor";
+import { drawNode, NODE_PX } from "./draw/node";
+import { PALETTE } from "./draw/palette";
+import { drawScaleBar } from "./draw/scale-bar";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress, motionSpeed } from "./motion";
 export {
@@ -28,6 +32,8 @@ export {
   type WaitLine,
 } from "./map/model";
 export { overlayFor, type Overlay } from "./map/overlay";
+export { scaleBar } from "./draw/scale-bar";
+export { PALETTE } from "./draw/palette";
 export interface Camera {
   x: number;
   y: number;
@@ -41,6 +47,9 @@ export type TrustedRenderer = (
 export interface EditorPointer {
   phase: 'start' | 'move' | 'end' | 'cancel'; point: Point; id: string | null; shift: boolean;
 }
+/** Kinds with no placement (M24): in the map model for the panel, not drawn on a map. */
+const UNPLACEABLE = new Set(["order", "fleet"]);
+const FACILITIES = new Set(["warehouse", "parking_area", "charging_station"]);
 // Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
 // also clears global pools; only the last scene may release shared resources.
 let liveScenes = 0;
@@ -60,6 +69,16 @@ export class Scene {
   readonly #world = new Container();
   readonly #graphics = new Graphics();
   readonly #background = new Graphics();
+  /** Screen space, above the world: the scale bar. */
+  readonly #scaleBar = new Container();
+  readonly #scaleBarGraphics = new Graphics();
+  #scaleBarText: Text | null = null;
+  /** World space, above the scale bar: the decorative trails of a map. */
+  readonly #front = new Graphics();
+  /** The projection comes from a frame with a layout: the scale bar is drawn. */
+  #layout = false;
+  /** False hides every text: labels, node ids and the length of the scale bar. */
+  labels = true;
   readonly #transfers = new TransferTrails();
   #trails: readonly TransferTrail[] = [];
   #transferClock = 0;
@@ -104,6 +123,7 @@ export class Scene {
     if (this.#disposed) return;
     const first = this.#projection === null;
     this.#projection = projection;
+    this.#layout = false;
     if (first) this.fit(); else this.draw();
   }
   onError: ((message: string) => void) | null = null;
@@ -142,7 +162,8 @@ export class Scene {
       this.app.destroy({removeView: true, releaseGlobalResources: liveScenes === 0}, { children: true, texture: true });
       return;
     }
-    this.app.stage.addChild(this.#world);
+    this.app.stage.addChild(this.#world, this.#scaleBar, this.#front);
+    this.#scaleBar.addChild(this.#scaleBarGraphics);
     this.#world.addChild(this.#background, this.#graphics, this.#labels);
     host.append(this.canvas);
     this.canvas.setAttribute(
@@ -258,6 +279,7 @@ export class Scene {
       this.#projector = new Projector(frame.initialState ?? frame.state);
     const first = !this.#projection;
     this.#projection = this.#projector.project(frame);
+    this.#layout = !this.#projection.fallback;
     if (options.transferClock === undefined) this.setPlaying(this.#playing);
     if (options.resetTransfers) this.resetTransfers();
     this.#transferClock = options.transferClock ?? this.#activeWall;
@@ -280,8 +302,9 @@ export class Scene {
     this.draw();
   }
   fit(): void {
-    const glyphs = this.#projection?.glyphs.filter((g) => !g.unplaced);
-    if (!glyphs?.length) return;
+    const map = this.#projection?.map ?? null;
+    const glyphs = this.#projection?.glyphs.filter((g) => !g.unplaced && (!map || this.#onMap(g)));
+    if (!glyphs || (!glyphs.length && !map?.strips.length)) return;
     let minX = Infinity,
       maxX = -Infinity,
       minY = Infinity,
@@ -293,6 +316,14 @@ export class Scene {
       minY = Math.min(minY, glyph.y - radius);
       maxY = Math.max(maxY, glyph.y + radius);
     }
+    if (map)
+      for (const strip of map.strips)
+        for (const end of [strip.a, strip.b]) {
+          minX = Math.min(minX, end.x - strip.width / 2);
+          maxX = Math.max(maxX, end.x + strip.width / 2);
+          minY = Math.min(minY, end.y - strip.width / 2);
+          maxY = Math.max(maxY, end.y + strip.width / 2);
+        }
     const scale = Math.min(
       this.app.screen.width / (maxX - minX + 4),
       this.app.screen.height / (maxY - minY + 4),
@@ -335,7 +366,9 @@ export class Scene {
   }
   private pick(x: number, y: number): string | null {
     const point = this.screenToWorld(x, y);
+    const map = this.#projection?.map;
     for (const g of [...(this.#projection?.glyphs ?? [])].reverse()) {
+      if (map && !this.#onMap(g)) continue;
       const dx = point.x - g.x,
         dy = point.y - g.y,
         c = Math.cos(g.rotation),
@@ -354,6 +387,15 @@ export class Scene {
     const { x, y, scale } = this.#camera;
     this.#world.position.set(x, y);
     this.#world.scale.set(scale, -scale);
+    this.#labels.visible = this.labels;
+    this.#front.clear();
+    this.#drawScaleBar(scale);
+    const map = this.#projection.map;
+    if (map) {
+      this.#drawMap(map);
+      this.app.render();
+      return;
+    }
     const signature = JSON.stringify([
       this.#camera,
       this.app.screen.width,
@@ -476,6 +518,140 @@ export class Scene {
         this.#texts.delete(id);
       }
     this.app.render();
+  }
+  /** A glyph is drawn and picked on a map unless its kind has no placement; a registered renderer still wins. */
+  #onMap(glyph: Glyph): boolean {
+    return !UNPLACEABLE.has(glyph.kind) || this.#renderers.has(glyph.kind);
+  }
+  #drawScaleBar(scale: number): void {
+    this.#scaleBar.visible = this.#layout;
+    if (!this.#layout) return;
+    if (!this.#scaleBarText) {
+      this.#scaleBarText = new Text({
+        text: "",
+        style: { fontFamily: "system-ui", fontSize: 12, fill: PALETTE.scaleBar },
+      });
+      this.#scaleBarText.anchor.set(0.5, 1);
+      this.#scaleBar.addChild(this.#scaleBarText);
+    }
+    this.#scaleBarText.visible = this.labels;
+    drawScaleBar(this.#scaleBarGraphics, this.#scaleBarText, scale, this.app.screen.height);
+  }
+  /** The layers of spec section 5.1, bottom to top. The held tint, wait lines and the overlay come in later. */
+  #drawMap(map: MapModel): void {
+    const projection = this.#projection!;
+    const { x, y, scale } = this.#camera,
+      width = this.app.screen.width,
+      height = this.app.screen.height,
+      detail = detailAt(map, scale);
+    // Static: the grid and the floor. `held` changes with the frame and is not part of it.
+    const signature = JSON.stringify([
+      "map",
+      this.#camera,
+      width,
+      height,
+      map.strips.map((s) => [s.a.x, s.a.y, s.b.x, s.b.y, s.width, s.oneWay]),
+    ]);
+    if (signature !== this.#staticSignature) {
+      this.#staticSignature = signature;
+      this.#background.clear();
+      drawGrid(this.#background, scale, {
+        left: -x / scale,
+        right: (width - x) / scale,
+        bottom: (y - height) / scale,
+        top: y / scale,
+      });
+      drawFloor(this.#background, map.strips, scale, detail);
+    }
+    const onScreen = (p: { x: number; y: number }): boolean => {
+      const sx = x + p.x * scale,
+        sy = y - p.y * scale;
+      return sx >= -200 && sy >= -100 && sx <= width + 200 && sy <= height + 100;
+    };
+    const glyphs = projection.glyphs.filter((g) => this.#onMap(g) && onScreen(g));
+    const facilities = glyphs.filter((g) => FACILITIES.has(g.kind)),
+      vehicles = glyphs.filter((g) => g.kind === "agv"),
+      nodes = glyphs.filter((g) => g.kind === "node"),
+      generic = glyphs.filter((g) => !FACILITIES.has(g.kind) && g.kind !== "agv" && g.kind !== "node");
+    const dynamic = this.#graphics;
+    dynamic.clear();
+    const visible = new Set<string>();
+    const label = (item: Glyph): void => {
+      if (scale > 20 && item.kind !== "job" && (item.kind !== "node" || item.id === this.#selected))
+        this.#text(
+          visible,
+          item.id,
+          `${item.label.slice(0, 160)}${item.queue ? " · " + item.queue + " queued" : ""}${item.badge ? "\n" + item.badge : ""}${item.diagnostic ? "\n" + item.diagnostic : ""}`,
+          item.x,
+          item.y - item.depth / 2 - 0.12,
+          PALETTE.text,
+        );
+    };
+    for (const item of facilities) {
+      this.glyph(dynamic, item, scale);
+      label(item);
+    }
+    for (const port of projection.ports) dynamic.circle(port.x, port.y, 3 / scale).fill(PALETTE.port);
+    if (this.#renderers.has("node"))
+      for (const item of nodes) {
+        this.glyph(dynamic, item, scale);
+        label(item);
+      }
+    else
+      for (const node of map.nodes) {
+        const selected = node.id === this.#selected;
+        if ((detail !== "true" && !selected) || !onScreen(node)) continue;
+        drawNode(dynamic, node, scale, selected);
+        this.#text(visible, node.id, node.id, node.x, node.y - (NODE_PX + 2) / scale, PALETTE.nodeText);
+      }
+    for (const item of [...generic, ...vehicles]) {
+      this.glyph(dynamic, item, scale);
+      label(item);
+    }
+    for (const [id, text] of this.#texts)
+      if (!visible.has(id)) {
+        text.destroy();
+        this.#texts.delete(id);
+      }
+    this.#front.position.set(x, y);
+    this.#front.scale.set(scale, -scale);
+    if (this.decorativeTransfers) this.#drawTrails(this.#front, scale);
+  }
+  /** A label below a point of the world, of fixed pixel size; ids not added to `visible` are removed. */
+  #text(visible: Set<string>, id: string, content: string, x: number, y: number, fill: number): void {
+    visible.add(id);
+    let text = this.#texts.get(id);
+    if (!text) {
+      text = new Text({ text: "", style: { fontFamily: "system-ui", fontSize: 12, fill } });
+      text.anchor.set(0.5, 0);
+      this.#texts.set(id, text);
+      this.#labels.addChild(text);
+    }
+    text.text = content;
+    text.position.set(x, y);
+    text.scale.set(1 / this.#camera.scale, -1 / this.#camera.scale);
+    text.visible = true;
+  }
+  /** The decorative trails of a map, as the scene draws them without one. */
+  #drawTrails(g: Graphics, scale: number): void {
+    for (const trail of this.#trails) {
+      const dx = trail.to.x - trail.from.x,
+        dy = trail.to.y - trail.from.y,
+        length = Math.hypot(dx, dy),
+        dash = 6 / scale;
+      for (let d = 0; d < length; d += dash * 2) {
+        const stop = Math.min(length, d + dash);
+        g.moveTo(trail.from.x + (dx * d) / length, trail.from.y + (dy * d) / length).lineTo(
+          trail.from.x + (dx * stop) / length,
+          trail.from.y + (dy * stop) / length,
+        );
+      }
+      g.stroke({
+        color: PALETTE.trail,
+        width: 2 / scale,
+        alpha: 0.35 * Math.max(0, 1 - (this.#transferClock - trail.born) / trail.lifetime),
+      });
+    }
   }
   private glyph(g: Graphics, item: Glyph, scale: number): void {
     const custom = this.#renderers.get(item.kind);

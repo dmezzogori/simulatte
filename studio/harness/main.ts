@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   };
   const scene = new Scene();
   scene.decorativeTransfers = false;
+  scene.labels = params.get("labels") !== "0";
   await scene.init(document.getElementById("host")!, WIDTH, HEIGHT);
   scene.render(frame); // the first render fits the camera
   const scale = number(params, "scale");
@@ -46,7 +47,6 @@ async function main(): Promise<void> {
   }
   const select = params.get("select");
   if (select) scene.select(select);
-  // `labels` is read by the tasks that add a label switch to the scene
   document.title = "ready";
 }
 
