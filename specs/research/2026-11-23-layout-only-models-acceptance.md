@@ -966,6 +966,13 @@ Added by the final review (see "Final review"); the monitor is unchanged.
   for the second known limit (until `5b3bb91`) and uses them to count the feature "a deadlock"; it does not check
   that the AGVs a report lists are in a deadlock, nor that every deadlock is reported. A wrong or spurious report
   passes. (Open waits at the end of a run are explained from the controller's state, see the follow-up above.)
+- **A sleeping wait queued behind a reported one.** At the end of a run the monitor explains an open wait that is
+  blocked by a wait reported stuck or unresolved, transitively, without asking that the wait itself was reported. Added
+  by Assignment 2, B1: eight runs at `5b00d9f` end with such a wait, asleep (review delay kept, no timer) and with no
+  report of its own, behind a wait flagged earlier: 8102359 `congestion` (agv-f behind bot-x), 8103231 `shortest`
+  (agv-a behind agv-c), 100281 `shortest` and `fastest` (agv-f behind agv-c), 7700058 with the three routers (agv-e
+  behind bot-x) and 7701490 `fastest` (agv-f behind bot-y and bot-z). The monitor passes them; §7.9's stuck chain
+  reaches a wait behind a reported one only at the instant of that report.
 
 ## Costs measured at the end (Task 11)
 
@@ -1328,6 +1335,13 @@ Found by that review outside the fix wave:
    CI runner the `bench` job passed at `e993ca8` with +6.8 % and +7.7 %, and has failed once on `main` for a commit
    that touched no source.
 
+Found by the review of Assignment 2, B1 (open, not changed; for the maintainer):
+
+9. Seed 7702388, `ReservationController`, `ShortestDistanceRouter`, ends with `open wait with no report ['agv-e']` at
+   586.206 (`benchmarks/layout_safety.py --worlds 1 --first 7702388`), identical at `6ff842f`, `687ad66` and `5b00d9f`
+   (1,258 events, fingerprint `8a40c7e16f04`). No remembered unresolved set is involved. See "B1, fix round 2" for the
+   cause as confirmed.
+
 ## Assignment 2
 
 ### A. Residuals of the fix wave
@@ -1570,14 +1584,41 @@ examples is identical to the base. `PYTHONHASHSEED` 0, 1 and 7: seeds 100000..10
 identical. No pin moved.
 
 Safety run at `ac4d837` (same source as `c6cb563`), 10 workers: seeds 100000..100999, 6,000 runs, 6,570,200 events;
-seeds 2000000..2000999, 6,000 runs, 6,720,030 events; in each 0 raised, 0 not returned, 0 ended with the queue not empty,
-0 with violations; the parking-slot limit in 6 and 8 runs (the 14 recorded cases); exit status 0 and 0.
+seeds 2000000..2000999, 6,000 runs, 6,720,030 events; in each 0 raised, 0 not returned, 0 ended with the queue not
+empty, 0 with violations; the parking-slot limit in 6 and 8 runs (the 14 recorded cases); exit status 0 and 0.
 
 Mutant check at `c6cb563` (runs with `open wait with no report`, 2000150.. / 500000..): no mutant 0 / 0; blind after a
 member's withdrawal 21 / 12; every stuck report suppressed 307 / 328; every review timer dropped 174 / 191: the same
 counts as at `5b3bb91`. No other violation; the parking-slot limit as in the unmutated runs.
 
 These statements hold for the seeds run: 8,000 worlds here, the recorded safety ranges and the mutant ranges.
+
+**Fix round 2.** No source change. Tests: the orphan review at a stop is pinned by
+`test_a_former_member_left_by_a_resolution_at_a_later_stop_gets_on_blocked_before_the_stopping_wait` (`{A, B}`
+unresolved, X stops behind B and the policy now reroutes A; B gets its `on_blocked` call and a review, in the order A,
+B, X; the test fails without the call in `stopped()` and with it moved after the stopping wait's own call), and the
+order "detection, then the waits left" in a member's withdrawal by an `on_blocked` assertion in
+`test_what_is_left_of_a_set_when_a_members_wait_is_withdrawn_is_examined_again` (it fails with the two swapped). The guide's clause on members with no review names the
+exception of a blocker that strands, and the changelog line is wrapped.
+
+Where the statements of B1 hold. "No open wait without a report" holds for the runs measured or run here: seeds
+100000..100999, 2000000..2000999, 52000..53999 and 8100000..8103999 under the three routers (the paired measurement,
+at `c6cb563`); the safety ranges 100000..100999 and 2000000..2000999 under both controllers (at `ac4d837`); and the
+unmutated controls of 2000150..2000449 and 500000..500299. The review of B1 ran 7700000..7702999 too (18,000 runs) and
+found one run that is not this defect, below; it does not extend to other seeds.
+
+Found beyond this task (open, not changed here, for the maintainer): seed 7702388, `ReservationController`,
+`ShortestDistanceRouter`, ends with `open wait with no report ['agv-e']` at 586.206, identical at `6ff842f`, `687ad66`
+and `5b00d9f` (1,258 events, fingerprint `8a40c7e16f04`; reproduced here at the three commits). No remembered set is
+involved. The reviewer's cause, which I confirmed with a probe of `_detect` (`scratch-a2-B1/probe7702388.py`): agv-e's
+review at 522.235 finds blockers agv-g (stranded) and agv-b (waiting, a gate on `corridor:c01`), is not stuck, and goes
+to sleep (no change since 492.2). At 522.883 agv-d stops; its detection marks agv-b's claim yielding (the gate-waiver
+pass of `_detect`, `reservation.py:731` at `5b00d9f`): agv-e's blockers become agv-g alone, stranded, while the change
+count stays at 379, since a waiver is neither a grant nor a release. The sleeping review is therefore never woken. agv-e
+is now stuck by the rule of §7.9 and is never reported; agv-c and agv-d, behind it, are reported at their own reviews
+(529.5, 552.9), and that chain does not reach forward to agv-e. A one-line scratch prototype of the reviewer, which
+counts the waiver as a change, clears the run; it was not measured further. Frequency: 1 run in the 18,000 of seeds
+7700000..7702999, none in the other 48,000 runs of the review.
 
 ### C. The band of the core overhead gate
 
