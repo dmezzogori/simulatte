@@ -1081,6 +1081,8 @@ class Monitor:
         self.standing: list[tuple[str, ...]] = []
         self._ended: dict[str, tuple[float, str, tuple[Item, ...]]] = {}  # the last wait of each AGV that ended
         self._expected: list[tuple[str, ...]] = []  # deadlocked sets found at a wait event of this instant
+        self._waits_changed = False  # a wait opened or ended in this instant
+        self._left_over: set[tuple[str, ...]] = set()  # deadlocked sets left at the end of an instant, reported
         self._placed: set[tuple[str, str]] = set()  # (resource, agv) held since the placement and not taken again
         self._against: set[tuple[str, str, str]] = set()
         self.routes: dict[str, tuple[str, ...]] = {}
@@ -1292,10 +1294,8 @@ class Monitor:
                 self.goals[event.agv] = event.destination
         elif isinstance(event, ParkingEntered | ParkingLeft):
             self._track_slot(event)
-        elif isinstance(
-            event, AgvStateChanged
-        ):  # a travel that ends leaves the travelling state, at least for an instant
-            for key in self._left:
+        elif isinstance(event, AgvStateChanged) and event.state not in TRAVELING:
+            for key in self._left:  # a travel that ends leaves the travelling state, at least for an instant
                 if key[1] == event.agv:
                     self._left[key] = True
         elif isinstance(event, TrafficWaitStarted | TrafficWaitEnded | TrafficWaitStuck | TrafficDeadlock):
@@ -1449,6 +1449,8 @@ class Monitor:
                 self._placed.discard((resource, event.agv))
 
     def _track_wait(self, event: Any, t: float) -> None:
+        if isinstance(event, TrafficWaitStarted | TrafficWaitEnded):
+            self._waits_changed = True
         if isinstance(event, TrafficWaitStarted):
             self.waits[event.agv] = OpenWait(t, self._claim_items(event.agv, event.resources))
             self._expect_report()
@@ -1536,17 +1538,28 @@ class Monitor:
 
     def _check_detection(self) -> None:
         """Every deadlock is reported: each set expected in the instant was named by a ``traffic.deadlock`` of the
-        instant, or stands."""
+        instant, or stands; and at the end of an instant in which a wait opened or ended, the deadlocked set of the
+        waits still open is empty or stands (once per set)."""
         for found in self._expected:
             if found not in self.standing:
                 self.violation("deadlock not reported", found, at=self._instant)
         self._expected.clear()
+        if self._waits_changed:
+            self._waits_changed = False
+            left = tuple(sorted(self._deadlocked({agv: wait.items for agv, wait in self.waits.items()})))
+            if left and left not in self.standing and left not in self._left_over:
+                self._left_over.add(left)
+                self.violation("deadlock left at the end of the instant", left, at=self._instant)
 
     def _check_deadlock(self, event: TrafficDeadlock, t: float) -> None:
         """A ``traffic.deadlock`` lists AGVs with an open wait (the victim's ended just before, with the reason of the
         action), and exactly the deadlocked set of those waits and the victim's; an unresolved report is not repeated
         while the same set stands."""
         ids = tuple(event.agvs)
+        if event.victim is not None:  # a resolution staged the victim's reaction, which ended its wait just before
+            ended = self._ended.get(event.victim)
+            if event.victim in self.waits or ended is None or ended[:2] != (t, ENDED_BY.get(event.action)):
+                self.violation("deadlock report names a victim whose wait did not end", event.victim, ids, event.action)
         claims = {agv: wait.items for agv, wait in self.waits.items()}
         for agv in ids:
             ended = self._ended.get(agv)
@@ -1598,7 +1611,7 @@ class Monitor:
         for blocker, given in sorted(blockers.items()):
             if blocker not in self.bodies:
                 self.violation("stuck report names an AGV the world does not have", event.agv, blocker)
-                return
+                continue
             found = self._disposition(blocker)
             if found != given:
                 self.violation("stuck report gives a blocker another disposition", event.agv, blocker, given, found)

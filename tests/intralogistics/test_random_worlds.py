@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from simulatte.environment import Environment
+from simulatte.events import Deltas
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
@@ -550,6 +551,55 @@ def _resolved_deadlocks_reported_one_member_short(monkeypatch):
     _deadlock_reports_changed(monkeypatch, short)
 
 
+def _deadlocks_resolved_in_name_only(monkeypatch):
+    """A deadlock is reported once as resolved by its first member giving up, though nothing is staged: every member
+    keeps waiting and the set is not remembered."""
+
+    def resolve(self, deadlocked):
+        ids = tuple(sorted(waiting.agv.id for waiting in deadlocked))
+        faked = self.__dict__.setdefault("_faked", set())
+        if ids not in faked:
+            faked.add(ids)
+            self._env.emit(logistics_events.TrafficDeadlock(agvs=ids, victim=ids[0], action="give_up"))
+        return False
+
+    monkeypatch.setattr(ReservationController, "_resolve", resolve)
+
+
+def _stuck_reported_with_an_unknown_blocker(monkeypatch):
+    stuck = ReservationController._stuck
+
+    def ghost(self, waiting, blockers):
+        found = stuck(self, waiting, blockers)
+        return None if found is None else {**found, "ghost-1": "IDLE"}
+
+    monkeypatch.setattr(ReservationController, "_stuck", ghost)
+
+
+def _slot_given_back_at_the_decision(monkeypatch):
+    """The slot of a trip to park is given back as soon as it is taken: the AGV travels to the node without it."""
+    take = FleetCoordinator._take_slot
+
+    def take_and_give_back(self, agv, target):
+        taken = take(self, agv, target)
+        if taken and any(area.node == target for area in self._slots.get(agv, ())):
+            self._release_slots(agv, target)
+        return taken
+
+    monkeypatch.setattr(FleetCoordinator, "_take_slot", take_and_give_back)
+
+
+def _every_slot_given_back_twice(monkeypatch):
+    """Every give-back emits `parking.left` twice, the second for a slot that is no longer held."""
+    leave = ParkingArea.leave
+
+    def twice(self, agv):
+        leave(self, agv)
+        self.env.emit(logistics_events.ParkingLeft(area=self.id, agv=agv.id, deltas=Deltas.build().done()))
+
+    monkeypatch.setattr(ParkingArea, "leave", twice)
+
+
 @pytest.mark.parametrize(
     ("patch", "seed", "router", "kind"),
     [
@@ -573,6 +623,16 @@ def _resolved_deadlocks_reported_one_member_short(monkeypatch):
             "shortest",
             "deadlock report differs from the deadlocked set",
         ),
+        (_deadlocks_resolved_in_name_only, 26, "shortest", "deadlock report names a victim whose wait did not end"),
+        (_deadlocks_resolved_in_name_only, 26, "shortest", "deadlock left at the end of the instant"),
+        (_stuck_reported_with_an_unknown_blocker, 26, "shortest", "stuck report names an AGV the world does not have"),
+        (
+            _slot_given_back_at_the_decision,
+            88,
+            "shortest",
+            "parking slot given back during a travel to the area's node",
+        ),
+        (_every_slot_given_back_twice, 88, "shortest", "parking slot given back that was not held"),
     ],
 )
 def test_a_wrong_or_missing_traffic_report_is_a_violation(monkeypatch, patch, seed, router, kind):
