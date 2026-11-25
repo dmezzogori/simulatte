@@ -906,6 +906,8 @@ class TestDetection:
         assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved"), (("A", "B"), None, "unresolved")]
         assert [[wait.agv.id for wait in waits] for waits in policy.of("on_deadlock")] == [["C", "A", "B"], ["A", "B"]]
         assert w.controller._unresolved == [("A", "B")]
+        # B opened into the set; detection comes first and finds it in {A, B} again, so it gets no on_blocked call
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["C", "A"]
         w.env.run()
         assert timers(w) == []
         assert w.env.now == 0.0
@@ -1038,6 +1040,31 @@ class TestDetection:
         assert requests["Q"].event.value == Rerouted("blocked")
         assert w.waits()[-1] == ("traffic.wait_ended", "Q", "rerouted")
         assert timers(w) == [5.0]  # P's first review only
+
+    def test_a_former_member_left_by_a_resolution_at_a_later_stop_gets_on_blocked_before_the_stopping_wait(
+        self,
+    ) -> None:
+        """{A, B} stands unresolved, B's wait opened into it. X stops behind B and the policy now reroutes A: the set is
+        forgotten, B is in no deadlock and gets its on_blocked call and a review, before X gets its own."""
+        calls = {"n": 0}
+
+        def deadlock(waits: Sequence[Wait]) -> Sequence[tuple[AGV, Reaction]]:
+            calls["n"] += 1
+            return [] if calls["n"] == 1 else [(wait.agv, Reroute(frozenset())) for wait in waits if wait.agv.id == "A"]
+
+        policy = Scripted(blocked=(KeepWaiting(5.0),), deadlock=deadlock)
+        w = world({"A": "N0", "B": "N1", "X": "N2"}, policy=policy)
+        rerouted = w.wait("A", "N1", with_hooks=hooks(name="A", accept=("try_reroute",)))
+        w.wait("B", "N0")
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["A"]
+        w.wait("X", "N1")
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved"), (("A", "B", "X"), "A", "reroute")]
+        assert rerouted.event.value == Rerouted("deadlock")
+        assert w.controller._unresolved == []
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["A", "B", "X"]
+        assert w.controller._pending[w.agvs["B"]].timer is not None
+        assert timers(w) == [5.0, 5.0]  # B's and X's first reviews; A's went with its wait
 
     def test_a_former_member_with_a_review_or_still_in_a_remembered_set_gets_no_new_one(self) -> None:
         policy = Scripted(blocked=(KeepWaiting(5.0),))
