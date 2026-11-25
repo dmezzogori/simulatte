@@ -977,6 +977,12 @@ Added by the final review (see "Final review"); the monitor is unchanged.
   (agv-a behind agv-c), 100281 `shortest` and `fastest` (agv-f behind agv-c), 7700058 with the three routers (agv-e
   behind bot-x) and 7701490 `fastest` (agv-f behind bot-y and bot-z). The monitor passes them; §7.9's stuck chain
   reaches a wait behind a reported one only at the instant of that report.
+- **A parking slot held during travel.** Added by Assignment 2, B2. The parking check reports a slot held by an AGV at
+  rest away from the area's node (`parking slot of an AGV resting elsewhere`), and at the end of a run a slot held away
+  from its node; it does not look at a slot while its AGV travels. A slot kept while the AGV travels to a charger
+  elsewhere and given back as the charge starts would pass the monitor. The hand-built tests of B2 in
+  `tests/intralogistics/test_idle_traffic.py` catch it (the slot goes back at the turn, before the travel to the
+  charger).
 
 ## Costs measured at the end (Task 11)
 
@@ -1724,12 +1730,13 @@ only the parking events differ: the time of `parking.left` or its place within t
 `shortest`, 8100264 `shortest` and `fastest`, 8101926 `congestion`) also the place in the area's list of parked AGVs at
 which a later `parking.entered` inserts (its delta), with the same final state. In 5 another AGV is sent to the area in
 the time the slot was held at the base, which is the effect of the fix: 100800 `congestion` and 52643 `shortest`
-complete the same orders; 52050 `FreeFlowController` with `congestion` and `fastest`, and 8101889 `congestion`, complete
-one order fewer each. In 52050 agv-f, after its delivery at 67.9, is sent to P0 on the slot agv-b gave back at 43.5 (at
-the base agv-b still held it and agv-f stayed idle on the bay); dispatched from there with order-7 at 97.9, it strands at 100.8
-with the order (at the base it completed order-7 and stranded at 119.7, after it). In 8101889 agv-b, parked on P0 and
-asked to make way at 182.9, moves to P2 on the slot agv-g gave back at 159.6 instead of to a node of a block, and the
-run takes another course (5 orders completed instead of 6). No run completes more orders.
+complete the same orders; 52050 `FreeFlowController` with `congestion` and `fastest` (one run twice: the two streams are
+identical) and 8101889 `congestion` complete one order fewer each, two cases in all. In 52050 agv-f, after its delivery
+at 67.9, is sent to P0 on the slot agv-b gave back at 43.5 (at the base agv-b still held it and agv-f stayed idle on the
+bay); dispatched from there with order-7 at 97.9, it strands at 100.8 with the order (at the base it completed order-7
+and stranded at 119.7, after it). In 8101889 agv-b, parked on P0 and asked to make way at 182.9, moves to P2 on the slot
+agv-g gave back at 159.6 instead of to a node of a block, and the run takes another course (5 orders completed instead
+of 6). No run completes more orders.
 
 Pins. Of the six fingerprints of `test_random_worlds.py`, seed 619 moved and is pinned again: compared event by event
 with the base run, the only difference is its `parking.left` at 122.0 instead of 220.1 (same 394 events otherwise, same
@@ -1779,6 +1786,36 @@ the old behaviour as a violation.
 says that a move that turns to charge gives the slot back as it turns. `CHANGELOG.md` gets no line for this: 0.17.0
 had `ParkingArea` but its fleet took no slots, so nothing a user of 0.17.0 saw changes. The traffic spec (§7.10, T13)
 says the slot goes back "when the travel does not arrive"; the wording to amend is in the task report, not changed here.
+
+**Fix round 1.** The review of B2 found a corner of the change: when the charger the trip turns to stands on the node of
+the parking area the trip goes to, `61e5b27` gave the slot back at the turn, and the AGV then travelled to that node,
+charged and rested there without a slot; the area of one slot showed free, a second AGV's make-way move to it was
+accepted and both rested on the node (at `f6171ac` the move is refused). The reviewer built it by hand (a trip routed
+the long way round, a charger on the parking node). Ruled by the controller: the slot is kept. Since `0d08071`
+(`fix(intralogistics): a parking slot is kept when the charge is on the area's own node`) the release at the turn
+keeps the slots of the charger's node as well as those of the node the AGV stands on. When the charge on that node ends
+the travel returns as before and the AGV is at rest on the parking node with its slot, parked; the slot goes when it
+next departs, as for any parked AGV. Test:
+`test_a_trip_to_park_that_turns_to_a_charger_on_the_parking_node_keeps_its_slot` (both controllers), built from the
+reviewer's case with the `Via` router of the test module: the slot is held throughout, the area never shows free, B's
+make-way move to FAR is refused, A rests on FAR parked, and its next departure gives the slot back. It fails at
+`881dd91` (`2 failed`, the make-way move accepted). On the 36,000 runs of the measurement above, `0d08071` against
+`881dd91`: no run changed, and no turn went to a charger on the node of the trip's area (counted by a wrapper of
+`_release_slots_elsewhere`); against `f6171ac` the table above holds unchanged, with no slot held during a charge
+elsewhere. Full suite at `0d08071`: `4992 passed, 1 skipped`, the six fingerprints (619 as re-pinned) holding. Safety
+run at `0d08071`, 8 workers: seeds 100000..100999, 6,000 runs, 6,570,200 events; seeds 2000000..2000999, 6,000 runs,
+6,720,030 events; in each 0 raised, 0 not returned, 0 ended with the queue not empty, 0 with violations; exit status 0
+and 0.
+
+Open, pre-existing and not changed here, for the maintainer (counts from the review of B2):
+
+- An AGV that charged on its way to park stays idle on the charger's node. The trip is not resumed and the
+  repositioning policy is not asked again; the service node is not cleared, since clearing runs only when the policy
+  returned no target (`fleet.py:766`). The review found this in 34 of 37 measured turns; in 16 the AGV stayed there a
+  while, in 1 until the end of the run.
+- `agv.stranded` with reason `insufficient_after_charging` names the node where the diversion started, not the node
+  where the AGV stands (`travel.py:825`), and the reason is also given when the diversion never reached a charger
+  (8100301 `fastest`: `node` g2_2 with the AGV on c07). The review counted 35 of 43,393 stranded events.
 
 ### C. The band of the core overhead gate
 
