@@ -175,10 +175,15 @@ node, and the slot was released at the instant the charge ended. A slot held by 
 way stays a violation (`test_a_parking_slot_held_by_an_agv_resting_elsewhere_for_another_reason_is_a_violation`),
 and so does a slot kept through such a charge but not released as it ends.
 
-**A deadlock is not detected again after a member's wait was withdrawn.** **Fixed in `df2f7c3`** (Assignment 2, B1); the
-monitor no longer exempts it (`5b3bb91`). (Found by the Task 2 review; not met by the parity run, which ran seeds 0 to
+**A deadlock is not detected again after a member's wait was withdrawn.** **Fixed in two halves** (Assignment 2, B1):
+`df2f7c3` runs detection again when a member's wait ends by withdrawal or by a staged `on_blocked` reaction, which finds
+the members left when they still form a deadlock; `c6cb563` gives a member left in no deadlock, whose wait had opened
+into the set, the `on_blocked` call and review it never had. The first half alone left that second shape open: seed
+8103801 with `FastestRouter` (found by the review of B1). The monitor no longer exempts the case (`5b3bb91`). These
+statements hold for the seeds run (see B1). (Found by the Task 2 review; not met by the parity run, which ran seeds 0 to
 999 and had none. The safety run of Task 11 meets it once; see "Safety run".) It is a missed detection in
-`ReservationController`, not only a missing report. In `src/simulatte/intralogistics/reservation.py` deadlock detection (`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member whose wait opens into
+`ReservationController`, not only a missing report. In `src/simulatte/intralogistics/reservation.py` deadlock detection
+(`_detect`) runs only when a wait starts, from `stopped()` (line 287). A member whose wait opens into
 a set reported unresolved returns from `stopped()` at once (lines 288 to 289) and gets no review timer (a member that was
 already waiting keeps what it had: in seed 2000228 agv-e had had two reviews and is dormant), and `_report_one` (line
 578) refuses every member a stuck report while the set stands. The set is remembered in `_unresolved`. `_end_wait` (line 631) drops
@@ -1312,8 +1317,9 @@ Found by that review outside the fix wave:
    limit in a shape that the monitor's exemption, which requires a closed set, does not recognise; this was not
    investigated further. It was 1 run of that review's 3,120. The safety run recorded above (seeds 100000 to 100999
    and 2000000 to 2000999) has no violation; the statement does not extend to other seeds.
-   **Fixed in `df2f7c3`** (Assignment 2, B1): it is the second known limit's defect in another shape, and the fix of
-   that defect makes the run clean.
+   **Fixed in `df2f7c3`** (Assignment 2, B1): it is the second known limit's defect in another shape, and the first
+   half of that defect's fix makes the run clean. The second half (`c6cb563`) covers the shape the first left open,
+   seed 8103801 `fastest`. The statement holds for the seeds run (see B1).
 8. The overhead gate against the stripped 0.12.0 is at its limit on this machine for the base and the head alike:
    over eight alternating rounds, `e1b3d1c` gave +6.3 to +9.2 % (u90) and +6.9 to +8.0 % (u95), `9c3fba4` +7.3 to
    +9.3 % and +8.1 to +9.0 %, against a limit of +8.5 %; a whole gate passed in 4 of 8 rounds for each. Two stripped
@@ -1393,7 +1399,8 @@ scans, and nothing looks at the other members again. A reaction staged by a revi
 same way. Members whose wait opened into the set have no review timer, and the reviews of the others may sleep (T23).
 
 **Cause, item 2 (residual item 7, seed 52118, `ShortestDistanceRouter`).** The same defect in another shape. The set
-`{agv-d, agv-f, agv-g, bot-y, bot-z}` is reported unresolved (153.2, 158.2, again 172.8). At 198.4 agv-c strands and
+`{agv-d, agv-f, agv-g, bot-z}` is reported unresolved at 153.2, `{agv-d, agv-f, agv-g, bot-y, bot-z}` at 158.2 and
+again at 172.8. At 198.4 agv-c strands and
 `idle()` reviews bot-y and agv-g; their reviews at 228.4 find no change and sleep, and `_report_one` refuses them as
 members. At 293.7 a cancellation withdraws agv-f's wait: `_end_wait` drops the set, `withdraw` only scans, nothing is
 granted or released, so the sleeping reviews are not woken; `_reduce` without gates over the waits left gives
@@ -1405,10 +1412,12 @@ behaves as §7.9 states.
 
 **Change.** In `withdraw`, and in `_react` after a staged reaction, when the AGV whose wait ends was a member of a set
 left unresolved, the controller runs `_detect()` again if `_reduce(gates=False)` over the open waits is not empty
-(`_detect_again`, `_unresolved_member`). This is the fix the reviewer measured (`final-scratch-area2/headfix`, variant 2),
-written without the instance flag: the membership is read before the wait ends. Nothing else in admission, the gate,
-review timing, what the policy may stage, make-way or charging changed. Under `FreeFlowController` the controller is not
-involved.
+(`_detect_again`, `_unresolved_member`). This is the fix the reviewer measured (`final-scratch-area2/headfix`,
+variant 2), written without the instance flag: the membership is read before the wait ends. The detection that runs
+is the whole of §7.8, so its gate-waiver pass (gating claims of the remainder with gates marked yielding) runs there
+too; nothing else in admission, the gate, review timing, what the policy may stage, make-way or charging changed. Under
+`FreeFlowController` the controller is not involved. (Fix round 1 below removes the `_reduce` guard and adds the
+second half.)
 
 **Monitor.** `KNOWN_LIMIT_WITHDRAWN`, the orphan tracking (`_track_deadlocks`, `_standing`, `_orphans`) and the closure
 in `Monitor.final` are removed; `final` is again the check of `e4afae4`: every open wait at quiescence is explained by a
@@ -1493,11 +1502,82 @@ Exit status 0 for each. The parking-slot cases are the 14 recorded under "Safety
 | every stuck report suppressed | 307 / 328 | 635 | 635 |
 | every review timer dropped | 174 / 191 | 365 | 364 |
 
-No run of any mutant ended with a known limit; the monitor still catches a controller that goes blind.
+No run of any mutant ended with the withdrawn-deadlock limit, which no longer exists; the parking-slot limit appears as
+in the unmutated runs (5 / 1 runs; 4 / 1 for the timer mutant). The monitor still catches a controller that goes blind.
 
 **Spec.** The traffic spec says detection runs when a wait opens (§7.8, §15); the wording to amend is given to the
 controller in the task report, not changed here. `docs/` and `CHANGELOG.md` are unchanged: 0.17.0 had no
 `ReservationController` and no deadlock detection of this kind, so nothing here is visible to a user of 0.17.0.
+
+**Fix round 1 (the second half).** The review of B1 found one more shape of the defect at `687ad66`, also present at
+the base: seed 8103801, `ReservationController`, `FastestRouter`, ends with `open wait with no report ['agv-b']` at
+975.7. At 844.5 agv-b's wait opens into the unresolved set `{agv-a, agv-b}`: no `on_blocked` call, no review; its claim
+is also blocked by agv-e, idle since 834.4. At 873.8 agv-a's own review reroutes it: the set is forgotten, and the
+re-detection finds no deadlock, since agv-b alone is none. agv-a's release scans, but the wake-up only wakes sleeping
+reviews and agv-b has none; `idle(agv-e)` came before agv-b's wait opened; the stuck chain from agv-g (reported at 932.3)
+runs only to the waits behind it. Nothing ever looks at agv-b again. The first half covered a remainder that is still a
+deadlock; a member whose wait opened into the set and that is in no deadlock afterwards was left with nothing.
+
+Change (`c6cb563`): a wait that opens into a set left unresolved is remembered in the order the waits open. After the
+members left are looked at again (a withdrawal or a staged `on_blocked` reaction of a member, after its detection; and
+after the detection of every stop, where a resolution can forget a set), each such wait that is still open, that no
+remembered set holds and that had no review gets what `stopped()` gives a wait outside a deadlock, from that instant:
+the `on_blocked` call and, when it keeps waiting with a delay, its first review that delay later, with the change count
+taken at that instant (as `stopped()` takes it at the opening). They are taken in the order their waits opened (the
+order of the `stopped()` calls, not the queue order). A wait that ended or was reviewed meanwhile (a stranded blocker
+reviews the waits it blocks) gets nothing more; a timer of a wait granted later in the same instant goes with its wait
+(T23). The `_reduce` guard of the first half is removed: detection after a member's end is the whole of §7.8, and the
+guard changed nothing on any measured run. A grant cannot end a member's wait while its set stands; the code relies on
+that and says so. The monitor test that ran the no-scan mutant on seed 2000156 `fastest` now runs it on seed 2000255
+`shortest`: with the second half that run takes another course and leaves no unblocked wait.
+`docs/guides/intralogistics.md` and `CHANGELOG.md` 0.18.0 now say when an unresolved deadlock is looked at again
+(`ac4d837`).
+
+Measurement, base `6ff842f` against `c6cb563` (same scripts, each tree its own monitor), on seeds 100000..100999,
+2000000..2000999, 52000..53999 and 8100000..8103999: 8,000 worlds, 48,000 runs, 24,000 reservation runs paired by (seed,
+router), 95 % t interval of the sum of the paired differences:
+
+| Measure | `6ff842f` | `c6cb563` | Difference, 95 % interval | Runs that differ |
+|---|---|---|---|---|
+| runs that returned | 24,000 | 24,000 | 0 | 0 |
+| runs with `open wait with no report` | 2 | 0 | -2 [-4.8, +0.8] | 2 |
+| runs with another violation | 1 | 1 | 0 | 0 |
+| runs with the withdrawn-deadlock known limit | 3 | 0 | -3 [-6.4, +0.4] | 3 |
+| runs with the parking-slot known limit | 40 | 40 | 0 | 0 |
+| open waits without a report | 11 in 5 runs | 0 | -11 [-21.6, -0.4] | 5 |
+| `traffic.wait_stuck` | 52,897 | 52,903 | +6 [-26.8, +38.8] | 48 |
+| `traffic.deadlock` resolved | 293,064 | 293,159 | +95 [-208.2, +398.2] | 39 |
+| `traffic.deadlock` unresolved | 20,934 | 21,166 | +232 [+180.1, +283.9] | 198 |
+| orders completed | 297,747 | 297,760 | +13 [-17.0, +43.0] | 23 |
+| make-way moves | 127,239 | 127,281 | +42 [-23.2, +107.2] | 19 |
+| step-aside moves | 186,674 | 186,707 | +33 [-114.8, +180.8] | 35 |
+| strandings | 28,335 | 28,337 | +2 [-4.2, +8.2] | 2 |
+| end time (sum, s) | 17,527,924.7 | 17,529,099.5 | +1,174.8 [-289.4, +2,639.0] | 104 |
+| runs whose fingerprint changed | | | | 302 |
+
+The other violation is `PHYSICAL opposite directions on a segment` in seed 8101904 `fastest` at 471.2, the same at both
+commits; it is not this task's and stays. The withdrawn-deadlock cases at the base are 2000228 `fastest` and 8100850
+`congestion` and `fastest`; the open waits without a report, those three and 52118 `shortest` and 8103801 `fastest`.
+In 51 runs only the end time changed: a review of a former member fires near the end, changes nothing and sleeps.
+Orders completed fall in 9 runs and rise in 14. Against `687ad66` (the first half; its code is that of `5b3bb91`),
+completed orders are +13 [+0.5, +25.5] over the same 24,000 runs, 61 fingerprints change, and one run loses an order:
+8103668 `congestion` (-1). There bot-x's wait opened at 45.2 into `{agv-f, bot-x}`; agv-f's wait is withdrawn at 66.0. At
+`687ad66` bot-x is reported stuck at once (agv-f idle) and waits until 185.4, when agv-f leaves on a mission. With the
+second half bot-x gets its review: at 96.0 the review asks agv-f, idle, to make way (§7.10), agv-f moves and bot-x goes
+on 90 s earlier; the run takes another course and ends at 1,111.0 instead of 1,262.2 with one order fewer. Free flow:
+24,000 of 24,000 `RunRecord`s identical to the base and to `687ad66`. The stdout of the seven transport and layout
+examples is identical to the base. `PYTHONHASHSEED` 0, 1 and 7: seeds 100000..100299, 1,800 runs, every record
+identical. No pin moved.
+
+Safety run at `ac4d837` (same source as `c6cb563`), 10 workers: seeds 100000..100999, 6,000 runs, 6,570,200 events;
+seeds 2000000..2000999, 6,000 runs, 6,720,030 events; in each 0 raised, 0 not returned, 0 ended with the queue not empty,
+0 with violations; the parking-slot limit in 6 and 8 runs (the 14 recorded cases); exit status 0 and 0.
+
+Mutant check at `c6cb563` (runs with `open wait with no report`, 2000150.. / 500000..): no mutant 0 / 0; blind after a
+member's withdrawal 21 / 12; every stuck report suppressed 307 / 328; every review timer dropped 174 / 191: the same
+counts as at `5b3bb91`. No other violation; the parking-slot limit as in the unmutated runs.
+
+These statements hold for the seeds run: 8,000 worlds here, the recorded safety ranges and the mutant ranges.
 
 ### C. The band of the core overhead gate
 
