@@ -56,6 +56,8 @@ export interface VehicleItem extends Point {
   width: number;
   /** The footprint came from the vehicle's type (the layout target carries `size`), not from the default. */
   sized: boolean;
+  /** The heading is known: an arc under way fixes it, else a recorded finite `heading` (else `heading` is 0). */
+  headingKnown: boolean;
   shown: Shown;
   /** The recorded state. */
   state: string;

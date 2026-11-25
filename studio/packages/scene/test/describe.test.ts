@@ -198,12 +198,67 @@ describe("a trace without the newer fields", () => {
       }
     }
   });
-  it("draws a vehicle without a battery, a heading, a load or a fleet", () => {
+  it("draws a vehicle without a battery, a heading, a load or a fleet: no heading is printed", () => {
     const frame = loadFrame("bare-layout");
     const state = structuredClone(frame.state);
     for (const key of ["battery", "heading", "load", "order", "fleet"]) delete state["AGV-3"]![key];
     const lines = describeEntity(mapOf({ ...frame, state }), state, "AGV-3")!;
-    expect(texts(lines)).toEqual(["AGV-3 · WAITING_LOAD", "Empty", "At node W · heading 0°", "Holds W, W~W_N"]);
+    expect(texts(lines)).toEqual(["AGV-3 · WAITING_LOAD", "Empty", "At node W", "Holds W, W~W_N"]);
+  });
+});
+
+describe("a size and a heading only when known", () => {
+  it("starts a line with a capital when only the heading or the speed is known", () => {
+    const frame = loadFrame("corridor-wait");
+    const model = mapOf(frame);
+    const agv = model.vehicles.find((v) => v.id === "AGV-3")!;
+    const lone = { ...model, vehicles: model.vehicles.map((v) => (v === agv ? { ...v, node: null, headingKnown: true, speed: 2 } : v)) };
+    expect(texts(describeEntity(lone, frame.state, "AGV-3"))).toContain("Heading 225° · speed 2.0 m/s");
+    const none = { ...model, vehicles: model.vehicles.map((v) => (v === agv ? { ...v, node: null, headingKnown: false } : v)) };
+    expect(texts(describeEntity(none, frame.state, "AGV-3")).some((t) => /^(?:At|On|Heading|heading|speed)/.test(t))).toBe(false);
+  });
+  it("knows the heading from an arc under way or a recorded one", () => {
+    const model = mapOf(loadFrame("corridor-wait"));
+    expect(model.vehicles.map((v) => v.headingKnown)).toEqual([true, true, true]);
+    const bare = loadFrame("bare-layout");
+    const state = structuredClone(bare.state);
+    delete state["AGV-1"]!["heading"];
+    const known = mapOf({ ...bare, state }).vehicles.map((v) => [v.id, v.headingKnown]);
+    expect(known).toEqual([["AGV-1", false], ["AGV-2", true], ["AGV-3", true]]);
+  });
+  it("takes sized from the target and a placement footprint together", () => {
+    const frame = loadFrame("corridor-wait");
+    expect(mapOf(frame).vehicles.every((v) => v.sized)).toBe(true);
+    const layout = structuredClone(frame.layout) as unknown as { resolved: { placements: Record<string, { footprint: Record<string, unknown> }> } };
+    delete layout.resolved.placements["AGV-1"]!.footprint["depth"];
+    const model = mapOf({ ...frame, layout: layout as never });
+    expect(model.vehicles.find((v) => v.id === "AGV-1")!.sized).toBe(false);
+    expect(texts(describeEntity(model, frame.state, "AGV-1")).some((t) => t.startsWith("Size"))).toBe(false);
+    expect(model.vehicles.find((v) => v.id === "AGV-2")!.sized).toBe(true);
+  });
+});
+
+describe("malformed state", () => {
+  it("returns lines or null and never throws", () => {
+    const frame = loadFrame("corridor-wait");
+    const state = structuredClone(frame.state);
+    Object.assign(state["C"]!, { agvs: "x", reserved_by: 5, capacity: "many" });
+    Object.assign(state["corridor:M1"]!, { members: [1, null], reserved_by: null, rule: 3, orientation: {} });
+    Object.assign(state["East"]!, { inventory: 5, slots_in_use: "x" });
+    Object.assign(state["Siding"]!, { parked: "x", capacity: null });
+    Object.assign(state["C~M1"]!, { forward: null, backward: 7, source: 1, length: "long" });
+    state["order-5"] = { $kind: "order" };
+    state["order-0"] = { $kind: "order", status: 4 };
+    Object.assign(state["AGV-1"]!, { load: 5, wait: { node: 3, resources: "x", blockers: [1] }, route: { nodes: 5 }, battery: "full" });
+    const model = mapOf({ ...frame, state });
+    for (const id of [...Object.keys(state), "order-5"]) {
+      const lines = describeEntity(model, state, id);
+      expect(lines === null || Array.isArray(lines)).toBe(true);
+      for (const l of lines ?? []) expect(typeof l.text).toBe("string");
+    }
+    expect(texts(describeEntity(model, state, "corridor:M1"))).toContain("Members: none");
+    expect(texts(describeEntity(model, state, "C"))).toEqual(["Node C"]);
+    expect(describeEntity(model, state, "order-5")).not.toBeNull();
   });
 });
 

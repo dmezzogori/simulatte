@@ -18,6 +18,24 @@ const quantities = (load: Readonly<Record<string, number>>): string =>
     .join(", ");
 const degrees = (radians: number): number => (((Math.round((radians * 180) / Math.PI) % 360) + 360) % 360) % 360;
 
+/** Every id of the model that can be selected, built once per model object (the player asks on every frame). */
+const selectables = new WeakMap<MapModel, ReadonlySet<string>>();
+function selectableOf(model: MapModel): ReadonlySet<string> {
+  let ids = selectables.get(model);
+  if (!ids) {
+    ids = new Set<string>([
+      ...model.vehicles.map((v) => v.id),
+      ...model.orders.map((o) => o.id),
+      ...model.facilities.map((f) => f.id),
+      ...model.nodes.map((n) => n.id),
+      ...model.strips.map((s) => s.id),
+      ...Object.keys(model.zones),
+    ]);
+    selectables.set(model, ids);
+  }
+  return ids;
+}
+
 /**
  * The readable description of an element (spec section 5.7), from the map model and, for what the model does
  * not carry, the frame's state. Null for an id of a kind it does not cover.
@@ -25,14 +43,7 @@ const degrees = (radians: number): number => (((Math.round((radians * 180) / Mat
 export function describe(model: MapModel, state: Readonly<Record<string, Fields>>, id: string): readonly DetailLine[] | null {
   const fields = Object.hasOwn(state, id) ? state[id]! : null;
   const kind = fields?.["$kind"];
-  const selectable = new Set<string>([
-    ...model.vehicles.map((v) => v.id),
-    ...model.orders.map((o) => o.id),
-    ...model.facilities.map((f) => f.id),
-    ...model.nodes.map((n) => n.id),
-    ...model.strips.map((s) => s.id),
-    ...Object.keys(model.zones),
-  ]);
+  const selectable = selectableOf(model);
   /** A line, with a ref for each of its ids that is in the model, once each. */
   const make = (text: string, named: readonly string[] = []): DetailLine => {
     const refs = [...new Set(named.filter((name) => selectable.has(name)))];
@@ -84,9 +95,10 @@ function vehicleLines(model: MapModel, state: Readonly<Record<string, Fields>>, 
     where.push(`At node ${v.node}`);
     at.push(v.node);
   }
-  where.push(`heading ${degrees(v.heading)}°`);
+  if (v.headingKnown) where.push(`heading ${degrees(v.heading)}°`);
   if (v.speed !== null) where.push(`speed ${one(v.speed)} m/s`);
-  lines.push(make(where.join(" · "), at));
+  // a line never starts with a lowercase fragment
+  if (where.length) lines.push(make(where.join(" · ").replace(/^./, (c) => c.toUpperCase()), at));
 
   if (v.battery !== null) {
     const percent = v.batteryCapacity !== null && v.batteryCapacity > 0 ? ` (${Math.round((100 * v.battery) / v.batteryCapacity)} %)` : "";

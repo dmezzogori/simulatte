@@ -124,6 +124,9 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       place.arc && (place.arc[0].x !== place.arc[1].x || place.arc[0].y !== place.arc[1].y)
         ? Math.atan2(place.arc[1].y - place.arc[0].y, place.arc[1].x - place.arc[0].x)
         : (finite(fields["heading"]) ?? 0);
+    const headingKnown =
+      (place.arc !== null && (place.arc[0].x !== place.arc[1].x || place.arc[0].y !== place.arc[1].y)) ||
+      finite(fields["heading"]) !== null;
     const doing =
       shown === "stranded"
         ? "stranded"
@@ -151,7 +154,11 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       heading,
       length: size(footprint["width"]),
       width: size(footprint["depth"]),
-      sized: hasSize(object(targets[id])["size"]),
+      // the same source as `length` and `width`: the type's size and a placement footprint that carries it
+      sized:
+        hasSize(object(targets[id])["size"]) &&
+        [footprint["width"], footprint["depth"]].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0),
+      headingKnown,
       shown,
       state,
       load,

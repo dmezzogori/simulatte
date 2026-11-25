@@ -16,10 +16,13 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: 
 interface Shown {
   signature: string;
   current: string | null;
+  /** The structure of the DOM: while a new value has the same one, the texts and marks are written in place. */
+  shape: string;
+  onSelect: (id: string) => void;
 }
 const shown = new WeakMap<HTMLElement, Shown>();
 
-function line(entry: OverviewLine, current: string | null, onSelect: (id: string) => void, root: HTMLElement): HTMLElement {
+function line(entry: OverviewLine, current: string | null, root: HTMLElement): HTMLElement {
   const button = el("button", undefined, "ov-line");
   button.type = "button";
   button.dataset["id"] = entry.id;
@@ -32,7 +35,7 @@ function line(entry: OverviewLine, current: string | null, onSelect: (id: string
     if (state) state.current = entry.id;
     for (const other of Array.from(root.querySelectorAll(".ov-line[aria-current]"))) other.removeAttribute("aria-current");
     button.setAttribute("aria-current", "true");
-    onSelect(entry.id);
+    shown.get(root)?.onSelect(entry.id);
   };
   return button;
 }
@@ -47,10 +50,64 @@ function section(title: string): HTMLElement {
   return node;
 }
 
+/** The sections of the panel for a value. */
+function build(value: Overview, current: string | null, root: HTMLElement): HTMLElement[] {
+  const vehicles = section("Vehicles");
+  if (!value.vehicles.length) vehicles.append(el("p", "No vehicles", "ov-empty"));
+  for (const group of value.vehicles) {
+    const counts = STATES.filter((s) => group.counts[s] > 0).map((s) => `${group.counts[s]} ${s}`);
+    const heading = el("h4", undefined, "ov-group");
+    heading.append(el("span", group.fleet || "No fleet", "ov-fleet"), el("span", counts.join(" · "), "ov-counts"));
+    vehicles.append(heading);
+    if (!group.lines.length && !group.hidden) vehicles.append(el("p", "No vehicle matches", "ov-empty"));
+    for (const entry of group.lines) vehicles.append(line(entry, current, root));
+    const rest = more(group.hidden);
+    if (rest) vehicles.append(rest);
+  }
+  const goods = section("Goods");
+  const statuses = Object.entries(value.goods.counts).map(([status, n]) => `${n} ${status.toLowerCase().replaceAll("_", " ")}`);
+  goods.append(el("p", statuses.length ? statuses.join(" · ") : "No open orders", "ov-counts"));
+  for (const entry of value.goods.lines) goods.append(line(entry, current, root));
+  const rest = more(value.goods.hidden);
+  if (rest) goods.append(rest);
+  const traffic = section("Traffic");
+  traffic.append(el("p", value.traffic));
+  const facilities = section("Facilities");
+  if (!value.facilities.length) facilities.append(el("p", "No facilities", "ov-empty"));
+  for (const entry of value.facilities) facilities.append(line(entry, current, root));
+  return [vehicles, goods, traffic, facilities];
+}
+
+/** Tags, classes and line ids of a subtree, not its texts: equal shapes can be updated in place. */
+function shapeOf(node: Element): string {
+  return `${node.tagName}.${node.className}#${(node as HTMLElement).dataset["id"] ?? ""}(${Array.from(node.children, shapeOf).join(",")})`;
+}
+
+/** Copies the texts and the line attributes of `next` onto `old`, which has the same shape. */
+function update(old: Element, next: Element): void {
+  if (next.classList.contains("ov-line")) {
+    for (const name of ["data-shown", "aria-current", "title"]) {
+      const value = next.getAttribute(name);
+      if (value === null) old.removeAttribute(name);
+      else if (old.getAttribute(name) !== value) old.setAttribute(name, value);
+    }
+    const text = old.querySelector(".ov-text"),
+      replacement = next.querySelector(".ov-text")!.textContent;
+    if (text && text.textContent !== replacement) text.textContent = replacement;
+    return;
+  }
+  if (!next.children.length) {
+    if (old.textContent !== next.textContent) old.textContent = next.textContent;
+    return;
+  }
+  for (let i = 0; i < next.children.length; i++) update(old.children[i]!, next.children[i]!);
+}
+
 /**
  * Writes the panel into `root`. A value equal to the one shown leaves the DOM alone, so a focused line, the scroll
- * position and a text selection survive a refresh. `selected` marks the line of the selected element; without it
- * the mark follows the last click.
+ * position and a text selection survive a refresh. A value with the same lines in the same places only rewrites the
+ * texts and marks in place: a click whose press and release straddle a rebuild would be lost. `selected` marks the
+ * line of the selected element; without it the mark follows the last click.
  */
 export function renderOverview(
   root: HTMLElement,
@@ -59,8 +116,10 @@ export function renderOverview(
   selected?: string | null,
 ): void {
   const before = shown.get(root);
+  const previousShape = before?.shape ?? null;
   const current = selected !== undefined ? selected : (before?.current ?? null);
   const signature = JSON.stringify(value);
+  if (before) before.onSelect = onSelect;
   if (before && before.signature === signature) {
     if (before.current !== current) {
       for (const node of Array.from(root.querySelectorAll<HTMLElement>(".ov-line")))
@@ -70,39 +129,21 @@ export function renderOverview(
     }
     return;
   }
-  shown.set(root, { signature, current });
+  const state: Shown = before ?? { signature, current, shape: "", onSelect };
+  state.signature = signature;
+  state.current = current;
+  state.onSelect = onSelect;
+  shown.set(root, state);
   const focused = root.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
   const focusId = focused?.classList.contains("ov-line") ? (focused.dataset["id"] ?? null) : null;
   const scroll = root.scrollTop;
-  if (value === null) {
-    root.replaceChildren(el("p", "No map for this trace", "ov-empty"));
+  const children = value === null ? [el("p", "No map for this trace", "ov-empty")] : build(value, current, root);
+  const shape = children.map(shapeOf).join("|");
+  if (previousShape === shape && root.children.length === children.length) {
+    children.forEach((child, i) => update(root.children[i]!, child));
     return;
   }
-  const children: HTMLElement[] = [];
-  const vehicles = section("Vehicles");
-  if (!value.vehicles.length) vehicles.append(el("p", "No vehicles", "ov-empty"));
-  for (const group of value.vehicles) {
-    const counts = STATES.filter((s) => group.counts[s] > 0).map((s) => `${group.counts[s]} ${s}`);
-    const heading = el("h4", undefined, "ov-group");
-    heading.append(el("span", group.fleet || "No fleet", "ov-fleet"), el("span", counts.join(" · "), "ov-counts"));
-    vehicles.append(heading);
-    if (!group.lines.length && !group.hidden) vehicles.append(el("p", "No vehicle matches", "ov-empty"));
-    for (const entry of group.lines) vehicles.append(line(entry, current, onSelect, root));
-    const rest = more(group.hidden);
-    if (rest) vehicles.append(rest);
-  }
-  const goods = section("Goods");
-  const statuses = Object.entries(value.goods.counts).map(([status, n]) => `${n} ${status.toLowerCase().replaceAll("_", " ")}`);
-  goods.append(el("p", statuses.length ? statuses.join(" · ") : "No open orders", "ov-counts"));
-  for (const entry of value.goods.lines) goods.append(line(entry, current, onSelect, root));
-  const rest = more(value.goods.hidden);
-  if (rest) goods.append(rest);
-  const traffic = section("Traffic");
-  traffic.append(el("p", value.traffic));
-  const facilities = section("Facilities");
-  if (!value.facilities.length) facilities.append(el("p", "No facilities", "ov-empty"));
-  for (const entry of value.facilities) facilities.append(line(entry, current, onSelect, root));
-  children.push(vehicles, goods, traffic, facilities);
+  state.shape = shape;
   root.replaceChildren(...children);
   root.scrollTop = scroll;
   if (focusId !== null)
