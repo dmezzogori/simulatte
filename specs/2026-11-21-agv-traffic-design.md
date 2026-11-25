@@ -588,7 +588,10 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
 - **Parking (T13).** When the target of a repositioning, a service-node clearance or a make-way move is the node
   of a parking area with a free slot, the coordinator calls `area.enter(agv)` at the decision, which is granted
   at once, and `area.leave(agv)` when the AGV next departs from that node or when the travel does not arrive. A
-  full area is not a valid target. This applies with both controllers. AGVs placed on a parking node at
+  travel that turns to charge on the way does not arrive: its slot is given back at the turn, also when the charge
+  never starts (the AGV strands on the way to the charger) and when the charger is on the node where the AGV
+  stands, unless the charger is on the area's own node, where the AGV keeps the slot (it is given back if the AGV
+  does not get there) and, after the charge, rests parked. A full area is not a valid target. This applies with both controllers. AGVs placed on a parking node at
   activation take no slot.
 - **Stranded and serving blockers** are left to `on_blocked`. When an AGV strands, the coordinator calls `idle(agv)`
   (§7.1) and each open wait the AGV blocks gets one review at that instant, as after a release: the policy can reroute
