@@ -267,6 +267,10 @@ def test_the_look_ahead_and_the_planner_judge_the_cap_alike(v_max: float, decel:
     assert reserved == line_arrivals(v_max, 0.8, decel, block, 30, False)
 
 
+# A seeded sweep of random lines. The bundle check of the fixture at the end of the test (every layout prepared) costs
+# more than the sweep on the older interpreters under coverage; the layouts are of one family, so a fixed sample of
+# them keeps the check at a bounded cost (the stride is odd: the sample takes layouts of both controllers).
+@pytest.mark.sampled_bundles(every=25)
 def test_lone_agv_matches_free_flow_over_blocks_at_fractions_of_the_braking_distance() -> None:
     rng = random.Random(20261122)
     for case in range(240):

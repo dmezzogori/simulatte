@@ -13,6 +13,11 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "unchecked_bundles: do not build and check a layout bundle at every preparation (see check_bundles)"
     )
+    config.addinivalue_line(
+        "markers",
+        "sampled_bundles(every): at the end of the test check the bundle of one prepared layout in every `every` "
+        "instead of all of them (see check_bundles)",
+    )
 
 
 @pytest.fixture
@@ -32,11 +37,16 @@ def check_bundles(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatc
     the bundle read back, and carry the hashes of its data (``LayoutBundle.check``). The auto layer that preparation
     took without checking it against the schema again must be the one a checked layer gives. Nothing is checked inside
     ``prepare()``, so an error that moved from preparation to the first read fails the test that expects it at
-    ``prepare()``. Tests that count what preparation builds opt out with ``@pytest.mark.unchecked_bundles``.
+    ``prepare()``. Tests that count what preparation builds opt out with ``@pytest.mark.unchecked_bundles``. A seeded
+    sweep that prepares hundreds of layouts of one family, where the check of all of them costs more than the sweep,
+    keeps the check on a fixed sample with ``@pytest.mark.sampled_bundles(every=n)``: the bundle read in the course of
+    the test is still checked in full, and at the end the layouts prepared 1st, ``n + 1``-th, ``2n + 1``-th, ... are.
     """
     if request.node.get_closest_marker("unchecked_bundles") is not None:
         yield
         return
+    sample = request.node.get_closest_marker("sampled_bundles")
+    every = 1 if sample is None else sample.kwargs["every"]
     from simulatte.layout import bundle as module
     from simulatte.layout.layers import LayerBundle
     from simulatte.layout.layout import Layout
@@ -62,5 +72,5 @@ def check_bundles(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(module, "_build_bundle", checked)
     monkeypatch.setattr(Layout, "_finalize", finalized)
     yield
-    for result in prepared:
+    for result in prepared[::every]:
         checked(result)

@@ -230,6 +230,10 @@ def test_an_interrupt_at_the_instant_of_arrival_at_rest() -> None:
     assert outcomes == {True: ("N2", 10.0), False: ("N3", 15.0)}
 
 
+# A seeded sweep of random lines. The bundle check of the fixture at the end of the test (every layout prepared) costs
+# more than the sweep on the older interpreters under coverage; the layouts are of one family, so a fixed sample of
+# them keeps the check at a bounded cost.
+@pytest.mark.sampled_bundles(every=25)
 @pytest.mark.parametrize("reserve", [False, True])
 def test_a_stop_request_rests_at_the_first_node_a_braking_distance_beyond_the_end_of_the_arc(reserve: bool) -> None:
     """Seeded sweep: a lone AGV on a straight line of random arc lengths and limits, interrupted at a random time. The
@@ -900,6 +904,10 @@ FALLING = {
 }
 
 
+# A seeded sweep of random lines. The bundle check of the fixture at the end of the test (every layout prepared) costs
+# more than the sweep on the older interpreters under coverage; the layouts are of one family, so a fixed sample of
+# them keeps the check at a bounded cost (the stride is odd: the sample takes layouts of both controllers).
+@pytest.mark.sampled_bundles(every=25)
 def test_a_lone_agv_ends_alike_under_both_controllers_for_a_depletion_that_falls_with_speed() -> None:
     """Seeded sweep of random lines, limits and batteries: the arrivals, levels, outcome and rest node are the same
     under free flow and reservation."""
@@ -1026,6 +1034,10 @@ def test_after_a_deficit_that_does_not_grow_the_energy_horizon_is_not_scanned_ag
     assert counts[800] == counts[30] <= 4
 
 
+# A seeded sweep of random lines. The bundle check of the fixture at the end of the test (every layout prepared) costs
+# more than the sweep on the older interpreters under coverage; the layouts are of one family, so a fixed sample of
+# them keeps the check at a bounded cost (the stride is odd: the sample takes layouts of both controllers).
+@pytest.mark.sampled_bundles(every=25)
 def test_float_ties_in_the_energy_horizon_change_nothing_for_the_default_depletion() -> None:
     """Arcs that are not exact in binary and a battery sized for exactly k arcs, or to reach the threshold at a node:
     the two controllers end alike, and the AGV rests at an interior node only where it cannot go on (the level is

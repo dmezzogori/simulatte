@@ -285,6 +285,10 @@ def test_a_lone_vehicle_has_the_same_times_under_both_controllers(lengths: list[
     assert times[0] == times[1]
 
 
+# A seeded sweep of random lines. The bundle check of the fixture at the end of the test (every layout prepared) costs
+# more than the sweep on the older interpreters under coverage; the layouts are of one family, so a fixed sample of
+# them keeps the check at a bounded cost (the stride is odd: the sample takes layouts of both controllers).
+@pytest.mark.sampled_bundles(every=25)
 def test_seeded_lone_vehicles_with_turning_match_free_flow_exactly() -> None:
     """Blocks of a fraction of the braking distance and corners that cap the speed at, below and above what the
     backward pass gives: the look-ahead and the planner judge the corner caps alike, so the times are equal."""
