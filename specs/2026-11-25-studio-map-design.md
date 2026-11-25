@@ -342,7 +342,7 @@ detail is the one of the fitted scale (M22). No change to its dialog or its fram
 
 A trace without a layout (written before 0.18.0) keeps the fallback grid and today's drawing; it has no map and
 no Overview panel (M17). A trace with a layout and no network (a production-only model) is drawn as today, with
-the label rule of §5.2 and the scale bar.
+the scale bar added.
 
 ## 6. Design: what the simulation records
 
