@@ -10,16 +10,17 @@ overhead gate, and the gates at the final head with what stays open.
 Each section states the commit it was measured at. The sections of Tasks 2 to 5 describe the branch while explicit mode
 still existed; Task 9 removed it (`999c3a7`), and the tests and scripts those sections name for the comparison of the two
 modes are gone or changed since (`benchmarks/layout_parity.py` is at `e4afae4`). Where a later task changed what a section
-says, the section says so. The sections of Tasks 2 to 11 and of the final review are kept as they were written, with the notes that later
-commits added; where a statement in them was true at its commit and is no longer true at the final head, the section says
-so at that place, and "Gates at the final head (Assignment 2)" gives the numbers that hold at the end.
+says, the section says so. The sections of Tasks 2 to 11 and of the final review are kept as they were written, with the
+notes that later commits added; where a statement in them was true at its commit and is no longer true at the final
+head, the section says so at that place, and "Gates at the final head (Assignment 2)" gives the numbers that hold at the
+end.
 
 ## Summary
 
 | Question | Answer | Section |
 |---|---|---|
 | Do explicit and layout models run alike? | Yes: 6,000 pairs equal at `e4afae4`, the last commit with both modes. | Parity (Task 2) |
-| Does the layout-built world stay safe? | Yes: at the final head (`229ea61`) 12,000 runs of 2,000 worlds (seeds 100000..100999 and 2000000..2000999), no violation, no exception, every run returned; 13,290,230 events. The two known limits that Task 11 recorded (a parking slot kept while charging on the way to park; a deadlock not detected again after a member's wait was withdrawn) predated this work, are fixed in Assignment 2 (B2 and B1) and the monitor no longer exempts anything. Two seeds outside those ranges still end with a violation and are open (below). | Safety run (Task 11); B1; B2; Gates at the final head |
+| Does the layout-built world stay safe? | Yes: at the final head (`229ea61`) 12,000 runs of 2,000 worlds (seeds 100000..100999 and 2000000..2000999), no violation, no exception, every run returned; 13,290,230 events. The two known limits that Task 11 recorded (a parking slot kept while charging on the way to park; a deadlock not detected again after a member's wait was withdrawn) predated this work, are fixed in Assignment 2 (B2 and B1) and the monitor has no exemption for a known limit any more. Two seeds outside those ranges still end with a violation and are open (below). | Safety run (Task 11); B1; B2; Gates at the final head |
 | Are the performance targets of §9 met? | Yes. Activation at 1,600 servers meets its target at the line (49.1 to 49.4 ms against 50 ms). | Final numbers against §9 (Task 11) |
 | Do the gates pass? | At the final head (`229ea61`) every gate was run and passed, the overhead gate in three rounds against both baselines with the limit of Assignment 2, C (+12.5 % against the stripped copy). Earlier: at `ab4d430` every gate passed; at the head of the final review's fix wave the local overhead gate against the stripped copy was at its old limit (6 of 18 comparisons over +8.5 %), which Assignment 2, C widened. | Gates at the final head; Gates (Task 11); Final review; C |
 | What did the final review find? | No behavioural defect. Documentation, error messages of the strict contract and this record were fixed in one wave; no event, digest, bundle or hash changed. | Final review |
@@ -166,12 +167,12 @@ beyond it:
 Both known limits are fixed since this section was written, and the monitor has no mechanism left that lets a run end
 with a limit: `KNOWN_LIMIT_WITHDRAWN` and its tracking were removed at `5b3bb91` (Assignment 2, B1), `KNOWN_LIMIT`,
 `Monitor.known_limits` and `RunRecord.known_limits` at `4bc6624` (B2), and the output of `benchmarks/layout_safety.py`
-names no known limit (the final gates run it on both recorded ranges). The first limit is fixed by `61e5b27` and `0d08071`
-(its section is "B2. Parking slots during a charge elsewhere"); the second by `df2f7c3` and `c6cb563` ("B1. Waits after a
-deadlock member's wait ends"). What follows is the record as it was written when the limits were met, at Task 2 and
-Task 11, before the fixes: the line numbers of `reservation.py` are those of that time and the counts are those of the
-runs of that time. A case that looks like the second family and is not fixed is a different defect, a third mechanism
-found later (seed 7702388); it is under "Open after Assignment 2, for the maintainer".
+names no known limit (the final gates run it on both recorded ranges). The first limit is fixed by `61e5b27` and
+`0d08071` (its section is "B2. Parking slots during a charge elsewhere"); the second by `df2f7c3` and `c6cb563` ("B1.
+Waits after a deadlock member's wait ends"). What follows is the record as it was written when the limits were met, at
+Task 2 and Task 11, before the fixes: the line numbers of `reservation.py` are those of that time and the counts are
+those of the runs of that time. A case that looks like the second family and is not fixed is a different defect, a third
+mechanism found later (seed 7702388); it is under "Open after Assignment 2, for the maintainer".
 
 **A parking slot kept while charging on the way to park.** **Fixed** (Assignment 2, B2): since `61e5b27` the slot goes
 back as the trip to park turns to charge, and the monitor no longer exempts the case (`4bc6624`); see B2. What follows
@@ -976,11 +977,12 @@ of the 6,000 runs: in none of the six runs of one world, and in three other runs
 
 ### What the monitor does not check
 
-Added by the final review (see "Final review"); the monitor was unchanged by that review. Assignment 2 added the last two
-items (B1, B2) and removed its two exemptions: since `4bc6624` the monitor has no known limits, and every open wait with
-no report, every physical conflict and every parking slot held by an AGV at rest away from its area's node is a violation.
-Two seeds at the final head still end with a violation, which the monitor does report (7702388 and 8101904, under "Open
-after Assignment 2, for the maintainer"); the items below are what it would not report.
+Added by the final review (see "Final review"); the monitor was unchanged by that review. Assignment 2 added the last
+two items (B1, B2) and removed its two exemptions: since `4bc6624` the monitor has no known limits. Since then an open
+wait at the end of a run that no stuck report, no unresolved deadlock and no reported blocker explains is a violation,
+and so is a parking slot held by an AGV at rest away from its area's node. Two seeds at the final head still end with a
+violation, which the monitor does report (7702388 and 8101904, under "Open after Assignment 2, for the maintainer"); the
+items below are what it would not report.
 
 - **The spacing of followers on a segment, on the bodies.** The body model checks the direction of the vehicles on a
   single-lane segment (`PHYSICAL opposite directions on a segment`), not that vehicles following each other on it keep
@@ -1178,6 +1180,10 @@ and 0.519 s; the branch medians here, 0.483 to 0.484 s and 0.520 s, are within t
 all twelve comparisons of the three rounds; the stripped-copy margin is thin and the same as the branch had before this
 work (spec §9: "with its present limit").
 
+Since Assignment 2 the limit against the stripped copy is 12.5 % (10.5 % + 2.0 %), not the +8.5 % of this table
+(decision D106); see "C. The band of the core overhead gate" and the rounds at the final head in "Gates at the final
+head (Assignment 2)".
+
 ## Walk of spec §10 (Task 11)
 
 One row per item and per sub-claim. "Covered" says what shows it; a claim nothing covers is written as not covered.
@@ -1205,9 +1211,9 @@ One row per item and per sub-claim. "Covered" says what shows it; a claim nothin
 Also run, beyond §10: `tests/intralogistics` and `tests/layout` on CPython 3.11 (2612 passed), the floor of the supported
 versions.
 
-The walk and its counts are as of `ab4d430`. The gate rows, the test counts and the safety counts at the final head are in
-"Gates at the final head (Assignment 2)"; no row of the walk is contradicted by them (the safety run of item 3 now has no
-known limit; the 12,000 runs of item 3 are those of `ab4d430`).
+The walk and its counts are as of `ab4d430`. The gate rows, the test counts and the safety counts at the final head are
+in "Gates at the final head (Assignment 2)"; no row of the walk is contradicted by them (the safety run of item 3 now
+has no known limit; the 12,000 runs of item 3 are those of `ab4d430`).
 
 ## Final review
 
@@ -1311,6 +1317,9 @@ and the head in separate processes:
 
 The gate is a CI gate and runs on the CI runner, whose calibration set the limits (README); it was not run there for this
 wave. Locally it passes against released 0.12.0 and is at its limit against the stripped copy, as it is for `e1b3d1c`.
+
+The limit against the stripped copy stated here (+8.5 %) is that of this date: since Assignment 2 it is 12.5 % (decision
+D106); see "C. The band of the core overhead gate".
 
 ## Residual findings after the fix wave
 
@@ -1940,104 +1949,117 @@ time), which the released-package limit does not catch either, as the branch is 
 
 ### Open after Assignment 2, for the maintainer
 
-Six things are not fixed. Each is described where the record has its evidence; the counts below are quoted from there
-unless the line says that it was run for this list. Two of them end a run of the random worlds with a violation (the
-first two); the others leave no violation. Nothing here changes the gates at the final head: the recorded ranges are clean.
+Six things are not fixed, and (g) lists smaller points that were left. Each is described where the record has its
+evidence; the counts below are quoted from there unless the line says that it was run for this list. Two of them end a
+run of the random worlds with a violation (the first two); the others leave no violation. Nothing here changes the gates
+at the final head: the recorded ranges are clean.
 
 **(a) A stuck wait not reported after a gate waiver (seed 7702388).** `ReservationController`, `ShortestDistanceRouter`.
-Reproduction, run for this list at `229ea61`: `uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first 7702388`
-gives 6 runs, 5,475 events, one violation, `seed 7702388 reservation shortest: (586.206, 'open wait with no report',
-['agv-e'])`, exit status 1. The mechanism and the evidence are under B1, "Found beyond this task" (Ruling A2-h): agv-e's
-review at 522.235 finds a stranded blocker and a waiting one and goes to sleep; at 522.883 the detection of another stop
-marks the waiting blocker's claim as yielding (the gate-waiver pass of §7.8), which removes it from agv-e's blockers without a
-grant or a release, so the change count does not move and the sleeping review is never woken; agv-e is then stuck by the
-rule of §7.9 and nobody reports it. A scratch prototype of the reviewer that counts the waiver as a change clears the run;
-it was not measured further. Frequency, from B1: 1 run in the 18,000 of seeds 7700000..7702999 and none in the other 48,000
-runs of that review. It is residual item 9. Fixing it changes when sleeping reviews wake, a rule of the wait-review code that
-Assignment 2 left alone.
+Reproduction, run for this list at `229ea61`: `uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first
+7702388` gives 6 runs, 5,475 events, one violation, `seed 7702388 reservation shortest: (586.206, 'open wait with no
+report', ['agv-e'])`, exit status 1. The mechanism and the evidence are under B1, "Found beyond this task" (Ruling
+A2-h): agv-e's review at 522.235 finds a stranded blocker and a waiting one and goes to sleep; at 522.883 the detection
+of another stop marks the waiting blocker's claim as yielding (the gate-waiver pass of §7.8), which removes it from
+agv-e's blockers without a grant or a release, so the change count does not move and the sleeping review is never woken;
+agv-e is then stuck by the rule of §7.9 and nobody reports it. A scratch prototype of the reviewer that counts the
+waiver as a change clears the run; it was not measured further. Frequency, from B1: 1 run in the 9,000 reservation runs
+of seeds 7700000..7702999 and 1 in the 33,000 reservation runs of that review in all (free-flow runs cannot show it), on
+the same basis as item (b). It is residual item 9. Fixing it changes when sleeping reviews wake, a rule of the
+wait-review code that Assignment 2 left alone.
 
 **(b) A physical conflict from a direction re-claim through look-ahead (seed 8101904).** `ReservationController`,
-`FastestRouter`. Reproduction, run for this list at `229ea61`:
-`uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first 8101904` gives 6 runs, 7,018 events, one violation,
-`seed 8101904 reservation fastest: (471.171, 'PHYSICAL opposite directions on a segment', 'g0_2~g1_0', [('agv-c', ('g0_2',
-'g1_0')), ('agv-g', ('g1_0', 'g0_2'))])`, exit status 1. It is the violation that B1 and B2 name as "not this task's".
-The facts below are from the read-only investigation made at `687ad66` (Ruling A2-g; its scripts and outputs are in
+`FastestRouter`. Reproduction, run for this list at `229ea61`: `uv run --all-extras python benchmarks/layout_safety.py
+--worlds 1 --first 8101904` gives 6 runs, 7,018 events, one violation, `seed 8101904 reservation fastest: (471.171,
+'PHYSICAL opposite directions on a segment', 'g0_2~g1_0', [('agv-c', ('g0_2', 'g1_0')), ('agv-g', ('g1_0', 'g0_2'))])`,
+exit status 1. It is the violation that B1 and B2 name as "not this task's". The facts below are from the read-only
+investigation made at `687ad66` (Ruling A2-g; its scripts and outputs are in
 `.superpowers/sdd/2026-11-23-layout-only-models/reviewer-scratch-a2-8101904/`); what I confirmed again for this list is
 said as such.
 
 - Mechanism. A vehicle at rest whose tail still lies on a single-lane segment claims that segment again in the new
-  direction through look-ahead (traffic spec §7.2: the grant changes the recorded direction; §7.3: a vehicle's own holdings
-  never block it). The ledger then shows one direction, and a second vehicle is admitted head-on into the lane that the
-  first one's tail still occupies. In seed 8101904 agv-c reverses over `g0_2~g1_0` and re-claims it in the new direction
-  and agv-g is granted the same segment in the opposite direction at the same instant (471.171); the bodies overlap for
-  1.118 s (investigation). It needs a reversal, a speed profile with limits, an extent longer than the path from the roomy
-  node to the rest node, both end nodes of capacity above 1, and room for both extents.
+  direction through look-ahead (traffic spec §7.2: the grant changes the recorded direction; §7.3: a vehicle's own
+  holdings never block it). The ledger then shows one direction, and a second vehicle is admitted head-on into the lane
+  that the first one's tail still occupies. In seed 8101904 agv-c reverses over `g0_2~g1_0` and re-claims it in the new
+  direction and agv-g is granted the same segment in the opposite direction at the same instant (471.171); the bodies
+  overlap for 1.118 s (investigation). It needs a reversal, a speed profile with limits, an extent longer than the path
+  from the roomy node to the rest node, both end nodes of capacity above 1, and room for both extents.
 - Present at `e993ca8`, the base of the branch (the traffic work). Confirmed for this list: the `src` of `e993ca8` (a
   `git archive`) first on `PYTHONPATH`, with the generator and monitor of `e4afae4` (the last with explicit mode, which
-  `e993ca8` needs; `reviewer-scratch-a2-8101904/gen-e4`) and the investigation's `scripts/base_run.py 8101904 fastest`: one
-  violation, `PHYSICAL opposite directions on a segment` at 471.1711922045716 on `g0_2~g1_0` with agv-c and agv-g, 1,429
-  events. The violation is not caused by the layout work.
-- Frequency, from the investigation's scans (`out/scan-8100000.jsonl`, `out/scan-9200000.jsonl`; recounted for this list from
-  those files): 21,000 reservation runs of 7,000 worlds (seeds 8100000..8103999 and 9200000..9202999, three routers) contain
-  this violation once (8101904 `fastest`). The exposure is common: the investigation counted 113,330 re-claims of a
-  segment in a new direction with the body still as it arrived, of which one let a second vehicle in.
+  `e993ca8` needs; `reviewer-scratch-a2-8101904/gen-e4`) and the investigation's `scripts/base_run.py 8101904 fastest`:
+  one violation, `PHYSICAL opposite directions on a segment` at 471.1711922045716 on `g0_2~g1_0` with agv-c and agv-g,
+  1,429 events. The violation is not caused by the layout work.
+- Frequency, from the investigation's scans (`out/scan-8100000.jsonl`, `out/scan-9200000.jsonl`; recounted for this list
+  from those files): 21,000 reservation runs of 7,000 worlds (seeds 8100000..8103999 and 9200000..9202999, three
+  routers) contain this violation once (8101904 `fastest`). The exposure is common: the investigation counted 113,330
+  re-claims of a segment in a new direction with the body still as it arrived, of which one let a second vehicle in.
 - Minimal scenario, `reviewer-scratch-a2-8101904/scripts/minimal.py` (a line U-V-W, U~V 10 m single lane, V~W 2.5 m, two
-  vehicles of 3 m with a trapezoidal profile; A drives U to V to W and back, B rests at V and asks for V to U at the same
-  instant). Run for this list with `PYTHONPATH=. uv run --all-extras python <path>/minimal.py base` at `229ea61`: its
-  independent body model reports `CONFLICT: bodies on U~V in opposite directions`, 22 samples from 50.05 to 51.1, and both
-  vehicles arrive. Its variants (`later`, `turn`, `plain`, `deadend`, `cap1`, `fit`, `short`) show which conditions the case
-  needs; they were not rerun for this list.
-- The smallest fix that was stated, and not made (a change to traffic spec §7.3, and possibly to entity state): a holder that
-  re-claimed a single-lane segment in a new direction counts in both directions for other claimants until its body has left
-  the segment as it arrived (the investigation's `exact` prototype, `scripts/fixproto.py`: until the holder's own move over
-  the segment starts, or its odometer reaches the point where the segment leaves its trail). Measured by the investigation
-  and recounted for this list from its outputs: on 3,000 runs (seeds 9200000..9200999) 2 fingerprints change and no new
-  violation appears; on seed 8101904 the violation is gone; its 1,753 intralogistics tests passing is quoted from the
-  investigation. The conservative form (`excl`: the holder blocks every other claimant until it releases the segment)
-  changes 124 of the same 3,000 fingerprints, with no violation either.
-- Whether 0.18.0 ships with it is the maintainer's decision: it is a physical overlap of two bodies, in a world that needs
-  the combination above, at about 1 run in 21,000 reservation runs of these random worlds.
+  vehicles of 3 m with a trapezoidal profile; A drives U to V to W and back, B rests at V and asks for V to U at the
+  same instant). Run for this list with `PYTHONPATH=. uv run --all-extras python <path>/minimal.py base` at `229ea61`:
+  its independent body model reports `CONFLICT: bodies on U~V in opposite directions`, 22 samples from 50.05 to 51.1,
+  and both vehicles arrive. Its variants (`later`, `turn`, `plain`, `deadend`, `cap1`, `fit`, `short`) show which
+  conditions the case needs; they were not rerun for this list.
+- The smallest fix that was stated, and not made (a change to traffic spec §7.3, and possibly to entity state): a holder
+  that re-claimed a single-lane segment in a new direction counts in both directions for other claimants until its body
+  has left the segment as it arrived (the investigation's `exact` prototype, `scripts/fixproto.py`: until the holder's
+  own move over the segment starts, or its odometer reaches the point where the segment leaves its trail). Measured by
+  the investigation and recounted for this list from its outputs: on 3,000 runs (seeds 9200000..9200999) 2 fingerprints
+  change and no new violation appears; on seed 8101904 the violation is gone; its 1,753 intralogistics tests passing is
+  quoted from the investigation. The conservative form (`excl`: the holder blocks every other claimant until it releases
+  the segment) changes 124 of the same 3,000 fingerprints, with no violation either.
+- Whether 0.18.0 ships with it is the maintainer's decision: it is a physical overlap of two bodies, in a world that
+  needs the combination above, at about 1 run in 21,000 reservation runs of these random worlds.
 
-**(c) Waits that sleep behind a reported wait and get no report of their own.** At the end of a run the monitor explains an
-open wait that is blocked by a wait reported stuck or unresolved, without asking that the wait itself was reported; §7.9's
-stuck chain reaches a wait behind a reported one only at the instant of that report. Eight runs at `5b00d9f` end with such a
-wait, asleep and with no report: 8102359 `congestion`, 8103231 `shortest`, 100281 `shortest` and `fastest`, 7700058 with
-three routers, 7701490 `fastest` (listed under "What the monitor does not check"; the counts and the agvs are quoted from
-there and were not rerun at the final head). The record describes it under
-"What the monitor does not check" and under B1 ("Where the statements of B1 hold").
+**(c) Waits that sleep behind a reported wait and get no report of their own.** At the end of a run the monitor explains
+an open wait that is blocked by a wait reported stuck or unresolved, without asking that the wait itself was reported;
+§7.9's stuck chain reaches a wait behind a reported one only at the instant of that report. Eight runs at `5b00d9f` end
+with such a wait, asleep and with no report: 8102359 `congestion`, 8103231 `shortest`, 100281 `shortest` and `fastest`,
+7700058 with three routers, 7701490 `fastest` (listed under "What the monitor does not check"; the counts and the agvs
+are quoted from there and were not rerun at the final head). The record describes it under "What the monitor does not
+check" and under B1 ("Where the statements of B1 hold").
 
-**(d) An AGV that charged on its way to park stays idle on the charger's node.** Pre-existing, identical before and after B2.
-The trip to the parking area is not resumed after the charge, the repositioning policy is not asked again and a service node
-is not cleared (clearing runs only when the policy returned no target, `fleet.py:766` at the time). B2's review found it in
-34 of 37 measured turns, 16 of them for a while (up to 170.5), 1 to the end of the run (quoted from B2, "Open,
-pre-existing and not changed here"; not rerun). It matches the letter of traffic spec §7.10 and is at odds with its purpose.
-The one exception that B2's fix round added, a charger on the area's own node, leaves the AGV parked there with its slot.
+**(d) An AGV that charged on its way to park stays idle on the charger's node.** Pre-existing, identical before and
+after B2. The trip to the parking area is not resumed after the charge, the repositioning policy is not asked again and
+a service node is not cleared (clearing runs only when the policy returned no target, `fleet.py:766` at the time). B2's
+review found it in 34 of 37 measured turns, 16 of them for a while (up to 170.5), 1 to the end of the run (quoted from
+B2, "Open, pre-existing and not changed here"; not rerun). It matches the letter of traffic spec §7.10 and is at odds
+with its purpose. The one exception that B2's fix round added, a charger on the area's own node, leaves the AGV parked
+there with its slot.
 
 **(e) `agv.stranded` after a diversion names the node where the diversion started.** With reason
 `insufficient_after_charging` the event names the node where the AGV turned to charge, not the node where it stands
 (`travel.py:825` at the time of B2), and the reason is also given when the diversion never reached a charger (8100301
 `fastest`: `node` g2_2 with the AGV on c07). 35 of 43,393 stranded events in B2's measurement (quoted; not rerun).
 
-**(f) The noise band of the overhead gate.** C widened the budget against the stripped copy to 10.5 % and kept the band at
-2 %, so the limit is 12.5 %. `calibrate_noise.py` gave an upward bound above 2 points in 5 of 20 rows (largest 5.20 for the
-loaded round, 2.58 without it); a literal application of the pre-0.13 calibration note would give a band of 3 % (limit 13.5 %)
-or 6 % (limit 16.5 %), and by the same logic would move the band against the released package. The alternatives are
-recorded in D106 (`specs/studio-decisions.md`) and in section C above (Ruling A2-c). A regression of less than about 4 points
-of overhead passes unnoticed until the next calibration; a slow runner above 12.5 % fails the job and needs a rerun. The
-overhead gate at the final head is below the limit in every comparison, with at least 3.5 points to spare against the stripped
-copy (below).
+**(f) The noise band of the overhead gate.** C widened the budget against the stripped copy to 10.5 % and kept the band
+at 2 %, so the limit is 12.5 %. `calibrate_noise.py` gave an upward bound above 2 points in 5 of 20 rows (largest 5.20
+for the loaded round, 2.58 without it); a literal application of the pre-0.13 calibration note would give a band of 3 %
+(limit 13.5 %) or 6 % (limit 16.5 %), and by the same logic would move the band against the released package. The
+alternatives are recorded in D106 (`specs/studio-decisions.md`) and in section C above (Ruling A2-c). A regression of
+less than about 4 points of overhead passes unnoticed until the next calibration; a slow runner above 12.5 % fails the
+job and needs a rerun. The overhead gate at the final head is below the limit in every comparison, with at least 3.5
+points to spare against the stripped copy (below).
+
+**(g) Smaller points recorded and left.**
+
+- `src/simulatte/entities.py` (about line 357) reaches the private `refs._Ref` through `sys.modules` to avoid importing
+  the layout, and an uncaught traceback of a handle read names `_PhysicalAttributeError` (A review, minor).
+- The hand-built parking tests of B2 cover a repositioning trip only; make-way and clearance trips that turn to charge
+  are covered by the random worlds. `tests/intralogistics/test_idle_traffic.py` pins the idle-after-charge behaviour of
+  item (d), so that test changes if (d) is fixed (B2 review, minor).
 
 ### Gates at the final head (Assignment 2)
 
-Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise) at `229ea61`, the last commit that changes
-anything but this record: `229ea61` (`docs(intralogistics): the parking slot kept for a charge on the area's own node`)
-changes three texts, the parking paragraph of `docs/guides/intralogistics.md` and the docstrings of `FleetCoordinator`,
-`FleetCoordinator._idle_travel` and `ParkingArea`, so that they state the exception of B2's fix round 1 (a charger on the
-area's own node keeps the slot). Nothing was edited between the gates; `git status` showed no change to a tracked file
-before the first gate, after the PyPy and 3.11 lanes and at the end (this record only). That the commit
-changes no behaviour was checked by compiling `fleet.py` and `parking.py` of `4ab6572` and of `229ea61` with `optimize=2`
-(docstrings stripped) and comparing every code object's `co_code` and constants (without docstrings): 146 and 21 code
-objects, identical (`scratch-a2-final/cmp.py`, `cmp.out`). Result lines are pasted from the output; the files are under
+Run on bigboss (Apple M4 Pro, macOS, CPython 3.14.3 unless the row says otherwise) at `229ea61`, the last commit that
+changes anything but this record: `229ea61` (`docs(intralogistics): the parking slot kept for a charge on the area's own
+node`) changes four texts, the parking paragraph of `docs/guides/intralogistics.md` and the docstrings of
+`FleetCoordinator`, `FleetCoordinator._idle_travel` and `ParkingArea`, so that they state the exception of B2's fix
+round 1 (a charger on the area's own node keeps the slot). Nothing was edited between the gates. I checked `git status
+--short` (empty) before the first gate and after the PyPy and 3.11 lanes, but those outputs were not saved; what is kept
+is a check made after the gates (file `scratch-a2-final/post-check.out`): the only change since `229ea61` is this
+record, and `uv.lock` and `pyproject.toml` are unchanged since `4ab6572`. That the commit changes no behaviour was
+checked by compiling `fleet.py` and `parking.py` of `4ab6572` and of `229ea61` with `optimize=2` (docstrings stripped)
+and comparing every code object's `co_code` and constants (without docstrings): 146 and 21 code objects, identical
+(`scratch-a2-final/cmp.py`, `cmp.out`). Result lines are pasted from the output; the files are under
 `.superpowers/sdd/2026-11-23-layout-only-models/scratch-a2-final/`.
 
 | # | Gate | Command | Result |
@@ -2054,19 +2076,19 @@ objects, identical (`scratch-a2-final/cmp.py`, `cmp.out`). Result lines are past
 | 10 | Safety run | `uv run --all-extras python benchmarks/layout_safety.py --worlds 1000 --first 100000` and `--first 2000000` | both exit 0, 0 violations, 0 raised, 0 not returned (below) |
 | 11 | Seeds of Assignment 2 | `benchmarks/layout_safety.py --worlds 1 --first <seed>` | 6 clean, 2 open by decision (below) |
 
-`uv.lock` and the checkout's `.venv` were not changed by the interpreter lanes (the lock's hash was the same before and after
-the PyPy and 3.11 runs, and `git status` clean). The coverage run's `coverage.xml` is ignored by git.
+`uv.lock` and the checkout's `.venv` were not changed by the interpreter lanes (`uv.lock` equals the one committed: `git
+diff HEAD -- uv.lock` is empty, `scratch-a2-final/post-check.out`). The coverage run's `coverage.xml` is ignored by git.
 
 **Overhead gate (gate 9).** Run as `benchmarks/README.md` describes and the `bench` job does: mode `none` on
 `jobshop10-u90-5k` and `jobshop10-u95-5k`, `--warmup 1 --repeat 5 --processes 3`; the limits are those now in
-`.github/workflows/ci.yml`: against released 0.12.0 `--budget 0.03 --noise 0.02` (+5.0 %), against the stripped copy `--budget
-0.105 --noise 0.02` (+12.5 %). The branch side is the checkout's `.venv` (`simulatte.__file__` printed:
-`/Users/davide/Developer/simulatte/src/simulatte/__init__.py`, CPython 3.14.3, the `src` of `229ea61`); released 0.12.0 in the
-environment built by Task 11 (`scratch-task-11/bench/base`, `simulatte` 0.12.0 with the checkout's dependency versions as
-constraints), and the stripped copy made then by `strip_debug.py` (`scratch-task-11/bench/stripped`, printed as the imported
-package), both reused as the earlier gate runs did. Nothing else of this work ran; the one-minute load average read 1.4 to 2.0
-(other sessions, two users logged in). Rounds one to three, in this order, each baseline run just before the branch run of the
-same workload. "Base" is the baseline median, "Head" the branch median:
+`.github/workflows/ci.yml`: against released 0.12.0 `--budget 0.03 --noise 0.02` (+5.0 %), against the stripped copy
+`--budget 0.105 --noise 0.02` (+12.5 %). The branch side is the checkout's `.venv` (`simulatte.__file__` printed:
+`/Users/davide/Developer/simulatte/src/simulatte/__init__.py`, CPython 3.14.3, the `src` of `229ea61`); released 0.12.0
+in the environment built by Task 11 (`scratch-task-11/bench/base`, `simulatte` 0.12.0 with the checkout's dependency
+versions as constraints), and the stripped copy made then by `strip_debug.py` (`scratch-task-11/bench/stripped`, printed
+as the imported package), both reused as the earlier gate runs did. Nothing else of this work ran; the one-minute load
+average read 1.4 to 2.0 (other sessions, two users logged in). Rounds one to three, in this order, each baseline run
+just before the branch run of the same workload. "Base" is the baseline median, "Head" the branch median:
 
 | Round | Workload | vs released: base, head, overhead (limit +5.0 %) | vs stripped: base, head, overhead (limit +12.5 %) | Verdict |
 |---|---|---|---|---|
@@ -2077,25 +2099,26 @@ same workload. "Base" is the baseline median, "Head" the branch median:
 | 3 | u90 | 0.647 s, 0.485 s, -25.0 % | 0.451 s, 0.485 s, +7.5 % | pass, pass |
 | 3 | u95 | 0.680 s, 0.522 s, -23.2 % | 0.485 s, 0.522 s, +7.6 % | pass, pass |
 
-Against the stripped copy the six comparisons run from +7.5 % to +9.0 % (the highest, round 1 u90, is 3.5 points under the
-limit); against released 0.12.0 from -25.0 % to -22.7 %. Every `compare.py` exit status was 0. These agree with C's ten
-rounds (pooled +8.34 % and +8.45 %, single rounds +5.9 to +9.8 %) and need no new rule.
+Against the stripped copy the six comparisons run from +7.5 % to +9.0 % (the highest, round 1 u90, is 3.5 points under
+the limit); against released 0.12.0 from -25.0 % to -22.7 %. Every `compare.py` exit status was 0. These agree with C's
+ten rounds (pooled +8.34 % and +8.45 %, single rounds +5.9 to +9.8 %) and need no new rule.
 
-**Safety run (gate 10).** CPython 3.14.3, Apple M4 Pro, from the repository root, at `229ea61`; neither output mentions a
-known limit (the mechanism is gone).
+**Safety run (gate 10).** CPython 3.14.3, Apple M4 Pro, from the repository root, at `229ea61`; neither output mentions
+a known limit (the mechanism is gone).
 
 | Range | Worlds | Runs | Events | Raised | Not returned | Queue not empty | Violations | Wall clock | Exit |
 |---|---|---|---|---|---|---|---|---|---|
 | seeds 100000..100999 | 1,000 | 6,000 | 6,570,200 | 0 | 0 | 0 | 0 | 187 s | 0 |
 | seeds 2000000..2000999 | 1,000 | 6,000 | 6,720,030 | 0 | 0 | 0 | 0 | 185 s | 0 |
 
-Together 12,000 runs and 13,290,230 events with no violation, no exception and every run returned. The event counts equal
-those of `0d08071` and `4bc6624` (B2). The feature counts (an AGV moves in 5,991 and 5,988 of 6,000 runs; a deadlock in 2,269
-and 2,362; charging in 1,794 and 1,745; stranding in 1,835 and 1,734; a zone held by two in 507 and 340; a passing segment
-held by two in 120 and 103; parking entered in 3,658 and 3,778) are in `g10-safety-100000.out` and `g10-safety-2000000.out`.
+Together 12,000 runs and 13,290,230 events with no violation, no exception and every run returned. The event counts
+equal those of `0d08071` and `4bc6624` (B2). The feature counts (an AGV moves in 5,991 and 5,988 of 6,000 runs; a
+deadlock in 2,269 and 2,362; charging in 1,794 and 1,745; stranding in 1,835 and 1,734; a zone held by two in 507 and
+340; a passing segment held by two in 120 and 103; parking entered in 3,658 and 3,778) are in `g10-safety-100000.out`
+and `g10-safety-2000000.out`.
 
-**Seeds of Assignment 2 (gate 11).** Each as `uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first <seed>`
-(6 runs: both controllers, three routers), at `229ea61`:
+**Seeds of Assignment 2 (gate 11).** Each as `uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first
+<seed>` (6 runs: both controllers, three routers), at `229ea61`:
 
 | Seed | Why it is run | Result |
 |---|---|---|
@@ -2108,6 +2131,6 @@ held by two in 120 and 103; parking entered in 3,658 and 3,778) are in `g10-safe
 | 9202736 | the same | 3,237 events, 0 violations, exit 0 |
 | 619 | formerly the first known limit (B2), re-pinned | 2,689 events, 0 violations, exit 0 |
 
-For each, 0 runs raised, 0 did not return and 0 ended with the queue not empty. The two seeds expected to show a violation
-show exactly one run each, in the controller and with the router that the record names, and no other run of their six; the
-six others are clean in all six runs. No other violation occurred in any gate.
+For each, 0 runs raised, 0 did not return and 0 ended with the queue not empty. The two seeds expected to show a
+violation show exactly one run each, in the controller and with the router that the record names, and no other run of
+their six; the six others are clean in all six runs. No other violation occurred in any gate.
