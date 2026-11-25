@@ -12,7 +12,9 @@ from pathlib import Path
 import pytest
 
 from simulatte.intralogistics import events as logistics_events
+from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.network import Segment
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
@@ -486,6 +488,30 @@ def test_a_wrong_or_missing_traffic_report_is_a_violation(monkeypatch, patch, se
     reported, by the monitor's own reading of the events and of the replayed holdings."""
     patch(monkeypatch)
     assert kind in _kinds(run_world(world_spec(seed), controller="reservation", router=router))
+
+
+def test_a_slot_kept_while_its_agv_travels_to_a_charger_elsewhere_is_a_violation_as_the_travel_starts(monkeypatch):
+    """Seed 619 with the fix of the parking slots undone: agv-a keeps P0's slot when it turns to the charger c08 at
+    122.0, and the monitor reports it then, during the travel, before the charge starts at 148.6."""
+    monkeypatch.setattr(FleetCoordinator, "_release_slots_elsewhere", lambda self, agv, charger: None)
+    record = run_world(world_spec(619), controller="free", router="shortest")
+    (found, *_) = [v for v in record.violations if v[1] == "parking slot held during a travel elsewhere"]
+    assert found[0] == pytest.approx(122.048, abs=1e-3) and found[2:] == ("P0", "agv-a", "c08")
+
+
+def test_a_segment_granted_against_a_body_is_a_violation(monkeypatch):
+    """Seed 58: a ledger that ignores agv-a's holdings of single-lane segments admits a vehicle head-on against its
+    body."""
+    admit = HoldingsLedger.blockers
+
+    def blockers(self, agv, item, among=None):
+        found = admit(self, agv, item, among)
+        if isinstance(item.resource, Segment) and not item.resource.passing:
+            return [holder for holder in found if holder.id != "agv-a"]
+        return found
+
+    monkeypatch.setattr(HoldingsLedger, "blockers", blockers)
+    assert "ADMITTED against a body on a segment" in _kinds(run_world(world_spec(58), controller="reservation"))
 
 
 @pytest.mark.parametrize(("seed", "controller", "router"), sorted(SAFETY))

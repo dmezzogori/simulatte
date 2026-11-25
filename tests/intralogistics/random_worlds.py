@@ -13,11 +13,13 @@ The `Monitor` takes its geometry from the spec (`reference_graph`), not from the
 built graph that differs from it. It keeps its own body model of every vehicle, driven by the motion events only, and
 checks after every domain event that the replayed deltas equal the live entities (from the first event and from the
 initial state), and, under a `ReservationController`, that the bodies respect node, segment, zone and corridor
-admission, that the holdings cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and
-that the entities agree with the holdings ledger. It follows the waits and their reports from the traffic events alone:
-what a stuck report says of the wait and its blockers, that a reported deadlock is one by its own admission test over
-the replayed holdings and that every deadlock is reported, and, at the end, that every open wait carries a report. It
-records violations instead of raising, so a run always ends.
+admission, that no other holder of a single-lane segment holds it against a body that lies on it, that the holdings
+cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and that the entities agree with the
+holdings ledger. It follows the waits and their reports from the traffic events alone: what a stuck report says of the
+wait and its blockers, that a reported deadlock is one by its own admission test over the replayed holdings and that
+every deadlock is reported, and, at the end, that every open wait carries a report. It follows the parking slots from
+the parking events: a slot is held by an AGV at rest on the area's node or travelling there. It records violations
+instead of raising, so a run always ends.
 """
 
 from __future__ import annotations
@@ -59,6 +61,7 @@ from simulatte.intralogistics.events import (
     ChargingStarted,
     OrderStatusChanged,
     ParkingEntered,
+    ParkingLeft,
     TrafficDeadlock,
     TrafficReleased,
     TrafficReserved,
@@ -1077,8 +1080,11 @@ class Monitor:
         self._detect_due = False  # a wait opened, or ended otherwise than by a grant, in this instant
         self._unreported: set[tuple[str, ...]] = set()
         self._placed: set[tuple[str, str]] = set()  # (resource, agv) held since the placement and not taken again
+        self._against: set[tuple[str, str, str]] = set()
         self.routes: dict[str, tuple[str, ...]] = {}
-        self._park_seen: dict[tuple[str, str], float] = {}
+        self.goals: dict[str, str] = {}
+        self.slots: dict[tuple[str, str], None] = {}
+        self._slot_bad: dict[tuple[str, str], str] = {}
         fleet_of = {agv_id: fleet.vehicle for fleet in world.spec.fleets for agv_id, _ in fleet.agvs}
         self.extents = {agv_id: vehicle.length + vehicle.min_gap for agv_id, vehicle in fleet_of.items()}
         self.env.bus.subscribe(self.on, "*")
@@ -1124,6 +1130,7 @@ class Monitor:
             steps = self.corridor_steps[f"corridor:{min(chain[1:-1])}"] = {}
             for u, v in zip(forward, forward[1:]):
                 steps[u, v], steps[v, u] = "forward", "backward"
+        self.areas = {name: (node, capacity) for name, node, capacity in world.spec.parking}
         if self.reservation:
             self._compare_traffic()
         self._ready = True
@@ -1278,16 +1285,20 @@ class Monitor:
             self._move_ended(event, t)
         elif isinstance(event, AgvRouted):
             self.routes[event.agv] = event.nodes
+            if event.reason != "step_aside":  # a step aside is an excursion: the travel's goal stays
+                self.goals[event.agv] = event.destination
+        elif isinstance(event, ParkingEntered | ParkingLeft):
+            self._track_slot(event)
         elif isinstance(event, TrafficWaitStarted | TrafficWaitEnded | TrafficWaitStuck | TrafficDeadlock):
             self._track_wait(event, t)
         self.checked += 1
-        self._check_parking(t)
         if self.reservation:
             self._check(event, t)
 
     def _close_instant(self) -> None:
-        """The checks of a complete instant: events of one instant come in sequence, so a deadlock reported after the
-        stop that formed it is judged at its end."""
+        """The checks of a complete instant: events of one instant come in sequence, so a slot taken at a decision
+        before the route of its move, or a deadlock reported after the stop that formed it, is judged at its end."""
+        self._check_slots()
         if self._detect_due:
             self._detect_due = False
             self._check_detection()
@@ -1357,19 +1368,44 @@ class Monitor:
         for s in [s for s, (clear, _) in body.segs.items() if clear <= front - tol]:
             del body.segs[s]
 
-    def _check_parking(self, t: float) -> None:
-        for area in self.world.parking:
-            parked = list(area._agv_requests)
-            if len(parked) > area.capacity:
-                self.violation("parking over capacity", area.name)
-            for agv in parked:
-                key = (area.name, agv.id)
-                if agv.current_node != area.node and agv.state.name not in TRAVELING:
-                    first = self._park_seen.setdefault(key, t)
-                    if t > first:
-                        self.violation("parking slot of an AGV resting elsewhere", area.name, agv.id, agv.state.name)
-                else:
-                    self._park_seen.pop(key, None)
+    # Parking slots (spec §7.10, "Parking (T13)"), from the parking events and the body model
+
+    def _track_slot(self, event: ParkingEntered | ParkingLeft) -> None:
+        key = (event.area, event.agv)
+        if isinstance(event, ParkingLeft):
+            self.slots.pop(key, None)
+            return
+        self.slots[key] = None
+        if sum(area == event.area for area, _ in self.slots) > self.areas[event.area][1]:
+            self.violation("parking over capacity", event.area)
+
+    def _check_slots(self) -> None:
+        """At the end of an instant every slot is held by an AGV at rest on the area's node or travelling to it.
+
+        A slot is taken at the decision of a move to the area's node and given back when the AGV next departs from that
+        node or the travel does not arrive; a travel that turns to charge elsewhere gives it back at the turn. So a slot
+        of an AGV that rests elsewhere, or that travels to another goal, is a violation from that instant, reported
+        once for as long as it lasts. The goal of a travel is the destination of the AGV's last ``agv.routed`` that is
+        not a step aside (an excursion of the same travel)."""
+        assert self.bodies is not None
+        bad: dict[tuple[str, str], str] = {}
+        for key in self.slots:
+            area, agv_id = key
+            node = self.areas[area][0]
+            if self.bodies[agv_id].at == node:
+                continue
+            state = self.state[agv_id]["state"]
+            if state not in TRAVELING:
+                bad[key] = "parking slot of an AGV resting elsewhere"
+                details: tuple[Any, ...] = (state,)
+            elif self.goals.get(agv_id) != node:
+                bad[key] = "parking slot held during a travel elsewhere"
+                details = (self.goals.get(agv_id),)
+            else:
+                continue
+            if self._slot_bad.get(key) != bad[key]:
+                self.violation(bad[key], area, agv_id, *details, at=self._instant)
+        self._slot_bad = bad
 
     # Waits and their reports (spec §7.8, §7.9), from the traffic events
 
@@ -1582,6 +1618,15 @@ class Monitor:
         for s, who in on_seg.items():
             if not self.passing[s] and len({direction for _, direction in who}) > 1:
                 self.violation("PHYSICAL opposite directions on a segment", s, who)
+            if self.passing[s]:  # opposite traffic is admitted on a passing segment (Ruling A3-f)
+                continue
+            for agv_id, (a, b) in who:  # no other holder holds the segment against a body that lies on it
+                lies = "forward" if a < b else "backward"
+                against = "backward" if lies == "forward" else "forward"
+                for holder in self.state.get(s, {}).get(against, ()):
+                    if holder != agv_id and (s, agv_id, holder) not in self._against:
+                        self._against.add((s, agv_id, holder))
+                        self.violation("ADMITTED against a body on a segment", s, agv_id, lies, holder, against)
         for zone, (members, capacity) in self.zone_members.items():
             inside = [
                 agv_id for agv_id, (sure_n, _, sure_s, _) in occupancy.items() if members & (sure_n | set(sure_s))
@@ -1684,7 +1729,3 @@ class Monitor:
         for agv in self.world.agvs.values():
             if agv.motion is not None and not agv.motion.get("stalled"):
                 self.violation("motion left at quiescence", agv.id)
-        for area in self.world.parking:
-            for agv in area._agv_requests:
-                if agv.current_node != area.node and agv.id not in self.waits:
-                    self.violation("parking slot held away from the node at quiescence", area.name, agv.id)
