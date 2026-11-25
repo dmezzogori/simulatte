@@ -104,7 +104,8 @@ class FleetCoordinator(Entity, kind="fleet"):
     node of a charging station) first moves off it, when the traffic controller controls occupancy. A move to the node
     of a parking area takes a slot of the area (``area.enter``) at the decision and gives it back (``area.leave``) when
     the AGV next departs from that node or when the move ends without arriving, which for a move that turns to charge
-    is when it turns.
+    is when it turns, unless the charger is on the area's own node: there the AGV keeps the slot (it is given back if
+    the AGV does not get there) and rests parked after the charge.
 
     Its id is ``name`` when given, otherwise ``fleet-<n>``. ``graph`` is ``layout.graph()`` of the environment's
     layout, whose preparation binds the network's nodes (sorted by id). Construction registers the fleet with its
@@ -1050,7 +1051,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         """Travel `agv` unloaded to `target` and return the outcome. The parking slot that :meth:`_take_slot` took for
         `target` is given back, whatever the outcome and for an interrupt, unless the AGV stands on `target` (an
         interrupt takes effect at the first node where the AGV can be at rest, which may be `target`); a travel that
-        turns to charge gave it back already, as it turned (:meth:`_charge_agv`)."""
+        turns to charge gave it back already, as it turned (:meth:`_charge_agv`), unless the charger is on `target`
+        itself, where the slot is kept and given back here only if the AGV does not stand there."""
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
         except simpy.Interrupt:
