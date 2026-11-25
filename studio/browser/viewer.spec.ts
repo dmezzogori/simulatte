@@ -195,3 +195,12 @@ test("retired selection keeps historical state separate from the live scene", as
     page.getByRole("heading", { name: "second", exact: true }),
   ).toBeVisible();
 });
+
+test("the Overview panel is docked with the Inspector, which stays the active tab", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("input[type=file]").setInputFiles(resolve("../tests/fixtures/traces/generated/example_traffic.simtrace"));
+  await expect(page.locator(".status")).toHaveText("paused");
+  await expect(page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Inspector", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Overview", exact: true })).toHaveAttribute("aria-selected", "false");
+});

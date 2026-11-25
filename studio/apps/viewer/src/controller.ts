@@ -12,7 +12,8 @@ import {
   type TraceEvent,
 } from "@simulatte/trace";
 import { Session, Playback, type PreparedFrame, type Position } from "@simulatte/playback";
-import { Scene } from "@simulatte/scene";
+import { Scene, overview } from "@simulatte/scene";
+import { createOverviewPanel, renderOverview } from "./overview-panel";
 export const format = (v: unknown): string =>
   JSON.stringify(
     v,
@@ -43,6 +44,9 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   return node;
 };
 import {LiveSession} from "./live-session";
+const LEGEND = "Dashed trails: transfer decoration";
+/** While playing, the Overview panel is rewritten at most this often (spec section 5.6). */
+const OVERVIEW_INTERVAL_MS = 250;
 export class Controller {
   playback: Playback | LiveSession | null = null;
   recording: RecordingView | null = null;
@@ -83,6 +87,10 @@ export class Controller {
   #frame: PreparedFrame | null = null;
   #retiredGeneration = 0;
   #retiredKey: string | null = null;
+  #overview: ReturnType<typeof createOverviewPanel>;
+  #legend: HTMLElement;
+  #overviewAt = -Infinity;
+  #overviewStatus = "";
   onInfo: ((name: string, info: string) => void) | null = null;
   onError: ((message: string) => void) | null = null;
   constructor(
@@ -94,12 +102,11 @@ export class Controller {
   ) {
     const scene = el("div", undefined, "scene-host");
     this.#panels.set("scene", scene);
-    const legend = el(
-      "small",
-      "Dashed trails: transfer decoration",
-      "scene-legend",
-    );
+    const legend = el("small", LEGEND, "scene-legend");
+    this.#legend = legend;
     scene.append(legend);
+    this.#overview = createOverviewPanel(() => this.refreshOverview());
+    this.#panels.set("overview", this.#overview.element);
     const inspector = el("div", undefined, "inspector panel-padding");
     this.#panels.set("inspector", inspector);
     const search = el("input");
@@ -228,6 +235,7 @@ export class Controller {
           throw new Error("Unknown saved panel");
         this.dock.fromJSON(layout);
         if (!this.dock.getPanel("scene")) this.resetLayout();
+        else this.#addOverview();
       }
     } catch {
       this.resetLayout();
@@ -279,6 +287,20 @@ export class Controller {
       title: "Events",
       position: { referencePanel: "kpis", direction: "within" },
     });
+    this.#addOverview();
+  }
+  /** The Overview panel always exists (spec decision M27): beside the Inspector, which stays the active tab. */
+  #addOverview(): void {
+    if (this.dock.getPanel("overview")) return;
+    this.dock.addPanel({
+      id: "overview",
+      component: "overview",
+      title: "Overview",
+      position: this.dock.getPanel("inspector")
+        ? { referencePanel: "inspector", direction: "within" }
+        : { referencePanel: "scene", direction: "right" },
+      inactive: true,
+    });
   }
   present(enabled: boolean): void {
     const panel = this.dock.getPanel("scene");
@@ -302,6 +324,7 @@ export class Controller {
     this.scene = null;
     this.#frame = null;
     this.#selected = null;
+    this.#clearOverview();
     this.source = source;
     this.name = name;
     this.status.textContent = "Opening trace…";
@@ -322,12 +345,7 @@ export class Controller {
         scene.dispose();
         return;
       }
-      scene.onSelect = (id) => {
-        this.#selected = id;
-        scene.select(id);
-        clearInspection(this.#fields);
-        this.updateInspector();
-      };
+      scene.onSelect = (id) => this.select(id);
       scene.onError = (message) => this.onError?.(message);
       playback.subscribe((frame, status, error) => {
         if (generation !== this.#generation) return;
@@ -405,13 +423,13 @@ export class Controller {
     this.#historyGeneration++; this.#retiredGeneration++; this.#chartGeneration++;
     this.playback?.dispose(); this.scene?.dispose();
     this.playback = live; this.recording = null; this.source = null;
-    this.#frame = null; this.#selected = null; this.#retiredKey = null;
+    this.#frame = null; this.#selected = null; this.#retiredKey = null; this.#clearOverview();
     this.name = name; this.#schemaKey = "";
     clearInspection(this.#fields); clearInspection(this.#details);
     const scene = new Scene(); this.scene = scene;
     await scene.init(this.#panels.get("scene")!);
     if (generation !== this.#generation) {scene.dispose(); return;}
-    scene.onSelect = id => {this.#selected = id; scene.select(id); clearInspection(this.#fields); this.updateInspector();};
+    scene.onSelect = id => this.select(id);
     scene.onError = message => this.onError?.(message);
     const changed = () => {
       if (generation !== this.#generation) return;
@@ -420,7 +438,7 @@ export class Controller {
         this.status.textContent = state.status;
         if (state.status === 'invalidated') {
           this.recording = null; this.#frame = null; this.playButton.disabled = true;
-          this.timeline.disabled = true; scene.dispose(); this.scene = null;
+          this.timeline.disabled = true; scene.dispose(); this.scene = null; this.#clearOverview();
           clearInspection(this.#fields); clearInspection(this.#details);
           this.#tiles.replaceChildren(); this.#charts.replaceChildren(); this.#history.replaceChildren();
         }
@@ -477,7 +495,8 @@ export class Controller {
     // Preserve the pressed text node across frames so WebKit delivers the click.
     if (this.playButton.textContent !== playLabel) this.playButton.textContent = playLabel;
     if (error) this.onError?.(String(error));
-    if (frame && frame !== this.#frame) {
+    const changed = !!frame && frame !== this.#frame;
+    if (frame && changed) {
       this.#frame = frame;
       scene.render(frame);
       this.time.textContent = `t = ${number(frame.time)}${frame.mode === "exact" ? " · seq " + frame.cursor?.[1] : frame.mode === "activation" ? " · activation" : ""}`;
@@ -485,6 +504,43 @@ export class Controller {
       this.updateInspector();
       this.updateKpis(frame);
     }
+    // The panel follows the frame at 4 Hz while playing; it is flushed at once for a new frame while not playing
+    // and when the status changes (`Playback.pause()` re-emits the same frame, so the frame test cannot see it).
+    const statusChanged = status !== this.#overviewStatus;
+    this.#overviewStatus = status;
+    if (statusChanged || changed) this.refreshOverview(status === "playing" && !statusChanged);
+    const legend = scene.map ? `${LEGEND}. Lane width is nominal.` : LEGEND;
+    if (this.#legend.textContent !== legend) this.#legend.textContent = legend;
+  }
+  /** The one place that sets the selection: the scene, the entity list and the Overview panel come here. */
+  select(id: string | null): void {
+    this.#selected = id;
+    this.scene?.select(id);
+    clearInspection(this.#fields);
+    this.updateInspector();
+    this.refreshOverview();
+  }
+  /** Rewrites the Overview panel from the scene's map; `throttled` skips it within 250 ms of the last write. */
+  refreshOverview(throttled = false): void {
+    const now = performance.now();
+    if (throttled && now - this.#overviewAt < OVERVIEW_INTERVAL_MS) return;
+    this.#overviewAt = now;
+    const scene = this.scene,
+      map = scene?.map ?? null;
+    renderOverview(
+      this.#overview.body,
+      scene && map ? overview(map, this.#overview.options()) : null,
+      (id) => {
+        this.select(id);
+        scene?.focus(id);
+      },
+      this.#selected,
+    );
+  }
+  #clearOverview(): void {
+    this.#overviewAt = -Infinity;
+    this.#overviewStatus = "";
+    renderOverview(this.#overview.body, null, () => {}, null);
   }
   get presentation(): LayoutBundle | null {
     const playback = this.playback;
@@ -517,12 +573,7 @@ export class Controller {
       this.#entities.replaceChildren(
         ...visible.map((id) => {
           const b = el("button", id, id === this.#selected ? "selected" : "");
-          b.onclick = () => {
-            this.#selected = id;
-            this.scene?.select(id);
-            clearInspection(this.#fields);
-            this.updateInspector();
-          };
+          b.onclick = () => this.select(id);
           return b;
         }),
       );

@@ -1,7 +1,9 @@
 // The render harness: one fixture frame drawn by the scene at a fixed size, for the screenshots of
-// harness/render.mjs. Query parameters: frame, scale, x, y, select, labels. Unknown parameters are ignored.
-import { Scene } from "@simulatte/scene";
+// harness/render.mjs. Query parameters: frame, scale, x, y, select, labels, panel (1: the Overview panel beside the
+// canvas, with default options). Unknown parameters are ignored.
+import { Scene, overview } from "@simulatte/scene";
 import type { PreparedFrame } from "@simulatte/playback";
+import { createOverviewPanel, renderOverview } from "../apps/viewer/src/overview-panel";
 
 const WIDTH = 1200;
 const HEIGHT = 500;
@@ -47,7 +49,25 @@ async function main(): Promise<void> {
   }
   const select = params.get("select");
   if (select) scene.select(select);
+  if (params.get("panel") === "1") await mountPanel(scene);
   document.title = "ready";
+}
+
+/** The Overview panel beside the canvas, as the viewer wires it: a click selects the id in the scene and centres on it. */
+async function mountPanel(scene: Scene): Promise<void> {
+  await import("../apps/viewer/src/style.css");
+  const panel = createOverviewPanel(() => refresh());
+  panel.element.id = "overview";
+  panel.element.style.cssText = `position:absolute;left:${WIDTH + 10}px;top:0;width:420px;height:${HEIGHT}px;background:#fff`;
+  document.body.append(panel.element);
+  const refresh = (): void => {
+    const map = scene.map;
+    renderOverview(panel.body, map ? overview(map, panel.options()) : null, (id) => {
+      scene.select(id);
+      scene.focus(id);
+    });
+  };
+  refresh();
 }
 
 main().catch((error: unknown) => {

@@ -46,6 +46,13 @@ export {
   type WaitLine,
 } from "./map/model";
 export { overlayFor, type Overlay } from "./map/overlay";
+export {
+  overview,
+  type Overview,
+  type OverviewGroup,
+  type OverviewLine,
+  type OverviewOptions,
+} from "./map/overview";
 export { scaleBar } from "./draw/scale-bar";
 export { PALETTE } from "./draw/palette";
 export interface Camera {

@@ -97,6 +97,8 @@ export interface FacilityItem extends Point {
   nodes: readonly string[];
   /** Stock or occupancy as shown under the name; "" when the capacity is not recorded. */
   count: string;
+  /** Stock per SKU of a warehouse; empty for the others and when the inventory is not recorded. */
+  stock: Readonly<Record<string, number>>;
   /** Orders waiting at it: its own, with status PENDING. */
   badge: number;
   /** Pixels: the fan-out of facilities sharing a position, at symbol level. */

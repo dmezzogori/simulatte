@@ -464,3 +464,105 @@ input[type="range"] {
 .compare-transport input[type=range] {flex: 1 1 16rem;}
 .badge.replay-verified {background: #d5ead9;}
 .badge.replay-unverified {background: #f1d6d0; font-size: .8rem;}
+
+/* The Overview panel (spec section 5.6). */
+.overview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 12px;
+}
+.ov-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e0e5dc;
+}
+.ov-controls input[type="search"] {
+  flex: 1;
+  min-width: 0;
+}
+.ov-switch {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+}
+.ov-body {
+  flex: 1;
+  overflow: auto;
+  padding: 4px 0 12px;
+}
+.ov-section h3 {
+  margin: 12px 12px 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #516158;
+}
+.ov-section p {
+  margin: 4px 12px;
+}
+.ov-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 8px 12px 2px;
+  font-size: 12px;
+}
+.ov-counts,
+.ov-more,
+.ov-empty {
+  color: #516158;
+}
+.ov-line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 11px;
+  padding: 4px 12px;
+}
+.ov-line:hover,
+.ov-line[aria-current="true"] {
+  background: #e6ede1;
+}
+.ov-line[aria-current="true"] {
+  box-shadow: inset 3px 0 0 #315b4b;
+}
+.ov-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The state mark: the colour of the symbol on the map; the text says the state in words. */
+.ov-mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.ov-line:not([data-shown]) .ov-mark {
+  display: none;
+}
+.ov-line[data-shown="moving"] .ov-mark,
+.ov-line[data-shown="working"] .ov-mark,
+.ov-line[data-shown="resting"] .ov-mark {
+  background: #2563eb;
+}
+.ov-line[data-shown="waiting"] .ov-mark {
+  background: #d97706;
+}
+.ov-line[data-shown="charging"] .ov-mark {
+  background: #16a34a;
+}
+.ov-line[data-shown="stranded"] .ov-mark {
+  background: #dc2626;
+}

@@ -45,6 +45,14 @@ function boundNodes(bindings: Fields, id: string): string[] {
   return nodes;
 }
 
+function stockOf(kind: Kind, fields: Fields): Record<string, number> {
+  const stock: Record<string, number> = {};
+  if (kind === "warehouse")
+    for (const [sku, quantity] of Object.entries(object(fields["inventory"])))
+      if (finite(quantity) !== null) stock[sku] = quantity as number;
+  return stock;
+}
+
 function countOf(kind: Kind, fields: Fields): string {
   if (kind === "warehouse") {
     const inventory = fields["inventory"];
@@ -100,6 +108,7 @@ export function buildFacilities(input: FacilityInput): FacilityItem[] {
       rotation: ((finite(place["rotation"]) ?? 0) * Math.PI) / 180,
       nodes: boundNodes(bindings, id),
       count: countOf(kind, fields),
+      stock: stockOf(kind, fields),
       badge: waiting.get(id) ?? 0,
     });
   }
