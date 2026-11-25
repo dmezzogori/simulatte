@@ -140,6 +140,7 @@ class ReservationController:
         self._changes = 0  # grants and releases so far: a review is due again only after one (T23)
         self._revision = 0  # changes of the queue and of the holdings: the view's count of pending claims lives by it
         self._unresolved: list[tuple[str, ...]] = []  # deadlocked sets reported unresolved that still stand
+        self._unreviewed: list[_Pending] = []  # waits that opened into such a set, in the order they opened
         self.view = ReservationView(self)
         env.on_activate(self._finalize)
 
@@ -258,7 +259,8 @@ class ReservationController:
 
         Emits ``traffic.wait_started``, asks idle blockers to make way (spec §7.10), runs deadlock detection (§7.8)
         and, when the wait is still open and the AGV is not left in an unresolved deadlock, asks the policy how it
-        reacts (§7.9).
+        reacts (§7.9). A wait left in an unresolved deadlock gets its ``on_blocked`` call when no remembered set holds
+        it any longer (:meth:`_review_orphans`).
         """
         agv = request.agv
         waiting = self._pending.get(agv)
@@ -285,6 +287,9 @@ class ReservationController:
             )
         self._make_way(self._wait(waiting, blockers))
         unresolved = self._detect()
+        if waiting in unresolved:
+            self._unreviewed.append(waiting)
+        self._review_orphans()  # a resolution may have staged a reaction of a member of a remembered set
         if waiting in unresolved or self._pending.get(agv) is not waiting:
             return
         kept = self._react(waiting, self._wait(waiting, self._blocking(waiting)))
@@ -338,8 +343,8 @@ class ReservationController:
     def withdraw(self, request: ClaimRequest) -> None:
         """Cancel `request` if it is still pending; an open wait ends with ``interrupted``.
 
-        When the AGV was a member of a deadlocked set left unresolved, detection runs again if the waits left still hold
-        a deadlock (spec §7.8).
+        When the AGV was a member of a deadlocked set left unresolved, the set is forgotten with its wait; after the
+        scan that the withdrawal allows, the members left are looked at again (:meth:`_forgotten`).
         """
         waiting = self._pending.get(request.agv)
         if waiting is None or waiting.request is not request:
@@ -349,7 +354,9 @@ class ReservationController:
         self._end_wait(waiting, "interrupted")
         self._scan()
         if member:
-            self._detect_again()
+            # The travel withdraws before it settles: the policy and the standard search see this AGV in its travel's
+            # state, with what it held while waiting; detection ignores its holdings, since it no longer waits.
+            self._forgotten()
 
     def release(self, agv: AGV, resources: Collection[Resource]) -> None:
         """Free the given resources that `agv` holds, and each zone or corridor whose last held member goes with them.
@@ -496,7 +503,8 @@ class ReservationController:
     def _react(self, waiting: _Pending, wait: Wait) -> KeepWaiting | None:
         """Try the reactions of ``on_blocked`` in order (spec §7.9): None when one was staged, otherwise the
         ``KeepWaiting`` that ended the sequence (``KeepWaiting()`` when it ran out). A staged reaction of a member of a
-        deadlocked set left unresolved runs detection again, as a withdrawal does."""
+        deadlocked set left unresolved forgets the set, and the members left are looked at again, as after a
+        withdrawal."""
         member = self._unresolved_member(waiting.agv)
         for reaction in self._policy.on_blocked(wait, self.view):
             if isinstance(reaction, KeepWaiting):
@@ -504,7 +512,7 @@ class ReservationController:
             if self._attempt(waiting, reaction, "blocked") is not None:
                 self._scan()
                 if member:
-                    self._detect_again()
+                    self._forgotten()
                 return None
         return KeepWaiting()
 
@@ -671,15 +679,37 @@ class ReservationController:
         """Whether `agv` is a member of a deadlocked set reported unresolved that still stands."""
         return any(agv.id in ids for ids in self._unresolved)
 
-    def _detect_again(self) -> None:
-        """Detection after a member's wait of a set left unresolved ended by withdrawal or by a reaction to
-        ``on_blocked``, when the waits left still hold a deadlock (spec §7.8).
+    def _forgotten(self) -> None:
+        """Look again at the members left of the sets that a member's wait ended by withdrawal or by a staged
+        ``on_blocked`` reaction made the controller forget (spec §7.8): run detection, then give the waits that opened
+        into a set and are in none now the ``on_blocked`` call and review they did not get.
 
-        The end of the wait forgot the set (``_end_wait``) and those paths only scan; members whose wait opened into
-        the set have no review, and the reviews of the others may sleep, so nothing else would look at them again.
+        Those two paths only scan, and nothing else would look at those waits again: members whose wait opened into the
+        set have no review, and the reviews of the others may sleep. The other ends of a member's wait need no call
+        here. A resolution staged by detection forgets sets too, but detection then reduces again by itself, and the
+        waits it leaves are reviewed after it (here, and in :meth:`stopped`). A grant cannot end a member's wait while
+        its set stands: its claim is blocked by the holdings of waiting members, which do not change while they wait.
+        This relies on that; were a waiting AGV to release by hand, the waits left would be reviewed at the next stop.
         """
-        if self._reduce([waiting for waiting in self._queue if waiting.stopped], gates=False):
-            self._detect()
+        self._detect()
+        self._review_orphans()
+
+    def _review_orphans(self) -> None:
+        """Give each wait that opened into an unresolved deadlock and that no remembered set holds any longer what
+        :meth:`stopped` gives a wait outside a deadlock, from now: the ``on_blocked`` call and, when it keeps waiting
+        with a delay, its first review that delay from now, with the change count taken now (T23). The waits are taken
+        in the order they opened. A wait that ended, or that had a review meanwhile (a stranded blocker reviews the
+        waits it blocks), is dropped; a wait that a set still holds stays.
+        """
+        for waiting in list(self._unreviewed):
+            if self._pending.get(waiting.agv) is not waiting or waiting.reviews:
+                self._unreviewed.remove(waiting)
+            elif not self._unresolved_member(waiting.agv):
+                self._unreviewed.remove(waiting)
+                waiting.seen = self._changes
+                kept = self._react(waiting, self._wait(waiting, self._blocking(waiting)))
+                if kept is not None and kept.review_after is not None:
+                    self._schedule(waiting, kept.review_after)
 
     def _detect(self) -> list[_Pending]:
         """Deadlock detection and resolution among the stopped waiters (spec §7.8); returns the deadlocked set left

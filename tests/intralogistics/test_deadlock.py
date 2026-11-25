@@ -52,7 +52,7 @@ from simulatte.intralogistics.traffic import (
 )
 from simulatte.intralogistics.traffic_policy import StandardTrafficPolicy
 from tests.intralogistics.test_reservation import cart
-from tests.intralogistics.traffic_support import FakeHooks, FullReplay, TrafficInvariants, fake_hooks, line
+from tests.intralogistics.traffic_support import FakeHooks, FullReplay, TrafficInvariants, build, fake_hooks, line
 from tests.intralogistics.traffic_support import World as Declared
 
 ACTIONS = ("try_reroute", "try_step_aside", "give_up")
@@ -693,8 +693,9 @@ class TestReviews:
 
     def test_a_former_member_of_a_dissolved_deadlock_behind_a_reported_wait_is_reported(self) -> None:
         """A and B form an unresolved deadlock, which A's stop completes: A's wait has no review and no timer. B
-        withdraws, which dissolves the set, and then waits for N3, held by X, idle: B's review reports it, and the
-        report reaches A, which waits behind B."""
+        withdraws, which dissolves the set: A gets the on_blocked call and the review it did not have. B then waits
+        for N3, held by X, idle. At 30 A's review comes first (it was scheduled first) and reports A, whose chain runs
+        through B to X; B's review reports B."""
         w = world({"A": "N1", "B": "N2", "X": "N3"}, policy=Scripted(blocked=(KeepWaiting(30.0),)))
         assert w.ask("A", (w.seg("N1", "N2"), "forward")).granted
         swap = w.wait("B", (w.seg("N1", "N2"), "backward"), "N1")
@@ -702,12 +703,13 @@ class TestReviews:
         assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
         assert timers(w) == [30.0]  # B's review only
         w.controller.withdraw(swap)
+        assert timers(w) == [30.0]  # A's first review; B's went with its wait
         w.wait("B", "N3")
         w.env.run()
         assert w.env.now == 30.0
         assert [(e.t, e.agv, dict(e.blockers)) for e in w.replay.of(TrafficWaitStuck)] == [
-            (30.0, "B", {"X": "IDLE"}),
             (30.0, "A", {"B": "WAITING"}),
+            (30.0, "B", {"X": "IDLE"}),
         ]
 
     def test_a_stuck_report_does_not_reach_a_wait_with_a_moving_blocker_of_its_own(self) -> None:
@@ -916,6 +918,7 @@ class TestDetection:
         assert len(policy.of("on_deadlock")) == 1
         w.controller.withdraw(request)  # A still waits on B's node, but B no longer waits: no deadlock
         assert len(policy.of("on_deadlock")) == 1
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["A"]  # A had its on_blocked call and keeps it
         assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
         assert w.controller._unresolved == []
 
@@ -952,6 +955,145 @@ class TestDetection:
         assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved"), (("A", "B"), None, "unresolved")]
         assert w.controller._unresolved == [("A", "B")]
         w.env.run()
+        assert timers(w) == []
+
+    def test_the_withdrawal_scans_before_it_detects_again(self) -> None:
+        """C's pending claim gates W, which is moving; the withdrawal of C first grants what C's claim held back, then
+        looks at the deadlock left, as a stop does after its request's scan."""
+        w = world({"A": "N0", "B": "N1", "C": "N2", "W": "N3"}, policy=Scripted())
+        seg = w.seg("N1", "N2")
+        assert w.ask("B", (seg, "forward")).granted
+        w.state("W", AGVState.TRAVELING_EMPTY)
+        behind = w.wait("C", (seg, "backward"), "N1")
+        w.wait("A", "N1")
+        w.wait("B", "N0")
+        assert w.deadlocks() == [(("A", "B", "C"), None, "unresolved")]
+        late = w.ask("W", (seg, "forward"))  # gated by C's claim
+        assert not late.event.triggered
+        count = len(w.replay.events)
+        w.controller.withdraw(behind)
+        assert late.granted
+        tail = [(e.type_name, getattr(e, "agv", None) or e.agvs) for e in w.replay.events[count:]]
+        assert tail == [("traffic.wait_ended", "C"), ("traffic.reserved", "W"), ("traffic.deadlock", ("A", "B"))]
+
+    def test_a_staged_reaction_of_a_waiter_outside_every_unresolved_set_does_not_detect(self) -> None:
+        def blocked(wait: Wait) -> Sequence[Reaction]:
+            if wait.agv.id != "D":
+                return (KeepWaiting(),)
+            return (KeepWaiting(1.0),) if wait.reviews == 0 else (Reroute(frozenset()), KeepWaiting())
+
+        policy = Scripted(blocked=blocked)
+        w = world({"A": "N0", "B": "N1", "M": "N3", "D": "N2"}, policy=policy)
+        w.state("M", AGVState.TRAVELING_EMPTY)
+        w.wait("A", "N1")
+        w.wait("B", "N0")
+        outside = w.wait("D", "N3", with_hooks=hooks(name="D", accept=("try_reroute",)))  # waits on a moving AGV
+        assert len(policy.of("on_deadlock")) == 2
+        run_to(w, 2.0)
+        assert outside.event.value == Rerouted("blocked")
+        assert len(policy.of("on_deadlock")) == 2
+        assert w.controller._unresolved == [("A", "B")]
+
+    @staticmethod
+    def two_opened_into_sets(
+        policy: Scripted, q_hooks: FakeHooks | None = None
+    ) -> tuple[World, dict[str, ClaimRequest]]:
+        """On ``line(6)``: X stops first (on_blocked, outside a deadlock), then Q closes {Q, X}, then P, which requested
+        before Q, stops behind X and closes {P, Q, X}. Q and P opened into a set: no on_blocked, no review. Z, on N5,
+        is free to move."""
+        w = world({"P": "N1", "X": "N2", "Q": "N3", "Z": "N5"}, shape=lambda env: line(env, 6), policy=policy)
+        requests = {"X": w.wait("X", "N3")}
+        late = w.ask("P", "N2")  # P requests before Q and stops after it
+        requests["Q"] = w.wait("Q", "N2", with_hooks=q_hooks)
+        w.controller.stopped(late)
+        requests["P"] = late
+        assert w.deadlocks() == [(("Q", "X"), None, "unresolved"), (("P", "Q", "X"), None, "unresolved")]
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["X"]
+        return w, requests
+
+    def test_former_members_left_outside_a_deadlock_get_on_blocked_and_a_review_in_the_order_their_waits_opened(
+        self,
+    ) -> None:
+        policy = Scripted(blocked=(KeepWaiting(5.0),))
+        w, requests = self.two_opened_into_sets(policy)
+        run_to(w, 1.0)
+        w.leave("Z", "N4")  # a change before the sets are forgotten
+        w.controller.withdraw(requests["X"])  # both sets are forgotten; P and Q no longer block each other
+        assert w.controller._unresolved == []
+        assert len(policy.of("on_deadlock")) == 2  # nothing is asked of the policy: the waits left are no deadlock
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["X", "Q", "P"]  # Q opened before P
+        assert timers(w) == [6.0, 6.0]  # their first reviews, from the instant the sets were forgotten
+        w.env.run()  # nothing changed since then: one review each, then they sleep (T23)
+        assert w.env.now == 6.0
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["X", "Q", "P", "Q", "P"]
+
+    def test_a_former_member_whose_on_blocked_call_stages_a_reaction_gets_no_review(self) -> None:
+        def blocked(wait: Wait) -> Sequence[Reaction]:
+            return (Reroute(frozenset()), KeepWaiting()) if wait.agv.id == "Q" else (KeepWaiting(5.0),)
+
+        policy = Scripted(blocked=blocked, deadlock=lambda waits: [])
+        w, requests = self.two_opened_into_sets(policy, hooks(name="Q", accept=("try_reroute",)))
+        w.controller.withdraw(requests["X"])
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["X", "Q", "P"]
+        assert requests["Q"].event.value == Rerouted("blocked")
+        assert w.waits()[-1] == ("traffic.wait_ended", "Q", "rerouted")
+        assert timers(w) == [5.0]  # P's first review only
+
+    def test_a_former_member_with_a_review_or_still_in_a_remembered_set_gets_no_new_one(self) -> None:
+        policy = Scripted(blocked=(KeepWaiting(5.0),))
+        w, requests = self.two_opened_into_sets(policy)
+        w.controller.withdraw(requests["P"])  # forgets {P, Q, X}; {Q, X} stands, and Q is in it
+        assert w.controller._unresolved == [("Q", "X")]
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["X"]
+        w.controller.withdraw(requests["Q"])  # forgets {Q, X}: X had its review, and keeps it
+        assert w.controller._unresolved == []
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["X"]
+        assert timers(w) == [5.0]
+
+    def test_a_former_member_reviewed_since_its_wait_opened_gets_no_new_on_blocked_call(self) -> None:
+        """A's wait opens into {A, B}; S, which also blocks A, strands and A gets a review then (spec §7.10). When B's
+        wait is withdrawn, A already had its on_blocked call and keeps its own review schedule."""
+        policy = Scripted(blocked=(KeepWaiting(30.0),))
+        w = world({"A": "N0", "B": "N1", "S": "N2"}, policy=policy)
+        withdrawn = w.wait("B", "N0")
+        w.wait("A", "N1", "N2")
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        w.state("S", AGVState.STRANDED)
+        w.controller.idle(w.agvs["S"])
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["B", "A"]
+        w.controller.withdraw(withdrawn)
+        assert [wait.agv.id for wait in policy.of("on_blocked")] == ["B", "A"]
+
+    @pytest.mark.parametrize("rest", [AGVState.STRANDED, AGVState.IDLE])
+    def test_a_former_member_whose_blocker_comes_to_rest_elsewhere_is_reported_stuck(self, rest: AGVState) -> None:
+        """The reviewer's case: A and B deadlocked, A also blocked by S at rest; B's wait is withdrawn and B makes way.
+        A opened into the set and had no review; it gets one when the set is forgotten, and is reported stuck."""
+
+        def tee(env: Environment) -> Declared:
+            nodes = [("N0", 0, 0), ("N1", 10, 0), ("N2", 20, 0), ("N3", 10, 10)]
+            return build(env, nodes, [("N0", "N1"), ("N1", "N2"), ("N1", "N3")])
+
+        w = world({"A": "N0", "B": ("N1", "F1"), "S": "N2"}, shape=tee, policy=StandardTrafficPolicy())
+        if rest is AGVState.STRANDED:
+            w.state("S", rest)
+        w.state("B", AGVState.TRAVELING_EMPTY)
+        w.state("A", AGVState.TRAVELING_EMPTY)
+        withdrawn = w.wait("B", "N0")
+        w.wait("A", "N1", "N2")
+        assert w.deadlocks() == [(("A", "B"), None, "unresolved")]
+        assert timers(w) == [30.0]  # B's review; A has none
+        w.controller.withdraw(withdrawn)
+        assert timers(w) == [30.0]  # B's review went with its wait; this is A's first
+        w.state("B", AGVState.IDLE)
+        w.controller.idle(w.agvs["B"])
+        assert w.fleets["F1"].moves == [("B", None, ("A",))]
+        w.leave("B", "N3")
+        w.state("B", AGVState.IDLE)
+        w.controller.idle(w.agvs["B"])
+        w.env.run()  # B's move is a change after A's review started: one more review, then A's review sleeps (T23)
+        assert w.env.now == 60.0
+        (stuck,) = w.replay.of(TrafficWaitStuck)
+        assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (30.0, "A", {"S": rest.name})
         assert timers(w) == []
 
 

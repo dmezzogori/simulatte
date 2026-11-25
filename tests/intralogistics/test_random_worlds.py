@@ -282,6 +282,37 @@ def test_waits_left_after_a_member_of_an_unresolved_deadlock_was_withdrawn_are_r
     assert (fields["agvs"], fields["victim"], fields["action"]) == detected
 
 
+def test_a_member_left_outside_a_deadlock_when_its_set_is_forgotten_gets_its_review():
+    """Seed 8103801 (`FastestRouter`): agv-b's wait opens at 844.5 into the unresolved deadlock {agv-a, agv-b}, so it
+    gets no on_blocked call and no review; it is also blocked by agv-e, idle. At 873.8 agv-a's own review reroutes it:
+    the set is forgotten and agv-b alone is no deadlock. agv-b now gets the on_blocked call and the review it did not
+    have, from that instant: the review 30 later reports it stuck. Before, nothing looked at agv-b again and the run
+    ended with its wait open and unreported."""
+    record = run_world(world_spec(8103801), controller="reservation", router="fastest")
+    assert record.quiescent and not record.violations and not record.known_limits
+    events = [(kind, dict(fields)) for kind, fields in record.events]
+    formed = max(  # the last report of the set: at 844.5, when agv-b's wait opens into it
+        index
+        for index, (kind, fields) in enumerate(events)
+        if kind is logistics_events.TrafficDeadlock and fields["agvs"] == ("agv-a", "agv-b")
+    )
+    assert round(events[formed][1]["t"], 1) == 844.5
+    assert events[formed][1]["action"] == "unresolved"
+    forgotten = next(
+        fields
+        for kind, fields in events[formed:]
+        if kind is logistics_events.TrafficWaitEnded and fields["agv"] == "agv-a"
+    )
+    assert forgotten["reason"] == "rerouted"
+    stuck = next(
+        fields
+        for kind, fields in events[formed:]
+        if kind is logistics_events.TrafficWaitStuck and fields["agv"] == "agv-b"
+    )
+    assert stuck["t"] == forgotten["t"] + 30.0
+    assert dict(stuck["blockers"]) == {"agv-e": "IDLE"}
+
+
 def _forget_to_scan_after_a_release(self, agv, gone):
     """`ReservationController._drop` without the scan that grants the waits the release unblocks."""
     if not gone:
@@ -333,7 +364,7 @@ def _blind_after_a_members_withdrawal(monkeypatch):
         (_suppress_stuck_reports, 2000228, "shortest"),
         (_suppress_stuck_reports, 2000228, "congestion"),
         # A grant never came: releases do not scan.
-        (_no_scan_after_a_release, 2000156, "fastest"),
+        (_no_scan_after_a_release, 2000255, "shortest"),
         # After a member's withdrawal the controller is blind to detection and stuck reports, a real fault that follows
         # an interruption, and some waits are left open with a deadlock that nothing reports.
         (_blind_after_a_members_withdrawal, 2000173, "fastest"),
