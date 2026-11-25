@@ -1,7 +1,7 @@
 // The colours of the map (spec section 5.4, goal 7). Every colour the map draws comes from here.
 
 export const PALETTE = {
-  /** The canvas and its grid: the scene's colours before the map. */
+  /** The canvas and the map's grid: the scene's colours before the map (the path without a map keeps its literals). */
   background: 0xf4f5f0,
   grid: 0xe7eae3,
   /** A lane of the floor. */
@@ -22,7 +22,7 @@ export const PALETTE = {
   text: 0x303d36,
   /** The decorative trails of jobs moving between equipment. */
   trail: 0x668471,
-  /** Vehicle states (spec section 5.4); drawn from Task 5 on. */
+  /** Vehicle states (spec section 5.4). */
   moving: 0x2563eb,
   waiting: 0xd97706,
   idle: 0x94a3b8,
@@ -46,7 +46,7 @@ export const PALETTE = {
   route: 0x2563eb,
   /** The origin-to-destination arrow of an order (M12). */
   flow: 0x1e293b,
-  /** Facilities (spec section 5.4); drawn from Task 5 on. */
+  /** Facilities (spec section 5.4). */
   warehouse: 0xfde68a,
   warehouseShelf: 0xd9a520,
   warehouseOutline: 0xb45309,

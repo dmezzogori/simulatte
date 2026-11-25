@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PreparedFrame } from "@simulatte/playback";
 import { Projector } from "../src/project";
 import { motionSpeed } from "../src/motion";
-import { expandHolds, focusPoint, overlayFor } from "../src/map/overlay";
+import { expandHolds, focusPoint, overlayFor, strongHolds } from "../src/map/overlay";
 import { nameOf, routeIndex, type MapModel, type Shown, type VehicleItem } from "../src/map/model";
 import { loadFrame } from "./fixtures";
 
@@ -563,3 +563,39 @@ function frame0Moving(route: object): MapModel {
   const motion = { ...(frame.state["AGV-2"]!["motion"] as object), from: "D", to: "C" };
   return mapOf("corridor-wait", edit(frame, "AGV-2", { route, motion, node: "D" }));
 }
+
+describe("focusPoint with a scale", () => {
+  const map = mapOf("advanced-charging");
+  it("centres on a vehicle where its symbol is drawn: its fan-out offset at symbol level", () => {
+    const agv = vehicle(map, "AGV-1");
+    expect(agv.offset.x).toBe(-24);
+    expect(focusPoint(map, "AGV-1", 8)).toEqual({ x: agv.x - 3, y: agv.y });
+    // at true size every vehicle is drawn where it is
+    expect(focusPoint(map, "AGV-1", 30)).toEqual({ x: agv.x, y: agv.y });
+    expect(focusPoint(map, "AGV-1")).toEqual({ x: agv.x, y: agv.y });
+  });
+  it("includes a facility's offset", () => {
+    const sprites = mapOf("sprites");
+    const charger = facility(sprites, "Charger-A");
+    expect(focusPoint(sprites, "Charger-A", 9.5)).toEqual({ x: charger.x - 2, y: charger.y });
+  });
+});
+
+describe("strongHolds", () => {
+  const map = mapOf("corridor-wait");
+  it("is what the selected vehicle holds", () => {
+    expect([...strongHolds(map, "AGV-1", overlayFor(map, "AGV-1"))].sort()).toEqual(["C", "C~M1", "J1~M1", "M1"]);
+  });
+  it("is the selected segment, node or the members of the selected zone", () => {
+    expect([...strongHolds(map, "C~D", overlayFor(map, "C~D"))]).toEqual(["C~D"]);
+    expect([...strongHolds(map, "M2", overlayFor(map, "M2"))]).toEqual(["M2"]);
+    expect([...strongHolds(map, "corridor:M2", overlayFor(map, "corridor:M2"))]).toEqual(["D~M2", "M2", "J2~M2"]);
+  });
+  it("is nothing for another kind, an unknown id or no selection", () => {
+    expect(strongHolds(map, "order-0", overlayFor(map, "order-0")).size).toBe(0);
+    expect(strongHolds(map, "East", overlayFor(map, "East")).size).toBe(0);
+    expect(strongHolds(map, "nowhere", null).size).toBe(0);
+    expect(strongHolds(map, "constructor", null).size).toBe(0);
+    expect(strongHolds(map, null, null).size).toBe(0);
+  });
+});

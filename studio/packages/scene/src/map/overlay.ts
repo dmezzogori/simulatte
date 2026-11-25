@@ -1,5 +1,5 @@
 import type { Point } from "../project";
-import { routeIndex, type MapModel, type VehicleItem, type WaitLine } from "./model";
+import { detailAt, routeIndex, type MapModel, type VehicleItem, type WaitLine } from "./model";
 
 /** What a selection highlights on the map (spec section 5.5). */
 export interface Overlay {
@@ -40,14 +40,31 @@ export function expandHolds(model: MapModel, ids: readonly string[]): Set<string
 
 /**
  * Where `scene.focus` centres on a map: a vehicle or a facility on its position, an order on its vehicle, else on
- * its origin facility. Null for any other id, or an order with neither in the frame.
+ * its origin facility. Null for any other id, or an order with neither in the frame. With the `scale` at symbol
+ * level, the item's fan-out offset (pixels, y down) is added, so that the symbol drawn is centred.
  */
-export function focusPoint(model: MapModel, id: string): Point | null {
+export function focusPoint(model: MapModel, id: string, scale?: number): Point | null {
   const order = model.orders.find((o) => o.id === id);
   const item =
     model.vehicles.find((v) => v.id === (order ? order.agv : id)) ??
     model.facilities.find((f) => f.id === (order ? order.origin : id));
-  return item ? { x: item.x, y: item.y } : null;
+  if (!item) return null;
+  if (scale === undefined || detailAt(model, scale) !== "symbol") return { x: item.x, y: item.y };
+  return { x: item.x + item.offset.x / scale, y: item.y - item.offset.y / scale };
+}
+
+/**
+ * What the map tints in the stronger colour for a selection: what the selected vehicle holds; with no overlay, the
+ * selected segment or node itself, or the members of the selected zone (both selectable from a detail's refs).
+ */
+export function strongHolds(model: MapModel, id: string | null, overlay: Overlay | null): Set<string> {
+  if (overlay) return expandHolds(model, overlay.holds);
+  if (
+    id !== null &&
+    (Object.hasOwn(model.zones, id) || model.strips.some((s) => s.id === id) || model.nodes.some((n) => n.id === id))
+  )
+    return expandHolds(model, [id]);
+  return new Set();
 }
 
 /** The highlights of a selection; null for no selection, an unknown id or a kind the map does not select. */

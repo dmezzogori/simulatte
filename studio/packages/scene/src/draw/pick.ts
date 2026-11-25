@@ -1,7 +1,15 @@
 import type { Glyph } from "../project";
 import { detailAt, type MapModel, type MapNode } from "../map/model";
 import { facilityBox, hitsFacility } from "./facility";
+import { NODE_PX } from "./node";
 import { hitsVehicle, vehicleFrame } from "./vehicle";
+
+/** Kinds with no placement (M24): in the map model for the panel, not drawn, labelled or picked on a map. */
+const UNPLACEABLE = new Set(["order", "fleet"]);
+
+/** A glyph is drawn and picked on a map unless its kind has no placement; a registered renderer (`custom`) still wins. */
+export const onMap = (glyph: Glyph, custom: (kind: string) => boolean = () => false): boolean =>
+  !UNPLACEABLE.has(glyph.kind) || custom(glyph.kind);
 
 /** The world's offset and scale on the canvas: a world point (x, y) is at (camera.x + x s, camera.y - y s). */
 export interface MapCamera {
@@ -24,8 +32,8 @@ const hitsGlyph = (g: Glyph, point: { x: number; y: number }): boolean => {
 /**
  * The id of the element drawn at canvas pixel (x, y) on a map, or null. Vehicles are tested before facilities,
  * both as drawn (the symbol with its offset at symbol level, the footprint at true size); then the other glyphs,
- * the last drawn first, without nodes at symbol level. A kind for which `custom` is true has a registered
- * renderer: it is tested as its glyph. `glyphs` are those the map draws.
+ * the last drawn first, without nodes at symbol level and without the kinds a map does not draw (`onMap`). A node is hit
+ * within its drawn radius. A kind for which `custom` is true has a registered renderer: it is tested as its glyph.
  */
 export function pickMap(
   map: MapModel,
@@ -50,7 +58,13 @@ export function pickMap(
     ...map.facilities.filter((f) => !custom(f.kind)).map((f) => f.id),
   ]);
   for (const glyph of [...glyphs].reverse()) {
-    if (drawn.has(glyph.id) || (glyph.kind === "node" && detail === "symbol")) continue;
+    if (drawn.has(glyph.id) || !onMap(glyph, custom)) continue;
+    if (glyph.kind === "node" && !custom("node")) {
+      // drawn as a circle of NODE_PX pixels, at true-size level only
+      if (detail === "true" && Math.hypot(point.x - glyph.x, point.y - glyph.y) <= NODE_PX / scale) return glyph.id;
+      continue;
+    }
+    if (glyph.kind === "node" && detail === "symbol") continue;
     if (hitsGlyph(glyph, point)) return glyph.id;
   }
   return null;

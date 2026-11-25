@@ -1,8 +1,7 @@
 import type { Graphics } from "pixi.js";
 import type { Point } from "../project";
-import type { Detail, MapModel } from "../map/model";
+import type { Detail, FacilityItem, MapModel, MapNode } from "../map/model";
 import type { Overlay } from "../map/overlay";
-import type { FacilityItem, MapNode } from "../map/model";
 import { BAY_PX, boundNodes, hitsFacility, type FacilityBox } from "./facility";
 import { PALETTE } from "./palette";
 import { drawWaitLine, reachPx } from "./traffic";

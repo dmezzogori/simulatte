@@ -14,10 +14,10 @@ import { detailAt, type MapModel } from "./map/model";
 import { drawFloor, drawGrid } from "./draw/floor";
 import { drawNode, NODE_PX } from "./draw/node";
 import { PALETTE } from "./draw/palette";
-import { drawScaleBar } from "./draw/scale-bar";
+import { SCALE_BAR_TEXT, drawScaleBar } from "./draw/scale-bar";
 import { BADGE_PX, drawBayLines, drawFacility, facilityBox, facilityLabels } from "./draw/facility";
 import { LABEL, clipLabel, drawVehicle, ringPx, vehicleFrame, vehicleText } from "./draw/vehicle";
-import { pickMap } from "./draw/pick";
+import { onMap, pickMap } from "./draw/pick";
 import { drawHeld, drawWaitLine } from "./draw/traffic";
 import {
   OUTLINE_REACH_PX,
@@ -28,7 +28,7 @@ import {
   outlinedBox,
   type OverlayContext,
 } from "./draw/overlay";
-import { expandHolds, focusPoint, overlayFor } from "./map/overlay";
+import { focusPoint, overlayFor, strongHolds } from "./map/overlay";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
 export { motionProgress, motionSpeed } from "./motion";
 export {
@@ -70,8 +70,6 @@ export type TrustedRenderer = (
 export interface EditorPointer {
   phase: 'start' | 'move' | 'end' | 'cancel'; point: Point; id: string | null; shift: boolean;
 }
-/** Kinds with no placement (M24): in the map model for the panel, not drawn on a map. */
-const UNPLACEABLE = new Set(["order", "fleet"]);
 const FACILITIES = new Set(["warehouse", "parking_area", "charging_station"]);
 /** Pixels kept around the map when it is fitted: a facility symbol moved clear of its bay, with its name. */
 const FIT_MARGIN_PX = 64;
@@ -175,7 +173,7 @@ export class Scene {
     await this.app.init({
       width: width ?? host.clientWidth,
       height: height ?? host.clientHeight,
-      background: 0xf4f5f0,
+      background: PALETTE.background,
       antialias: true,
       autoStart: false,
       sharedTicker: false,
@@ -371,7 +369,7 @@ export class Scene {
   /** Centres on an element; on a map, an order is centred on its vehicle, else on its origin facility. */
   focus(id: string): void {
     const map = this.#projection?.map ?? null;
-    const point = (map && focusPoint(map, id)) ?? this.#projection?.glyphs.find((g) => g.id === id);
+    const point = (map && focusPoint(map, id, this.#camera.scale)) ?? this.#projection?.glyphs.find((g) => g.id === id);
     if (point) {
       this.#camera.x = this.app.screen.width / 2 - point.x * this.#camera.scale;
       this.#camera.y =
@@ -402,11 +400,8 @@ export class Scene {
     const point = this.screenToWorld(x, y);
     const map = this.#projection?.map;
     if (map)
-      return pickMap(map, this.#projection!.glyphs.filter((g) => this.#onMap(g)), this.#camera, x, y, (kind) =>
-        this.#renderers.has(kind),
-      );
+      return pickMap(map, this.#projection!.glyphs, this.#camera, x, y, (kind) => this.#renderers.has(kind));
     for (const g of [...(this.#projection?.glyphs ?? [])].reverse()) {
-      if (map && !this.#onMap(g)) continue;
       const dx = point.x - g.x,
         dy = point.y - g.y,
         c = Math.cos(g.rotation),
@@ -557,18 +552,15 @@ export class Scene {
       }
     this.app.render();
   }
-  /** A glyph is drawn and picked on a map unless its kind has no placement; a registered renderer still wins. */
+  /** A glyph is drawn on a map unless its kind has no placement; a registered renderer still wins (`onMap`). */
   #onMap(glyph: Glyph): boolean {
-    return !UNPLACEABLE.has(glyph.kind) || this.#renderers.has(glyph.kind);
+    return onMap(glyph, (kind) => this.#renderers.has(kind));
   }
   #drawScaleBar(scale: number): void {
     this.#scaleBar.visible = this.#layout;
     if (!this.#layout) return;
     if (!this.#scaleBarText) {
-      this.#scaleBarText = new Text({
-        text: "",
-        style: { fontFamily: "system-ui", fontSize: 12, fill: PALETTE.scaleBar },
-      });
+      this.#scaleBarText = new Text({ text: "", style: SCALE_BAR_TEXT });
       this.#scaleBarText.anchor.set(0.5, 1);
       this.#scaleBar.addChild(this.#scaleBarText);
     }
@@ -588,6 +580,7 @@ export class Scene {
       this.#camera,
       width,
       height,
+      detail,
       map.strips.map((s) => [s.a.x, s.a.y, s.b.x, s.b.y, s.width, s.oneWay]),
     ]);
     if (signature !== this.#staticSignature) {
@@ -621,9 +614,10 @@ export class Scene {
       generic = glyphs.filter((g) => !FACILITIES.has(g.kind) && g.kind !== "agv" && g.kind !== "node");
     const dynamic = this.#graphics;
     dynamic.clear();
-    // The held tint, under everything but the floor; what the selected vehicle holds in the stronger tint.
+    // The held tint, under everything but the floor; what the selected vehicle holds, or the selected segment, node
+    // or zone, in the stronger tint.
     const overlay = overlayFor(map, this.#selected);
-    drawHeld(dynamic, map, scale, detail, expandHolds(map, overlay?.holds ?? []));
+    drawHeld(dynamic, map, scale, detail, strongHolds(map, this.#selected, overlay));
     // the selected element and the related ones carry a selection outline, their labels outside it
     const outlined = new Set(overlay ? [this.#selected!, ...overlay.related] : []);
     const visible = new Set<string>();
@@ -681,7 +675,7 @@ export class Scene {
         if ((detail !== "true" && !selected) || !onScreen(node)) continue;
         // a node bound to a facility is drawn as its bay or inside it (spec section 5.4); its id stays
         if (selected || !boundToSprite.has(node.id)) drawNode(dynamic, node, scale, selected);
-        this.#text(visible, node.id, node.id, node.x, node.y - (NODE_PX + 2) / scale, PALETTE.nodeText);
+        this.#text(visible, node.id, clipLabel(node.id), node.x, node.y - (NODE_PX + 2) / scale, PALETTE.nodeText);
       }
     const context: OverlayContext = {
       map,

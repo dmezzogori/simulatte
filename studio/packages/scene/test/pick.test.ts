@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { PreparedFrame } from "@simulatte/playback";
 import { Projector, type Projection } from "../src/project";
 import type { MapModel } from "../src/map/model";
-import { pickMap } from "../src/draw/pick";
+import { onMap, pickMap } from "../src/draw/pick";
+import { NODE_PX } from "../src/draw/node";
+import type { Glyph } from "../src/project";
 import { loadFrame } from "./fixtures";
 
 const projectionOf = (name: string): Projection => {
@@ -94,5 +96,45 @@ describe("pickMap order and levels", () => {
     // the glyph is the 1.2 m footprint: 5 px along the heading is outside it
     expect(pickMap(map, projection.glyphs, camera, centre.x + 5, centre.y, (kind) => kind === "agv")).toBeNull();
     expect(pickMap(map, projection.glyphs, camera, centre.x + 3, centre.y, (kind) => kind === "agv")).toBe("AGV-1");
+  });
+});
+
+describe("nodes at true-size level", () => {
+  const projection = projectionOf("corridor-wait"),
+    map = mapOf(projection);
+  const m1 = map.nodes.find((n) => n.id === "M1")!;
+  it("are hit within their drawn radius, however far the scale zooms", () => {
+    for (const scale of [20, 100]) {
+      const camera = cameraAt(scale),
+        at = screen(camera, m1);
+      expect(pickMap(map, projection.glyphs, camera, at.x + NODE_PX - 1, at.y), `${scale} px/m inside`).toBe("M1");
+      expect(pickMap(map, projection.glyphs, camera, at.x + NODE_PX + 2, at.y), `${scale} px/m outside`).toBeNull();
+    }
+  });
+  it("keep a registered renderer's glyph test", () => {
+    const camera = cameraAt(100),
+      at = screen(camera, m1);
+    // the glyph is 0.15 m wide: 7 px is inside its half-width of 7.5 px at 100 px per metre
+    expect(pickMap(map, projection.glyphs, camera, at.x + 7, at.y, (kind) => kind === "node")).toBe("M1");
+  });
+});
+
+describe("what a map draws and picks (M24)", () => {
+  const glyph = (kind: string): Glyph => ({ ...projectionOf("corridor-wait").glyphs[0]!, id: `a ${kind}`, kind });
+  it("leaves out orders and fleets unless a renderer is registered for their kind", () => {
+    expect(onMap(glyph("order"))).toBe(false);
+    expect(onMap(glyph("fleet"))).toBe(false);
+    expect(onMap(glyph("agv"))).toBe(true);
+    expect(onMap(glyph("server"))).toBe(true);
+    expect(onMap(glyph("order"), (kind) => kind === "order")).toBe(true);
+  });
+  it("does not pick an order drawn under the pointer", () => {
+    const projection = projectionOf("corridor-wait"),
+      map = mapOf(projection),
+      camera = cameraAt(8);
+    const far = { ...glyph("order"), id: "order-x", x: 45, y: 30, width: 4, depth: 4 };
+    const at = screen(camera, far);
+    expect(pickMap(map, [...projection.glyphs, far], camera, at.x, at.y)).toBeNull();
+    expect(pickMap(map, [...projection.glyphs, far], camera, at.x, at.y, (kind) => kind === "order")).toBe("order-x");
   });
 });
