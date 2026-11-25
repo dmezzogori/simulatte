@@ -150,7 +150,7 @@ export interface FacilityItem extends Point {
   count: string; badge: number; offset: Point;
 }
 export interface WaitLine { agv: string; blocker: string; from: Point; to: Point; }
-export interface OrderItem { id: string; sku: string; quantity: number; origin: string; destination: string; status: string; agv: string | null; picked: boolean; createdAt: number; }
+export interface OrderItem { id: string; sku: string; quantity: number; origin: string; destination: string; status: string; open: boolean; agv: string | null; picked: boolean; createdAt: number; }
 export interface TrafficSummary { waiting: number; longestWait: number; waits: number | null; stuckWaits: number | null; deadlocks: number | null; }
 export interface Overlay { holds: readonly string[]; route: readonly Point[]; waitLine: WaitLine | null; flow: readonly [Point, Point] | null; related: readonly string[]; }
 export function overlayFor(model: MapModel, id: string | null): Overlay | null;
@@ -160,7 +160,7 @@ Rules the tests pin:
 
 - `shown` is the first matching row of the spec §5.4 table (`resting` is its "travelling, at rest"); a state the table does not know is `"unknown"`.
 - `doing` is: `stranded`; `waiting <n> s for <first blocker>` with `n = Math.floor(model.time - wait.since)`; `charging`; `loading` (`WAITING_LOAD`) or `unloading` (`WAITING_UNLOAD`); `moving`; `stopped` (resting); `idle`; for unknown, the recorded state in lower case.
-- `line` is `<label> · to <goal>` when `shown` is `moving` and `goal` is known, otherwise `<label> · <doing>`.
+- `line` is `<label> · to <goal>` when `shown` is `moving` or `resting` and `goal` is known, otherwise `<label> · <doing>` (spec §5.4).
 - `short` is the label when it has at most four characters, otherwise the trailing digits of the id, otherwise `""`.
 - Facility `nodes` are the `endpoint` values of the layout `bindings` whose key is `<id>:node`, `<id>:input_bays/<i>` or `<id>:output_bays/<i>`. `count`: a warehouse with one SKU shows its quantity as an integer string, with several `"<k> SKUs"`; parking `"<parked.length> / <capacity>"`; charging `"<slots_in_use> / <slots>"`; `""` when the capacity is not recorded. `badge` counts orders with `origin` equal to the id and status `PENDING`.
 - `offset`: vehicles sharing a position, and facilities sharing a position, are spread along x by `SYMBOL_PX` of their kind plus 2 px, centred, in id order (natural order: `AGV-2` before `AGV-10`).
@@ -225,7 +225,7 @@ select(id: string | null): void;   // the one place that sets the selection (sce
 
 Texts: a vehicle line is `<label> · <"loaded, " + quantities, or "empty"><" → " + goal when known> · <doing>`, quantities as `<n> <sku>` joined by `, `; a goods line `<id> · <quantity> <sku> <origin> → <destination> · <"on " + agv, or agv + ", not picked", or "unassigned">`; `traffic` is `<waiting> waiting · longest <n> s` followed, when the totals are known, by ` · waits <w> · stuck <s> · deadlocks <d>`; a facility line `<label> · <sku> <qty>, ...` for a warehouse and `<label> · <count>` otherwise.
 
-- [ ] Tests on `corridor-wait`: the first vehicle line is `AGV-1 · loaded, 1 crate → East · waiting 6 s for AGV-2`; `traffic` is `1 waiting · longest 6 s · waits 2 · stuck 0 · deadlocks 0`; on `bare-layout` it is `0 waiting · longest 0 s`. Order in a group: stranded, then waiting by longest wait, then natural id order. `waitingOnly` and `filter` (case-insensitive substring of the text) narrow the vehicle lines. 250 vehicles give 200 lines and `hidden` 50. `two-fleets` gives two groups. Goods: open orders (status not `DELIVERED`) oldest first by `createdAt`, capped, with counts by status. Facilities: one line each in id order.
+- [ ] Tests on `corridor-wait`: the first vehicle line is `AGV-1 · loaded, 1 crate → East · waiting 6 s for AGV-2`; `traffic` is `1 waiting · longest 6 s · waits 2 · stuck 0 · deadlocks 0`; on `bare-layout` it is `0 waiting · longest 0 s`. Order in a group: stranded, then waiting by longest wait, then natural id order. `waitingOnly` and `filter` (case-insensitive substring of the text) narrow the vehicle lines. 250 vehicles give 200 lines and `hidden` 50. `two-fleets` gives two groups. Goods: open orders (`OrderItem.open`: status not `COMPLETED`, `FAILED` or `CANCELLED`) oldest first by `createdAt`, capped, with counts by status. Facilities: one line each in id order.
 - [ ] The panel: dock panel id `overview`, title "Overview", added in `resetLayout()` in the Inspector's group with `inactive: true`, and added the same way after a saved layout is restored without it. It calls `renderOverview(root, scene.map ? overview(...) : null, id => { this.select(id); scene.focus(id); })`. `renderOverview` writes text with `textContent` only and shows "No map for this trace" for null (M27). Under the scene, the existing legend line gains "Lane width is nominal." when a map is present (spec §5.3).
 - [ ] Refresh: at most every 250 ms while playing; at once when the frame changes while paused and when the playback status changes (pause, end, buffering). `Playback.pause()` emits the same frame object, so the flush hangs on the status change, not on a new frame.
 - [ ] `Controller.select` replaces the three inline closures that set the selection today; behaviour of the scene click, the entity list and Escape is unchanged (the existing specs pass).
