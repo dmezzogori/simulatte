@@ -51,14 +51,6 @@ describe("the floor of corridor-wait", () => {
     expect(detailAt(map, 18.4)).toBe("true");
     expect(detailAt(map, map.threshold)).toBe("true");
   });
-  it("leaves the items of the next task empty", () => {
-    expect(map.time).toBe(loadFrame("corridor-wait").time);
-    expect(map.vehicles).toEqual([]);
-    expect(map.facilities).toEqual([]);
-    expect(map.waitLines).toEqual([]);
-    expect(map.orders).toEqual([]);
-    expect(map.traffic).toEqual({ waiting: 0, longestWait: 0, waits: null, stuckWaits: null, deadlocks: null });
-  });
 });
 
 it("lists the distinct fleets of the vehicles, sorted", () => {

@@ -1,8 +1,10 @@
 import type { PreparedFrame } from "@simulatte/playback";
 import { isKnownLayoutVersion, type State } from "@simulatte/trace";
 import { motionProgress } from "./motion";
+import { buildFacilities, buildOrders } from "./map/facilities";
 import { buildFloor } from "./map/floor";
 import type { MapModel } from "./map/model";
+import { buildVehicles, buildWaitLines, summarizeTraffic, type VehiclePlace } from "./map/vehicles";
 export interface Point {
   x: number;
   y: number;
@@ -104,6 +106,7 @@ export class Projector {
               queueIndex.set(values[i] as string, i);
       }
     let unplaced = 0;
+    const places = new Map<string, VehiclePlace>();
     for (const [id, fields] of Object.entries(frame.state)) {
       const kind = String(fields["$kind"]);
       if (TRAFFIC_KINDS.includes(kind)) continue;
@@ -112,6 +115,7 @@ export class Projector {
         footprint = object(place["footprint"]);
       let point = nodes.get(id) ?? null,
         diagnostic: string | null = null;
+      let arc: readonly [Point, Point] | null = null;
       let status = typeof fields["state"] === "string" ? fields["state"] : kind;
       if (kind === "job") {
         const target = equipment(fields["location"]);
@@ -134,6 +138,7 @@ export class Projector {
         if (Object.keys(motion).length) {
           const from = nodes.get(String(motion["from"])),
             to = nodes.get(String(motion["to"]));
+          if (from && to) arc = [from, to];
           if (!Number.isFinite(frame.time)) {
             point = nodes.get(String(fields["node"])) ?? from ?? null;
             diagnostic = "Static non-finite time";
@@ -155,6 +160,7 @@ export class Projector {
         };
         unplaced++;
       }
+      if (kind === "agv" && !isUnplaced) places.set(id, { point, arc });
       if (!isUnplaced)
         for (const port of Object.values(object(place["ports"]))) {
           const local = position(object(port)["position"]);
@@ -253,6 +259,25 @@ export class Projector {
           vehicles: this.#vehicles,
         })
       : null;
+    if (layout && map) {
+      map.orders = buildOrders(frame.state);
+      map.facilities = buildFacilities({
+        layout,
+        state: frame.state,
+        positions: nodes,
+        orders: map.orders,
+      });
+      map.vehicles = buildVehicles({
+        time: frame.time,
+        layout,
+        state: frame.state,
+        places,
+        fleets: map.fleets,
+        facilities: map.facilities,
+      });
+      map.waitLines = buildWaitLines(map.vehicles);
+      map.traffic = summarizeTraffic(frame.time, map.vehicles, frame.state);
+    }
     return { glyphs, links, ports, fallback: !layout, map };
   }
 }

@@ -12,8 +12,22 @@ import {
 } from "./project";
 import type { MapModel } from "./map/model";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
-export { motionProgress } from "./motion";
-export { detailAt, SYMBOL_PX, type Detail, type MapModel } from "./map/model";
+export { motionProgress, motionSpeed } from "./motion";
+export {
+  detailAt,
+  SYMBOL_PX,
+  type Detail,
+  type FacilityItem,
+  type MapModel,
+  type OrderItem,
+  type Route,
+  type Shown,
+  type TrafficSummary,
+  type VehicleItem,
+  type Wait,
+  type WaitLine,
+} from "./map/model";
+export { overlayFor, type Overlay } from "./map/overlay";
 export interface Camera {
   x: number;
   y: number;

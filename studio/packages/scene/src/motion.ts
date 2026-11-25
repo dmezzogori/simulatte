@@ -212,3 +212,38 @@ export function motionProgress(value: unknown, time: number): MotionProgress {
   }
   return fallback();
 }
+
+/**
+ * Speed in metres per second at `time`, evaluated from recorded data only. Null when the motion has no
+ * distance or phases to evaluate, and wherever `motionProgress` would fall back to an approximation.
+ */
+export function motionSpeed(value: unknown, time: number): number | null {
+  if (motionProgress(value, time).approximate || !Number.isFinite(time)) return null;
+  const m = map(value),
+    start = m["t_start"],
+    end = m["t_end"],
+    d = map(m["description"]);
+  if (
+    typeof start !== "number" ||
+    typeof end !== "number" ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    !(end > start)
+  )
+    return null;
+  const distance = d["distance"];
+  if (d["curve"] === "linear" || d["curve"] === "constant")
+    return typeof distance === "number" && Number.isFinite(distance) && distance > 0
+      ? distance / (end - start)
+      : null;
+  if (d["curve"] !== "piecewise") return null;
+  // motionProgress accepted the description, so v0 and the phases are well formed.
+  let speed = d["v0"] as number,
+    remaining = Math.max(0, Math.min(end - start, time - start));
+  for (const [length, accel] of d["phases"] as [number, number][]) {
+    if (remaining <= length) return Math.max(0, speed + accel * remaining);
+    speed = Math.max(0, speed + accel * length);
+    remaining -= length;
+  }
+  return speed;
+}
