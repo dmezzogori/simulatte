@@ -982,7 +982,8 @@ two items (B1, B2) and removed its two exemptions: since `4bc6624` the monitor h
 wait at the end of a run that no stuck report, no unresolved deadlock and no reported blocker explains is a violation,
 and so is a parking slot held by an AGV at rest away from its area's node. Two seeds at the final head still end with a
 violation, which the monitor does report (7702388 and 8101904, under "Open after Assignment 2, for the maintainer"); the
-items below are what it would not report.
+items below are what it would not report. Since `afb3b62` (Assignment 3, T2) the end check and the content of the
+reports are decided from the events; see "T2. The strict monitor".
 
 - **The spacing of followers on a segment, on the bodies.** The body model checks the direction of the vehicles on a
   single-lane segment (`PHYSICAL opposite directions on a segment`), not that vehicles following each other on it keep
@@ -2171,8 +2172,15 @@ the world's spec and the monitor's reference graph, and positions from the monit
    report with no blocker`); each blocker is, at that instant, in the disposition the report gives it, as an observer
    knows it: `STALLED` when the monitor's body of it is on a stalled arc, else `WAITING` when it has an open wait, else
    its state from the replayed `agv` entity (`IDLE`, `STRANDED`, or another state, which no report may give) (`stuck
-   report gives a blocker another disposition`). That the list of blockers is complete cannot be checked from events:
-   the fairness gates (§7.4) emit nothing.
+   report gives a blocker another disposition`). And the rule of §7.9 holds as far as the holdings decide it (added in
+   fix round 1): every AGV whose holding blocks an item of the reported wait, by the monitor's admission test of change
+   3, is listed (`stuck report leaves out a holder that blocks the wait`); and no wait reached from the reported one
+   through waiting blockers is blocked by a holder that is neither stalled, waiting, idle nor stranded (`stuck report of
+   a wait that reaches a blocker not at rest`). Holders are a subset of the controller's blockers, so neither condition
+   can fail for a right report. The other part of the blockers, the AGVs whose earlier claims gate the wait (§7.4),
+   emits nothing and is not checked: that the list names every gating AGV, and that the waits reached through a gate
+   are stuck, cannot be decided from events. A blocker that is no AGV of the world is `stuck report names an AGV the
+   world does not have`.
 3. *What a deadlock report says, by the monitor's own computation* (Ruling A3-j). The monitor has its own admission
    test of §7.3 (`Monitor._blocked`), over the replayed entity state: `reserved_by` of nodes, zones and corridors,
    `forward` and `backward` of segments, and the corridor's `orientation`, which counts for every holder except those
@@ -2186,11 +2194,14 @@ the world's spec and the monitor's reference graph, and positions from the monit
    Then:
    - at every `traffic.deadlock`, every listed AGV has an open wait, except the victim of a resolved report, whose
      `traffic.wait_ended` of the same instant, with the reason of the action, comes first (`deadlock lists an AGV with
-     no open wait`); and the listed set is self-sustaining: each member's claim is inadmissible given the holdings of
-     the listed members alone (`deadlock report lists AGVs that are not deadlocked`);
-   - every deadlock is reported: at the end of each instant in which a wait opened or ended otherwise than by a grant,
-     the reduction over the open waits is empty or equals a standing unresolved report (`deadlock not reported`, once
-     per set). The instant is complete when the clock moves, and at the end of the run;
+     no open wait`); and the listed set equals the reduction over the open waits and the victim's claim at that point
+     of the event sequence (`deadlock report differs from the deadlocked set`);
+   - every deadlock is reported, resolved or not: at each `traffic.wait_started`, and at each `traffic.wait_ended`
+     whose reason is not `granted`, the reduction over the open waits is taken; a set that is not empty and does not
+     stand must be named by a `traffic.deadlock` of the same instant, or stand at its end (`deadlock not reported`).
+     The instant is complete when the clock moves, and at the end of the run. (Before fix round 1 the reduction was
+     taken at the end of the instant only, which misses a deadlock that a victim resolved within the instant, and the
+     listed set had only to be self-sustaining.)
    - an unresolved report is not repeated while the same set stands (`unresolved deadlock reported again while it
      stands`).
    The second half is checked, not left out: the reduction can be made exact from events (validation below). No read
@@ -2210,16 +2221,41 @@ the world's spec and the monitor's reference graph, and positions from the monit
    at the instant that travel starts; each once for as long as it lasts. A travel that turns to charge elsewhere starts
    a travel to the charger, so a slot kept through the turn is reported then, unless the charger is on the area's own
    node (its goal is that node). The end of the run is the last instant, so the earlier check `parking slot held away
-   from the node at quiescence` is gone: the same case is now one of these two kinds.
+   from the node at quiescence` is gone: the same case is now one of these two kinds. The other way round (added in fix
+   round 1): at the end of the instant of a `parking.left`, unless the AGV took a slot of the same area again in it,
+   the AGV departed from the area's node in that instant (an `agv.move_started` from the node), or its travel there did
+   not arrive: its body does not rest on the node, and it does not travel to it unless its state changed after the
+   `parking.left`: a trip to park that did not arrive may be followed, in the same instant and after the AGV became
+   idle, by the travel of an order to the same node, without a slot. Before this exception 18 runs of 4300000..4301999
+   and 4310000..4310599 were flagged at this head, every one of this kind (`scratch-a3-T2/r1/left-cases.out`: the trip
+   gave up in 10, was interrupted in 4 and ended at another node in 4; then `IDLE`, then an order).
+   Otherwise `parking slot given back while the AGV rests on the area's node` or `parking slot given back during a
+   travel to the area's node`. A `parking.left` of a slot that is not held is `parking slot given back that was not
+   held`.
 
 A wait whose `resources` name a resource the spec does not have is `wait for a resource the spec does not have` (only a
 network that differs from the spec can give it; the monitor reports that difference already).
 
-**Where the monitor still reads the controller.** `_check_ledger` compares the ledger with the entities and with the
-admission rules; the coverage checks and `_exact` compare the bodies with the ledger's holdings; `_exact` reads
-`controller._pending` (a pending claim of an AGV that is not travelling); `final` reads `controller._queue` for the two
-checks of item 1; at the start of the run the monitor compares the network's capacities, zones and corridors with its
-own. None of the five changes reads it.
+**Where the monitor still reads the controller and the live model**, each with whether a verdict depends on it:
+
+- `_check_ledger` reads the ledger (`holders`, `direction`, `_bindings`) and compares it with the entities and with the
+  admission rules: its verdicts (`LEDGER ...`, `... entity != ledger`) depend on it by design.
+- The coverage checks and `_exact` compare the bodies with the ledger's holdings (`held_ids`): their verdicts depend on
+  it. `_exact` also reads `controller._pending` (`pending request while not travelling`).
+- `final` reads `controller._queue` for `pending claim of a moving AGV at quiescence` and `review timer left`.
+- At the start of the run the monitor compares the network's capacities, zones and corridors with its own (`built ...
+  differ from the spec`, `corridor derivation differs`): verdicts about the layout, from the built network.
+- `controller.ledger.placed()` gates the building of the bodies (the monitor checks nothing before every AGV is placed):
+  no verdict reads it, but it decides when the checks start. `env._activated` decides which `traffic.reserved` events
+  are placements (the unoriented corridor holders of change 3) and that nothing is checked before activation; the
+  placements run in activation initializers, so a verdict of change 3 depends on it.
+- Each fleet's `fleet._executor.travel` is wrapped so that `_exact` runs at every exit of a travel (`holdings != body`
+  at `exit:...`): those verdicts depend on the wrap.
+- The bodies are built from the live `agv.agv_type` (length and gap) and `agv.current_node` at activation; `final` reads
+  `agv.motion` (`motion left at quiescence`). Node capacities come from the spec's parking areas and chargers since fix
+  round 1 (before, from the built `ParkingArea` and `ChargingStation` objects; the values are the same).
+
+None of the five changes reads the controller.
 
 **Validation of the monitor's own admission test.** A scratch wrapper (`scratch-a3-T2/validate.py`) compares, in the
 same run, at every `traffic.wait_started` the claim the monitor rebuilt (ids, kinds, directions) with the controller's
@@ -2230,10 +2266,17 @@ with the monitor's reduction over the open waits and the victim's claim. On seed
 routers (6,000 runs): 217,567 claims (635,624 items), 506,344 reductions and 81,967 reports (48,570 `step_aside`, 18,699
 `reroute`, 9,099 `give_up`, 5,599 `unresolved`), 0 differences of any kind; on the 42 reservation runs of the fourteen
 worlds pinned below, 1,383 claims, 3,103 reductions and 500 reports, 0 differences. No direction was left unrebuilt.
+After fix round 1 (the reduction taken at each wait event, the listed set compared with it), on seeds 4300000..4300999,
+reservation, three routers (3,000 runs, `scratch-a3-T2/r1b/val-4300000.out`): 107,657 claims (314,678 items), 250,836
+reductions and 41,042 reports (24,789 `step_aside`, 8,870 `reroute`, 4,670 `give_up`, 2,713 `unresolved`), 0
+differences, and the only violation of the strict monitor in those runs is `open wait with no report` of 4300647
+`fastest` (hole R, below): no report differs from the monitor's reduction at its event, and no deadlock found at a wait
+event goes unreported.
 
 **The runs that fail at this head**, each checked to fail for its stated reason only (the kinds are those of the
-strict monitor, all under `ReservationController`). Each is a case of a test marked `xfail(strict=True)` that asserts
-that the run ends on its own with no violation, one test per hole, so that the fixing task removes one mark:
+strict monitor, all under `ReservationController`). Each is a case of a test marked `xfail(strict=True,
+raises=AssertionError)` that asserts that the run ends on its own with no violation, one test per hole, so that the
+fixing task removes one mark (a run that raises is a failure, not the expected one):
 
 - The direction re-claim (audit (ii)), fixed by T3: 8101904 `fastest`, at 471.171 `ADMITTED against a body on a
   segment` (`g0_2~g1_0`, the body of agv-c forward, holder agv-g backward), then `PHYSICAL opposite directions on a
@@ -2251,9 +2294,15 @@ that the run ends on its own with no violation, one test per hole, so that the f
 
 None of the pinned digests of `SAFETY` and `EXERCISED` shows a violation under the strict monitor: no mark there. Under
 the monitor of `e387d8a` the 16 runs of hole R pass (`XPASS(strict)`, so the test fails) and the other two already fail.
+A wrong fix must not turn these pins green: `test_a_controller_that_reports_waits_stuck_too_eagerly_does_not_clear_the_
+hole_runs` applies the stuck rule to a wait's own blockers only (a wait is reported while a blocker of a blocker moves
+or serves) and asserts that each of the 17 runs of holes A and R still has a violation (each gives `stuck report of a
+wait that reaches a blocker not at rest`; added in fix round 1).
 
-**Tests of the new checks**, each a monkeypatch and a seed in `test_random_worlds.py`; each run passes the monitor of
-`e387d8a` with no violation at all and gives its violation now:
+**Tests of the new checks**, each a monkeypatch and a seed in `test_random_worlds.py`. Under the monitor of `e387d8a`
+the kind each test asks for is absent; the first six runs show no violation at all there, the last two show older kinds
+(seed 58: 17 violations, `LEDGER both directions` 10 and `PHYSICAL opposite directions on a segment` 7, from 37.604;
+seed 619: `parking slot of an AGV resting elsewhere` 55 times, from 149.151, once the charge has started):
 
 - a stuck wait reported as an unresolved deadlock of its AGV alone, and remembered as one, so that the report would
   explain the wait (26 `shortest`): `deadlock report lists AGVs that are not deadlocked`;
@@ -2267,6 +2316,23 @@ the monitor of `e387d8a` the 16 runs of hole R pass (`XPASS(strict)`, so the tes
   segment`;
 - the parking fix undone (`_release_slots_elsewhere` does nothing; 619, `FreeFlowController`, `shortest`): `parking slot
   held during a travel elsewhere` at 122.048 (P0, agv-a, goal c08), as agv-a turns to charge.
+
+Added in fix round 1, each kind absent under the monitor of `4758b04` (the run before the round, `scratch-a3-T2/
+red1.out`):
+
+- the stuck rule applied to a wait's own blockers only (26 `shortest`): `stuck report of a wait that reaches a blocker
+  not at rest`;
+- a blocker that moves or serves left out of the rule and of the report (26 `shortest`): `stuck report leaves out a
+  holder that blocks the wait`;
+- resolved deadlocks not reported (26 `shortest`): `deadlock not reported`;
+- a resolved report of three AGVs or more that leaves out one member (26 `shortest`): `deadlock report differs from the
+  deadlocked set`;
+- a trip to park that gives its slot back as it arrives, or 5 later, while the AGV rests parked (619,
+  `FreeFlowController`, `shortest`): `parking slot given back while the AGV rests on the area's node` at 163.078 and
+  168.078 (P1, agv-b).
+
+The two deadlock mutants of the list above now give `deadlock report differs from the deadlocked set`, the kind that
+replaces `deadlock report lists AGVs that are not deadlocked`.
 
 The seven mutant runs of `test_an_open_wait_with_no_report_is_a_violation` still end with `open wait with no report`;
 the three of the mutant "blind after a member's withdrawal" also give `deadlock not reported`.
@@ -2283,8 +2349,9 @@ elsewhere; the slot kept through the charge is `parking slot of an AGV resting e
 **The controller mutants.** The 25 mutants of `reviewer-scratch-t11/mutants2.py` and no mutant, each applied in every
 worker (a scratch patch, nothing on disk), seeds 2000150..2000449 and 500000..500299, `ReservationController`, three
 routers (900 runs per range), run on the same source once with the monitor of `e387d8a` and once with the strict
-monitor (`scratch-a3-T2/mutrun.py`, `mutcmp.py`). The columns count the runs with a violation, an exception or a cut
-run, per range (2000150.. / 500000..):
+monitor as of fix round 1 (`scratch-a3-T2/mutrun.py`, `mutcmp2.py`, `r1b/mutcmp.out`; the strict column before the
+round differed in one cell, `deadlock_silent` 174 / 184). The columns count the runs with a violation, an exception
+or a cut run, per range (2000150.. / 500000..):
 
 | Mutant (as named in `mutants2.py`) | Monitor of `e387d8a` | Strict monitor |
 |---|---|---|
@@ -2294,7 +2361,7 @@ run, per range (2000150.. / 500000..):
 | `no_report_after_member_withdraw` (blind after a member's withdrawal) | 21 / 12 | 27 / 24 |
 | `stuck_some` | 176 / 194 | 233 / 263 |
 | `no_deadlock_report` | 0 / 0 | 227 / 249 |
-| `deadlock_silent` | 0 / 0 | 174 / 184 |
+| `deadlock_silent` | 0 / 0 | 174 / 186 |
 | `timer_some` | 4 / 6 | 9 / 12 |
 | `no_scan_on_drop` | 0 / 1 | 5 / 12 |
 | `no_scan_ever` | 2 / 0 | 64 / 57 |
@@ -2317,19 +2384,19 @@ run, per range (2000150.. / 500000..):
 
 No run that the monitor of `e387d8a` flags passes the strict monitor, for any mutant. The three mutants of the
 acceptance record give violations on both ranges: 21 / 12 and 27 / 24 (blind), 307 / 328 and 307 / 331 (stuck reports
-suppressed), 174 / 191 and 226 / 243 (timers dropped); the counts of the monitor of `e387d8a` equal those recorded
-under B1. The kinds the strict monitor adds: `deadlock not reported` (a set forgotten, not emitted or not detected),
-`unresolved deadlock reported again while it stands` (a set forgotten silently and reported again),
-`deadlock report lists AGVs that are not deadlocked` (an admission that is too strict), `deadlock lists an AGV with no
-open wait` (a wait that ends with the wrong reason), and `stuck report with no blocker` (a wait left admissible and
-unscanned, reported with an empty blocker list: the case audit (i) foresaw in section 7). The two runs of `none` on
-500000..500299, which every mutant shows as well, are 500064 `congestion` (agv-b) and 500198 `fastest` (agv-a), each
-`open wait with no report`; the episode detector of audit (i) classifies both as hole R in its `idle()` form (one
-episode each, to the end of the run), and `p_min` and `p_sweep2` close both while `base` does not. They are not pinned.
-`withdraw_keeps_queue_entry_of_others` shows nothing beyond those two runs, under either monitor.
+suppressed), 174 / 191 and 226 / 243 (timers dropped); the counts of the monitor of `e387d8a` equal those recorded under
+B1. The kinds the strict monitor adds: `deadlock not reported` (a set forgotten, not emitted or not detected),
+`unresolved deadlock reported again while it stands` (a set forgotten silently and reported again), `deadlock report
+differs from the deadlocked set` (an admission that is too strict; a wait that ends with the wrong reason), `deadlock
+lists an AGV with no open wait` (a wait that ends with the wrong reason), and `stuck report with no blocker` (a wait
+left admissible and unscanned, reported with an empty blocker list: the case audit (i) foresaw in section 7). The two
+runs of `none` on 500000..500299, which every mutant shows as well, are 500064 `congestion` (agv-b) and 500198 `fastest`
+(agv-a), each `open wait with no report`; the episode detector of audit (i) classifies both as hole R in its `idle()`
+form (one episode each, to the end of the run), and `p_min` and `p_sweep2` close both while `base` does not. They are
+not pinned. `withdraw_keeps_queue_entry_of_others` shows nothing beyond those two runs, under either monitor.
 
-**Measurements**, at this head (the source of `e387d8a` and this monitor), CPython 3.14.3, Apple M4 Pro, 10 worker
-processes, nothing else heavy running (one-minute load 7 to 26, my own workers and a backup):
+**Measurements**, the source of `e387d8a` with the monitor as committed at `4758b04` (the ranges rerun after fix round
+1 are under "Fix round 1" below), CPython 3.14.3, Apple M4 Pro, 10 worker processes, nothing else heavy running:
 
 | Seeds | Controllers | Runs | Events | Raised | Not returned | Runs with a violation |
 |---|---|---|---|---|---|---|
@@ -2361,12 +2428,15 @@ Fingerprints: the monitor observes. Seeds 100000..100199, both controllers, thre
 monitor of `e387d8a` and with this one on the same source: 0 fingerprints and 0 event counts differ. The pinned
 fingerprints of `test_random_worlds.py` hold (none is re-pinned).
 
-Cost: `benchmarks/layout_safety.py --first 100000 --worlds 200` (10 workers), alternating in one session, the monitor of
-`e387d8a` then this one, twice: 39.99 s, 40.87 s, 40.57 s, 40.62 s (one-minute load 12 to 26, the runner's own
-workers). Summed per run over the same 1,200 runs: reservation 281.1 s against 283.9 s (+1.0 %), free flow 60.4 s
-against 60.8 s. The reduction of change 3 runs once per instant with a wait opened or ended otherwise than by a grant,
-and at each deadlock report; it does not need a bound on these worlds. `tests/intralogistics/test_random_worlds.py`: 34
-tests in 10.52 s at `e387d8a`, 61 in 17.12 s now (43 passed, 18 expected failures); no test above 1.5 s locally.
+Cost, with the monitor of fix round 1: `benchmarks/layout_safety.py --first 100000 --worlds 200 --jobs 10`, alternating
+in one session, the monitor of `e387d8a` then this one, three times (`scratch-a3-T2/r1b/cost-{base,head}-{1,2,3}.time`,
+with the `uptime` taken before each in `.load`, one-minute load 11.3 to 17.8, the runner's own workers): 38.38 s and
+38.89 s, 38.42 s and 39.58 s, 40.52 s and 40.51 s. Summed per run over seeds 100000..100199 (1,200 runs, the monitor of
+`4758b04`, `scratch-a3-T2/d-{base,head}-100000.pkl`): reservation 281.1 s against 283.9 s, free flow 60.4 s against
+60.8 s. The reduction of change 3 runs at each wait that opens or ends otherwise than by a grant, and at each deadlock
+report; it does not need a bound on these worlds. `tests/intralogistics/test_random_worlds.py`
+(`scratch-a3-T2/r1b/tests-{base,head}.out`, one-minute load 12.9): 34 tests in 11.00 s at `e387d8a`, now 84 in 22.38 s
+(66 passed, 18 expected failures); the slowest test is 1.48 s, a test that predates this task.
 
 **What the monitor still does not check.** This replaces, for three items, the list under "What the monitor does not
 check" (Task 11): the content of a `traffic.deadlock` report and that every deadlock is reported (change 3), a sleeping
@@ -2374,9 +2444,43 @@ wait queued behind a reported one (change 1), and a parking slot during travel (
 open:
 
 - The spacing of followers on a segment, on the bodies (as before: it holds through the coverage and ledger checks).
-- That the blockers of a stuck report are complete: gates emit nothing, so an observer cannot recompute them.
+- The gate part of a stuck report: that it names every AGV whose earlier claim gates the wait, and that the waits
+  reached through a gate are stuck. Gates emit nothing (§7.4, §11.2), so an observer cannot recompute them; the
+  holding part is checked (change 2).
 - `passing` segments during a reversal (Ruling A3-f): change 4 leaves them out and there is no criterion a run could
   fail.
 - A holder's recorded direction against its own body (check M1 of audit (ii)), until T3 adds it with the rule.
 - The review timer left and the pending claim of a moving AGV at quiescence are checked from the controller's state, not
   from events (change 1).
+
+**Fix round 1.** The review of T2 found three gaps, each fixed in the monitor and described in the changes above: a
+stuck report was not checked against the rule of §7.9 (a controller that reports a wait while a blocker of a blocker
+moves passed, and would have turned every hole pin green); "every deadlock is reported" covered unresolved deadlocks
+only, and a report had only to be self-sustaining; and the record said that each test mutant passed the monitor of
+`e387d8a` with no violation, which was false for seeds 58 and 619 (corrected above). In the same round: a slot given
+back while its AGV rests parked, or travels on to the area's node, is checked; a `parking.left` of a slot not held is
+a violation; the pins carry `raises=AssertionError`; a stuck report naming an AGV the world does not have is a
+violation, not an exception; node capacities come from the spec; the reads of the controller are listed in full.
+
+Rerun with the monitor of the round (`scratch-a3-T2/r1b/`):
+
+| Seeds | Controllers | Runs | Events | Raised | Not returned | Runs with a violation |
+|---|---|---|---|---|---|---|
+| 4300000..4301999 | both | 12,000 | 13,525,559 | 0 | 0 | 2 |
+| 4100000..4109999 | reservation | 30,000 | 40,955,436 | 0 | 0 | 8 |
+| 4310000..4310599 | both | 3,600 | 3,977,067 | 0 | 0 | 1 |
+
+The same runs as before the round: 4300647 `fastest` and 4301217 `shortest`; the eight of audit (i); and, in the
+reviewer's range, 4310551 `congestion`, which the review had already found and classified as hole R. Every violation is
+`open wait with no report`; the free-flow runs have none.
+
+The reviewer's mutants (`reviewer-scratch-a3-T2/scripts/mymut.py`, run with its `run.py` under this monitor, seeds
+4315000..4315149, three routers; `scratch-a3-T2/r1b/rvsum.out`): stuck rule on direct blockers only, 139 of 450
+reservation runs change and all 139 are flagged (`stuck report of a wait that reaches a blocker not at rest`); a moving
+blocker left out of the report, 266 changed, 266 flagged; resolved reports not emitted, 364 changed, 364 flagged
+(`deadlock not reported`); a resolved report one member short, 248 changed, 248 flagged (`deadlock report differs from
+the deadlocked set`); slot given back on arrival and 5 after arrival, both controllers, 519 and 507 of 900 runs
+flagged (`parking slot given back while the AGV rests on the area's node`); under the first of these, 15 reservation
+runs whose fingerprint changes are not flagged: in the one traced (4315027 `shortest`) the `parking.left` events are
+the same as without the mutant (time, area, AGV), only their place within an instant moves. No mutant and the
+reviewer's copy of `_resolve` without a change: 1 run of 450 with a violation, 4315085 `fastest`, hole R (known).
