@@ -10,7 +10,7 @@
   [SP3 viewer design](2026-10-11-sp3-viewer-design.md) §7 (scene layers and per-kind adapters) and §8 (the
   inspector); the [layout-only design](2026-11-23-layout-only-models-design.md) §5.5 (automatic placement of
   facilities). The last task of the plan appends an amendment note to each.
-- **Decision ids:** `M1` to `M25`, recorded in §4 of this document only.
+- **Decision ids:** `M1` to `M28`, recorded in §4 of this document only.
 - **Builder check:** a reviewer read the first draft on 2026-11-25 as a builder would and checked it against
   the code; its eight corrections and nine questions are answered in the text (M18 to M25) and listed in §13.
 - **Mockup:** [the page Davide agreed to](research/2026-11-25-studio-map-mockup.html) (an HTML fragment with
@@ -161,6 +161,9 @@ Davide's decisions are marked **D**; the others are calls made in this design, w
 | M23 | The layout editor keeps today's glyphs. |
 | M24 | Entities that have no placement by kind (orders, fleets) are not drawn on the map when the trace has a network. |
 | M25 | The screenshot comparison runs on Linux Chromium in CI with labels hidden; the images Davide reviews are separate renders with labels. |
+| M26 | At symbol level a lane is never drawn thinner than a fixed number of pixels, as vehicles and facilities are symbols of a fixed size there. The corridor example's vehicle is 1.2 m long, so its nominal lane is 0.84 m, 7 px at the fitted scale. Added after the plan reviews of 2026-11-25. |
+| M27 | The Overview panel always exists in the dock and says "No map for this trace" when there is none, so that saved panel arrangements stay valid. Added after the plan reviews. |
+| M28 | A warehouse with several bays is placed beside its first input bay; the other bays are joined to it by a line. The mean of the bays, the first draft's rule, puts the advanced example's bulk storage 47 m from both of its bays, in the middle of the network. Added after the plan reviews; put to Davide on 2026-11-25. |
 
 ## 5. Design: the scene
 
@@ -214,7 +217,8 @@ trailing digits of its id, otherwise nothing.
   one-way.
 - Width (M4): `w = max(vehicle footprint depth over all vehicles in the initial state) + 2 * margin`, with
   `margin = 0.2 * that depth`. A strip whose arcs have `passing` true is `2 * w` wide. With no vehicle in the
-  trace, `w` is 1 m. The map states in its legend that lane width is nominal.
+  trace, `w` is 1 m. The map states in its legend that lane width is nominal. At symbol level a strip is drawn at
+  least a fixed number of pixels wide (M26).
 - Direction: a one-way strip carries chevrons along its direction at a fixed pixel spacing; a strip travelled in
   both directions carries none at symbol level and one chevron pair at its ends at true-size level. A disabled
   arc is not drawn.
@@ -308,8 +312,8 @@ flushed on pause, step and seek.
   two.
 - **Facilities.** One line each: stock per SKU for a warehouse, occupancy for parking and charging.
 
-A click on a line selects the element and centres the map on it. The panel exists only when the trace has a
-layout; in presentation mode it is hidden with the other panels.
+A click on a line selects the element and centres the map on it. The panel is always in the dock and says "No map
+for this trace" when there is none (M27); in presentation mode it is hidden with the other panels.
 
 ### 5.7 The click detail (level 3)
 
@@ -340,8 +344,7 @@ detail is the one of the fitted scale (M22). No change to its dialog or its fram
 
 ### 5.9 Traces without a layout, and production-only models
 
-A trace without a layout (written before 0.18.0) keeps the fallback grid and today's drawing; it has no map and
-no Overview panel (M17). A trace with a layout and no network (a production-only model) is drawn as today, with
+A trace without a layout (written before 0.18.0) keeps the fallback grid and today's drawing; it has no map (M17). A trace with a layout and no network (a production-only model) is drawn as today, with
 the scale bar added.
 
 ## 6. Design: what the simulation records
@@ -398,9 +401,9 @@ amended for these three events.
 In the automatic placement, a warehouse, parking area or charging station without an explicit position is placed
 from its node bindings instead of being packed in the grid:
 
-- Anchor: the position of its bound node, or the mean of the positions of its bound nodes.
+- Anchor: the position of its bound node; for a warehouse with several bays, its first input bay (M28).
 - Direction: away from the network. It is the opposite of the mean of the unit vectors from the anchor to the
-  neighbours of the bound nodes; when that mean is zero, the direction is +y.
+  neighbours of the anchor node; when that mean is zero, the direction is +y.
 - Position: the anchor moved along that direction by half the facility's extent in that direction plus a gap of
   1 m, so that the footprint does not cover the lane.
 - A parking area and a charging station are centred on their node instead, with a default footprint of 3 m by
