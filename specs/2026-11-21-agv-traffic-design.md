@@ -320,8 +320,13 @@ class TrafficController(Protocol):
 - `idle` tells the controller that the AGV has just come to rest without a travel where it stands: it became `IDLE`
   or `STRANDED`. The coordinator calls it on every transition to `IDLE` and to `STRANDED`. `ReservationController`
   uses it for the waits the AGV blocks (§7.10); `FreeFlowController` does nothing.
-- `withdraw` cancels a pending request. `release` frees specific resources. `retain` frees everything the AGV
-  holds except the given resources.
+- `withdraw` cancels a pending request. When the AGV is a member of a deadlocked set left unresolved (§7.8),
+  `ReservationController` forgets the set and, after the scan the withdrawal allows, looks at the waits left
+  again: detection may call `on_deadlock` and stage reactions of other travels, and a former member in no deadlock
+  may get `on_blocked` (§7.8, §7.9). The executor withdraws before it settles, so the policy and the standard
+  search see the withdrawing AGV in its travel's state, with what it held while waiting; detection ignores its
+  holdings, since it no longer waits. `release` frees specific resources. `retain` frees everything the AGV holds
+  except the given resources.
 - `WaitHooks` carries what the controller and the policy may ask of the waiting travel: `route` (remaining
   nodes), `loaded`, `resolutions` (the reactions staged for the AGV since it last arrived at the goal it travels to,
   §7.9), and the callables `try_reroute(avoid, max_cost_ratio)`,
@@ -427,7 +432,8 @@ node without a binding records no reservation and emits none, as today.
 
 ### 7.8 Deadlock detection
 
-Let `W` be the AGVs that are at rest with a pending claim. Detection runs when an AGV joins `W`:
+Let `W` be the AGVs that are at rest with a pending claim. Detection runs when an AGV joins `W`, and when a
+member of a set left unresolved leaves `W` by withdrawal (§7.1) or by a reaction staged by `on_blocked` (§7.9):
 
 1. `S = W`.
 2. Remove from `S` any AGV whose claim would be admissible if only the holdings of the other members of `S`
@@ -447,8 +453,23 @@ break the deadlock (the victim may have been waiting behind a cycle it is not pa
 attempt and the rescan the reduction runs again, and the resolution repeats for the new `D`, with one
 `traffic.deadlock` per victim, until `D` is empty or no attempt succeeds. Each round removes one member from
 `W`, so the rounds are bounded by its size. If no attempt succeeds it emits `traffic.deadlock` with action
-`unresolved` and logs an error, once per distinct set, and the members keep waiting (T11). Any later release
-rescans as usual. The AGV whose stop started the detection gets its `on_blocked` call (§7.9) when its wait is
+`unresolved` and logs an error, once per set while it stands, and the members keep waiting (T11). Any later
+release rescans as usual.
+
+The controller remembers each set it reported unresolved until the wait of any of its members ends. A member whose
+wait opened into such a set gets no `on_blocked` call and no review while the set stands, unless a blocker of its
+wait strands (§7.10), which reviews it; that review starts the wait's ordinary review cycle. When the wait of a
+member ends by withdrawal or by a reaction staged by `on_blocked`, the sets that hold it are forgotten and
+detection runs again among the waits left, after the scan; when they hold no deadlock, `on_deadlock` is not called.
+Then, after that detection and after the detection of every stop (a resolution can stage a reaction of a member of
+a remembered set, which forgets it), each wait that opened into a set left unresolved, is still open, is held by no
+remembered set and has had no review gets what a wait gets at its stop outside a deadlock: the `on_blocked` call
+and, when it keeps waiting with a delay, its first review (§7.9). These waits are taken in the order they opened,
+and at a stop before the stopping wait's own call. A member that was already waiting when its set formed keeps its
+own reviews. A grant cannot end a member's wait while its set stands, since its claim is blocked by holdings of
+waiting members, which do not change while they wait.
+
+The AGV whose stop started the detection gets its `on_blocked` call (§7.9) when its wait is
 still open and it is not a member of a set left unresolved.
 
 ### 7.9 Policy
@@ -478,10 +499,15 @@ is travelling to. Reactions are frozen values:
   reached with a first claim that is admissible now;
 - `GiveUp()`: succeeds when the travel's `give_up()` hook accepts (§8.2); the travel then ends with `GAVE_UP`.
 
-The controller tries the returned reactions in order. `on_blocked` is called when a wait starts and at each
-review. The policy never moves anything itself.
+The controller tries the returned reactions in order. `on_blocked` is called when a wait starts outside a
+deadlock left unresolved, at each review, and, for a wait that opened into such a deadlock, at the instant no
+remembered set holds it any longer (§7.8). The policy never moves anything itself.
 
-**Reviews (T23).** The first review of a wait is scheduled `review_after` after the wait opens. After a review,
+**Reviews (T23).** The first review of a wait is scheduled `review_after` after the wait opens, or, for a
+wait that opened into a deadlocked set left unresolved, `review_after` after the instant no remembered set holds it
+any longer (§7.8). The change count that decides whether a review is followed by another is taken at the opening,
+or, for such a wait, at the instant the wait is looked at, after the detection and after the calls for the waits
+that opened before it. After a review,
 the next is due `review_after` later if a grant or release happened anywhere since the previous review;
 otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. A
 blocker that strands also ends the sleep: the wait is reviewed at that instant (§7.10), since a stranding may release
@@ -952,8 +978,9 @@ architecture section of `CLAUDE.md`.
   node id. No set or dict of nodes is iterated for a decision without a defined order.
 - No randomness is added. Review timers and `mean_hold` exist whether or not anything observes them.
 - Cost per leg is proportional to the resources of the claim. A scan pass is linear in pending claims, of which there
-  is at most one per AGV, and at worst quadratic when gates apply. Detection runs only when an AGV starts
-  waiting; its reduction is quadratic in waiting AGVs and its gate pass cubic at worst. Measured on a line of
+  is at most one per AGV, and at worst quadratic when gates apply. Detection runs when an AGV starts
+  waiting and when a member of a set left unresolved stops waiting by withdrawal or by a staged `on_blocked`
+  reaction; its reduction is quadratic in waiting AGVs and its gate pass cubic at worst. Measured on a line of
   80 waiters, the last `stopped` call takes about 11 ms and a scan 0.1 ms. A stuck report propagates along the chain
   of waits behind it and recomputes the blockers of every wait it reports, which is cubic in the length of the chain,
   once per chain.
