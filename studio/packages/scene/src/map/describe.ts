@@ -1,4 +1,5 @@
-import type { FacilityItem, MapModel, OrderItem, VehicleItem } from "./model";
+import { nameOf, routeIndex, type FacilityItem, type MapModel, type OrderItem, type VehicleItem } from "./model";
+import { finite, strings, type Fields } from "./read";
 
 /** One line of the click detail; `refs` are the ids named in it that can be selected, in order of appearance. */
 export interface DetailLine {
@@ -6,12 +7,10 @@ export interface DetailLine {
   refs?: readonly string[];
 }
 
-type Fields = Record<string, unknown>;
-const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const strings = (v: unknown): string[] | null =>
-  Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : null;
+/** The strings of a recorded list; null when the field is not a list (the line is then left out). */
+const listed = (v: unknown): string[] | null => (Array.isArray(v) ? strings(v) : null);
 const one = (n: number): string => n.toFixed(1);
-const joined = (ids: readonly string[], none: string): string => (ids.length ? ids.join(", ") : none);
+const joined = (names: readonly string[], none: string): string => (names.length ? names.join(", ") : none);
 const quantities = (load: Readonly<Record<string, number>>): string =>
   Object.entries(load)
     .map(([sku, n]) => `${n} ${sku}`)
@@ -54,16 +53,18 @@ export function describe(model: MapModel, state: Readonly<Record<string, Fields>
   const vehicle = model.vehicles.find((v) => v.id === id);
   if (vehicle && kind === "agv") return vehicleLines(model, state, vehicle, make);
   const order = model.orders.find((o) => o.id === id);
-  if (order && kind === "order") return orderLines(order, fields!, make, time);
+  if (order && kind === "order") return orderLines(model, order, fields!, make, time);
   const facility = model.facilities.find((f) => f.id === id);
   if (facility && fields) return facilityLines(model, facility, fields, make);
   if (fields && kind === "node" && model.nodes.some((n) => n.id === id)) return nodeLines(model, id, fields, make);
-  if (fields && kind === "segment" && model.strips.some((s) => s.id === id)) return segmentLines(id, fields, make);
-  if (fields && kind === "zone" && Object.hasOwn(model.zones, id)) return zoneLines(id, fields, make);
+  if (fields && kind === "segment" && model.strips.some((s) => s.id === id)) return segmentLines(model, id, fields, make);
+  if (fields && kind === "zone" && Object.hasOwn(model.zones, id)) return zoneLines(model, id, fields, make);
   return null;
 }
 
 type Make = (text: string, named?: readonly string[]) => DetailLine;
+/** The names of ids as the line prints them (`nameOf`); the refs stay the ids. */
+const namesOf = (model: MapModel, ids: readonly string[]): string[] => ids.map((id) => nameOf(model, id));
 
 function vehicleLines(model: MapModel, state: Readonly<Record<string, Fields>>, v: VehicleItem, make: Make): DetailLine[] {
   const lines: DetailLine[] = [make([v.label, ...(v.fleet !== null ? [`fleet ${v.fleet}`] : []), v.state].join(" · "))];
@@ -77,7 +78,7 @@ function vehicleLines(model: MapModel, state: Readonly<Record<string, Fields>>, 
     let text = v.order;
     if (order) {
       named.push(order.origin, order.destination);
-      text += `, ${order.origin} → ${order.destination}`;
+      text += `, ${nameOf(model, order.origin)} → ${nameOf(model, order.destination)}`;
       const picked = finite(Object.hasOwn(state, order.id) ? state[order.id]!["picked_at"] : null);
       if (order.picked && picked !== null) text += `, picked at ${one(picked)}`;
     }
@@ -108,16 +109,19 @@ function vehicleLines(model: MapModel, state: Readonly<Record<string, Fields>>, 
   if (v.route) {
     const nodes = [...v.route.nodes];
     if (nodes[nodes.length - 1] !== v.route.destination) nodes.push(v.route.destination);
-    const next = nextNode(nodes, v);
+    const next = nextNode(nodes.length, v);
     lines.push(make(`Route ${nodes.map((n, i) => (i === next ? `[${n}]` : n)).join(" → ")}`, nodes));
   }
 
   // a stranded vehicle keeps its last wait: the map shows it as stranded, so the detail does not call it waiting
+  // how long is the model's own `waited`; without a recorded start neither how long nor since when is known
   if (v.wait && v.shown === "waiting") {
-    const seconds = Math.max(0, Math.floor(model.time - v.wait.since));
-    lines.push(make(`Waiting ${seconds} s (since ${one(v.wait.since)})${v.wait.node !== "" ? ` to enter ${v.wait.node}` : ""}`, [v.wait.node]));
+    const how = v.waited !== null ? ` ${v.waited} s` : "";
+    const since = v.wait.since !== null ? ` (since ${one(v.wait.since)})` : "";
+    lines.push(make(`Waiting${how}${since}${v.wait.node !== "" ? ` to enter ${v.wait.node}` : ""}`, [v.wait.node]));
     if (v.wait.resources.length) lines.push(make(`Needs ${v.wait.resources.join(", ")}`, v.wait.resources));
-    if (v.wait.blockers.length) lines.push(make(`Blocked by ${v.wait.blockers.join(", ")}`, v.wait.blockers));
+    if (v.wait.blockers.length)
+      lines.push(make(`Blocked by ${namesOf(model, v.wait.blockers).join(", ")}`, v.wait.blockers));
   }
 
   if (v.holds.length) lines.push(make(`Holds ${v.holds.join(", ")}`, v.holds));
@@ -125,24 +129,28 @@ function vehicleLines(model: MapModel, state: Readonly<Record<string, Fields>>, 
   return lines;
 }
 
-/** The index of the next node of the route: the one after the vehicle's node, or its arc's `to`. */
-function nextNode(nodes: readonly string[], v: VehicleItem): number {
-  if (v.arc) {
-    for (let i = 0; i + 1 < nodes.length; i++) if (nodes[i] === v.arc.from && nodes[i + 1] === v.arc.to) return i + 1;
-    return nodes.indexOf(v.arc.to);
-  }
-  const i = v.node === null ? -1 : nodes.indexOf(v.node);
-  return i >= 0 && i + 1 < nodes.length ? i + 1 : -1;
+/**
+ * The index of the next node of the route, among `length` nodes (the route's, with its destination appended when it
+ * is not the last): its arc's `to`, or the one after the node it stands on (`routeIndex`).
+ */
+function nextNode(length: number, v: VehicleItem): number {
+  const i = routeIndex(v);
+  if (v.arc) return i;
+  return i >= 0 && i + 1 < length ? i + 1 : -1;
 }
 
 function orderLines(
+  model: MapModel,
   order: OrderItem,
   fields: Fields,
   make: Make,
   time: (v: unknown) => string | null,
 ): DetailLine[] {
   const lines = [make(`${order.id} · ${order.status}`), make(`Carries ${order.quantity} ${order.sku}`)];
-  lines.push(make(`From ${order.origin}`, [order.origin]), make(`To ${order.destination}`, [order.destination]));
+  lines.push(
+    make(`From ${nameOf(model, order.origin)}`, [order.origin]),
+    make(`To ${nameOf(model, order.destination)}`, [order.destination]),
+  );
   for (const [label, field] of [
     ["Created", "created_at"],
     ["Dispatched", "dispatched_at"],
@@ -152,7 +160,7 @@ function orderLines(
     const t = time(fields[field]);
     if (t !== null) lines.push(make(`${label} at ${t}`));
   }
-  lines.push(order.agv !== null ? make(`Vehicle ${order.agv}`, [order.agv]) : make("No vehicle yet"));
+  lines.push(order.agv !== null ? make(`Vehicle ${nameOf(model, order.agv)}`, [order.agv]) : make("No vehicle yet"));
   return lines;
 }
 
@@ -160,22 +168,26 @@ function facilityLines(model: MapModel, f: FacilityItem, fields: Fields, make: M
   const lines = [make(`${f.label} · ${f.kind.replace("_", " ")}`)];
   const slots = finite(fields["slots_in_use"]);
   if (f.kind === "warehouse") {
-    const inventory = fields["inventory"];
-    if (inventory !== null && typeof inventory === "object" && !Array.isArray(inventory))
-      lines.push(make(`Stock ${Object.keys(f.stock).length ? quantities(f.stock) : "none"}`));
+    if (f.stock !== null) lines.push(make(`Stock ${Object.keys(f.stock).length ? quantities(f.stock) : "none"}`));
     if (slots !== null) lines.push(make(`Slots in use ${slots}`));
   } else if (f.kind === "parking_area") {
-    const parked = strings(fields["parked"]) ?? [];
+    const parked = strings(fields["parked"]);
     const capacity = finite(fields["capacity"]);
-    lines.push(make(`Parked ${parked.length}${capacity !== null ? ` of ${capacity}` : ""}${parked.length ? `: ${parked.join(", ")}` : ""}`, parked));
+    lines.push(
+      make(
+        `Parked ${parked.length}${capacity !== null ? ` of ${capacity}` : ""}${parked.length ? `: ${namesOf(model, parked).join(", ")}` : ""}`,
+        parked,
+      ),
+    );
   } else if (slots !== null) {
     const total = finite(fields["slots"]);
     lines.push(make(`Slots in use ${slots}${total !== null ? ` of ${total}` : ""}`));
   }
   if (f.nodes.length) {
     lines.push(make(`${f.kind === "warehouse" ? "Bays at" : f.nodes.length > 1 ? "Nodes" : "Node"} ${f.nodes.join(", ")}`, f.nodes));
-    const here = model.vehicles.filter((v) => v.node !== null && f.nodes.includes(v.node)).map((v) => v.id);
-    lines.push(make(`Vehicles at it: ${joined(here, "none")}`, here));
+    // a vehicle under way keeps the node it left as its recorded node: it is not at it
+    const here = model.vehicles.filter((v) => v.arc === null && v.node !== null && f.nodes.includes(v.node)).map((v) => v.id);
+    lines.push(make(`Vehicles at it: ${joined(namesOf(model, here), "none")}`, here));
   }
   if (f.kind === "warehouse") {
     const open = model.orders.filter((o) => o.open);
@@ -188,17 +200,17 @@ function facilityLines(model: MapModel, f: FacilityItem, fields: Fields, make: M
 
 function nodeLines(model: MapModel, id: string, fields: Fields, make: Make): DetailLine[] {
   const lines = [make(`Node ${id}`)];
-  const standing = strings(fields["agvs"]);
-  if (standing) lines.push(make(`Vehicles on it: ${joined(standing, "none")}`, standing));
-  const holders = strings(fields["reserved_by"]);
-  if (holders) lines.push(make(`Held by: ${joined(holders, "nobody")}`, holders));
+  const standing = listed(fields["agvs"]);
+  if (standing) lines.push(make(`Vehicles on it: ${joined(namesOf(model, standing), "none")}`, standing));
+  const holders = listed(fields["reserved_by"]);
+  if (holders) lines.push(make(`Held by: ${joined(namesOf(model, holders), "nobody")}`, holders));
   const capacity = finite(fields["capacity"]);
   if (capacity !== null) lines.push(make(`Capacity ${capacity}`));
-  for (const f of model.facilities) if (f.nodes.includes(id)) lines.push(make(`Bound to ${f.id}`, [f.id]));
+  for (const f of model.facilities) if (f.nodes.includes(id)) lines.push(make(`Bound to ${f.label}`, [f.id]));
   return lines;
 }
 
-function segmentLines(id: string, fields: Fields, make: Make): DetailLine[] {
+function segmentLines(model: MapModel, id: string, fields: Fields, make: Make): DetailLine[] {
   const lines = [make(`Segment ${id}`)];
   const source = typeof fields["source"] === "string" ? fields["source"] : null;
   const target = typeof fields["target"] === "string" ? fields["target"] : null;
@@ -207,22 +219,22 @@ function segmentLines(id: string, fields: Fields, make: Make): DetailLine[] {
   if (length !== null) lines.push(make(`Length ${one(length)} m`));
   if (source !== null && target !== null)
     for (const [from, to, holders] of [
-      [source, target, strings(fields["forward"])],
-      [target, source, strings(fields["backward"])],
+      [source, target, listed(fields["forward"])],
+      [target, source, listed(fields["backward"])],
     ] as const)
-      if (holders) lines.push(make(`Held ${from} → ${to} by: ${joined(holders, "nobody")}`, holders));
+      if (holders) lines.push(make(`Held ${from} → ${to} by: ${joined(namesOf(model, holders), "nobody")}`, holders));
   return lines;
 }
 
-function zoneLines(id: string, fields: Fields, make: Make): DetailLine[] {
+function zoneLines(model: MapModel, id: string, fields: Fields, make: Make): DetailLine[] {
   const lines = [make(`Zone ${id}`)];
   if (typeof fields["rule"] === "string") lines.push(make(`Rule ${fields["rule"]}`));
   const capacity = finite(fields["capacity"]);
   if (capacity !== null) lines.push(make(`Capacity ${capacity}`));
-  const members = strings(fields["members"]);
+  const members = listed(fields["members"]);
   if (members) lines.push(make(`Members: ${joined(members, "none")}`, members));
-  const holders = strings(fields["reserved_by"]);
-  if (holders) lines.push(make(`Held by: ${joined(holders, "nobody")}`, holders));
+  const holders = listed(fields["reserved_by"]);
+  if (holders) lines.push(make(`Held by: ${joined(namesOf(model, holders), "nobody")}`, holders));
   if (typeof fields["orientation"] === "string") lines.push(make(`Orientation ${fields["orientation"]}`));
   return lines;
 }

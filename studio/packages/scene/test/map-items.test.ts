@@ -3,7 +3,7 @@ import type { PreparedFrame } from "@simulatte/playback";
 import { Projector } from "../src/project";
 import { motionSpeed } from "../src/motion";
 import { expandHolds, focusPoint, overlayFor } from "../src/map/overlay";
-import type { MapModel, Shown, VehicleItem } from "../src/map/model";
+import { nameOf, routeIndex, type MapModel, type Shown, type VehicleItem } from "../src/map/model";
 import { loadFrame } from "./fixtures";
 
 const projectFrame = (frame: PreparedFrame) => new Projector(frame.initialState ?? frame.state).project(frame);
@@ -85,7 +85,8 @@ describe("corridor-wait", () => {
   });
   it("summarizes the traffic", () => {
     expect(map.traffic).toMatchObject({ waiting: 1, waits: 2, stuckWaits: 0, deadlocks: 0 });
-    expect(map.traffic.longestWait).toBeCloseTo(6.457, 3);
+    // whole seconds, the vehicles' own `waited` (6.457 s so far)
+    expect(map.traffic.longestWait).toBe(6);
   });
   it("counts stock and parking at the facilities", () => {
     expect(facility(map, "East")).toMatchObject({ count: "49", badge: 1, kind: "warehouse", nodes: ["E"] });
@@ -472,3 +473,93 @@ describe("motionSpeed", () => {
     expect(motionSpeed(null, 1)).toBeNull();
   });
 });
+
+describe("one source for names, waits, route positions and stock", () => {
+  const frame = loadFrame("corridor-wait");
+  const relabelled = edit(edit(frame, "East", { label: "East dock" }), "AGV-2", { label: "Tugger two" });
+  it("names a vehicle or a facility by its label, anything else by its id", () => {
+    const map = mapOf("corridor-wait", relabelled);
+    expect(nameOf(map, "AGV-2")).toBe("Tugger two");
+    expect(nameOf(map, "East")).toBe("East dock");
+    expect(nameOf(map, "AGV-1")).toBe("AGV-1");
+    expect(nameOf(map, "order-0")).toBe("order-0");
+    expect(nameOf(map, "constructor")).toBe("constructor");
+  });
+  it("names the blocker of a wait by its label", () => {
+    const agv = vehicle(mapOf("corridor-wait", relabelled), "AGV-1");
+    expect(agv.doing).toBe("waiting 6 s for Tugger two");
+    expect(agv.line).toBe("AGV-1 · waiting 6 s for Tugger two");
+    expect(agv.wait!.blockers).toEqual(["AGV-2"]);
+  });
+  it("computes the whole seconds of a wait once, and the longest wait from them", () => {
+    const map = mapOf("corridor-wait");
+    expect(vehicle(map, "AGV-1").waited).toBe(6);
+    expect(vehicle(map, "AGV-2").waited).toBeNull();
+    expect(map.traffic.longestWait).toBe(6);
+    expect(mapOf("corridor-wait", { ...frame, time: 100 }).traffic.longestWait).toBe(0);
+  });
+  it("leaves a wait without since unknown: no seconds, and no invented since", () => {
+    const { since: _since, ...rest } = frame.state["AGV-1"]!["wait"] as Record<string, unknown>;
+    const map = mapOf("corridor-wait", edit(frame, "AGV-1", { wait: rest }));
+    const agv = vehicle(map, "AGV-1");
+    expect(agv.wait!.since).toBeNull();
+    expect(agv.waited).toBeNull();
+    expect(agv.doing).toBe("waiting for AGV-2");
+    expect(map.traffic).toMatchObject({ waiting: 1, longestWait: 0 });
+  });
+  it("keeps SKUs named like members of Object.prototype", () => {
+    const odd = JSON.parse('{"__proto__": 3, "constructor": 2, "crate": 1}') as Record<string, number>;
+    const map = mapOf("corridor-wait", edit(edit(frame, "AGV-1", { load: odd }), "East", { inventory: odd }));
+    const load = vehicle(map, "AGV-1").load;
+    expect(Object.keys(load).sort()).toEqual(["__proto__", "constructor", "crate"]);
+    expect(load["constructor"]).toBe(2);
+    const stock = facility(map, "East").stock!;
+    expect(Object.keys(stock).sort()).toEqual(["__proto__", "constructor", "crate"]);
+    expect(stock["__proto__"]).toBe(3);
+    expect(facility(map, "East").count).toBe("3 SKUs");
+  });
+  it("gives stock to a warehouse that records an inventory, null to the others", () => {
+    const map = mapOf("corridor-wait");
+    expect(facility(map, "East").stock).toEqual({ crate: 49 });
+    expect(facility(map, "Siding").stock).toBeNull();
+    const unrecorded = facility(mapOf("corridor-wait", edit(frame, "East", { inventory: null })), "East");
+    expect(unrecorded).toMatchObject({ stock: null, count: "" });
+  });
+});
+
+describe("routeIndex", () => {
+  const at = (nodes: string[], node: string | null, arc: { from: string; to: string } | null) =>
+    routeIndex({ route: { nodes, destination: nodes.at(-1)!, reason: "" }, node, arc });
+  it("is the node the vehicle stands on, or the one it heads to", () => {
+    expect(at(["A", "B", "C"], "B", null)).toBe(1);
+    expect(at(["A", "B", "C"], "A", { from: "A", to: "B" })).toBe(1);
+  });
+  it("prefers the occurrence of a revisited node that follows the arc's from, else the first", () => {
+    expect(at(["A", "B", "C", "B", "D"], "C", { from: "C", to: "B" })).toBe(3);
+    expect(at(["A", "B", "C", "B", "D"], "X", { from: "X", to: "B" })).toBe(1);
+    expect(at(["A", "B", "C", "B", "D"], "B", null)).toBe(1);
+  });
+  it("is -1 off the route or without one", () => {
+    expect(at(["A", "B"], "Z", null)).toBe(-1);
+    expect(at(["A", "B"], null, null)).toBe(-1);
+    expect(routeIndex({ route: null, node: "A", arc: null })).toBe(-1);
+  });
+  it("puts the route ahead of a vehicle on a revisited node after the arc's from", () => {
+    const route = { nodes: ["W", "W_S", "J1", "M1", "C", "D", "C", "S"], destination: "S", reason: "travel" };
+    const moving = frame0Moving(route);
+    const overlay = overlayFor(moving, "AGV-2")!;
+    const point = (id: string) => {
+      const node = moving.nodes.find((n) => n.id === id)!;
+      return { x: node.x, y: node.y };
+    };
+    const agv = vehicle(moving, "AGV-2");
+    expect(overlay.route).toEqual([{ x: agv.x, y: agv.y }, point("C"), point("S")]);
+  });
+});
+
+/** AGV-2 of corridor-wait under way from D to C on the given route. */
+function frame0Moving(route: object): MapModel {
+  const frame = loadFrame("corridor-wait");
+  const motion = { ...(frame.state["AGV-2"]!["motion"] as object), from: "D", to: "C" };
+  return mapOf("corridor-wait", edit(frame, "AGV-2", { route, motion, node: "D" }));
+}

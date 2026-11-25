@@ -1,4 +1,4 @@
-import { naturalCompare, type MapModel, type Shown, type VehicleItem } from "./model";
+import { nameOf, naturalCompare, type MapModel, type Shown, type VehicleItem } from "./model";
 
 /** One line of the panel: the id to select, the state mark of a vehicle (else null) and the text. */
 export interface OverviewLine {
@@ -17,6 +17,7 @@ export interface OverviewGroup {
 }
 export interface Overview {
   vehicles: readonly OverviewGroup[];
+  /** `counts` has no prototype: a status may be named `__proto__`. */
   goods: { counts: Readonly<Record<string, number>>; lines: readonly OverviewLine[]; hidden: number };
   traffic: string;
   facilities: readonly OverviewLine[];
@@ -47,18 +48,19 @@ function vehicleText(v: VehicleItem): string {
 function rank(v: VehicleItem): number {
   return v.shown === "stranded" ? 0 : v.shown === "waiting" ? 1 : 2;
 }
+/** A wait whose start is not recorded counts as the shortest. */
 function byAttention(a: VehicleItem, b: VehicleItem): number {
   const ranks = rank(a) - rank(b);
   if (ranks !== 0) return ranks;
-  if (a.shown === "waiting" && a.wait && b.wait && a.wait.since !== b.wait.since) return a.wait.since - b.wait.since;
+  const x = a.wait?.since ?? Infinity,
+    y = b.wait?.since ?? Infinity;
+  if (a.shown === "waiting" && x !== y) return x < y ? -1 : 1;
   return naturalCompare(a.id, b.id);
 }
 
-const seconds = (n: number): number => Math.max(0, Math.floor(n));
-
 function trafficText(model: MapModel): string {
   const t = model.traffic;
-  const parts = [`${t.waiting} waiting`, `longest ${seconds(t.longestWait)} s`];
+  const parts = [`${t.waiting} waiting`, `longest ${t.longestWait} s`];
   if (t.waits !== null) parts.push(`waits ${t.waits}`);
   if (t.stuckWaits !== null) parts.push(`stuck ${t.stuckWaits}`);
   if (t.deadlocks !== null) parts.push(`deadlocks ${t.deadlocks}`);
@@ -87,22 +89,22 @@ export function overview(model: MapModel, options: OverviewOptions): Overview {
     return { fleet, counts, lines: matching.slice(0, cap), hidden: Math.max(0, matching.length - cap) };
   });
   const open = model.orders.filter((o) => o.open).sort((a, b) => a.createdAt - b.createdAt || naturalCompare(a.id, b.id));
-  const statuses: Record<string, number> = {};
+  const statuses: Record<string, number> = Object.create(null);
   for (const o of open) statuses[o.status] = (statuses[o.status] ?? 0) + 1;
   const goods = open.slice(0, cap).map(
     (o): OverviewLine => ({
       id: o.id,
       shown: null,
-      text: `${o.id} · ${o.quantity} ${o.sku} ${o.origin} → ${o.destination} · ${
-        o.agv === null ? "unassigned" : o.picked ? `on ${o.agv}` : `${o.agv}, not picked`
+      text: `${o.id} · ${o.quantity} ${o.sku} ${nameOf(model, o.origin)} → ${nameOf(model, o.destination)} · ${
+        o.agv === null ? "unassigned" : o.picked ? `on ${nameOf(model, o.agv)}` : `${nameOf(model, o.agv)}, not picked`
       }`,
     }),
   );
   const facilities = [...model.facilities]
     .sort((a, b) => naturalCompare(a.id, b.id))
     .map((f): OverviewLine => {
-      const stock = Object.entries(f.stock).sort(([a], [b]) => naturalCompare(a, b));
-      const detail = f.kind === "warehouse" && stock.length ? stock.map(([sku, n]) => `${sku} ${n}`).join(", ") : f.count;
+      const stock = Object.entries(f.stock ?? {}).sort(([a], [b]) => naturalCompare(a, b));
+      const detail = stock.length ? stock.map(([sku, n]) => `${sku} ${n}`).join(", ") : f.count;
       return { id: f.id, shown: null, text: detail ? `${f.label} · ${detail}` : f.label };
     });
   return {

@@ -109,7 +109,8 @@ describe("other frames", () => {
   });
   it("lists a warehouse without a recorded stock by its count", () => {
     const model = mapOf("corridor-wait");
-    const facilities = model.facilities.map((f) => (f.id === "East" ? { ...f, stock: {} } : f));
+    // an inventory that is not recorded is a null stock (the count is then the model's own, here a literal)
+    const facilities = model.facilities.map((f) => (f.id === "East" ? { ...f, stock: null } : f));
     expect(overview({ ...model, facilities }, none).facilities[0]!.text).toBe("East · 49");
   });
 });
@@ -168,5 +169,28 @@ describe("caps", () => {
     expect(goods.hidden).toBe(30);
     expect(goods.lines[0]!.id).toBe("o-229");
     expect(goods.counts).toEqual({ PENDING: 230 });
+  });
+});
+
+describe("names and keys", () => {
+  const frame = loadFrame("corridor-wait");
+  it("names vehicles and facilities by their labels in every line", () => {
+    const state = {
+      ...frame.state,
+      East: { ...frame.state["East"]!, label: "East dock" },
+      "AGV-2": { ...frame.state["AGV-2"]!, label: "Tugger two" },
+    };
+    const value = overview(mapOf("corridor-wait", { ...frame, state }), none);
+    expect(value.goods.lines.find((l) => l.id === "order-1")!.text).toBe("order-1 · 1 crate East dock → West · on Tugger two");
+    expect(value.vehicles[0]!.lines[0]!.text).toBe("AGV-1 · loaded, 1 crate → East dock · waiting 6 s for Tugger two");
+    expect(value.facilities.map((l) => l.text)).toContain("East dock · crate 49");
+  });
+  it("counts statuses named like members of Object.prototype", () => {
+    const model = mapOf("corridor-wait");
+    const orders = model.orders.map((o, i) => ({ ...o, status: ["constructor", "__proto__", "PENDING", "PENDING", "x"][i]! }));
+    const counts = overview({ ...model, orders }, none).goods.counts;
+    expect(Object.keys(counts).sort()).toEqual(["PENDING", "__proto__", "constructor", "x"]);
+    expect(counts["constructor"]).toBe(1);
+    expect(counts["__proto__"]).toBe(1);
   });
 });

@@ -55,7 +55,10 @@ export function equipment(location: unknown): string | null {
 export class Projector {
   readonly #fallback = new Map<string, Point>();
   readonly #vehicles: string[];
-  /** What the map model takes from the layout alone, for the layout object it was last built from. */
+  /**
+   * What the map model takes from the layout alone, for the layout object it was last built from. It is keyed by
+   * the object's identity: a layout must not be mutated in place, a changed layout is a new object.
+   */
   #static: StaticMap | null = null;
   constructor(initial: State) {
     this.#vehicles = Object.keys(initial).filter((id) => initial[id]?.["$kind"] === "agv");
@@ -286,7 +289,7 @@ export class Projector {
         facilities: map.facilities,
       });
       map.waitLines = buildWaitLines(map.vehicles);
-      map.traffic = summarizeTraffic(frame.time, map.vehicles, frame.state);
+      map.traffic = summarizeTraffic(map.vehicles, frame.state);
     }
     return { glyphs, links, ports, fallback: !layout, map };
   }

@@ -12,16 +12,9 @@ import {
   type Wait,
   type WaitLine,
 } from "./model";
+import { finite, named, object, quantitiesOf, strings, text, type Fields } from "./read";
 
-type Fields = Record<string, unknown>;
-const object = (v: unknown): Fields =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Fields) : {};
-const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
-const named = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 const finiteTime = (t: number): number => (Number.isFinite(t) ? t : 0);
-const strings = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : [];
 
 /** Where a vehicle is on the map and the arc it is on, when it has a motion. */
 export interface VehiclePlace {
@@ -43,11 +36,12 @@ export interface VehicleInput {
 const hasSize = (v: unknown): boolean =>
   Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0);
 
-const parseWait = (v: unknown, time: number): Wait | null => {
+const parseWait = (v: unknown): Wait | null => {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
   const w = object(v);
   return {
-    since: finite(w["since"]) ?? time,
+    // not the frame's time: a wait whose start is not recorded has no "since" and no duration
+    since: finite(w["since"]),
     node: text(w["node"]) ?? "",
     resources: strings(w["resources"]),
     blockers: strings(w["blockers"]),
@@ -95,6 +89,14 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
   const targets = object(input.layout["targets"]);
   const held = holdings(input.state);
   const time = finiteTime(input.time);
+  const labelOf = (id: string, fields: Fields): string =>
+    named(object(object(placements[id])["visual"])["label"]) ?? named(fields["label"]) ?? id;
+  // what `nameOf` gives once the model is built: a blocker is named by its label
+  const names = new Map(input.facilities.map((f) => [f.id, f.label]));
+  for (const [id] of input.places) {
+    const fields = input.state[id];
+    if (fields && fields["$kind"] === "agv") names.set(id, labelOf(id, fields));
+  }
   const items: Omit<VehicleItem, "offset">[] = [];
   for (const [id, place] of input.places) {
     const fields = input.state[id];
@@ -107,13 +109,12 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
     const motion = object(fields["motion"]);
     const moving = Object.keys(motion).length > 0;
     const state = text(fields["state"]) ?? "";
-    const wait = parseWait(fields["wait"], time);
+    const wait = parseWait(fields["wait"]);
+    const waited = wait === null || wait.since === null ? null : Math.max(0, Math.floor(time - wait.since));
     const route = parseRoute(fields["route"]);
     const shown = shownOf(state, wait, moving);
-    const label = named(object(object(placements[id])["visual"])["label"]) ?? named(fields["label"]) ?? id;
-    const load: Record<string, number> = {};
-    for (const [sku, quantity] of Object.entries(object(fields["load"])))
-      if (finite(quantity) !== null) load[sku] = quantity as number;
+    const label = names.get(id)!;
+    const load = quantitiesOf(fields["load"]);
     const fleet = text(fields["fleet"]);
     const fleetIndex = input.fleets.length > 1 && fleet !== null ? input.fleets.indexOf(fleet) : -1;
     const goal =
@@ -131,7 +132,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       shown === "stranded"
         ? "stranded"
         : shown === "waiting"
-          ? `waiting ${Math.max(0, Math.floor(time - wait!.since))} s${wait!.blockers.length ? ` for ${wait!.blockers[0]}` : ""}`
+          ? `waiting${waited !== null ? ` ${waited} s` : ""}${wait!.blockers.length ? ` for ${names.get(wait!.blockers[0]!) ?? wait!.blockers[0]}` : ""}`
           : shown === "charging"
             ? "charging"
             : state === "WAITING_LOAD"
@@ -171,6 +172,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
         ? { from: text(motion["from"])!, to: text(motion["to"])! }
         : null,
       wait,
+      waited,
       route,
       goal,
       holds: held.get(id) ?? [],
@@ -202,12 +204,7 @@ export function buildWaitLines(vehicles: readonly VehicleItem[]): WaitLine[] {
 }
 
 /** Waits now, and the fleets' counters summed (null when no fleet records them). */
-export function summarizeTraffic(
-  time: number,
-  vehicles: readonly VehicleItem[],
-  state: Readonly<Record<string, Fields>>,
-): TrafficSummary {
-  const now = finiteTime(time);
+export function summarizeTraffic(vehicles: readonly VehicleItem[], state: Readonly<Record<string, Fields>>): TrafficSummary {
   const waiting = vehicles.filter((v) => v.shown === "waiting");
   const total = (field: string): number | null => {
     let sum: number | null = null;
@@ -219,7 +216,7 @@ export function summarizeTraffic(
   };
   return {
     waiting: waiting.length,
-    longestWait: waiting.reduce((m, v) => Math.max(m, now - v.wait!.since), 0),
+    longestWait: waiting.reduce((m, v) => Math.max(m, v.waited ?? 0), 0),
     waits: total("waits"),
     stuckWaits: total("stuck_waits"),
     deadlocks: total("deadlocks"),

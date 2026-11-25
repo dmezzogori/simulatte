@@ -73,7 +73,8 @@ describe("a vehicle on corridor-wait", () => {
     const agv = model.vehicles.find((v) => v.id === "AGV-1")!;
     expect(agv.doing).toBe("waiting 6 s for AGV-2");
     expect(texts(describeEntity(model, frame.state, "AGV-1"))).toContain("Waiting 6 s (since 121.5) to enter D");
-    const early = { ...model, time: 100 };
+    // the seconds are the model's own, computed once with it: a frame at an earlier time gives 0
+    const early = mapOf({ ...frame, time: 100 });
     expect(texts(describeEntity(early, frame.state, "AGV-1"))).toContain("Waiting 0 s (since 121.5) to enter D");
   });
 });
@@ -269,5 +270,44 @@ describe("hostile labels", () => {
     state["AGV-1"]!["label"] = "</script><img src=x onerror=alert(1)>";
     const lines = describeEntity(mapOf({ ...frame, state }), state, "AGV-1")!;
     expect(lines[0]!.text.startsWith("</script><img src=x onerror=alert(1)> · fleet tuggers")).toBe(true);
+  });
+});
+
+describe("names, waits and positions as the map model gives them", () => {
+  const frame = loadFrame("corridor-wait");
+  const relabel = (state: PreparedFrame["state"]) => ({
+    ...state,
+    East: { ...state["East"]!, label: "East dock" },
+    "AGV-2": { ...state["AGV-2"]!, label: "Tugger two" },
+  });
+  const relabelled: PreparedFrame = { ...frame, state: relabel(frame.state) };
+  it("names vehicles and facilities by their labels, and keeps their ids as refs", () => {
+    const agv = detail("corridor-wait", "AGV-1", relabelled)!;
+    expect(line(agv, "Load")).toEqual({
+      text: "Load 1 crate · order-0, West → East dock, picked at 63.8",
+      refs: ["order-0", "West", "East"],
+    });
+    expect(line(agv, "Blocked by")).toEqual({ text: "Blocked by Tugger two", refs: ["AGV-2"] });
+    expect(line(detail("corridor-wait", "order-0", relabelled), "To")).toEqual({ text: "To East dock", refs: ["East"] });
+    expect(line(detail("corridor-wait", "order-1", relabelled), "Vehicle")).toEqual({
+      text: "Vehicle Tugger two",
+      refs: ["AGV-2"],
+    });
+    expect(line(detail("corridor-wait", "E", relabelled), "Bound to")).toEqual({ text: "Bound to East dock", refs: ["East"] });
+    expect(line(detail("corridor-wait", "D", relabelled), "Held by")).toEqual({ text: "Held by: Tugger two", refs: ["AGV-2"] });
+  });
+  it("prints whole seconds at a non-finite time", () => {
+    const lines = detail("corridor-wait", "AGV-1", { ...frame, time: Number.POSITIVE_INFINITY })!;
+    expect(texts(lines).join("\n")).not.toContain("Infinity");
+    expect(texts(lines)).toContain("Waiting 0 s (since 121.5) to enter D");
+  });
+  it("leaves out how long and since when for a wait without since", () => {
+    const { since: _since, ...rest } = frame.state["AGV-1"]!["wait"] as Record<string, unknown>;
+    const state = { ...frame.state, "AGV-1": { ...frame.state["AGV-1"]!, wait: rest } };
+    expect(texts(detail("corridor-wait", "AGV-1", { ...frame, state }))).toContain("Waiting to enter D");
+  });
+  it("does not count a vehicle leaving a facility's node as at it", () => {
+    // AGV-1 is under way from W to W_S, its recorded node still W
+    expect(texts(detail("corridor-idle", "West"))).toContain("Vehicles at it: none");
   });
 });

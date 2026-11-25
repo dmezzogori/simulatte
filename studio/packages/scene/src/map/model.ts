@@ -32,7 +32,8 @@ export type Shown =
   | "unknown";
 /** A vehicle's recorded wait (spec section 6.2). */
 export interface Wait {
-  since: number;
+  /** When the wait began; null when it is not recorded. */
+  since: number | null;
   node: string;
   resources: readonly string[];
   blockers: readonly string[];
@@ -72,6 +73,8 @@ export interface VehicleItem extends Point {
   /** The arc under way, by node id; null without a motion. */
   arc: { from: string; to: string } | null;
   wait: Wait | null;
+  /** Whole seconds waited so far, at least 0; null without a wait or without its `since`. */
+  waited: number | null;
   route: Route | null;
   /** The label of the facility bound to the route's destination, else that node id, else null. */
   goal: string | null;
@@ -99,10 +102,13 @@ export interface FacilityItem extends Point {
   rotation: number;
   /** The nodes it is bound to, in binding order, each once. */
   nodes: readonly string[];
-  /** Stock or occupancy as shown under the name; "" when the capacity is not recorded. */
+  /** Stock or occupancy as shown under the name, derived from `stock` for a warehouse; "" when not recorded. */
   count: string;
-  /** Stock per SKU of a warehouse; empty for the others and when the inventory is not recorded. */
-  stock: Readonly<Record<string, number>>;
+  /**
+   * Stock per SKU of a warehouse, the one source of its stock (in a map without a prototype: an SKU may be named
+   * `__proto__`); null for the other kinds and for a warehouse whose inventory is not recorded.
+   */
+  stock: Readonly<Record<string, number>> | null;
   /** Orders waiting at it: its own, with status PENDING. */
   badge: number;
   /** Pixels: the fan-out of facilities sharing a position, at symbol level. */
@@ -131,7 +137,7 @@ export interface OrderItem {
 export interface TrafficSummary {
   /** Vehicles shown as waiting; a stranded vehicle with a stale wait is not counted. */
   waiting: number;
-  /** The longest of their waits so far, in seconds. */
+  /** The longest of their waits so far, in whole seconds (their `waited`). */
   longestWait: number;
   /** Counters summed over the fleets; null when no fleet records them. */
   waits: number | null;
@@ -153,7 +159,7 @@ export interface MapModel {
   facilities: readonly FacilityItem[];
   waitLines: readonly WaitLine[];
   orders: readonly OrderItem[];
-  /** The distinct `fleet` values of the vehicles, sorted. */
+  /** The distinct `fleet` values of the vehicles of the initial state, sorted. */
   fleets: readonly string[];
   traffic: TrafficSummary;
 }
@@ -183,6 +189,35 @@ export const SYMBOL_PX = { vehicle: 22, facility: 36, strip: 10 } as const;
 /** True size begins at the threshold, so a symbol never jumps in size at the switch. */
 export const detailAt = (model: MapModel, scale: number): Detail =>
   scale >= model.threshold ? "true" : "symbol";
+
+/** The labels of a model by id, built once per model object (the panel asks for hundreds of names per refresh). */
+const labels = new WeakMap<MapModel, ReadonlyMap<string, string>>();
+/** The label of the vehicle or facility with that id, else the id: every name the panel and the detail print. */
+export function nameOf(model: MapModel, id: string): string {
+  let names = labels.get(model);
+  if (!names) {
+    const built = new Map<string, string>();
+    for (const f of model.facilities) built.set(f.id, f.label);
+    // a vehicle wins over a facility of the same id
+    for (const v of model.vehicles) built.set(v.id, v.label);
+    labels.set(model, (names = built));
+  }
+  return names.get(id) ?? id;
+}
+
+/**
+ * Where a vehicle is on its route: the index in `route.nodes` of the node it stands on or heads to, -1 when it is not
+ * on its route. Of a node that occurs twice, the occurrence that follows the arc's `from` is taken, else the first.
+ */
+export function routeIndex(vehicle: Pick<VehicleItem, "route" | "arc" | "node">): number {
+  const nodes = vehicle.route?.nodes ?? [];
+  const arc = vehicle.arc;
+  if (arc) {
+    for (let i = 1; i < nodes.length; i++) if (nodes[i] === arc.to && nodes[i - 1] === arc.from) return i;
+    return nodes.indexOf(arc.to);
+  }
+  return vehicle.node === null ? -1 : nodes.indexOf(vehicle.node);
+}
 
 /** Code-unit order with digit runs compared as numbers, so `AGV-2` comes before `AGV-10`. */
 export function naturalCompare(a: string, b: string): number {

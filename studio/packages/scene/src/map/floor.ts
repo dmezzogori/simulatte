@@ -1,15 +1,14 @@
 import type { Point } from "../project";
 import { SYMBOL_PX, type MapModel, type MapNode, type StaticMap, type StaticStrip } from "./model";
+import { object, strings as ids, type Fields } from "./read";
 
-type Fields = Record<string, unknown>;
-const object = (v: unknown): Fields =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Fields) : {};
 const positive = (v: unknown, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) && v > 0 ? v : fallback;
-const ids = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((id): id is string => typeof id === "string") : [];
 const held = (v: unknown): boolean => ids(v).length > 0;
-/** Code-unit order, as `network.py` joins a segment's two node ids. */
+/**
+ * Code-unit order, as `network.py` joins a segment's two node ids. Python compares code points; the two orders differ
+ * only for characters outside the Basic Multilingual Plane (a surrogate pair against a code unit above U+D7FF).
+ */
 const stripId = (a: string, b: string): string => (a < b ? `${a}~${b}` : `${b}~${a}`);
 
 export interface FloorInput {

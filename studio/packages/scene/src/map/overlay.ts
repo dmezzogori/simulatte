@@ -1,5 +1,5 @@
 import type { Point } from "../project";
-import type { MapModel, VehicleItem, WaitLine } from "./model";
+import { routeIndex, type MapModel, type VehicleItem, type WaitLine } from "./model";
 
 /** What a selection highlights on the map (spec section 5.5). */
 export interface Overlay {
@@ -17,21 +17,16 @@ export interface Overlay {
 const NONE: Overlay = { holds: [], route: [], waitLine: null, flow: null, related: [] };
 
 /**
- * The part of the vehicle's route still ahead (spec section 6.2): found by node id. A vehicle on a node
- * continues from that node's index; a moving one from the node it is heading to, preceded by its position.
+ * The part of the vehicle's route still ahead (spec section 6.2), from its position on the route (`routeIndex`): a
+ * vehicle on a node continues after it; a moving one from the node it is heading to, preceded by its position.
  * A vehicle that is not on its route has none. Nodes the layout does not know are skipped.
  */
 function routeAhead(model: MapModel, vehicle: VehicleItem): Point[] {
   const nodes = vehicle.route?.nodes ?? [];
-  const arc = vehicle.arc;
-  let from = -1;
-  if (arc) {
-    const leg = nodes.findIndex((id, i) => id === arc.from && nodes[i + 1] === arc.to);
-    from = leg >= 0 ? leg + 1 : nodes.indexOf(arc.to);
-  } else if (vehicle.node !== null) from = nodes.indexOf(vehicle.node);
+  const from = routeIndex(vehicle);
   if (from < 0) return [];
   const at = new Map(model.nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
-  const ahead = nodes.slice(arc ? from : from + 1).flatMap((id) => at.get(id) ?? []);
+  const ahead = nodes.slice(vehicle.arc ? from : from + 1).flatMap((id) => at.get(id) ?? []);
   return ahead.length ? [{ x: vehicle.x, y: vehicle.y }, ...ahead] : [];
 }
 

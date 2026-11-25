@@ -1,12 +1,7 @@
 import type { Point } from "../project";
 import { SYMBOL_PX, fanOut, naturalCompare, type FacilityItem, type OrderItem, type StaticMap } from "./model";
+import { finite, named, object, quantitiesOf, text, type Fields } from "./read";
 
-type Fields = Record<string, unknown>;
-const object = (v: unknown): Fields =>
-  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Fields) : {};
-const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
-const named = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 const CLOSED = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 const KINDS = ["warehouse", "parking_area", "charging_station"] as const;
 type Kind = (typeof KINDS)[number];
@@ -51,19 +46,18 @@ export function indexBindings(bindings: Fields): Map<string, string[]> {
   return index;
 }
 
-function stockOf(kind: Kind, fields: Fields): Record<string, number> {
-  const stock: Record<string, number> = {};
-  if (kind === "warehouse")
-    for (const [sku, quantity] of Object.entries(object(fields["inventory"])))
-      if (finite(quantity) !== null) stock[sku] = quantity as number;
-  return stock;
+/** A warehouse's stock per SKU; null for the other kinds and for an inventory that is not recorded. */
+function stockOf(kind: Kind, fields: Fields): Record<string, number> | null {
+  const inventory = fields["inventory"];
+  if (kind !== "warehouse" || inventory === null || typeof inventory !== "object" || Array.isArray(inventory)) return null;
+  return quantitiesOf(inventory);
 }
 
-function countOf(kind: Kind, fields: Fields): string {
+/** What is shown under the name: a warehouse's stock (from `stockOf`), the occupancy of the others. */
+function countOf(kind: Kind, fields: Fields, stock: Readonly<Record<string, number>> | null): string {
   if (kind === "warehouse") {
-    const inventory = fields["inventory"];
-    if (inventory === null || typeof inventory !== "object" || Array.isArray(inventory)) return "";
-    const quantities = Object.values(inventory).filter((q): q is number => finite(q) !== null);
+    if (stock === null) return "";
+    const quantities = Object.values(stock);
     return quantities.length === 1 ? String(Math.round(quantities[0]!)) : `${quantities.length} SKUs`;
   }
   const capacity = finite(kind === "parking_area" ? fields["capacity"] : fields["slots"]);
@@ -107,6 +101,7 @@ export function buildFacilities(input: FacilityInput, cache?: StaticMap): Facili
       const n = finite(v);
       return n !== null && n > 0 ? n : 1;
     };
+    const stock = stockOf(kind, fields);
     items.push({
       id,
       kind,
@@ -117,8 +112,8 @@ export function buildFacilities(input: FacilityInput, cache?: StaticMap): Facili
       depth: size(footprint["depth"]),
       rotation: ((finite(place["rotation"]) ?? 0) * Math.PI) / 180,
       nodes: [...(bound.get(id) ?? [])],
-      count: countOf(kind, fields),
-      stock: stockOf(kind, fields),
+      count: countOf(kind, fields, stock),
+      stock,
       badge: waiting.get(id) ?? 0,
     });
   }
