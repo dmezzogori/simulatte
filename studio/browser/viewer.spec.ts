@@ -4,6 +4,9 @@ import { pathToFileURL } from "node:url";
 const fixture = resolve(
   "../tests/fixtures/traces/generated/shop_small.simtrace",
 );
+const traffic = resolve(
+  "../tests/fixtures/traces/generated/example_traffic.simtrace",
+);
 const csp =
   "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'";
 test("production viewer loads, steps, seeks and presents under CSP", async ({
@@ -203,4 +206,38 @@ test("the Overview panel is docked with the Inspector, which stays the active ta
   await expect(page.getByRole("tab", { name: "Overview", exact: true })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Inspector", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tab", { name: "Overview", exact: true })).toHaveAttribute("aria-selected", "false");
+});
+
+test("a vehicle chosen in the entity list shows its readable detail, and the offline HTML of that trace opens from file", async ({
+  page,
+  context,
+}, testInfo) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/");
+  await page.locator("input[type=file]").setInputFiles(traffic);
+  await expect(page.locator(".status")).toHaveText("paused");
+  await page
+    .locator(".entities")
+    .getByRole("button", { name: "AGV-1", exact: true })
+    .click();
+  await expect(page.locator(".detail .detail-line").first()).toHaveText(/^AGV-1 /);
+  const waiting = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export HTML" }).click();
+  const path = testInfo.outputPath("traffic.html");
+  await (await waiting).saveAs(path);
+  await context.setOffline(true);
+  const requests: string[] = [];
+  const offline = await context.newPage();
+  offline.on("request", (r) => {
+    if (!r.url().startsWith("file:")) requests.push(r.url());
+  });
+  offline.on("pageerror", (e) => errors.push(e.message));
+  await offline.goto(pathToFileURL(path).href);
+  await expect(offline.locator("output")).toContainText("t = 0");
+  await offline.getByRole("button", { name: "Next event", exact: true }).click();
+  await expect(offline.locator("output")).toContainText("seq");
+  await expect(offline.locator("canvas")).toHaveCount(1);
+  expect(requests).toEqual([]);
+  expect(errors).toEqual([]);
 });

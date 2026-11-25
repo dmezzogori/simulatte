@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import { resolve } from "node:path";
+
+// The config is loaded from studio/ (the test command runs there), so this is the absolute path `vite` needs.
+const harness = resolve("harness/vite.config.ts");
+const scene = "pnpm --filter @simulatte/scene exec vite";
 export default defineConfig({
   testDir: "browser",
   fullyParallel: false,
@@ -13,10 +18,20 @@ export default defineConfig({
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
-  webServer: {
-    command:
-      "pnpm --filter @simulatte/viewer exec vite preview --host 127.0.0.1 --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command:
+        "pnpm --filter @simulatte/viewer exec vite preview --host 127.0.0.1 --port 4173 --strictPort",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: false,
+    },
+    {
+      // The map harness (harness/): built to .build/harness (git-ignored) and served on its own port. `vite` does
+      // not resolve from the studio/ root, so it runs as the scene package's, with an absolute config path.
+      command: `${scene} build --config "${harness}" && ${scene} preview --host 127.0.0.1 --port 4174 --strictPort --config "${harness}"`,
+      url: "http://127.0.0.1:4174",
+      reuseExistingServer: false,
+      timeout: 120000,
+    },
+  ],
 });
