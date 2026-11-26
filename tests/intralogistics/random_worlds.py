@@ -1808,8 +1808,10 @@ class Monitor:
             for s, (a, b) in sure_s.items():
                 if s not in segs:
                     self.violation("body not covered (segment)", agv_id, s, event.type_name)
-                elif not self.passing[s] and segs[s] != ("forward" if a < b else "backward"):
-                    if agv not in ledger.both_directions(self.segments[s]):  # check M1'
+                elif not self.passing[s] and (
+                    segs[s] != ("forward" if a < b else "backward") or self._lies_as_arrived(agv_id, s)
+                ):  # check M1': a body against its record, or as it arrived before a re-claim, needs the state
+                    if agv not in ledger.both_directions(self.segments[s]):
                         against_record.add((agv_id, s))
             if agv.state.name not in TRAVELING:
                 self._exact(agv, "state:" + agv.state.name)

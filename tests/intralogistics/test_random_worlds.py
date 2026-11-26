@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from simulatte.environment import Environment
-from simulatte.events import Deltas, apply_deltas
+from simulatte.events import Deltas
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics import travel
 from simulatte.intralogistics.fleet import FleetCoordinator
@@ -24,7 +24,7 @@ from simulatte.intralogistics.traffic import Disposition
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
 from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics import random_worlds
-from tests.intralogistics.test_travel import claimed_again_twice
+from tests.intralogistics.traffic_support import TravelWorld, claimed_again_twice
 from tests.intralogistics.random_worlds import (
     FEATURES,
     exercised,
@@ -759,52 +759,90 @@ def test_with_the_rule_undone_an_admission_against_a_body_is_reported_without_a_
     assert admitted[0] == pytest.approx(314.707, abs=1e-3) and admitted[2] == "g1_1~g2_2"
 
 
+def _monitor_of_claimed_again_twice() -> tuple[TravelWorld, random_worlds.Monitor]:
+    """The world of a segment claimed again twice (``traffic_support.claimed_again_twice``) with the whole monitor of
+    ``random_worlds``, built by its own constructor from a spec that describes that world: the graph, the capacities
+    of U and V, the vehicles (3 m, a profile with limits) and the derived corridor. The monitor sees the run from
+    activation on; the world has no zone, charger or parking area."""
+    w, _ = claimed_again_twice()
+    kind = w.agvs["A"].agv_type
+    spec = random_worlds.WorldSpec(
+        seed=0,
+        nodes=tuple((node.id, node.x, node.y) for node in w.fleet.graph.nodes),
+        arcs=tuple(
+            random_worlds.ArcSpec(a, b) for a, b in (("U", "V"), ("V", "W"), ("W", "Q"), ("W", "K"), ("K", "U"))
+        ),
+        block_length=None,
+        capacities=(("U", 2), ("V", 2)),
+        zones=(),
+        derive_corridors=True,
+        hold_back_dead_ends=False,
+        priority=False,
+        skus=(),
+        chargers=(),
+        parking=(),
+        fleets=(
+            random_worlds.FleetSpec(
+                name="F",
+                vehicle=random_worlds.VehicleSpec(
+                    "cart", ("trapezoidal", 2.0, 0.8, 0.4), kind.battery_capacity, kind.length, kind.min_gap
+                ),
+                agvs=tuple((agv.id, agv.current_node.id) for agv in w.agvs.values()),
+                warehouses=(),
+                chargers=False,
+                parking=False,
+                orders=(),
+            ),
+        ),
+    )
+    built = random_worlds.BuiltWorld(w.env, spec, w.controller, (w.fleet,), w.agvs, (), ())
+    return w, random_worlds.Monitor(built)
+
+
 def test_the_monitor_takes_the_body_as_it_arrived_from_its_entry_at_the_re_claim():
     """The scenario of a segment claimed again twice (`test_travel`): A, in the state on ``U~V`` since its re-claim
     backward at 10.0, is granted the segment forward at 20.0, the direction its body lies in, and stays in the state
-    until 21.118 (Ruling A3-n). The monitor's checks of the state, and its own admission test for B on ``U~V``, run here
-    on the events of that world: no violation, and B's blockers are the ledger's at every event."""
-    w, _ = claimed_again_twice()
+    until 21.118 (Ruling A3-n). The whole monitor runs on the events of that world: no violation, and its own admission
+    test for B on ``U~V`` gives the ledger's blockers at every event."""
+    w, monitor = _monitor_of_claimed_again_twice()
     controller = w.controller
-    network = controller.network
-    monitor = object.__new__(random_worlds.Monitor)
-    graph = network.graph
-    segments = {segment.id: segment for segment in network.segments}
-    vars(monitor).update(
-        env=w.env, controller=controller, graph=graph, nodes={n.id: n for n in graph.nodes}, _ready=True,
-        cap={n.id: network.capacity(n) for n in graph.nodes}, segments=segments, plain=set(), violations=[],
-        bodies={agv.id: random_worlds.Body(agv, 3.0) for agv in w.agvs.values()}, _reversing=set(), _sole=set(),
-        _outlived={}, _passing_state=set(), _reclaimed={}, passing={s: seg.passing for s, seg in segments.items()},
-        events=0, _instant=0.0, _sure=((-1, 0.0), {}), extents=dict.fromkeys(w.agvs, 3.0),
-        lengths={s: seg.length for s, seg in segments.items()},
-        state={entity: dict(fields) for entity, fields in w.env.entities.snapshot().items()},
-    )  # fmt: skip
-    item = next(item for item in network.leg(w.nodes["U"], w.nodes["V"]) if isinstance(item.resource, Segment))
+    item = next(
+        item for item in controller.network.leg(w.nodes["U"], w.nodes["V"]) if isinstance(item.resource, Segment)
+    )
     differ = []
 
     def on(event):
-        t = float(w.env.now)
-        monitor.events += 1
-        monitor._instant = t
-        apply_deltas(monitor.state, event.deltas)
-        if isinstance(event, logistics_events.AgvMoveStarted):
-            monitor._move_started(event, t)
-        elif isinstance(event, logistics_events.AgvMoveEnded):
-            monitor._move_ended(event, t)
-        elif isinstance(event, logistics_events.TrafficReserved | logistics_events.TrafficReleased):
-            monitor._track_reclaims(event)
-            if isinstance(event, logistics_events.TrafficReserved):
-                monitor._reversing.update(r for r in event.resources if r in segments)
-        monitor._check_both_directions({a: body.occupancy(t) for a, body in monitor.bodies.items()}, t)
         mine = monitor._blockers("B", ("segment", "U~V", "forward"))
         theirs = [holder.id for holder in controller.ledger.blockers(w.agvs["B"], item)]
         if mine != theirs:
-            differ.append((t, mine, theirs))
+            differ.append((float(w.env.now), mine, theirs))
 
-    w.env.bus.subscribe(on, "*")
+    w.env.bus.subscribe(on, "*")  # after the monitor's own subscription: it has seen each event first
     w.env.run()
-    assert monitor.violations == [] and differ == []
+    assert monitor.checked > 0 and monitor.violations == [] and differ == []
     assert [e.t for e in w.of(logistics_events.TrafficWaitEnded, agv="B")] == [pytest.approx(21.118, abs=1e-3)]
+
+
+def test_a_state_that_ends_when_the_segment_is_granted_again_is_a_violation(monkeypatch):
+    """A ledger that ends the state when its holder is granted the segment again, against spec §7.2 (Ruling A3-n): at
+    20.0 A's body still lies on ``U~V`` as it arrived before its re-claim, so it must still be in the state; the check
+    of recorded directions reports it."""
+    take = HoldingsLedger.take
+
+    def ends_at_the_grant(self, agv, items):
+        ending = [
+            item.resource
+            for item in items
+            if isinstance(item.resource, Segment) and agv in self.both_directions(item.resource)
+        ]
+        take(self, agv, items)
+        for resource in ending:
+            self._both[resource].pop(agv, None)
+
+    monkeypatch.setattr(HoldingsLedger, "take", ends_at_the_grant)
+    w, monitor = _monitor_of_claimed_again_twice()
+    w.env.run()
+    assert [v[:4] for v in monitor.violations] == [(20.0, "LEDGER recorded direction against the body", "U~V", "A")]
 
 
 def _state_ends_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -904,7 +942,8 @@ def test_a_both_directions_state_that_is_wrong_is_a_violation(monkeypatch, mutan
 
 
 GATE_WAIVER = [(7702388, "shortest")]
-"""The run that ends with a wait left stuck and unreported after a gate waiver (hole A of audit (i))."""
+"""The run that ended with a wait left stuck and unreported after a gate waiver (hole A of audit (i)) until the check
+of the waits with no review left (traffic spec §7.9)."""
 BEHIND_A_REPORTED_WAIT = [
     (8102359, "congestion"),
     (8103231, "shortest"),
@@ -923,7 +962,31 @@ BEHIND_A_REPORTED_WAIT = [
     (4109857, "fastest"),
     (4109857, "congestion"),
 ]
-"""The runs that end with a wait behind a reported wait, stuck and unreported (hole R of audit (i))."""
+"""The runs that ended with a wait behind a reported wait, stuck and unreported (hole R of audit (i)), pinned by the
+strict monitor before the fix."""
+FOUND_SINCE = [
+    (4300647, "fastest"),
+    (4301217, "shortest"),
+    (500064, "congestion"),
+    (500198, "fastest"),
+    (4310551, "congestion"),
+    (4312795, "shortest"),
+    (4315085, "fastest"),
+    (4316274, "shortest"),
+    (4320963, "congestion"),
+    (4317874, "shortest"),
+    (4317874, "fastest"),
+    (4317874, "congestion"),
+    (4410006, "shortest"),
+    (4410659, "fastest"),
+    (4410659, "shortest"),
+    (4411303, "shortest"),
+    (4411325, "congestion"),
+    (4411943, "congestion"),
+    (4412497, "fastest"),
+]
+"""Runs of hole R found by the later tasks and reviews of Assignment 3, each ending with an open wait with no report
+before the fix."""
 
 
 @pytest.mark.parametrize(("seed", "router"), GATE_WAIVER)
@@ -932,13 +995,13 @@ def test_a_run_with_a_gate_waiver_ends_with_every_open_wait_reported(seed, route
     assert record.quiescent and not record.violations
 
 
-@pytest.mark.parametrize(("seed", "router"), BEHIND_A_REPORTED_WAIT)
+@pytest.mark.parametrize(("seed", "router"), [*BEHIND_A_REPORTED_WAIT, *FOUND_SINCE])
 def test_a_run_with_a_wait_behind_a_reported_wait_ends_with_every_open_wait_reported(seed, router):
     record = run_world(world_spec(seed), controller="reservation", router=router)
     assert record.quiescent and not record.violations
 
 
-@pytest.mark.parametrize(("seed", "router"), [*GATE_WAIVER, *BEHIND_A_REPORTED_WAIT])
+@pytest.mark.parametrize(("seed", "router"), [*GATE_WAIVER, *BEHIND_A_REPORTED_WAIT, *FOUND_SINCE])
 def test_a_controller_that_reports_waits_stuck_too_eagerly_does_not_clear_the_hole_runs(monkeypatch, seed, router):
     """A wrong fix of the holes: the stuck rule applied to a wait's own blockers only reports the waits of these runs,
     but at instants when a wait behind a blocker is blocked by an AGV that moves or serves. The monitor reports that,
