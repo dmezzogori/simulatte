@@ -1,10 +1,11 @@
 """The holdings ledger of :class:`~simulatte.intralogistics.reservation.ReservationController` (spec §7.3, §7.5).
 
 The ledger records who holds which node, segment, zone and corridor, with the direction of each segment or corridor
-holding, the corridors left onto a port (exit records) and the AGVs placed at activation. It answers the admission test
-of spec §7.3 for one resource, records grants and releases in the ``node``, ``segment`` and ``zone`` entities with one
-``traffic.reserved`` or ``traffic.released`` per change, and works out which zones and corridors go with a release
-(§7.5). It never decides a grant: the queue, the fairness gate, waits and deadlocks belong to the controller.
+holding, the holders of single-lane segments in the both-directions state (spec §7.2), the corridors left onto a port
+(exit records) and the AGVs placed at activation. It answers the admission test of spec §7.3 for one resource, records
+grants and releases in the ``node``, ``segment`` and ``zone`` entities with one ``traffic.reserved`` or
+``traffic.released`` per change, and works out which zones and corridors go with a release (§7.5). It never decides a
+grant: the queue, the fairness gate, waits and deadlocks belong to the controller.
 """
 
 from __future__ import annotations
@@ -53,9 +54,13 @@ class HoldingsLedger:
     """Who holds what, for one :class:`~simulatte.intralogistics.reservation.ReservationController`.
 
     Holdings are kept in grant order, both per resource (with the direction of a segment or corridor holding, None
-    otherwise) and per AGV. :meth:`build` attaches the entities of the network once it exists; before that the ledger
-    is empty. The read methods return copies; views and test helpers use only those. The methods that change the
-    ledger belong to the controller, and nothing else may call them.
+    otherwise) and per AGV. A holder that claims a single-lane segment again in a new direction is held there in both
+    directions (spec §7.2, "Both directions"): the recorded direction is the new one, and for every other claimant it
+    also counts in the direction its body, as it arrived, lies in, until the controller ends the state or the segment
+    is released. The state is the ledger's alone: the ``segment`` entity lists the holder in the new direction only, and
+    no event marks the beginning or the end of the state. :meth:`build` attaches the entities of the network once it
+    exists; before that the ledger is empty. The read methods return copies; views and test helpers use only those. The
+    methods that change the ledger belong to the controller, and nothing else may call them.
     """
 
     def __init__(self, env: Environment) -> None:
@@ -68,6 +73,7 @@ class HoldingsLedger:
         self._held: dict[AGV, dict[Resource, None]] = {}
         self._placed: dict[AGV, None] = {}
         self._exits: dict[AGV, dict[Container, Node]] = {}  # corridors left onto a port, kept until the port goes
+        self._both: dict[Resource, dict[AGV, None]] = {}  # holders of a single-lane segment in both directions (§7.2)
         self._since: dict[Resource, dict[AGV, float]] = {}  # when each holder's hold of a resource began
         self._mean_hold: dict[Resource, float] = {}  # the average hold duration of each resource released so far
         self._kind_mean: dict[type, float] = {}  # the average of those averages by kind, until the next release
@@ -115,6 +121,12 @@ class HoldingsLedger:
         corridor held without orientation and for every other resource); `KeyError` when `agv` does not hold it."""
         return self._holders.get(resource, {})[agv]
 
+    def both_directions(self, resource: Resource) -> tuple[AGV, ...]:
+        """The holders of `resource` in the both-directions state (spec §7.2), in the order the state began: each
+        claimed the single-lane segment again in a new direction, and counts in both directions for every other
+        claimant until its body, as it arrived, has left the segment. Empty for any other resource."""
+        return tuple(self._both.get(resource, ()))
+
     def exits(self, agv: AGV) -> dict[Container, Node]:
         """The exit records of `agv`: each corridor it left onto a port and still holds through it, with the port."""
         return dict(self._exits.get(agv, {}))
@@ -156,7 +168,8 @@ class HoldingsLedger:
         return not isinstance(item.resource, (Segment, Corridor)) or direction == item.direction
 
     def blockers(self, agv: AGV, item: ClaimItem, among: Collection[AGV] | None = None) -> list[AGV]:
-        """The other holders that make `item` inadmissible for `agv` (spec §7.3); empty when it is admissible.
+        """The other holders that make `item` inadmissible for `agv` (spec §7.3), in grant order; empty when it is
+        admissible. On a single-lane segment a holder in the both-directions state (§7.2) blocks every other claimant.
 
         With `among`, only the holdings of those AGVs exist (deadlock detection, spec §7.8).
         """
@@ -170,7 +183,8 @@ class HoldingsLedger:
                 others = [holder for holder in others if holders[holder] == item.direction]
                 opposite: list[AGV] = []
             else:
-                opposite = [holder for holder in others if holders[holder] != item.direction]
+                both = self._both.get(resource, ())
+                opposite = [holder for holder in others if holders[holder] != item.direction or holder in both]
             if others and math.fsum([*map(extent, others), extent(agv)]) > resource.length:
                 return others
             return opposite
@@ -282,6 +296,16 @@ class HoldingsLedger:
             binding.orientation = orientation
             build.set(binding.id, "orientation", orientation)
 
+    def end_both_directions(self, agv: AGV, resources: Collection[Resource]) -> None:
+        """End the both-directions state of `agv` on `resources`, each of which it has (spec §7.2); nothing is released
+        and no event is emitted."""
+        for resource in resources:
+            self._leave_both(resource, agv)
+
+    def _leave_both(self, resource: Resource, agv: AGV) -> None:
+        """End the both-directions state of `agv` on `resource`, if it has it."""
+        self._both.get(resource, {}).pop(agv, None)
+
     def _observe(self, resource: Resource, duration: float) -> None:
         """Fold a hold of `duration` into the average of `resource`."""
         mean = self._mean_hold.get(resource)
@@ -289,7 +313,8 @@ class HoldingsLedger:
         self._kind_mean.clear()
 
     def take(self, agv: AGV, items: Sequence[ClaimItem]) -> None:
-        """Record `items` as held by `agv` and emit one ``traffic.reserved``."""
+        """Record `items` as held by `agv` and emit one ``traffic.reserved``. A single-lane segment `agv` holds already
+        is claimed again in a new direction: from now it is held in both directions (spec §7.2)."""
         held = self._held.setdefault(agv, {})
         build = Deltas.build()
         ids: list[str] = []
@@ -315,6 +340,8 @@ class HoldingsLedger:
                     old = "forward" if previous == "forward" else "backward"
                     getattr(segment, old).remove(agv.id)
                     build.remove(segment.id, old, agv.id)
+                    if not resource.passing:
+                        self._both.setdefault(resource, {})[agv] = None
                 field = "forward" if item.direction == "forward" else "backward"
                 holding = getattr(segment, field)
                 holding.append(agv.id)
@@ -359,6 +386,7 @@ class HoldingsLedger:
                 field = "forward" if direction == "forward" else "backward"
                 getattr(segment, field).remove(agv.id)
                 build.remove(segment.id, field, agv.id)
+                self._leave_both(resource, agv)
             else:
                 zone = self._bindings[resource]
                 assert isinstance(zone, ZoneBinding)

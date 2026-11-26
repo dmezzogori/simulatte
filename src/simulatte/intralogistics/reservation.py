@@ -137,7 +137,7 @@ class ReservationController:
         self._queue: list[_Pending] = []  # sorted by key
         self._pending: dict[AGV, _Pending] = {}
         self._counter = 0
-        self._changes = 0  # grants and releases so far: a review is due again only after one (T23)
+        self._changes = 0  # grants, releases and ends of a state that blocked a claim: a review is due after one (T23)
         self._revision = 0  # changes of the queue and of the holdings: the view's count of pending claims lives by it
         self._unresolved: list[tuple[str, ...]] = []  # deadlocked sets reported unresolved that still stand
         self._unreviewed: list[_Pending] = []  # waits that opened into such a set, in the order they opened
@@ -372,6 +372,29 @@ class ReservationController:
         pending claim names, and a corridor with an exit record whose port is kept, unless the AGV rests on that port
         and its capacity is above 1: the travel ends there (spec §7.5)."""
         self._drop(agv, self.ledger.retaining(agv, resources, self._named(agv)))
+
+    def cleared(self, agv: AGV, resources: Collection[Resource]) -> None:
+        """The body of `agv`, as it arrived, no longer lies on `resources`, which it still holds (spec §7.1): end the
+        both-directions state of those that have it (§7.2); the others are ignored and nothing is released.
+
+        Only when the state made a pending claim inadmissible at this instant does the end count as a change for the
+        reviews, as a release does (it wakes a sleeping wait, §7.9), and is the queue scanned (§7.4); an end that
+        blocked no pending claim changes nothing else.
+        """
+        ledger = self.ledger
+        ending = {resource for resource in resources if agv in ledger.both_directions(resource)}
+        if not ending:
+            return
+        blocked = [
+            (waiting.agv, item)
+            for waiting in self._queue
+            for item in ledger.needed(waiting.agv, waiting.request.claim)
+            if item.resource in ending and agv in ledger.blockers(waiting.agv, item)
+        ]
+        ledger.end_both_directions(agv, ending)
+        if any(agv not in ledger.blockers(claimant, item) for claimant, item in blocked):
+            self._changes += 1
+            self._scan()
 
     def _named(self, agv: AGV) -> set[Resource]:
         """The resources named by the pending claim of `agv`, if any."""

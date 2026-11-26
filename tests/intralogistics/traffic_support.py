@@ -148,11 +148,11 @@ class FullReplay:
 class TrafficInvariants:
     """Asserts the invariants of spec §17 after every domain event, from the live entities and the controller.
 
-    Node holders stay within the network capacity; a segment without ``passing`` never holds both directions; zone
-    holders stay within capacity; a corridor's holders never show both orientations; every AGV placed with the
-    controller that has no active motion holds its current node; an AGV holding a member of a zone or corridor holds
-    that zone or corridor. ``checked`` counts the events checked (those after
-    the network is built).
+    Node holders stay within the network capacity; a segment without ``passing`` never holds both directions, and a
+    holder in its both-directions state (§7.2) is its only holder; zone holders stay within capacity; a corridor's
+    holders never show both orientations; every AGV placed with the controller that has no active motion holds its
+    current node; an AGV holding a member of a zone or corridor holds that zone or corridor. ``checked`` counts the
+    events checked (those after the network is built).
     """
 
     def __init__(self, env: Environment, controller: ReservationController) -> None:
@@ -172,6 +172,8 @@ class TrafficInvariants:
                 assert len(entity.reserved_by) <= network.capacity(entity.node), (event, entity)
             elif isinstance(entity, SegmentBinding):
                 assert entity.segment.passing or not (entity.forward and entity.backward), (event, entity.id)
+                both = ledger.both_directions(entity.segment)
+                assert not both or ledger.holders(entity.segment) == both == both[:1], (event, entity.id)
             elif isinstance(entity, ZoneBinding):
                 if entity.rule == "exclusive":
                     capacity = entity.capacity

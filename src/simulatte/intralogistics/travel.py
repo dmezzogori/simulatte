@@ -407,7 +407,8 @@ class _Trip:
         self.staged: Route | None = None
         self.interrupt: simpy.Interrupt | None = None
         # Trail entries a grant took out of the trail (they lie ahead), with their clear points: those the body still
-        # overlaps go back into the trail when the trip comes to rest without having reached them.
+        # overlaps go back into the trail when the trip comes to rest without having reached them. A segment leaves it
+        # when the body as it arrived has left the segment, which the controller is told with ``cleared``.
         self.lifted: dict[Resource, float] = {}
         # The route's arcs: lengths, speed limits and the distance from the route's start to each node.
         self.lengths: tuple[float, ...] = ()
@@ -1079,6 +1080,11 @@ class _Trip:
         A clear point is released when the odometer reaches it, at the time the arc's plan gives, also on a later arc of
         the run. On arrival at rest on a node of capacity above 1 the whole trail clears with the arrival releases
         (spec §6.6); a node passed at speed keeps the ordinary clear points.
+
+        A segment claimed again while the body lay on it keeps the clear point it had in the trail. The controller is
+        told with ``cleared`` that the body as it arrived has left it when the AGV starts its own leg over it, when the
+        odometer reaches that clear point (timed with the releases of the arc, so no timer outlives the arc), or when
+        the AGV comes to rest on a node of capacity above 1 (spec §6.6, §7.2).
         """
         executor, agv, env = self.executor, self.agv, self.env
         distance, travel_time = plan.length, plan.duration
@@ -1096,11 +1102,17 @@ class _Trip:
             extent = self._extent()
             trail.entries.pop(current, None)
             trail.entries[current] = start + extent
+            leg: list[Resource] = []  # claimed again: from now on the body on it is taken in the new direction
             for resource in self.controller.view.resources(current, next_node):
                 if isinstance(resource, Segment):
                     trail.entries.pop(resource, None)
                     trail.entries[resource] = end + extent
-            for resource, clear in trail.entries.items():
+                    if self.lifted.pop(resource, None) is not None:
+                        leg.append(resource)
+            if leg:
+                self.controller.cleared(agv, leg)
+            lifted = [(resource, clear) for resource, clear in self.lifted.items() if isinstance(resource, Segment)]
+            for resource, clear in [*trail.entries.items(), *lifted]:
                 if _reached(clear, start):
                     at_departure.append(resource)
                 elif not _reached(clear, end):
@@ -1128,10 +1140,14 @@ class _Trip:
         self.speed = plan.exit_speed
         if trail is not None:
             trail.odometer += distance
+            rested: list[Resource] = []
             if self.speed == 0.0 and self.controller.view.capacity(next_node) > 1:  # at rest with room: all on it
                 at_arrival = list(trail.entries)
+                rested = [resource for resource in self.lifted if isinstance(resource, Segment)]
                 self.lifted.clear()  # claims ahead are not overlapped either: nothing to put back into the trail
             self._release(trail, at_arrival)
+            if rested:
+                self.controller.cleared(agv, rested)
 
     def _extent(self) -> float:
         """``length + min_gap``; a type without a length counts as length 0 (``ReservationController`` requires one)."""
@@ -1152,12 +1168,23 @@ class _Trip:
 
     def _release(self, trail: _Trail, resources: list[Resource]) -> None:
         """Release the given trail entries that are still in the trail. A grant taken while the AGV moves may have
-        lifted one of them since the departure scheduled its release: it lies ahead again and stays held."""
-        resources = [resource for resource in resources if resource in trail.entries]
-        if resources:
-            for resource in resources:
+        lifted one of them since the departure scheduled its release: it lies ahead again and stays held. A segment
+        whose clear point this is and that a grant lifted, before the departure or since, is reported with
+        ``cleared``: the body as it arrived has left it."""
+        released = [resource for resource in resources if resource in trail.entries]
+        left = [
+            resource
+            for resource in resources
+            if resource not in trail.entries and isinstance(resource, Segment) and resource in self.lifted
+        ]
+        if released:
+            for resource in released:
                 del trail.entries[resource]
-            self.controller.release(self.agv, resources)
+            self.controller.release(self.agv, released)
+        if left:
+            for resource in left:
+                del self.lifted[resource]
+            self.controller.cleared(self.agv, left)
 
     # Hooks (spec §7.1)
 

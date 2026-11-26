@@ -1001,3 +1001,381 @@ def test_a_reroute_asked_of_an_agv_on_its_goal_ends_the_travel_as_arrived() -> N
     assert w.held("A") == ["G"]
     assert w.controller.view.holders(n["G"]) == (w.agvs["A"],)
     assert not w.fleet._executor._resolutions  # the count of the goal is dropped, as on any arrival
+
+
+# --- a segment claimed again in a new direction (spec §6.6, §7.2 "Both directions") -------------------------------
+
+
+def reverser(turn: Callable[[float], float] | None = None) -> AGVType:
+    """3 m long, ``v_max=2.0``, ``accel=0.8``, ``decel=0.4``, not slowed by its battery; `turn` is its ``turn_time``."""
+    profile = TrapezoidalProfile(2.0, 0.8, 0.4, battery_degradation_fn=lambda level: 1.0)
+    return AGVType(
+        name="cart",
+        speed_profile=profile,
+        battery_capacity=1e9,
+        weight_capacity=100.0,
+        volume_capacity=10.0,
+        length=3.0,
+        turn_time=turn,
+    )
+
+
+def turn_at_a_bend(angle: float) -> float:
+    """4 s to turn through a bend; nothing for a straight on or a reversal."""
+    return 4.0 if 0.5 < angle < 2.5 else 0.0
+
+
+def turn_back(angle: float) -> float:
+    """4 s to turn back; nothing otherwise."""
+    return 4.0 if angle > 2.5 else 0.0
+
+
+def short_line(env: Environment, vw: float, **network: Any) -> Declared:
+    """``U - V - W`` on a line, ``U~V`` 10 m and ``V~W`` `vw` m; ``U`` and ``V`` have capacity 2."""
+    return build(
+        env,
+        [("U", 0, 0), ("V", 10, 0), ("W", 10 + vw, 0)],
+        [("U", "V"), ("V", "W")],
+        capacities={"U": 2, "V": 2},
+        **network,
+    )
+
+
+def ends(w: World) -> list[tuple[float, str, tuple[str, ...]]]:
+    """Wrap the controller's ``cleared`` to record, for each call that ended a both-directions state, the time, the
+    AGV and the segments whose state ended."""
+    found: list[tuple[float, str, tuple[str, ...]]] = []
+    controller = w.controller
+    ledger = controller.ledger
+    cleared = controller.cleared
+
+    def recorded(agv: AGV, resources: Any) -> None:
+        ending = tuple(sorted(r.id for r in resources if agv in ledger.both_directions(r)))
+        cleared(agv, resources)
+        if ending:
+            found.append((float(w.env.now), agv.id, ending))
+
+    controller.cleared = recorded
+    return found
+
+
+def traffic_at(w: World, t: float) -> list[tuple[str, str]]:
+    """The traffic events at time `t`: type and AGV."""
+    return [(e.type_name, e.agv) for e in w.events if e.t == t and e.type_name.startswith("traffic.")]
+
+
+def back_at_50(vw: float, **network: Any) -> World:
+    """Scenario ``base`` of audit (ii) with ``V~W`` `vw` m: A drives from U to W and rests there, with ``13 - (10 +
+    vw)`` m of its body on ``U~V``; B rests on V. At 50 A travels back to U and B asks for ``V -> U``."""
+    w = world(
+        lambda env: short_line(env, vw, **network), {"A": "U", "B": "V"}, agv_type=reverser(), hold_back_dead_ends=False
+    )
+    w.go("A", "W")
+    w.env.run(until=49.0)
+    assert {"U~V", "V", "V~W", "W"} <= set(w.held("A"))
+    w.go("A", "U", at=50.0)
+    w.go("B", "U", at=50.0)
+    return w
+
+
+def test_a_vehicle_waits_while_a_reversing_body_still_lies_on_the_segment_and_goes_when_it_has_left() -> None:
+    """Scenario ``base``: at rest on W, A claims ``U~V`` again, backward, with 0.5 m of its body still on it as it
+    arrived. Without the state B was granted ``U~V`` at once and the two bodies lay head-on on it until 51.1. B waits,
+    blocked by A, and is granted at the instant A's odometer reaches the old clear point of ``U~V``, 0.5 m into the arc
+    ``W -> V``: no release and no other traffic event at that instant."""
+    w = back_at_50(2.5)
+    ended = ends(w)
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
+    (started,) = w.of(TrafficWaitStarted, agv="B")
+    assert (started.t, started.resources, started.blockers) == (50.0, ("U~V", "U"), ("A",))
+    (granted,) = w.of(TrafficWaitEnded, agv="B")
+    assert granted.reason == "granted"
+    assert granted.t == pytest.approx(50.0 + math.sqrt(1.25), rel=1e-12)  # 0.5 m from rest at 0.8 m/s²
+    assert traffic_at(w, granted.t) == [("traffic.wait_ended", "B"), ("traffic.reserved", "B")]
+    assert ended == [(50.0, "A", ("V~W",)), (granted.t, "A", ("U~V",))]  # V~W by A's own leg, U~V at its clear point
+    assert w.of(AgvMoveStarted, agv="B")[0].t == granted.t
+
+
+def test_a_zone_of_capacity_two_over_the_segment_does_not_hide_the_reversing_body() -> None:
+    """Scenario ``zone2``: the same with a zone of capacity 2 over ``U~V``; the zone admits B, the segment does not."""
+    w = back_at_50(2.5, zones={"Z": {"members": [["U", "V"]], "capacity": 2}})
+    w.env.run()
+    (started,) = w.of(TrafficWaitStarted, agv="B")
+    assert (started.t, started.resources, started.blockers) == (50.0, ("Z", "U~V", "U"), ("A",))
+    (granted,) = w.of(TrafficWaitEnded, agv="B")
+    assert granted.t == pytest.approx(50.0 + math.sqrt(1.25), rel=1e-12)
+    assert traffic_at(w, granted.t) == [("traffic.wait_ended", "B"), ("traffic.reserved", "B")]
+
+
+def test_the_state_ends_when_the_holder_starts_its_own_leg_over_the_segment() -> None:
+    """Scenario ``short_same``, end (a) (Ruling A3-d): ``V~W`` is 1.0 m, so the old clear point of ``U~V`` lies 2.0 m
+    beyond V. A passes V at speed and starts its own leg ``V -> U`` 1.0 m after departing: from that instant its body
+    on ``U~V`` is taken in the new direction, and B is granted then, behind it."""
+    w = back_at_50(1.0)
+    ended = ends(w)
+    w.env.run()
+    (started,) = w.of(TrafficWaitStarted, agv="B")
+    assert (started.t, started.blockers) == (50.0, ("A",))
+    leg = next(e for e in w.of(AgvMoveStarted, agv="A") if e.from_node == "V" and e.t > 50.0)
+    assert leg.t == pytest.approx(50.0 + math.sqrt(2.5), rel=1e-12)  # 1.0 m from rest at 0.8 m/s²
+    (granted,) = w.of(TrafficWaitEnded, agv="B")
+    assert granted.t == leg.t
+    assert traffic_at(w, leg.t) == [("traffic.wait_ended", "B"), ("traffic.reserved", "B")]
+    assert ended == [(50.0, "A", ("V~W",)), (leg.t, "A", ("U~V",))]
+
+
+def test_the_state_ends_when_the_holder_comes_to_rest_on_a_node_with_room() -> None:
+    """Scenario ``roomy_stop``, end (c): A drives ``U -> V -> W`` without stopping on V and rests on W, 1.0 m off V at
+    a right angle, with 2.0 m of its body on ``U~V``. Back from W at 50 it claims ``U~V`` again and must stop on V to
+    turn: at rest there, on a node of capacity 2, its whole trail clears and the body as it arrived lies on nothing.
+    B, asking for ``V -> U`` during the turn, is admitted at once, as without the state."""
+    w = world(
+        lambda env: build(
+            env, [("U", 0, 0), ("V", 10, 0), ("W", 10, 1.0)], [("U", "V"), ("V", "W")], capacities={"U": 2, "V": 2}
+        ),
+        {"A": "U", "B": "V"},
+        agv_type=reverser(),
+        hold_back_dead_ends=False,
+    )
+    w.go("A", "W")
+    w.env.run(until=49.0)
+    w.agvs["A"].agv_type = reverser(turn=turn_at_a_bend)  # it turns on the way back only
+    ended = ends(w)
+    w.go("A", "U", at=50.0)
+    w.go("B", "U", at=53.0)
+    segment = w.controller.network.segment(w.nodes["U"], w.nodes["V"])
+    w.env.run(until=52.0)
+    assert w.controller.ledger.both_directions(segment) == (w.agvs["A"],)
+    w.env.run()
+    rest = w.of(AgvMoveEnded, agv="A")[-2]  # on V, where A turns
+    assert (rest.node, rest.t) == ("V", pytest.approx(52.7386, abs=1e-4))
+    assert ended == [(50.0, "A", ("V~W",)), (rest.t, "A", ("U~V",))]
+    assert not w.of(TrafficWaitStarted, agv="B")
+    assert [(e.t, e.resources) for e in w.of(TrafficReserved, agv="B")] == [(53.0, ("U~V", "U"))]
+
+
+class AsideOnce:
+    """Sends A aside to U the first time it is blocked; every wait keeps waiting, without a review."""
+
+    def __init__(self) -> None:
+        self.done = False
+
+    def on_blocked(self, wait: Wait, view: TrafficView) -> tuple[Reaction, ...]:
+        if wait.agv.id == "A" and not self.done:
+            self.done = True
+            return (StepAside(next(n for n in view.graph.nodes if n.id == "U")),)
+        return ()
+
+    def on_deadlock(self, waits: Any, view: TrafficView) -> list[tuple[AGV, Reaction]]:
+        return []
+
+    def make_way_target(self, blocker: AGV, wait: Wait, view: TrafficView) -> Node | None:
+        return None
+
+
+def test_a_reversal_staged_before_a_turn_holds_the_state_through_the_turn() -> None:
+    """Scenario ``turn_staged``: A, blocked on W by C, is sent aside to U. The new route starts with a turn back of
+    4 s, and its claims are asked for before the turn with the look-ahead of the run before, so ``U~V`` is claimed
+    again at 10.0 while 0.5 m of A's body lies on it. B, asking for ``V -> U`` at 10.5, waits through the turn and is
+    granted 0.5 m into A's arc ``W -> V``, which starts at 14.0."""
+    policy = AsideOnce()
+    w = world(
+        lambda env: build(
+            env,
+            [("U", 0, 0), ("V", 10, 0), ("W", 12.5, 0), ("Y", 22.5, 0)],
+            [("U", "V"), ("V", "W"), ("W", "Y")],
+            capacities={"U": 2, "V": 2},
+        ),
+        {"A": "U", "B": "V", "C": "Y"},
+        agv_type=reverser(turn=turn_back),
+        hold_back_dead_ends=False,
+        policy=policy,
+    )
+    w.go("A", "Y")
+    w.go("B", "U", at=10.5)
+    w.env.run()
+    assert [(e.t, e.reason) for e in w.of(AgvRouted, agv="A")][:2] == [(0.0, "travel"), (10.0, "step_aside")]
+    (started,) = w.of(TrafficWaitStarted, agv="B")
+    assert (started.t, started.blockers) == (10.5, ("A",))
+    assert w.of(AgvMoveStarted, agv="A")[2].t == 14.0
+    (granted,) = w.of(TrafficWaitEnded, agv="B")
+    assert granted.t == pytest.approx(14.0 + math.sqrt(1.25), rel=1e-12)
+    assert traffic_at(w, granted.t) == [("traffic.wait_ended", "B"), ("traffic.reserved", "B")]
+
+
+def stop_line(env: Environment, far: str) -> Declared:
+    """``... - b - R - X - W``: R has capacity 2, ``R~X`` is 1.0 m and ``X~W`` 0.6 m at a right angle. With `far`
+    ``"corridor"`` the corridor ``J1 - a - b - R`` (ports J1 and R) lies beyond R, with x1 and y1 off J1; with
+    ``"branch"`` the dead-end branch ``b, L`` with root R."""
+    points = [("b", 20, 0), ("R", 30, 0), ("X", 31, 0), ("W", 31, 0.6)]
+    links = [("b", "R"), ("R", "X"), ("X", "W")]
+    if far == "corridor":
+        points += [("J1", 0, 0), ("a", 10, 0), ("x1", -10, 10), ("y1", -10, -10)]
+        links += [("J1", "a"), ("a", "b"), ("J1", "x1"), ("J1", "y1")]
+    else:
+        points += [("L", 10, 0)]
+        links += [("L", "b")]
+    return build(env, points, links, capacities={"R": 2})
+
+
+@pytest.mark.parametrize(
+    ("far", "start", "goal", "resources"),
+    [
+        ("corridor", "x1", "y1", ("corridor:a", "R~b", "b")),
+        ("branch", "L", "L", ("R~b", "b", "L~b", "L")),
+    ],
+)
+def test_a_reversal_that_outlives_a_stop_keeps_the_segment_closed(
+    far: str, start: str, goal: str, resources: tuple[str, ...]
+) -> None:
+    """Scenarios ``corr_stop`` and ``branch_stop``: A rests on W, 1.6 m beyond R, with 1.4 m of its body on ``R~b``.
+    At 50 it travels back; at rest on W it claims ``R~b`` again with the far node, moves 0.6 m to X and stops there to
+    turn. Its travel is interrupted during the turn: it keeps what its body overlaps, ``R~b`` among it with 0.8 m of
+    the body as it arrived, recorded in the new direction, and gives the far node back. B, on R, asks at 56 for the
+    way past b, which the far node no longer holds. B waits behind A, which never moves again, and its wait is reported
+    stuck at its first review: nothing is admitted against A's body."""
+    w = world(lambda env: stop_line(env, far), {"A": start, "B": "R"}, agv_type=reverser(turn=turn_at_a_bend))
+    w.go("A", "W")
+    back = w.go("A", start, at=50.0)
+    w.interrupt(back, 53.0)
+    w.go("B", goal, at=56.0)
+    w.env.run()
+    assert w.caught == {"A": "cancelled"}
+    assert w.agvs["A"].current_node == w.nodes["X"]
+    segment = w.controller.network.segment(w.nodes["R"], w.nodes["b"])
+    assert w.controller.ledger.direction(segment, w.agvs["A"]) == "forward"  # R -> b, the body lies b -> R
+    assert w.controller.ledger.both_directions(segment) == (w.agvs["A"],)
+    (started,) = w.of(TrafficWaitStarted, agv="B")
+    assert (started.t, started.resources, started.blockers) == (56.0, resources, ("A",))
+    (stuck,) = w.of(TrafficWaitStuck)
+    assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (86.0, "B", {"A": "IDLE"})
+    assert not w.of(AgvMoveStarted, agv="B")
+    assert w.env.now == 86.0
+
+
+def test_an_idle_holder_in_the_state_is_asked_to_make_way() -> None:
+    """``corr_stop`` with a fleet that makes way: B's wait names the idle A, which makes way along the corridor. Its
+    own leg ends the state of ``R~X``; its odometer reaches the old clear point of ``R~b`` 0.8 m into the arc ``X ->
+    R``; B is granted ``R~b`` when A's tail releases it."""
+    w = world(
+        lambda env: stop_line(env, "corridor"),
+        {"A": "x1", "B": "R"},
+        agv_type=reverser(turn=turn_at_a_bend),
+        make_way=True,
+    )
+    ended = ends(w)
+    w.go("A", "W")
+    back = w.go("A", "x1", at=50.0)
+    w.interrupt(back, 53.0)
+    w.go("B", "y1", at=56.0)
+    w.env.run()
+    started = w.of(TrafficWaitStarted, agv="B")[0]
+    assert (started.t, started.blockers) == (56.0, ("A",))
+    assert [(e.t, e.reason) for e in w.of(AgvRouted, agv="A")][-1] == (56.0, "make_way")
+    assert ended[-2:] == [(60.0, "A", ("R~X",)), (pytest.approx(60.0 + math.sqrt(2.0), rel=1e-12), "A", ("R~b",))]
+    granted = w.of(TrafficWaitEnded, agv="B")[0]
+    released = next(e for e in w.of(TrafficReleased, agv="A") if "R~b" in e.resources and e.t > 56.0)
+    assert (granted.t, granted.reason) == (released.t, "granted")
+    assert w.agvs["A"].current_node == w.nodes["x1"] and w.agvs["B"].current_node == w.nodes["y1"]
+
+
+def test_the_state_of_a_reclaim_granted_while_moving_ends_at_the_old_clear_point_inside_the_arc() -> None:
+    """End (b) for a re-claim granted while the holder moves: A leaves W at 50 with its claim back over ``U~V`` and U
+    still pending, U being held by C. C leaves U at 50.5 (C has no extent, so U is released as it departs), and A is
+    granted ``U~V`` while moving, 0.1 m into the arc ``W -> V``. The old clear point of ``U~V`` lies 0.5 m into that
+    arc: the state ends there, at the instant the release scheduled at A's departure would have freed ``U~V``, with no
+    release."""
+    w = world(
+        lambda env: build(
+            env,
+            [("Z", -10, 0), ("U", 0, 0), ("V", 10, 0), ("W", 12.5, 0)],
+            [("Z", "U"), ("U", "V"), ("V", "W")],
+            capacities={"V": 2},
+        ),
+        {"A": "U", "C": "Z"},
+        agv_type=reverser(),
+        hold_back_dead_ends=False,
+        derive_corridors=False,
+    )
+    w.go("A", "W")
+    w.go("C", "U", at=20.0)
+    w.env.run(until=49.0)
+    w.agvs["C"].agv_type = vehicle(length=0.0, profile=reverser().speed_profile)
+    ended = ends(w)
+    w.go("A", "U", at=50.0)
+    w.go("C", "Z", at=50.5)
+    w.env.run()
+    granted = [e for e in w.of(TrafficReserved, agv="A") if e.resources == ("U~V", "U")]
+    assert [e.t for e in granted] == [50.5]
+    at = 50.0 + math.sqrt(1.25)
+    ended = [end for end in ended if end[1] == "A"]  # C, back from U, claimed Z~U again
+    assert ended == [
+        (50.0, "A", ("V~W",)),
+        (pytest.approx(at, rel=1e-12), "A", ("U~V",)),
+    ]
+    assert not [e for e in w.events if e.t == ended[1][0] and e.type_name.startswith("traffic.")]
+    assert w.outcomes["A"] is TravelOutcome.ARRIVED
+
+
+def test_without_kinematic_limits_the_state_ends_at_the_arrival_that_ends_the_arc() -> None:
+    """End (b) for a profile without limits: its clear points inside an arc are released at the next arrival (spec
+    §6.6). V is the root of the branches U and W, so A's claim back from W covers both legs and claims ``U~V`` again
+    at rest; its old clear point lies 0.5 m into the arc ``W -> V`` of 2.5 m, and the state ends at the arrival on V,
+    1.25 s after departure."""
+    w = world(
+        lambda env: build(
+            env, [("U", 0, 0), ("V", 10, 0), ("W", 12.5, 0), ("X", 10, 10)], [("U", "V"), ("V", "W"), ("V", "X")]
+        ),
+        {"A": "U"},
+        agv_type=vehicle(length=3.0, profile=Plain()),
+    )
+    w.go("A", "W")
+    w.env.run(until=49.0)
+    assert w.held("A") == ["U~V", "V", "V~W", "W"]
+    ended = ends(w)
+    w.go("A", "U", at=50.0)
+    w.env.run()
+    assert [e.resources for e in w.of(TrafficReserved, agv="A")][-1] == ("V~W", "U~V", "U")
+    assert ended == [(50.0, "A", ("V~W",)), (51.25, "A", ("U~V",))]
+    assert [e.t for e in w.of(AgvMoveEnded, agv="A")][-2] == 51.25
+
+
+def test_no_timer_of_the_state_outlives_the_arc_or_the_travel() -> None:
+    """The old clear point inside an arc is timed with the arc's own releases, inside the arc. An interrupt received
+    during the arc takes effect where the AGV comes to rest, after the arc, so the state ends at the same instant as
+    without it and the run returns at the last arrival. A travel that comes to rest before the old clear point (an
+    interrupt during a turn) or on a stalled arc schedules nothing for it: the segment stays held in the new direction
+    with the state, and the run returns at the rest."""
+    w = world(lambda env: short_line(env, 2.5), {"A": "U"}, agv_type=reverser(), hold_back_dead_ends=False)
+    w.go("A", "W")
+    w.env.run(until=49.0)
+    ended = ends(w)
+    back = w.go("A", "U", at=50.0)
+    w.interrupt(back, 50.5 - w.env.now)
+    w.env.run()
+    assert w.caught == {"A": "cancelled"}
+    assert ended == [(50.0, "A", ("V~W",)), (pytest.approx(50.0 + math.sqrt(1.25), rel=1e-12), "A", ("U~V",))]
+    assert w.env.now == w.of(AgvMoveEnded, agv="A")[-1].t
+
+    w = world(lambda env: stop_line(env, "corridor"), {"A": "x1"}, agv_type=reverser(turn=turn_at_a_bend))
+    w.go("A", "W")
+    back = w.go("A", "x1", at=50.0)
+    w.interrupt(back, 53.0)
+    w.env.run()
+    assert w.events[-1].t == 53.0  # (the run ends at 56.12, when the timeout of the interrupted turn wait expires)
+    segment = w.controller.network.segment(w.nodes["R"], w.nodes["b"])
+    assert w.controller.ledger.both_directions(segment) == (w.agvs["A"],)
+
+    w = world(lambda env: line(env, 3), {"A": "N1"}, agv_type=vehicle(length=12.0))
+    w.go("A", "N2")
+    w.env.run()
+    a = w.agvs["A"]
+    a.agv_type = vehicle(length=12.0, profile=stalled())
+    process = w.go("A", "N0", at=50.0)
+    w.interrupt(process, 60.0 - w.env.now)
+    w.env.run()
+    assert w.env.now == 60.0
+    segment = w.controller.network.segment(w.nodes["N1"], w.nodes["N2"])
+    assert w.controller.ledger.both_directions(segment) == (a,)
+    assert w.controller.ledger.direction(segment, a) == "backward"

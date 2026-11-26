@@ -91,6 +91,7 @@ class TestFreeFlowController:
         controller.withdraw(request)
         controller.release(agv, [nodes["N1"]])
         controller.retain(agv, [nodes["N1"]])
+        controller.cleared(agv, [nodes["N1"]])
         assert seen == []
         assert env.entities._live == before
 

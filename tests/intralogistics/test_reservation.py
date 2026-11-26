@@ -19,7 +19,8 @@ from simulatte._wire import freeze
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.charging import ChargingStation
-from simulatte.intralogistics.events import TrafficReleased, TrafficReserved
+from simulatte.events import Deltas
+from simulatte.intralogistics.events import AgvMoveStarted, TrafficReleased, TrafficReserved
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.network import Claim, ClaimItem, Corridor, Segment, Zone
 from simulatte.intralogistics.parking import ParkingArea
@@ -361,6 +362,183 @@ class TestSegmentReversal:
         assert w.ask("B", (segment, "backward")).granted  # 4 + 4 fit
         assert w.ask("F", (segment, "backward")).granted is False  # 4 + 4 + 4 do not
         assert w.replay.state["N1~N2"]["forward"] == ("F",)
+
+
+class TestBothDirections:
+    """A single-lane segment claimed again in a new direction is held in both directions by its holder (spec §7.2,
+    "Both directions"): no other claimant is admissible on it until ``cleared`` or a release ends the state."""
+
+    @staticmethod
+    def reversed_on(w: World, agv: str, a: str, b: str) -> Segment:
+        """`agv` holds the segment ``a~b`` from ``a`` to ``b`` and claims it again from ``b`` to ``a``."""
+        segment = w.seg(a, b)
+        forward = "forward" if a < b else "backward"
+        backward = "backward" if forward == "forward" else "forward"
+        assert w.ask(agv, (segment, forward)).granted
+        assert w.ask(agv, (segment, backward)).granted
+        return segment
+
+    @staticmethod
+    def waiting(w: World, agv: str) -> Any:
+        return w.controller._pending[w.agvs[agv]]
+
+    def test_the_holder_counts_in_both_directions_for_every_other_claimant(self) -> None:
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3", "C": "N0"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        ledger, a = w.controller.ledger, w.agvs["A"]
+        assert ledger.both_directions(segment) == (a,)
+        assert ledger.direction(segment, a) == "backward"
+        assert w.replay.state["N1~N2"]["forward"] == () and w.replay.state["N1~N2"]["backward"] == ("A",)
+        backward = Claim((ClaimItem(segment, "backward"),), 1)
+        view = w.controller.view
+        assert view.admissible(a, backward)  # its own holdings never block it
+        assert not view.admissible(w.agvs["B"], backward)  # the extents 4 + 4 fit in 10: only the state refuses
+        assert view.blockers(w.agvs["B"], w.nodes["N2"], w.nodes["N1"]) == ((segment, (a,)),)
+        assert not w.ask("B", (segment, "backward")).event.triggered
+        assert not w.ask("C", (segment, "forward")).event.triggered
+        assert ledger.both_directions(w.nodes["N2"]) == ()
+
+    def test_a_first_claim_a_passing_segment_and_a_corridor_start_no_state(self) -> None:
+        w = world(lambda env: line(env, 4), {"A": "N1"})
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        assert w.controller.ledger.both_directions(segment) == ()
+        w = world(passing_line, {"A": "N1", "B": "N2"}, place=False)
+        segment = w.seg("N1", "N2")
+        assert w.ask("A", (segment, "forward")).granted
+        assert w.ask("A", (segment, "backward")).granted
+        assert w.controller.ledger.both_directions(segment) == ()
+        assert w.ask("B", (segment, "backward")).granted  # 4 + 4 fit in the backward lane
+        w = world(two_junction_corridor, {"A": "J1"})
+        corridor = w.corridor()
+        assert w.ask("A", (corridor, "forward")).granted
+        assert w.ask("A", (corridor, "backward")).granted
+        assert w.controller.ledger.both_directions(corridor) == ()
+
+    def test_cleared_ends_the_state_and_grants_the_wait_it_blocked_without_a_release(self) -> None:
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        request = w.ask("B", (segment, "backward"))
+        w.controller.stopped(request)
+        before = len(w.replay.events)
+        w.controller.cleared(w.agvs["A"], [w.nodes["N2"], segment])
+        assert request.granted
+        assert w.controller.ledger.both_directions(segment) == ()
+        assert [(e.type_name, e.agv) for e in w.replay.events[before:]] == [
+            ("traffic.wait_ended", "B"),
+            ("traffic.reserved", "B"),
+        ]
+        assert w.holders(segment) == ["A", "B"]
+
+    def test_cleared_of_resources_without_the_state_does_nothing(self) -> None:
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        request = w.ask("B", (segment, "backward"))
+        changes, before = w.controller._changes, len(w.replay.events)
+        w.controller.cleared(w.agvs["B"], [segment, w.seg("N2", "N3")])  # B is not in the state
+        w.controller.cleared(w.agvs["A"], [w.nodes["N2"], w.seg("N2", "N3")])
+        assert not request.event.triggered
+        assert w.controller.ledger.both_directions(segment) == (w.agvs["A"],)
+        assert (w.controller._changes, len(w.replay.events)) == (changes, before)
+
+    def test_a_release_ends_the_state(self) -> None:
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        request = w.ask("B", (segment, "backward"))
+        w.release("A", segment)
+        assert w.controller.ledger.both_directions(segment) == ()
+        assert request.granted
+
+    def test_a_retain_that_drops_the_segment_ends_the_state_and_one_that_keeps_it_keeps_it(self) -> None:
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        request = w.ask("B", (segment, "backward"))
+        w.retain("A", "N2", segment)
+        assert w.controller.ledger.both_directions(segment) == (w.agvs["A"],)
+        assert not request.event.triggered
+        w.retain("A", "N2")
+        assert w.controller.ledger.both_directions(segment) == ()
+        assert request.granted
+
+    def test_an_end_that_blocked_no_pending_claim_moves_no_review_timer(self) -> None:
+        """B waits for N3, held by D; the states of A and E block nothing. Their ends count for nothing (Ruling A3-e):
+        B's review timer stays the same timer, and once its review found nothing changed it stays asleep."""
+        w = world(lambda env: line(env, 6), {"A": "N2", "E": "N4", "D": "N3", "B": "N0"})
+        first = self.reversed_on(w, "A", "N1", "N2")
+        second = self.reversed_on(w, "E", "N4", "N5")
+        request = w.ask("B", w.nodes["N3"])
+        w.controller.stopped(request)
+        waiting = self.waiting(w, "B")
+        timer, changes = waiting.timer, w.controller._changes
+        assert timer is not None
+        w.env.run(until=10.0)
+        w.controller.cleared(w.agvs["A"], [first])
+        assert (waiting.timer, waiting.seen, w.controller._changes) == (timer, changes, changes)
+        w.env.run(until=40.0)  # the review at 30 found nothing changed: asleep
+        assert (waiting.timer, waiting.dormant, waiting.reviews) == (None, 30.0, 1)
+        w.controller.cleared(w.agvs["E"], [second])
+        assert (waiting.timer, waiting.dormant, w.controller._changes) == (None, 30.0, changes)
+        assert w.controller.ledger.both_directions(second) == ()
+
+    def test_a_wait_blocked_by_the_state_and_by_another_holder_is_woken_by_the_end_and_reviewed(self) -> None:
+        """B needs ``N1~N2`` backward, refused by A's state, and N0, held by D. A is travelling (it turns): the review
+        at 30 finds nothing changed and B sleeps, not stuck. At 40 A is idle again and its state ends: the end wakes
+        the wait as a release would, the review at 70 finds B blocked by the idle D alone and reports it stuck."""
+        w = world(lambda env: line(env, 5), {"A": "N2", "D": "N0", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        a = w.agvs["A"]
+        a.transition_to(AGVState.TRAVELING_EMPTY)
+        request = w.ask("B", (segment, "backward"), w.nodes["N0"])
+        w.controller.stopped(request)
+        (started,) = [e for e in w.replay.events if e.type_name == "traffic.wait_started"]
+        assert started.blockers == ("A", "D")
+        waiting = self.waiting(w, "B")
+        w.env.run(until=40.0)
+        assert (waiting.timer, waiting.dormant, waiting.stuck) == (None, 30.0, False)
+        a.transition_to(AGVState.IDLE)
+        w.controller.cleared(a, [segment])
+        assert waiting.timer is not None and waiting.dormant is None
+        w.env.run()
+        assert w.env.now == 70.0
+        (stuck,) = [e for e in w.replay.events if e.type_name == "traffic.wait_stuck"]
+        assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (70.0, "B", {"D": "IDLE"})
+        assert waiting.reviews == 2 and not request.event.triggered
+
+    def test_a_waiting_holder_in_the_state_closes_a_deadlock(self) -> None:
+        """A holds ``N1~N2`` in the state and waits for N3, held by B; B waits for ``N1~N2`` backward, which only the
+        state refuses. Detection reads the state among the members: the two are deadlocked."""
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        mine = w.ask("A", w.nodes["N3"])
+        w.controller.stopped(mine)
+        theirs = w.ask("B", (segment, "backward"))
+        w.controller.stopped(theirs)
+        (deadlock,) = [e for e in w.replay.events if e.type_name == "traffic.deadlock"]
+        assert (deadlock.agvs, deadlock.victim, deadlock.action) == (("A", "B"), None, "unresolved")
+        assert not mine.event.triggered and not theirs.event.triggered
+
+    @pytest.mark.parametrize("disposition", ["IDLE", "STRANDED", "STALLED"])
+    def test_a_wait_blocked_only_by_a_holder_at_rest_in_the_state_is_reported_stuck(self, disposition: str) -> None:
+        w = world(lambda env: line(env, 5), {"A": "N2", "B": "N3"})
+        segment = self.reversed_on(w, "A", "N1", "N2")
+        a = w.agvs["A"]
+        if disposition == "STRANDED":
+            a.transition_to(AGVState.STRANDED)
+        elif disposition == "STALLED":
+            a.transition_to(AGVState.TRAVELING_EMPTY)
+            motion = freeze({"from": "N2", "to": "N1", "t_start": 0.0, "t_end": math.inf, "stalled": True})
+            a.motion = motion
+            moved = Deltas.build().set("A", "motion", motion).done()
+            w.env.emit(
+                AgvMoveStarted(
+                    agv="A", from_node="N2", to_node="N1", t_end=math.inf, motion=motion, loaded=False, deltas=moved
+                )
+            )
+        request = w.ask("B", (segment, "backward"))
+        w.controller.stopped(request)
+        w.env.run()
+        (stuck,) = [e for e in w.replay.events if e.type_name == "traffic.wait_stuck"]
+        assert (stuck.t, stuck.agv, dict(stuck.blockers)) == (30.0, "B", {"A": disposition})
 
 
 def test_own_holdings_never_block_a_long_vehicle() -> None:

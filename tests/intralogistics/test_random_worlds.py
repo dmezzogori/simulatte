@@ -698,12 +698,28 @@ def test_a_segment_granted_against_a_body_is_a_violation(monkeypatch):
     assert "ADMITTED against a body on a segment" in _kinds(run_world(world_spec(58), controller="reservation"))
 
 
-def test_the_monitor_reports_the_admission_against_a_body_before_the_physical_conflict():
-    """Seed 8101904 (`FastestRouter`): agv-c re-claims g0_2~g1_0 in its new direction while its body still lies on it
-    as it arrived, and agv-g is granted the segment the other way at the same instant (471.171). The admission is
-    reported at agv-g's grant (its `traffic.reserved`), three events before agv-g's move starts and the bodies meet. T3
-    fixes the conflict and deletes this test."""
-    record = run_world(world_spec(8101904), controller="reservation", router="fastest")
+REVERSAL = (8101904, "fastest")
+"""The run in which agv-c claims ``g0_2~g1_0`` again in its new direction while its body still lies on it as it arrived,
+and agv-g asks for the segment the other way at the same instant (471.171): before the both-directions state of spec
+§7.2, agv-g was granted it and the two bodies lay head-on on it."""
+
+
+def _undone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The rule undone: a grant never leaves a holder in the both-directions state."""
+    take = HoldingsLedger.take
+
+    def never(self, agv, items):
+        take(self, agv, items)
+        self._both.clear()
+
+    monkeypatch.setattr(HoldingsLedger, "take", never)
+
+
+def test_with_the_rule_undone_the_monitor_reports_the_admission_before_the_physical_conflict(monkeypatch):
+    """The admission is reported at agv-g's grant (its `traffic.reserved`), three events before agv-g's move starts and
+    the bodies meet."""
+    _undone(monkeypatch)
+    record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
     kinds = [violation[1] for violation in record.violations]
     assert kinds == ["ADMITTED against a body on a segment", "PHYSICAL opposite directions on a segment"]
     admitted = record.violations[0]
@@ -711,14 +727,8 @@ def test_the_monitor_reports_the_admission_against_a_body_before_the_physical_co
     assert admitted[0] == record.violations[1][0] == pytest.approx(471.171, abs=1e-3)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="a direction re-claim admits a vehicle against a body (audit (ii)); T3 fixes it",
-)
-@pytest.mark.parametrize(("seed", "router"), [(8101904, "fastest")])
-def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body(seed, router):
-    record = run_world(world_spec(seed), controller="reservation", router=router)
+def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body():
+    record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
     assert record.quiescent and not record.violations
 
 
