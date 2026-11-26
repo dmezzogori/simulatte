@@ -3079,7 +3079,8 @@ cleared, because clearing runs only where the policy named no node, after a miss
 ends elsewhere than its target and no order is pending, the AGV goes once through the decision of an AGV that ends a
 mission on that node: the battery check, the repositioning policy asked again (a parking slot taken at the decision),
 and the clearance of a service node where the policy names none and the controller controls occupancy. The trip is not
-resumed. With an order pending the AGV becomes `IDLE` where it charged and the pending-queue check offers it the order,
+resumed. With an order pending the AGV becomes `IDLE` where it charged and the pending-queue check runs (the order may
+go to it or to another AGV),
 as at the base. A trip of the decision that charges on its way again is followed by no further decision: the AGV
 becomes `IDLE` where it charged. (As committed in `186d4ab` the decision ran with orders pending and could follow
 itself without bound; see "Fix round 1".)
@@ -3189,8 +3190,9 @@ trees, differs from the parent only in the fields `node` and `reason` of `agv.st
 (same events otherwise, same length). None of the 52 `insufficient_after_charging` events of the parent followed a
 charge, and all 52 named the node where the diversion started.
 
-**Termination** (since fix round 1). The decision after a charge on the way is made at most once per such charge: a
-trip of it that charges on its way again ends with the AGV `IDLE` where it charged, as at the base, so a move without an
+**Termination** (since fix round 1). The decision after a charge on the way is made at most once per move (the
+charge of the decision's own trip is followed by none): a trip of it that charges on its way again ends with the AGV
+`IDLE` where it charged, as at the base, so a move without an
 order charges on its way at most twice (in the move, and in the trip of the one decision that follows) and
 `_idle_travel` and `_rest` call each other at most once. The decision does not start a trip when the policy names the node
 the AGV stands on (a charger's own node included), when it names none and clearing is off, or when the standard search
@@ -3256,7 +3258,7 @@ at `3aac5c4` after one charge. It also found the test that pinned this with `unt
 as "without end", the cost of the rule stated on the generator's worlds only, and the order with pending work left to a
 ruling. Rulings of the controller: the decision after a charge is made once, and a trip of it that charges again ends
 with the AGV idle where it charged (A3-q); it is not made while an order is pending: the AGV becomes idle where it
-charged and the pending-queue check offers it the order, as at the base (A3-r).
+charged and the pending-queue check runs, whether or not it gives the order to this AGV, as at the base (A3-r).
 
 The change (`fleet.py`): `_idle_travel` enters the decision only with an empty pending queue and when the AGV is not
 already in one (`_after_charge`, a set entered and left around the call, also when the trip is interrupted); the
@@ -3332,3 +3334,19 @@ exit status 0 (199 s); 2000000..2000999, 6,000 runs, 6,720,267 events, the same 
 runs of seeds 4600000..4600049 under `PYTHONHASHSEED` 1 and 2 have the fingerprints and records of the measured head
 run. The focused test files (`test_idle_traffic.py`, `test_stop_requests.py`, `test_random_worlds.py`,
 `test_charging.py`) pass on PyPy 3.11 (`389 passed`).
+
+The re-review measured the final code on its own small-battery worlds (quoted as the reviewer's: seeds
+4616000..4616999 rewritten as above, 6,000 runs, `3aac5c4` against the head of fix round 1): 63 changed runs (48 by
+item 1, 15 by item 2), strandings +26 [+1.7, +50.3], AGVs stranded at the end +14 [+4.0, +24.0], orders completed -10
+[-37.9, +17.9], first dispatch paired by order +459.0 s [-63.4, +981.3]. On those worlds the rise in strandings is
+outside chance: it is the cost of the rule stated above.
+
+**Fix round 2** (Minors of the re-review; no change of behaviour: `fleet.py` changes in a docstring only, its syntax tree
+with docstrings stripped equal to that of `f1aef98`). Three tests pin what nothing pinned: two make-way moves of one AGV,
+each charging on its way, are each followed by the decision (fails when the AGV is not taken out of the set of AGVs in a
+decision afterwards); after a charge on the way no `agv.state_changed` that keeps the state comes before the decision's
+trip to the policy's node (fails with the unguarded transition); and a make-way move to a node beyond the reach of a
+full charge, whose policy names that node, charges twice and rests on the charger, without `until` (fails by
+`RecursionError` when the decision may follow itself). The docstring of `_idle_travel` and the termination paragraph say
+"at most once per move", and the sentences on a pending order say that the pending-queue check runs, as the amended
+traffic spec (§7.10) has it, not that the order goes to this AGV.
