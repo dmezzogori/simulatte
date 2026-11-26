@@ -3,7 +3,7 @@
 Branch `feature/layout-only-models`, spec `specs/2026-11-23-layout-only-models-design.md`. The work makes the layout
 the only way to build a model. This file records the evidence each task produces for the spec's verification (§8) and
 acceptance (§10): the parity run that allows explicit mode to be removed (L8), the measurements of the later tasks,
-from Task 11, the safety run on layout-built worlds, the walk of §10 and the gates, the fix wave of the final review
+from Task 11, the safety run on layout-built worlds, the walk of §10 and the gates, the fix wave of the final review;
 Assignment 2: the residuals of that wave, three traffic defects the random worlds found, the band of the core
 overhead gate, and the gates at the final head with what stays open; and, last, Assignment 3: the strict monitor, the
 rules for direction re-claims and stuck waits, the decision after a charge on the way, and the acceptance on ten
@@ -22,7 +22,7 @@ of Assignment 2, and "T6. Acceptance" those that hold at the end of Assignment 3
 | Question | Answer | Section |
 |---|---|---|
 | Do explicit and layout models run alike? | Yes: 6,000 pairs equal at `e4afae4`, the last commit with both modes. | Parity (Task 2) |
-| Does the layout-built world stay safe? | Yes: at the final head (`229ea61`) 12,000 runs of 2,000 worlds (seeds 100000..100999 and 2000000..2000999), no violation, no exception, every run returned; 13,290,230 events. The two known limits that Task 11 recorded (a parking slot kept while charging on the way to park; a deadlock not detected again after a member's wait was withdrawn) predated this work, are fixed in Assignment 2 (B2 and B1) and the monitor has no exemption for a known limit any more. Two seeds outside those ranges still ended with a violation then and were open; Assignment 3 fixed both (T3, T4). At `eb14b5b` (T6) the same ranges, 10,000 worlds of unused seeds (60,000 runs) and 72 named seeds have no violation, no exception and every run returned. | Safety run (Task 11); B1; B2; Gates at the final head; T6 |
+| Does the layout-built world stay safe? | Yes: at the final head (`229ea61`) 12,000 runs of 2,000 worlds (seeds 100000..100999 and 2000000..2000999), no violation, no exception, every run returned; 13,290,230 events. The two known limits that Task 11 recorded (a parking slot kept while charging on the way to park; a deadlock not detected again after a member's wait was withdrawn) predated this work, are fixed in Assignment 2 (B2 and B1) and the monitor has no exemption for a known limit any more. Two seeds outside those ranges still ended with a violation then and were open; Assignment 3 fixed both (T3, T4). T6 ran the same ranges, 10,000 worlds of unused seeds (60,000 runs) and 72 named seeds from a copy of `3cef517`, whose behaviour equals that of the head `eb14b5b` (T6, "Why the runs hold for the head"): no violation, no exception, every run returned. | Safety run (Task 11); B1; B2; Gates at the final head; T6 |
 | Are the performance targets of §9 met? | Yes. Activation at 1,600 servers meets its target at the line (49.1 to 49.4 ms against 50 ms). | Final numbers against §9 (Task 11) |
 | Do the gates pass? | At the final head (`229ea61`) every gate was run and passed, the overhead gate in three rounds against both baselines with the limit of Assignment 2, C (+12.5 % against the stripped copy). At `eb14b5b` (Assignment 3, T6) every gate was run and passed, except that one run of the PyPy lane failed in `tests/core/test_kpi.py` and the second run passed (T6, gate 7). Earlier: at `ab4d430` every gate passed; at the head of the final review's fix wave the local overhead gate against the stripped copy was at its old limit (6 of 18 comparisons over +8.5 %), which Assignment 2, C widened. | Gates at the final head; Gates (Task 11); Final review; C |
 | What did the final review find? | No behavioural defect. Documentation, error messages of the strict contract and this record were fixed in one wave; no event, digest, bundle or hash changed. | Final review |
@@ -1964,9 +1964,9 @@ run of the random worlds with a violation (the first two); the others leave no v
 at the final head: the recorded ranges are clean.
 
 **(a) A stuck wait not reported after a gate waiver (seed 7702388).** **Fixed** (Assignment 3, T4): a wait with no
-review left is checked for the stuck condition at every controller entry that is not a grant or a release, the stop
-that waives a gate included; see "T4. Every stuck wait is reported". The run now ends without a violation
-(T6: seed 7702388 has 0 violations at `eb14b5b`). `ReservationController`, `ShortestDistanceRouter`.
+review left is checked for the stuck condition at every controller entry that is not a grant or a release, the stop that
+waives a gate included; see "T4. Every stuck wait is reported". The run now ends without a violation (T6: seed 7702388
+has 0 violations, run at `3cef517`, equal in behaviour to `eb14b5b`). `ReservationController`, `ShortestDistanceRouter`.
 Reproduction, run for this list at `229ea61`: `uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first
 7702388` gives 6 runs, 5,475 events, one violation, `seed 7702388 reservation shortest: (586.206, 'open wait with no
 report', ['agv-e'])`, exit status 1. The mechanism and the evidence are under B1, "Found beyond this task" (Ruling
@@ -1982,7 +1982,7 @@ wait-review code that Assignment 2 left alone.
 **(b) A physical conflict from a direction re-claim through look-ahead (seed 8101904).** **Fixed** (Assignment 3,
 T3, `adfdd30`): a segment claimed again in a new direction is held in both directions until the body has left it; see
 "T3. No admission against a body after a direction re-claim". The run now ends without a violation
-(T6: seed 8101904 has 0 violations at `eb14b5b`).
+(T6: seed 8101904 has 0 violations, run at `3cef517`, equal in behaviour to `eb14b5b`).
 `ReservationController`, `FastestRouter`. Reproduction, run for this list at `229ea61`: `uv run --all-extras python
 benchmarks/layout_safety.py --worlds 1 --first 8101904` gives 6 runs, 7,018 events, one violation, `seed 8101904
 reservation fastest: (471.171, 'PHYSICAL opposite directions on a segment', 'g0_2~g1_0', [('agv-c', ('g0_2',
@@ -2060,7 +2060,7 @@ job and needs a rerun. The overhead gate at the final head is below the limit in
 points to spare against the stripped copy (below). Unchanged by Assignment 3: the limits (+5.0 % and +12.5 %), the band
 (2 %) and the calibration note stand, and the `bench` job of `ci.yml` is untouched (`eb14b5b` changes the `test` job's
 timeout only). At `eb14b5b` the six comparisons against the stripped copy run from +7.4 % to +8.2 %, at least 4.3 points
-under the limit (T6, gate 9).
+under the limit (T6, gate 9: run at `eb14b5b` itself).
 
 **(g) Smaller points recorded and left.**
 
@@ -3395,7 +3395,8 @@ The `fleet.py` hunk is a docstring (the syntax tree of the file with docstrings 
 I checked with `ast`), `test_idle_traffic.py` adds tests, the guide changes one sentence, this record's earlier sections
 change in wording, and `ci.yml` raises the `timeout-minutes` of the `test` job from 30 to 45.
 `tests/intralogistics/random_worlds.py` and `benchmarks/` are identical (`git diff 3cef517 eb14b5b` is empty for both).
-The same ranges at `eb14b5b` give the event counts that T5 recorded at its head (6,570,403 and 6,720,267).
+The same ranges, run from that copy, give the event counts that T5 recorded at its final head (6,570,403 and
+6,720,267), which is what the equality of behaviour predicts.
 
 #### The sample
 
@@ -3472,7 +3473,7 @@ the number of `traffic.wait_stuck` events. Totals over the 60,000 runs (`sample/
 | after such a trip (events): AGV parked / idle on the charger's node / idle at the trip's target / idle elsewhere / none before the run ended | 26 / 79 / 4 / 3 / 2 | 21 / 38 / 0 / 3 / 0 |
 
 How each was told. `traffic.wait_stuck` is emitted by one function, `ReservationController._report_one`; the script
-wraps it and records the innermost of `_check_asleep` (the check of waits with no review left), `_review` and `idle`
+wraps it and records the innermost of `_check_asleep` (the check of waits with no review left), `_review` and `_idle`
 that is running, so the split is not in the events; 20,965 + 43,954 + 25 = 64,944. The both-directions counts come from
 wrappers around `HoldingsLedger.take`, `drop` and `end_both_directions` (the state is the ledger's alone, traffic spec
 §7.2): 858,220 + 83 + 62 = 858,365. Deadlock reports and strandings are counted from the events by `action` and
@@ -3480,11 +3481,11 @@ wrappers around `HoldingsLedger.take`, `drop` and `end_both_directions` (the sta
 
 The limit of the count of trips that turned to charge: the events do not say that a trip turned, so the script infers it
 (a trip opens at an `agv.routed` with reason travel, make_way or clear_node while the AGV has no order, and turned when
-`charging.started` comes at a node other than its first destination; it closes at the next idle state). That inference
-counts more than what happened: 114 against 95 under reservation and 62 against 32 under free flow, where the count
-inside `_idle_travel` is exact for the trips that call `_charge_agv`. The classes of where the AGV rested come from the
-inference only. The two counts were not reconciled: the rest classes are an order of magnitude, not a measurement of
-turns.
+`charging.started` comes at a node other than its first destination; it closes at the next idle state). The two counts
+differ, 114 against 95 under reservation and 62 against 32 under free flow, and I did not investigate why. They are not
+the same quantity: the inference counts trips without an order of any purpose, and the other counts the calls of
+`_charge_agv` inside `_idle_travel` by purpose. The classes of where the AGV rested come from the inference only. The
+two counts were not reconciled: the rest classes are an order of magnitude, not a measurement of turns.
 
 #### The recorded ranges
 
@@ -3496,7 +3497,8 @@ turns.
 | 2000000..2000999 | 1,000 | 6,000 | 6,720,267 | 0 | 0 | 0 | 0 | 0 | 815 |
 
 12,000 runs and 13,290,670 events. At the head of Assignment 2 the same ranges gave 6,570,200 and 6,720,030 events: the
-difference is what Assignment 3 changed (T4 and T5 record the counts at their own heads, equal to these).
+difference is what Assignment 3 changed. T4 recorded 6,570,204 and 6,720,030 at its head (`3aac5c4`); T5 recorded
+6,570,403 and 6,720,267 at its final head, equal to these.
 
 #### The named seeds
 
@@ -3513,7 +3515,7 @@ strandings). "Before" is what this record says about the seed before Assignment 
 | 8103801 | the shape the first half of B1 left open; clean at the head of A2 | 10,449 | 0 violations, exit 0 |
 | 9202320 | open waits of the review at `687ad66`; clean at the head of A2 | 14,565 | 0 violations, exit 0 |
 | 9202736 | open waits of the review at `687ad66`; clean at the head of A2 | 3,237 | 0 violations, exit 0 |
-| 619 | formerly the first known limit (B2); pinned again in T5 | 2,689 | 0 violations, exit 0 |
+| 619 | formerly the first known limit (B2); T5's item 1 moved its pin and T5's fix round put it back, so it is unchanged at the head | 2,689 | 0 violations, exit 0 |
 | 7702388 | violation at the head of A2 (item (a)): `open wait with no report`, reservation `shortest` | 5,477 | 0 violations, exit 0 |
 | 8101904 | violation at the head of A2 (item (b)): `PHYSICAL opposite directions on a segment`, reservation `fastest` | 7,108 | 0 violations, exit 0 |
 | 8100301 | `agv.stranded` naming the node where a diversion started (item (e)), `fastest` | 9,046 | 0 violations, exit 0 |
@@ -3588,13 +3590,13 @@ Run in this order at `eb14b5b`, by me, with nothing edited between them (`git st
 
 | # | Gate | Command | Result |
 |---|---|---|---|
-| 1 | Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.20%`; `5176 passed, 1 skipped, 3 warnings in 455.25s (0:07:35)` |
+| 1 | Tests and coverage | `uv run --all-extras pytest` | `Required test coverage of 99% reached. Total coverage: 99.20%`; `5176 passed, 1 skipped, 3 warnings in 455.25s (0:07:35)`; the three warnings are third-party deprecations (starlette's `httpx` test client in `tests/core/test_studio.py:11`, `websockets.legacy`, uvicorn's `websockets` implementation), the same as at the gates of Assignment 2 |
 | 2 | Lint | `uv run --all-extras ruff check src tests benchmarks` | `All checks passed!` |
 | 3 | Format | `uv run --all-extras ruff format --check` | `532 files already formatted` |
 | 4 | Types | `uv run --all-extras ty check src` | `All checks passed!` |
 | 5 | Docs | `uv run --all-extras zensical build` | `No issues found`; `Build finished in 0.40s` |
 | 6 | Studio | in `studio/`: `pnpm typecheck && pnpm test && pnpm build && pnpm test:browser` | exit 0; typecheck of the six projects `Done`; trace `329 passed`, playback `24`, scene `25`, export `15`, viewer `82`; `built in 1.31s` and `built in 3.48s`; `36 passed (1.2m)` |
-| 7 | PyPy lane (`ci.yml`) | `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 --frozen pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` after `uv sync --dev --python pypy-3.11 --frozen` (`Checked 61 packages`) | **First run failed**: `FAILED tests/core/test_kpi.py::test_writer_failure_propagates_on_samples - OSError`, `1 failed, 5044 passed, 23 skipped in 610.55s (0:10:10)`. Second run, same command: `5045 passed, 23 skipped in 613.63s (0:10:13)` (PyPy 7.3.22, Python 3.11.15) |
+| 7 | PyPy lane (`ci.yml`) | `MPLBACKEND=Agg UV_PROJECT_ENVIRONMENT=<scratch>/pypy-venv uv run --python pypy-3.11 --frozen pytest tests/core tests/execution tests/intralogistics tests/layout -o addopts="-q -p no:cacheprovider"` after `uv sync --dev --python pypy-3.11 --frozen` (`Checked 61 packages`); it differs from the `ci.yml` line by `--frozen` and `UV_PROJECT_ENVIRONMENT`, which keep `uv` off the checkout's `.venv` and `uv.lock` | **First run failed**: `FAILED tests/core/test_kpi.py::test_writer_failure_propagates_on_samples - OS...` (the line is cut by the terminal width in the raw output; the traceback above it ends in `E   OSError: disk full`), `1 failed, 5044 passed, 23 skipped in 610.55s (0:10:10)`. Second run, same command: `5045 passed, 23 skipped in 613.63s (0:10:13)` (PyPy 7.3.22, Python 3.11.15) |
 | 8a | CPython 3.11 | `UV_PROJECT_ENVIRONMENT=<scratch>/py311-venv uv run --python 3.11 --frozen --all-extras pytest tests/intralogistics tests/layout --no-cov -q` | `2833 passed in 118.83s (0:01:58)` (Python 3.11.13) |
 | 8b | CPython 3.11, coverage and durations | the same paths with `-o addopts="--cov=src/simulatte --cov-branch --cov-report= --cov-fail-under=0 -q" --durations=15` (the ini `timeout = 60` stays) | `2833 passed in 430.92s (0:07:10)`; one test above 15 s (below) |
 | 9 | Overhead gate | the `bench` job's step, mode `none`, `--warmup 1 --repeat 5 --processes 3`, both CI workloads, three rounds | pass in all 12 comparisons (below) |
@@ -3603,12 +3605,17 @@ Run in this order at `eb14b5b`, by me, with nothing edited between them (`git st
 **Gate 7, the failure.** `test_writer_failure_propagates_on_samples` makes the trace writer's thread fail on the first
 KPI record and expects the failure to surface on the third sample. On PyPy the `OSError` surfaced at the second sample,
 inside the test's own call and outside its `pytest.raises` (`tests/core/test_kpi.py:735`), that is earlier than the test
-expects. Neither the test nor the writer (`src/simulatte/trace/writer.py`) is part of Assignment 3 (since `main` the
-branch changes one line of `writer.py`, in the layout work). It is intermittent: the test alone, ten times in a row on
-the same PyPy environment, failed once (`gates/g7-rerun-kpi-test-alone.out`: 9 passed, 1 failed), and the whole lane
-passed on a second run (5045 passed, the test among them). I record the gate as failed at the first run and passed at
-the second. I did not establish the cause; the pattern is consistent with a race between the writer thread and the test,
-and it is listed under "Open after Assignment 3".
+expects. I recorded the gate as failed at the first run. I then ran the test alone ten times on the same PyPy
+environment (`gates/g7-rerun-kpi-test-alone.out`: 9 passed, 1 failed) and the whole lane a second time (5045 passed, the
+test among them). The reviewer of this record measured the test alone much more (quoted as the reviewer's,
+`a3-T6-findings.md`; the PyPy environment of `scratch-final-fix`): the head with the editable import 28 of 30 and 20 of
+20 runs failed; the head with `PYTHONPATH=src` 6 of 20; a fresh `git archive` of the head with `PYTHONPATH` 1 of 20; a
+copy of `0ffc5b6` 4 of 30 and 8 of 20; CPython 3.14 at the head 0 of 30. So "failed once in ten" is one sample of a rate
+that depends on how the package is imported and on load. The test comes from SP1 (`3cb6937`), and neither it nor
+`src/simulatte/trace`, `kpi.py`, `events.py` or `environment.py` has changed since `0ffc5b6`: it is older than
+Assignment 3. The cause is not established; the pattern is consistent with a race between the writer thread and the
+test. The CI lane `test (pypy-3.11)` passed in every run of this branch but one, and that one failed in another test
+(`test_replay.py`, below). It is its own item under "Open after Assignment 3".
 
 **Gate 8b, the tests above 15 s.** The `--durations=15` table of the CPython 3.11 run under coverage (setup, call and
 teardown are listed separately; this machine, not a CI runner) has one test above 15 s, the first row. Every setup and
@@ -3635,8 +3642,9 @@ estimated it at about 38 s on a CI 3.13 lane, under the limit of 60 s.
 (`simulatte.__file__` = `/Users/davide/Developer/simulatte/src/simulatte/__init__.py`, CPython 3.14.3, `eb14b5b`);
 released 0.12.0 and the stripped copy in the environments of Task 11 (`scratch-task-11/bench/base` and `.../stripped`,
 printed as the imported packages), as the earlier gate runs. Run alone: nothing of mine ran besides it; the one-minute
-load average printed before round 1, 2 and 3 was 1.84, 3.46 and 2.34 (the last two include the previous round's own
-three-process runs; two users were logged in). Each baseline run was made just before the branch run of the same
+load average printed before round 1, 2 and 3 was 1.84, 3.46 and 2.34, and after each workload's runs 5.02 and 3.46
+(round 1), 2.91 and 2.34 (round 2), 10.32 and 6.73 (round 3); these include the gate's own three-process runs, and
+two users were logged in (`gates/g9-overhead.out`). Each baseline run was made just before the branch run of the same
 workload. Every `compare.py` exit status was 0 (`gates/g9-overhead.out`):
 
 | Round | Workload | vs released: base, head, overhead (limit +5.0 %) | vs stripped: base, head, overhead (limit +12.5 %) | Verdict |
@@ -3655,9 +3663,12 @@ the limit); against released 0.12.0 from -25.2 % to -22.6 %. These agree with As
 **Benchmark (gate 10, not gated).** `benchmarks/intralogistics.py --mode none --warmup 1 --repeat 5 --processes 3
 --no-memory`, the head's script on both sides; "before" is `src` of `0ffc5b6` from a `git archive` copy first on
 `PYTHONPATH` (`scratch-a3-T6/tree-0ffc5b6`, printed as imported), "after" the checkout; alternating, before first in
-rounds 1 and 3, after first in round 2. The trajectories differ by design (Assignment 3 changed what the fleet does), so
-`compare.py` ran with `--report-only --allow-different-trajectory` and gives the ratio only. Load before each round,
-one-minute average: 1.86, 1.79 and 1.75 for the first series; 2.52, 2.10 and 2.78 for the second.
+rounds 1 and 3, after first in round 2. `compare.py` ran with `--report-only` (it demands `--budget` for two mode-`none`
+results otherwise) and with `--allow-different-trajectory`, which was not needed: in all twelve result files
+(`gate10-out/`, `gate10b-out/`) the order trajectory (`counts.trajectory`, `inputs`, `orders`, `by_status`) is identical
+between before and after, with hash `633394be9d9f` and 1,018 orders for one shift and hash `bf83ed3147ef` and 10,979
+orders for ten shifts. In these workloads Assignment 3 changes no order, so the ratios compare equal work. Load before
+each round, one-minute average: 1.86, 1.79 and 1.75 for the first series; 2.52, 2.10 and 2.78 for the second.
 
 | Series | Round | Before median (IQR) | After median (IQR) | Ratio | Overhead |
 |---|---|---|---|---|---|
@@ -3671,12 +3682,88 @@ one-minute average: 1.86, 1.79 and 1.75 for the first series; 2.52, 2.10 and 2.7
 Assignment 3 adds no measurable cost to the scaled-up advanced intralogistics example in mode `none`
 (`gates/g10-compare.out`, `gates/g10b-compare.out`).
 
+### T0 and what the reviews measured beyond the task sections
+
+Some figures of "Open after Assignment 3" are in no section above: task T0 (the CI limit of the lanes of CPython 3.11 to
+3.13, `e387d8a`) has no section of its own, and some reviews measured things that the task sections do not repeat. The
+facts are stated here with their sources. The raw files are under `.superpowers/sdd/2026-11-23-layout-only-models/`
+(git-ignored scratch, like the others this record cites); "the ledger" is `progress.md` there, from "## Assignment 3".
+
+**T0.** At `0ffc5b6` the lanes of 3.11 to 3.13 hit the 60 s limit of one test in the teardown of the autouse fixture
+`check_bundles` (`test_stop_requests.py::test_a_lone_agv_ends_alike_...`: 520 layouts built, read back and checked after
+the test). Task T0 (report `a3-T0-ci-report.md`, review Approved in the ledger) added the marker
+`sampled_bundles(every=n)` in `tests/conftest.py`, with `every=25` on five seeded sweeps of `test_stop_requests.py`,
+`test_travel_motion.py` and `test_turning.py`: the teardown of that test went from 61.5 s to 2.5 s. What it left, from
+the report and the ledger (Ruling A3-b and the lines "A3 T0"):
+
+- `tests/core/test_trace_reader.py::test_limits_enforced` takes 40.1 s in its own call on the CI 3.13 lane (the report's
+  table of tests above 20 s; 30.4 s locally on 3.11 under coverage). The cost is its own call: `Trace.open` on a footer
+  whose index is repeated `len(data) // 18 + 1` times. It was 25 to 28 s on `main`'s CI and is 6 to 10 % slower on this
+  branch, because the layout in the INITIAL record makes the file 6.4 % larger (Ruling A3-b). The reviewer's change
+  (`reviewer-scratch-a3-T0/mult.py`: the multiplier `len(data) // (18 * len(body["index"])) + 2`) takes 0.05 s instead
+  of 3.8 s with the same refusal. The test's `match="index"` (line 558) does not prove the cap: with the cap disabled
+  another message containing "index" is raised (the ledger's "follow-up for Davide"; the reviewer's scratch is
+  `reviewer-scratch-a3-T0/`).
+- `test_travel_motion.py::test_lone_agv_matches_free_flow_over_blocks_...` is the test closest to the limit after the
+  change: the reviewer estimated its call at about 38 s on the CI 3.13 lane. It is the test to look at if a lane
+  times out again, and is not to be thinned without asking (the ledger, "A3 T0: minor (deferred)").
+- `sampled_bundles` reads `kwargs["every"]` without a guard (a positional use raises `KeyError`, 0 or a negative value
+  misbehaves), and the 1-in-25 sample misses the schema 1.0 line without a `length` leaf in two sweeps; that kind is
+  checked elsewhere in the suite (the ledger, two "minor (deferred)" lines).
+
+**T3's review** (reviewer's scratch `reviewer-scratch-a3-T3/`). The review ran its own body model on 15,000 fresh
+reservation runs (seeds 4410000..4415999): 435,877 both-directions states and 2,741,015 grants of single-lane segments,
+none of the states a segment claimed again twice (ledger, "A3 T3: review"). The built case of a segment claimed again
+twice is `scripts/hand_double.py` (`a3-T3-findings.md`): A re-claims `U~V` backward at 10.0, is interrupted in its turn
+at 12.0 and at 20.0 is granted `U~V` forward on the route `W, K, U, V`; the state stands from 20.0 to 21.118 (1.118 s)
+with the record equal to the body, and a follower B in that direction waits from 20.5 to 21.118 (0.618 s) with blockers
+`('A',)`. It is a library test since T3's fix round 1.
+
+An interrupt during a turn wait leaves the turn's timeout in the event queue (`a3-T3-findings.md`, "pre-existing at
+`fcecc40`, confirmed by the reviewer under both controllers"). Reproduction, `reviewer-scratch-a3-T3/scripts/turnq.py`
+(a hand-built world with an AGV that has a turn time: it travels to W, starts back toward x1 at 50.0, and that travel is
+interrupted at 53.0, during a turn wait; `reserve=True` and `False` select the controller), run from the checkout with
+`PYTHONPATH=<checkout> uv run --all-extras python <path>/turnq.py`: under both controllers the last event is an
+`AgvStateChanged` at 53.0, the queue is empty afterwards, and `env.run()` returns at `env.now` 56.121320343559645, the
+end of the turn. I ran it at `07ef7e3` for this record and got those values with both settings of `reserve`; the
+reviewer's confirmation at `fcecc40` (both controllers) is quoted from the findings file, without numbers.
+
+**T4's review** (reviewer's scratch `reviewer-scratch-a3-T4/`). The cost of the stuck check for leg claims
+(`out2/bench3-legs.txt`, the head after fix round 1 and the base alternating, the check of an `idle()` with every wait
+asleep): 80 sleeping waits 3.04 and 3.14 ms in two rounds (base 0.10 ms); 160 sleeping waits 11.62 and 12.32 ms (base
+0.21 ms). T4's own bench in its section gives 2.94 ms and 11.5 ms. That the check is paid only when a wait sleeps, "0.54
+% of the entries on the random worlds", is a figure of the review quoted in `a3-T4-findings.md` (Ruling A3-o); I did not
+trace it to a raw file. 2,127 of the 15,329 stuck reports made at `idle` (14 %), identical at the base, are of a wait
+that is not stuck at the end of its instant (an AGV idle for the instant between a give-up and its next order): the
+review's figure, quoted in `a3-T4-findings.md` ("Recorded, not for this round").
+
+**T5.** Two follow-ups of its review are in the ledger only ("A3 T5: follow-ups for Davide (pre-existing)"): an order
+whose destination lies beyond what a full charge reaches loops for ever between the charger and the node (the AGV never
+strands and the order never fails; the cases are `scratch-a3-T5/fix1/loop.out` and `loop23.out`, which the T5 section
+cites), and
+a repositioning target without a route leaves the AGV idle on the charger's node with no clearance.
+
+**Rulings with a cost clause** that the list under "Open after Assignment 3" repeats (ledger):
+
+- A3-c: the both-directions state lives in the ledger only, so a reader of a trace sees a claimant wait behind a holder
+  recorded in its own direction and cannot tell when the state ended. Making it visible is one task (the holder listed
+  in both `forward` and `backward` plus an event type for the end of the state); it re-pins about 78 % of reservation
+  digests (every run with a re-claim) and changes the invariant that a single-lane segment has holders in one direction
+  only (traffic spec §17, `_check_ledger`).
+- A3-h: a wait open at the end of a run with no report of its own and in no standing unresolved report is a violation of
+  the monitor, whatever it is queued behind. A model whose AGV serves for ever (a pick waiting for stock) would show a
+  monitor violation for a wait that is not stuck by the rule; no random world ends so (0 in 30,000 runs).
+- A3-q: after the decision of a charge on the way, a trip of that decision that charges again is followed by no further
+  decision, and the AGV becomes idle where it charged: an AGV whose second trip charged stays idle on a charger's node,
+  which is the behaviour before Assignment 3.
+
 ### Open after Assignment 3, for the maintainer
 
 What Assignment 3 leaves, each with the place where this record describes it and, where there is one, how to reproduce
 it. Nothing here ends a run of the generator's worlds with a violation (the sample of T6 has none), and nothing changes
-the gates. Counts are quoted from the section named; they were not rerun for this list. "Ruling" names a line of the
-controller's ledger (`progress.md`).
+the gates. Counts are quoted from the section named, or, where no section holds them, from "T0 and what the reviews
+measured beyond the task sections" above, which gives the source of each. None was rerun for this list except the
+reproduction of the turn-wait item. "Ruling" names a line of the controller's ledger (`progress.md`).
 
 **What the rule for direction re-claims leaves out** (T3, "What is not covered" and "Fix round 1"; Rulings A3-d, A3-f
 and A3-n).
@@ -3690,9 +3777,10 @@ and A3-n).
 - A rigid body through a reversal. Both body models are path models and traffic spec §6.6 says such a body is not
   tracked. No reproduction.
 - A segment claimed again twice keeps the state. A holder in the state that is granted the segment again in the
-  direction its body lies in keeps the state to the old clear point, so a follower in the body's direction waits up to
-  that point (1.1 s in the built case), longer than the body needs (Ruling A3-n). The built case is a test since T3's
-  fix round 1; 0 of 435,877 states in the reviewer's random runs.
+  direction its body lies in keeps the state to the old clear point, longer than the body needs (Ruling A3-n). In the
+  built case (T3's review, `hand_double.py`, "T0 and what the reviews measured beyond the task sections") the state
+  stands 1.118 s and a follower in the body's direction waits 0.618 s. The built case is a test since T3's fix round 1;
+  0 of 435,877 states in the reviewer's random runs.
 - A holder that serves for a long time with a state left from an interrupted travel blocks without a report until it
   moves (the body is there).
 - The look-ahead after a staged route (audit (ii), `turn_staged`): a route staged inside a travel keeps the look-ahead
@@ -3704,15 +3792,19 @@ and A3-n).
 - A wait behind an AGV that serves for ever (a pick waiting for stock) is not stuck by §7.9 and is not reported. It
   also makes a run in which no entry follows a release end with a wait open, stuck and unreported under a policy without
   reviews (confirmed through the executor by T4's re-review). No random world ends so (0 in 30,000 runs of the audit).
+  The consequence of Ruling A3-h: the monitor counts an open wait with no report of its own as a violation whatever it
+  is queued behind, so a model whose AGV serves for ever would show a violation for a wait that is not stuck by the
+  rule.
 - The limit of a policy without reviews (Ruling A3-p): under `StandardTrafficPolicy(reroute_after=None)` a wait that
   becomes stuck through a grant, a release or the end of a both-directions state is reported at the next stop,
   withdrawal or rest of any AGV, not at that instant, up to 38.8 s late (70 of 1,200 runs of seeds 4510000..4510399 had
   a late report, 88 had such a wait). A run cut by `until` in that window ends without the report. Pinned by
   `test_under_a_policy_without_reviews_a_wait_made_stuck_by_a_release_is_reported_at_the_next_entry`.
-- The cost of the check is quadratic in the number of sleeping waits for leg claims (Ruling A3-o): about 3 ms per
-  controller entry at 80 sleeping waits and 11.5 to 12.3 ms at 160 (base 0.10 and 0.20 ms), paid only when a wait
-  sleeps (0.54 % of entries), equal to the base otherwise. A model with hundreds of AGVs asleep in one gridlock pays
-  it; an index of pending claims by resource would remove it, and is a new structure in the wait-review code.
+- The cost of the check is quadratic in the number of sleeping waits for leg claims (Ruling A3-o): 2.9 to 3.1 ms per
+  controller entry at 80 sleeping waits and 11.5 to 12.3 ms at 160 (base 0.10 and 0.20 ms; T4's own bench and the
+  re-review's, see the subsection above), paid only when a wait sleeps (0.54 % of the entries on the random worlds, T4's
+  review), equal to the base otherwise. A model with hundreds of AGVs asleep in one gridlock pays it; an index of
+  pending claims by resource would remove it, and is a new structure in the wait-review code.
 
 **What the monitor still does not check** (T5's list, which brings those of T2 to T4 up to date, and T3's):
 
@@ -3731,6 +3823,13 @@ and A3-n).
   exactness check sees the state at domain events only; the review counted 31 of 163 runs under the mutant without end
   (b) where this hides the outlast).
 
+**What a trace does not show** (T3, Ruling A3-c). The both-directions state is the ledger's alone: a reader of a trace
+sees a claimant wait behind a holder recorded in its own direction and cannot tell when the state ended. Making it
+visible is one task (the holder listed in both `forward` and `backward` plus an event type for the end of the state); it
+would re-pin about 78 % of reservation digests and change the invariant that a single-lane segment has holders in one
+direction only (traffic spec §17, `_check_ledger`). The ledger gives the figure of 78 % (the audit's count of runs with
+a re-claim); it was not rerun.
+
 **The decision after a charge on the way, and its cost** (T5, "Fix round 1", "The cost of the rule, on small batteries";
 Rulings A3-m, A3-q and A3-r). The AGV is asked where to rest once per move, and not while an order is pending. With a
 small battery the decision can send an AGV that the base left idle and full on the charger on a trip it cannot finish.
@@ -3739,26 +3838,35 @@ The reviewer's numbers, on worlds 4616000..4616999 rewritten so that every batte
 [+4.0, +24.0], orders completed -10 [-37.9, +17.9], first dispatch paired by order +459.0 s [-63.4, +981.3]; on T5's own
 4620000..4620999 strandings +25 [-1.4, +51.4], AGVs stranded at the end +7 [-2.8, +16.8]. On the generator's own worlds
 (48,000 runs) the rule lowers strandings by 33 [-60.9, -5.1] and changes no order count. With a backlog an AGV rests on
-the charger's node until it is dispatched, as before Assignment 3 (Ruling A3-r). A new reason, `charger_not_reached`,
-appears in `agv.stranded` (38 and 33 events in the sample of T6).
+the charger's node until it is dispatched, as before Assignment 3 (Ruling A3-r), and an AGV whose second trip of the
+decision charged stays idle on a charger's node, as before Assignment 3 (Ruling A3-q). A new reason,
+`charger_not_reached`, appears in `agv.stranded` (38 and 33 events in the sample of T6).
 
 **Pre-existing items met on the way** (identical at the base of each task):
 
-- An interrupt during a turn wait leaves the turn's timeout in the event queue, so `env.run()` returns at the end of the
-  turn, not at the interrupt (T3; both controllers).
-- `tests/core/test_trace_reader.py::test_limits_enforced` takes 40.1 s in its own call on the 3.13 CI lane, close to the
-  limit of 60 s, and its `match="index"` (line 558) does not prove the cap: with the cap disabled another message
-  containing "index" is raised. Ruling A3-b left it; the reviewer's change (a smaller multiplier,
-  `len(data) // (18 * len(body["index"])) + 2`: 0.05 s instead of 3.8 s, same refusal) is the fix.
+- An interrupt during a turn wait leaves the turn's timeout in the event queue, so `env.run()` returns at the end of
+  the turn, not at the interrupt (found in T3's review, pre-existing at `fcecc40`, both controllers). Reproduction:
+  `reviewer-scratch-a3-T3/scripts/turnq.py`, run from the checkout with `PYTHONPATH=<checkout> uv run --all-extras
+  python <path>/turnq.py`: the last event is at 53.0 and `env.run()` returns at 56.121 (rerun at `07ef7e3`; "T0 and what
+  the reviews measured beyond the task sections").
+- `tests/core/test_trace_reader.py::test_limits_enforced` takes 40.1 s in its own call on the 3.13 CI lane, close to
+  the limit of 60 s, and its `match="index"` (line 558) does not prove the cap. Ruling A3-b left it; the reviewer's
+  smaller multiplier is the fix (0.05 s instead of 3.8 s, same refusal). Figures and sources: "T0 and what the reviews
+  measured beyond the task sections".
+- `test_travel_motion.py::test_lone_agv_matches_free_flow_over_blocks_...` is the test closest to the limit of 60 s
+  after T0 (about 38 s estimated on the CI 3.13 lane; 15.95 s call on this machine at gate 8b). It is the test to look
+  at if a lane times out again, and is not to be thinned without asking.
 - The look-ahead kept after a route staged inside a travel (above).
-- 14 % of the stuck reports made at `idle` are of a wait that is not stuck at the end of its instant (an AGV idle for
-  the instant between a give-up and its next order); identical at the base (T4's review).
+- 14 % of the stuck reports made at `idle` (2,127 of 15,329 in T4's review) are of a wait that is not stuck at the end
+  of its instant (an AGV idle for the instant between a give-up and its next order); identical at the base ("T0 and what
+  the reviews measured beyond the task sections").
 - An order whose destination lies beyond what a full charge reaches loops for ever between the charger and the node:
   the AGV never strands and the order never fails. T5's cases, `scratch-a3-T5/fix1/loop.out`, cycle at both trees, and
   63 of the 4,000 worlds of its fuzz are cut at both.
 - A repositioning target without a route leaves the AGV idle on the charger's node with no clearance (T5).
 - `sampled_bundles(every=n)` of `tests/conftest.py` reads `kwargs["every"]` without a guard, and its 1-in-25 sample
-  misses the schema 1.0 line without a `length` leaf in two sweeps (T0, minor; that kind is checked elsewhere).
+  misses the schema 1.0 line without a `length` leaf in two sweeps (T0, minor; that kind is checked elsewhere; see "T0
+  and what the reviews measured beyond the task sections").
 
 **Intermittent items of the CI lanes** (none is caused by Assignment 3's code; each passed on a rerun):
 
@@ -3767,9 +3875,14 @@ appears in `agv.stranded` (38 and 33 events in the sample of T6).
   rerun; Assignment 3 changes nothing under `studio/`, `src/simulatte/studio` or `src/simulatte/layout`.
 - `tests/core/test_replay.py::test_kpi_replication_replayed_at_full_is_verified` on PyPy: `Child exited with -6` at
   `0ffc5b6`, passed on rerun; the same test fails locally under heavy load.
-- `tests/core/test_kpi.py::test_writer_failure_propagates_on_samples` on PyPy: failed in the first run of the PyPy lane
-  of T6 (`OSError: disk full` raised by the second sample, outside the test's `pytest.raises`), passed in the second,
-  and failed once in ten runs of the test alone; cause not established (T6, gate 7).
+- `tests/core/test_kpi.py::test_writer_failure_propagates_on_samples` on PyPy (its own item): failed in the first run
+  of the PyPy lane of T6 (`OSError: disk full` raised by the second sample, outside the test's `pytest.raises`) and
+  passed in the second. Alone it fails at a rate that depends on how the package is imported and on load: the reviewer
+  of the T6 record measured 28 of 30 and 20 of 20 failures with the editable import, 6 of 20 with `PYTHONPATH=src`, 1 of
+  20 from a fresh archive of the head, 4 of 30 and 8 of 20 at `0ffc5b6`, and 0 of 30 on CPython 3.14 at the head; I
+  measured 1 of 10. The test is from SP1 (`3cb6937`) and neither it nor `src/simulatte/trace`, `kpi.py`, `events.py` or
+  `environment.py` changed since `0ffc5b6`; the cause is not established. The CI lane `test (pypy-3.11)` passed in every
+  run of this branch but one, which failed in `test_replay.py` (above).
 - `tests/core/test_studio_http.py::test_descriptor_change_time_guards_reads_and_verified_cache[between]` on Windows,
   Python 3.15 (`DID NOT RAISE ValueError`, at `e387d8a`; passed on rerun; listed as intermittent on `main`).
 - The `test` job's limit. The lanes of 3.11 to 3.13 took 18 to 29 minutes, and one was cancelled at 30.3 minutes at
