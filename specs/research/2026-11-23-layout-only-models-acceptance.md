@@ -2856,9 +2856,9 @@ review: no policy call, no review counted, no timer, no holding changed.
   raised `RuntimeError: ... already has a pending traffic request`
   (`test_a_stalled_vehicle_withdraws_the_claim_it_had_asked_for_ahead`; reproduced at the base with
   `scripts/stall_pending.py`).
-- The fairness gate (`_gating`) reads the earlier pending claims at the first segment or corridor of the claim that its
-  AGV does not hold, instead of before its loop. Nothing is yielded before that point, so the gates found are the same;
-  a claim of nodes only no longer reads every earlier claim, which is what keeps the check linear (cost, below).
+- The fairness gate (`_gating`) is as at the base. (As committed in `2d594d5` it read the earlier pending claims lazily,
+  at the first segment or corridor the claim needs; the review proved the two forms equivalent and showed that the lazy
+  read helps only claims of nodes, not the claims a travel makes; fix round 1 restored the base text, Ruling A3-o.)
 - The docstrings of `TrafficController.idle`, `TrafficController.cleared` (the second kind of segment named without a
   state, T3's review) and `TrafficWaitStuck` (the hole-R runs contradicted "at the instant their chain becomes stuck").
 - `cleared` (T3) needs no check: an end of the state changes the blockers of a pending claim only when the state made
@@ -2942,24 +2942,29 @@ policy without reviews (E) fail. At `withdraw`: the withdrawal (B). At `idle`: t
 before the run ends). At the timed review: the staged reaction (B). The stall scenario is caught by `idle`'s own check
 of the waits the stalled AGV holds; without the executor's call it fails (the RED run).
 
-**Cost** (`scripts/bench2.py`, the audit's bench: n AGVs waiting one behind the other behind a head that serves, all
-asleep, unreported, not stuck; the median over five fresh worlds of the median of 20 calls of `idle()` of an AGV that
-blocks nobody, and of the `stopped()` of one more waiter; base and head alternating, three rounds):
+**Cost** (fix round 1, Ruling A3-o; `scripts/bench3.py legs`, the reviewer's bench: n AGVs waiting one behind the
+other behind a head that serves, each claiming the leg to the next node as the executor does, so that every claim names
+a segment its AGV does not hold and the gate of each wait reads every earlier pending claim; the median over five fresh
+worlds of the median of 20 calls of `idle()` of an AGV that blocks nobody, with every wait asleep and with every wait
+awake (before the first reviews), and of the `stopped()` of one more waiter; base `6f57185` and the head of fix round 1
+alternating, three rounds, the medians of the three; `out/r1-bench-*.out`):
 
-| n (sleeping waits = blocker edges) | `idle()`: base, head, ratio | `stopped()`: base, head, ratio |
-|---|---|---|
-| 10 | 0.0077 ms, 0.0266 ms, 3.5 | 0.117 ms, 0.132 ms, 1.12 |
-| 20 | 0.0151 ms, 0.0523 ms, 3.5 | 0.191 ms, 0.221 ms, 1.16 |
-| 40 | 0.0296 ms, 0.1064 ms, 3.6 | 0.347 ms, 0.403 ms, 1.16 |
-| 80 | 0.0606 ms, 0.2279 ms, 3.8 | 0.718 ms, 0.839 ms, 1.17 |
+| n (sleeping waits = blocker edges) | `idle()`, no wait asleep: base, head | `idle()`, all asleep: base, head, ratio | `stopped()`: base, head, ratio |
+|---|---|---|---|
+| 10 | 0.0123 ms, 0.0125 ms | 0.0123 ms, 0.076 ms, 6.2 | 0.151 ms, 0.216 ms, 1.4 |
+| 20 | 0.0244 ms, 0.0247 ms | 0.0246 ms, 0.232 ms, 9.4 | 0.250 ms, 0.457 ms, 1.8 |
+| 40 | 0.0486 ms, 0.0495 ms | 0.0485 ms, 0.814 ms, 16.8 | 0.458 ms, 1.27 ms, 2.8 |
+| 80 | 0.101 ms, 0.101 ms | 0.101 ms, 2.94 ms, 29.3 | 1.08 ms, 3.89 ms, 3.6 |
+| 160 | 0.202 ms, 0.204 ms | 0.200 ms, 11.5 ms, 57.3 | 2.30 ms, 13.5 ms, 5.9 |
 
-The medians of the three rounds; the rounds agree within 3 %. The head's `idle()` doubles with n (x1.97, x2.03, x2.14
-per doubling): the check grows linearly in the blocker edges, and so does what it adds to `stopped()` (0.015, 0.031,
-0.056, 0.121 ms). The prototype `p_sweep2` took 92 to 102 ms for either call at n = 80 (audit, loaded machine); a check
-that read every earlier claim for each wait's gate, as the gate did before this task, took 1.35 ms for `idle()` at n =
-80 in a first trial of this task (machine loaded), and grew by x2.6 to x3.5 per doubling. The one-minute load average
-was 10.0 to 11.6 when the rounds started (the decay of the hash-seed runs just before; nothing else of this task ran
-during them).
+With sleeping waits the check is quadratic in them for the claims a travel makes: the head's `idle()` grows x3.0, x3.5,
+x3.6, x3.9 per doubling, because computing the blockers of each wait reads every earlier pending claim for its gate, as
+the scan does (traffic spec §15 as amended in `e9f4b85`). With no wait asleep the check costs nothing measurable (the
+head equals the base within 2 %). The rounds agree within 9 %. The one-minute load average was 7.8 to 13.2 when the
+rounds started (the decay of the paired runs just before; nothing else of this task ran during them). As committed in
+`2d594d5`, with the gate reading the earlier claims lazily, the audit's bench of claims of nodes measured 0.228 ms for
+`idle()` at n = 80 and grew linearly; that holds only for claims of nodes, and the record said linear in general, which
+was wrong (review of T4). The prototype `p_sweep2` took 92 to 102 ms at n = 80 (audit, claims of nodes, loaded machine).
 
 On the random worlds: `benchmarks/layout_safety.py --first 100000 --worlds 200 --jobs 10` (1,200 runs, 1,361,246 events
 in every round, no violation), base and head alternating in one session, three rounds: 41.33 s and 42.46 s, 42.03 s and
@@ -2975,10 +2980,15 @@ takes the waits in queue order and keeps its marks in lists and insertion-ordere
 
 - A wait behind an AGV that serves for ever (a pick waiting for stock) is not stuck by §7.9 and is not reported; no
   random world ends that way.
-- A wait whose policy asks for no review and that becomes stuck by a grant or a release (a blocker that moves on and
-  releases, leaving only blockers at rest) is reported at the next controller entry that is not a grant or a release,
-  not at the release; a run in which no such entry follows (the vehicle that released then serves for ever) would end
-  with it unreported. The default policy reviews every wait: a release wakes its review.
+- The limit of a policy that asks for no review (Ruling A3-p; traffic spec §7.9 as amended in `e9f4b85`): such a wait
+  that becomes stuck through a grant, a release or the end of a both-directions state is reported at the next stop,
+  withdrawal or rest of any AGV, not at that instant. A run cut by `until` in between ends without the report, and so
+  would a run in which no such entry follows (the vehicle that released then serves for ever). The review measured it:
+  under `StandardTrafficPolicy(reroute_after=None)`, seeds 4510000..4510399, 88 of 1,200 runs have such a late report,
+  up to 38.8 s late (the reviewer's measurement, `reviewer-scratch-a3-T4/`). The default policy reviews every wait: a
+  release wakes its review. Pinned as it is by
+  `test_under_a_policy_without_reviews_a_wait_made_stuck_by_a_release_is_reported_at_the_next_entry` (stuck at 10,
+  reported at 20), which fails under a mutant that checks after every release.
 - Requirement 7 of the brief (a former member whose own review sleeps after its set is forgotten): built as
   `test_a_former_member_asleep_when_its_set_is_forgotten`. When the set is forgotten by the withdrawal of a member that
   still travels, the waits left are not stuck; when that member rests idle, `idle` reports the former member, by the
@@ -2995,3 +3005,23 @@ through; `passing` segments during a reversal; the review timer and the pending 
 stuck and unreported for a while and reported later (the monitor sees the end of a run and each report; the episode
 detector, which reads the controller, is the check, run for this task's samples); and a `STALLED` blocker in a random
 run (no vehicle of the generator stalls; the controller and executor tests cover it).
+
+**Fix round 1.** The review (seeds 4510000..4519999, its own rule, a fuzz of controller worlds) found the rule correct,
+report-only and complete under the default policy, and three gaps, each fixed:
+
+- The cost was stated as linear; it is quadratic for the claims a travel makes (above). The gate is back to its text at
+  the base (`git diff 6f57185 -- src/simulatte/intralogistics/reservation.py` has no hunk in `_gating`). Rerun against
+  the fingerprints of `cb7e520`: the 6,000 reservation runs of 4100000..4101999 and the 3,000 of 4500000..4500999 (three
+  routers) have identical records, 6,000 and 3,000 of them; the 900 free-flow runs of 4500000..4500299 too
+  (`out/r1-pair-*.txt`).
+- Three behaviours had no test that failed without them; each has one now, failing under its mutant and passing
+  without (`scripts/mutants_r1.py`, `out/mutants-r1.out`): a stalled AGV of a fleet that would accept is not asked to
+  make way (`test_a_stalled_agv_is_not_asked_to_make_way`: no `make_way_target` call, no `fleet.make_way` call); a
+  wait asleep behind a reported wait whose blocker stalls is reported, the stalled AGV counting as at rest in the check
+  (`test_behind_a_reported_wait_whose_blocker_stalls`, Y at 70); a member's review does not cover the waits behind the
+  member (`test_behind_a_member_that_keeps_its_review_timer`, Y at 55, not 60).
+- The limit of a policy without reviews is stated (above), in the guide too, and pinned by a test.
+
+The "at rest" classification of the stuck rule, coded twice before, is one helper used by `_stuck` and by the check;
+the guide's sentence on `TrafficController.idle` names the executor's call at a stall.
+
