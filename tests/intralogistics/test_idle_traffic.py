@@ -945,12 +945,15 @@ def to_charger(charger: str) -> list[tuple[str, str, str]]:
 def test_an_agv_that_charged_on_its_way_to_park_is_asked_again_and_parks(charger: str, reserve: bool) -> None:
     """The trip to park of the tests above, with the area left free: after the charge the repositioning policy is asked
     again from the charger's node and names FAR again; A takes the slot again as it sets off and rests there, parked,
-    under both controllers (spec §7.10: the policy and the parking slots apply with both)."""
+    under both controllers (spec §7.10: the policy and the parking slots apply with both). The AGV travels empty already
+    after the charge, so no ``agv.state_changed`` that keeps its state comes between the charge and that trip."""
     m = trip_to_park(charger, reserve=reserve)
     m.env.run()
     a = m.agvs["A"]
     (ended,) = m.events(ChargingEnded)
     assert m.routed("A")[1:] == [("travel", "D", "FAR"), *to_charger(charger), ("travel", charger, "FAR")]
+    after = [e for e in m.events(AgvStateChanged, agv="A") if e.t == ended.t]
+    assert [(e.previous, e.state) for e in after] == [("CHARGING", "TRAVELING_EMPTY")]
     assert [(e.agv, e.t) for e in m.events(ParkingEntered)][1:] == [("A", ended.t)]
     assert [e.agv for e in m.events(ParkingLeft)] == ["A"]  # once, at the turn
     assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"]) and parked(m, "P") == ["A"]
@@ -2620,3 +2623,54 @@ def test_a_stranding_after_a_charge_on_the_way_is_not_followed_by_the_decision()
     assert m.routed("A") == [("make_way", "N1", "G"), ("travel", "N1", "C")]
     assert [(e.node, e.reason) for e in m.events(AgvStranded)] == [("C", "insufficient_after_charging")]
     assert (a.state, a.current_node) == (AGVState.STRANDED, m.nodes["C"]) and m.events(ParkingEntered) == []
+
+
+def test_after_two_moves_that_charge_on_their_way_the_decision_is_made_after_each() -> None:
+    """A, with 37 of 50, makes way to FAR and turns at X to charge at CH; asked once, it goes to S, the policy's first
+    answer, with 35 left. Making way to FAR again, it turns at X again (15 left, the arc to FAR costs 20) and charges at
+    CH; asked once more, it parks on FAR, the second answer. The decision of the first move does not keep the second
+    from having its own."""
+    policy = Answers("S", "FAR")
+    m = mission_world(
+        park_and_charge,
+        {"A": "S"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": ("CH", 1)},
+        agv_type=vehicle(battery=50.0),
+        battery={"A": 37.0},
+        repositioning_policy=policy,
+    )
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["FAR"]) is True
+    m.env.run()
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["S"])
+    m.env.run(until=m.env.now + 1.0)  # a move that ended where it started is not repeated at the same instant
+    assert m.fleet.make_way(a, m.nodes["FAR"]) is True
+    m.env.run()
+    assert policy.asked == ["CH", "CH"] and len(m.events(ChargingStarted)) == 2
+    assert m.routed("A") == [
+        ("make_way", "S", "FAR"),
+        ("travel", "X", "CH"),
+        ("travel", "CH", "S"),
+        ("make_way", "S", "FAR"),
+        ("travel", "X", "CH"),
+        ("travel", "CH", "FAR"),
+    ]
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"]) and parked(m, "P") == ["A"]
+
+
+def test_a_make_way_move_to_a_node_out_of_reach_is_followed_by_one_decision() -> None:
+    """A, idle on D with a full battery of 30, makes way to T, beyond the reach of a full charge (the arc N to T, 25, is
+    more than the 20 a full battery keeps on arrival at N from the charger on C), and the policy names T as well: it
+    turns at N to charge on C, is asked once and sets off to T again, turns at N again, charges a second time and rests
+    idle on C. The run returns on its own."""
+    m = mission_world(
+        out_of_reach, {"A": "D"}, chargers={"CS": ("C", 1)}, reserve=False, agv_type=vehicle(battery=30.0)
+    )
+    m.fleet._repositioning_policy = Always(m.nodes["T"])
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["T"]) is True
+    m.env.run()
+    assert m.routed("A") == [("make_way", "D", "T"), ("travel", "N", "C"), ("travel", "C", "T"), ("travel", "N", "C")]
+    assert len(m.events(ChargingStarted)) == 2
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["C"])

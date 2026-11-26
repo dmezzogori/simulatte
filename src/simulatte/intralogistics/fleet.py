@@ -1077,8 +1077,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         empty and the travel is not itself a trip of such a decision, the AGV is asked where to rest as an AGV that
         ends a mission on the charger's node (:meth:`_rest`), and the outcome is that decision's ``BATTERY_STRANDED``,
         or else the travel's. Otherwise the caller makes the AGV ``IDLE`` where it charged: with an order pending, the
-        pending-queue check that follows offers it work; after the one decision, a trip of it that charges again
-        ends there, so the decision is made once per charge on the way."""
+        pending-queue check that follows runs; a trip of that decision that charges again ends there, so the
+        decision is made at most once per move (a repositioning, a clearance or a make-way move)."""
         charges = self._charges.get(agv, 0)
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
