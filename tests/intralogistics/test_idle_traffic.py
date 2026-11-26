@@ -22,6 +22,7 @@ from simulatte.intralogistics.events import (
     AgvRouted,
     AgvStateChanged,
     AgvStranded,
+    ChargingEnded,
     ChargingStarted,
     ParkingEntered,
     ParkingLeft,
@@ -866,8 +867,9 @@ def test_a_trip_to_park_that_charges_on_the_way_gives_the_slot_back_as_it_turns_
     charger: str, reserve: bool
 ) -> None:
     """The trip to park ends where A turns to charge, at X: the slot goes back then (spec §7.10), before the travel to
-    the charger or the charge, and B can take it during A's charge. After the charge A is idle where it charged: the
-    trip to park is not resumed and no slot is taken again."""
+    the charger or the charge, and B can take it during A's charge. The trip to park is not resumed: after the charge A
+    is asked again where to rest (Ruling A3-m), and with the area full the policy names no node. Under reservation A
+    clears the charger's node, a service node, to the standard-search node; under free flow it stays there."""
     m = trip_to_park(charger, reserve=reserve)
     a, b, area = m.agvs["A"], m.agvs["B"], m.areas["P"]
     during: list[tuple[list[str], int, bool]] = []
@@ -879,7 +881,10 @@ def test_a_trip_to_park_that_charges_on_the_way_gives_the_slot_back_as_it_turns_
 
     m.env.process(charging())
     m.env.run()
-    assert m.routed("A")[1:] == [("travel", "D", "FAR")] + ([("travel", "X", "CH")] if charger == "CH" else [])
+    rest = {"CH": "X", "X": "CH"}[charger] if reserve else charger  # the standard-search node from the charger
+    assert m.routed("A")[1:] == [("travel", "D", "FAR")] + ([("travel", "X", "CH")] if charger == "CH" else []) + (
+        [("clear_node", charger, rest)] if reserve else []
+    )
     (left,) = m.events(ParkingLeft)
     (started,) = m.events(ChargingStarted)
     turned = [e for e in m.events(AgvStateChanged, agv="A") if e.t > m.events(ParkingEntered)[0].t][0]
@@ -889,7 +894,7 @@ def test_a_trip_to_park_that_charges_on_the_way_gives_the_slot_back_as_it_turns_
     assert sequence.index(left) == sequence.index(turned) - 1 < sequence.index(started)
     assert during == [([], 1, True)]  # free during the charge: B's make-way move takes the slot
     assert [e.agv for e in m.events(ParkingEntered)] == ["A", "B"]
-    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes[charger])
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes[rest])
     assert parked(m, "P") == ["B"] and b.current_node is m.nodes["FAR"]
 
 
@@ -910,6 +915,202 @@ def test_a_trip_to_park_interrupted_during_its_charge_gave_the_slot_back_as_it_t
     assert left.t == turned.t < m.events(ChargingStarted)[0].t
     assert (m.agvs["A"].state, m.agvs["A"].current_node) == (AGVState.IDLE, m.nodes["CH"])
     assert m.areas["P"].available_capacity == 1
+
+
+# --- after a charge on the way to rest (Ruling A3-m) ---------------------------------------------------------------
+
+
+class Answers:
+    """A repositioning policy that names in turn the nodes with the ids `answers` (None: no target), then no node, and
+    records the node the AGV stands on at each call."""
+
+    def __init__(self, *answers: str | None) -> None:
+        self.answers = list(answers)
+        self.asked: list[str] = []
+
+    def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
+        assert agv.current_node is not None
+        self.asked.append(agv.current_node.id)
+        name = self.answers.pop(0) if self.answers else None
+        return None if name is None else next(node for node in context.graph.nodes if node.id == name)
+
+
+def to_charger(charger: str) -> list[tuple[str, str, str]]:
+    """The route of A's turn to charge at X: to CH, or none when the charger is on X itself."""
+    return [("travel", "X", "CH")] if charger == "CH" else []
+
+
+@pytest.mark.parametrize("reserve", [True, False], ids=["reservation", "free"])
+@pytest.mark.parametrize("charger", ["CH", "X"], ids=["turns to a charger", "charger on the route"])
+def test_an_agv_that_charged_on_its_way_to_park_is_asked_again_and_parks(charger: str, reserve: bool) -> None:
+    """The trip to park of the tests above, with the area left free: after the charge the repositioning policy is asked
+    again from the charger's node and names FAR again; A takes the slot again as it sets off and rests there, parked,
+    under both controllers (spec §7.10: the policy and the parking slots apply with both)."""
+    m = trip_to_park(charger, reserve=reserve)
+    m.env.run()
+    a = m.agvs["A"]
+    (ended,) = m.events(ChargingEnded)
+    assert m.routed("A")[1:] == [("travel", "D", "FAR"), *to_charger(charger), ("travel", charger, "FAR")]
+    assert [(e.agv, e.t) for e in m.events(ParkingEntered)][1:] == [("A", ended.t)]
+    assert [e.agv for e in m.events(ParkingLeft)] == ["A"]  # once, at the turn
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"]) and parked(m, "P") == ["A"]
+
+
+@pytest.mark.parametrize("charger", ["CH", "X"], ids=["turns to a charger", "charger on the route"])
+def test_a_clearance_that_charged_on_the_way_is_followed_by_the_idle_decision(charger: str) -> None:
+    """With no repositioning policy A clears the bay D after its delivery, to the parking node FAR, and turns to charge
+    on the way as the trip to park does. After the charge the policy is asked again from the charger's node and names
+    nothing, so the charger's node, a service node, is cleared: to FAR again, whose slot A takes again."""
+    policy = Answers()
+    m = mission_world(
+        park_and_charge,
+        {"A": "S", "B": "E"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": (charger, 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=policy,
+    )
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    a = m.agvs["A"]
+    assert policy.asked == ["D", charger]
+    assert m.routed("A")[1:] == [("clear_node", "D", "FAR"), *to_charger(charger), ("clear_node", charger, "FAR")]
+    assert [e.agv for e in m.events(ParkingEntered)] == ["A", "A"]
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"]) and parked(m, "P") == ["A"]
+
+
+@pytest.mark.parametrize("reserve", [True, False], ids=["reservation", "free"])
+@pytest.mark.parametrize("parking_policy", [True, False], ids=["nearest parking", "no policy"])
+def test_a_make_way_move_that_charged_on_the_way_is_followed_by_the_idle_decision(
+    reserve: bool, parking_policy: bool
+) -> None:
+    """A, idle on S with 37, makes way to FAR and turns at X to charge at CH. After the charge it is asked where to rest
+    as an AGV that ends a mission on CH: the parking policy sends it to FAR; with no policy, the charger's node is
+    cleared to FAR under reservation and kept under free flow. Its chain of make-way moves ends where it rests and
+    blocks no wait (spec §7.10)."""
+    m = mission_world(
+        park_and_charge,
+        {"A": "S"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": ("CH", 1)},
+        reserve=reserve,
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=NearestParkingPolicy() if parking_policy else None,
+    )
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["FAR"]) is True
+    m.env.run()
+    rest = {(True, True): "travel", (False, True): "travel", (True, False): "clear_node"}.get((reserve, parking_policy))
+    assert m.routed("A") == [("make_way", "S", "FAR"), ("travel", "X", "CH")] + ([(rest, "CH", "FAR")] if rest else [])
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR" if rest else "CH"])
+    assert parked(m, "P") == (["A"] if rest else [])
+    assert a not in m.fleet._made_way_from
+
+
+def through_a_charger(env: Environment) -> Declared:
+    """``S - D - X - FAR - E`` along a row (10, 10, 20 and 10 m) with ``Y`` 10 m off ``X``."""
+    return build(
+        env,
+        [("S", 0, 0), ("D", 10, 0), ("X", 20, 0), ("FAR", 40, 0), ("E", 50, 0), ("Y", 20, 10)],
+        [("S", "D"), ("D", "X"), ("X", "FAR"), ("FAR", "E"), ("X", "Y")],
+    )
+
+
+@pytest.mark.parametrize("clear", [True, False], ids=["clears", "does not clear"])
+def test_a_make_way_move_that_charged_where_it_stood_leaves_the_waits_it_was_for_to_the_idle_rules(clear: bool) -> None:
+    """A, idle on the charger's node X with 5 left, blocks B, which travels from E to S. Asked to make way, A cannot
+    afford its first arc and charges where it stands; B still waits. After the charge A is asked where to rest: with
+    clearing it leaves the charger's node and B passes; without, it stays, and ``idle`` asks it to make way again by
+    the ordinary rule, which refuses a move from X, a node it already made way from in this chain (spec §7.10): B's wait
+    is reported stuck behind the idle A."""
+    m = mission_world(
+        through_a_charger,
+        {"A": "X", "B": "E"},
+        chargers={"CS": ("X", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 5.0},
+        clear_service_nodes=clear,
+    )
+    a, b = m.agvs["A"], m.agvs["B"]
+    m.env.process(_travel(m, "B", "S"))
+    m.env.run()
+    (started,) = m.events(ChargingStarted)
+    assert started.agv == "A" and not [e for e in m.routed("A") if e[0] == "travel"]  # charged on X, no turn travel
+    (made_way,) = [e for e in m.routed("A") if e[0] == "make_way"]
+    assert made_way[1] == "X"
+    if clear:
+        assert m.routed("A")[-1][:2] == ("clear_node", "X")
+        assert b.current_node is m.nodes["S"] and not m.events(TrafficWaitStuck)
+    else:
+        assert a.current_node is m.nodes["X"] and m.fleet._made_way_from[a] == {m.nodes["X"]}
+        (stuck,) = m.events(TrafficWaitStuck)
+        assert stuck.agv == "B" and dict(stuck.blockers) == {"A": "IDLE"}
+        assert b.current_node is not m.nodes["S"]
+
+
+def test_a_charge_during_an_order_resumes_the_order_and_the_policy_is_asked_after_the_delivery() -> None:
+    """Unchanged by the rule: A's travel of an order from S to E turns at X to charge at CH and then resumes to E; the
+    repositioning policy is asked once, after the delivery."""
+    policy = Answers()
+    m = mission_world(
+        park_and_charge,
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-E": "E"},
+        chargers={"CS": ("CH", 1)},
+        reserve=False,
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=policy,
+    )
+    order = m.order("WH-S", "WH-E")
+    m.env.run()
+    assert order.status is OrderStatus.COMPLETED
+    assert m.routed("A") == [("travel", "S", "E"), ("travel", "X", "CH"), ("travel", "CH", "E")]
+    assert policy.asked == ["E"]
+
+
+def answered(*answers: str | None, **options: Any) -> tuple[Mission, Answers]:
+    """After its delivery on D A is sent to the node of the first answer and turns at X to charge at CH; the policy then
+    gives the second answer. `options` replace those of the world (bays on S and D, an area of one slot on FAR)."""
+    policy = Answers(*answers)
+    world_options: dict[str, Any] = {"bays": {"WH-S": "S", "WH-D": "D"}, "parking": {"P": ("FAR", 1)}, **options}
+    m = mission_world(
+        park_and_charge,
+        {"A": "S"},
+        chargers={"CS": ("CH", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=policy,
+        **world_options,
+    )
+    m.order("WH-S", "WH-D")
+    return m, policy
+
+
+@pytest.mark.parametrize(
+    ("answers", "options"),
+    [
+        (("FAR", "CH"), {}),
+        (("FAR", None), {"clear_service_nodes": False}),
+        (("E", None), {"bays": {f"WH-{name}": name for name in ("S", "D", "X", "FAR", "E")}, "parking": {}}),
+    ],
+    ids=["the policy names the charger's node", "no clearing", "no standard-search node"],
+)
+def test_after_a_charge_on_the_way_an_agv_with_nowhere_to_go_stays_on_the_charger(
+    answers: tuple[str | None, ...], options: dict[str, Any]
+) -> None:
+    """The idle decision after the charge ends where an AGV that ends a mission on CH would stay: the policy names the
+    node it stands on; it names none and clearing is off; or it names none and the standard search finds no node (every
+    other node is a bay). The run returns with A idle on CH, after one charge."""
+    m, policy = answered(*answers, **options)
+    m.env.run()
+    a = m.agvs["A"]
+    assert policy.asked == ["D", "CH"]
+    assert m.routed("A") == [("travel", "S", "D"), ("travel", "D", answers[0]), ("travel", "X", "CH")]
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["CH"]) and len(m.events(ChargingStarted)) == 1
 
 
 def detour(env: Environment) -> Declared:
@@ -2204,3 +2405,57 @@ def test_a_stranding_before_the_first_review_takes_its_timer() -> None:
     waiting = controller._pending[s.w]
     assert (waiting.reviews, waiting.timer, waiting.dormant) == (1, None, 100.0)
     assert s.env.now == 41.0
+
+
+def out_of_reach(env: Environment) -> Declared:
+    """``D - C - N - T`` along a row (10, 10 and 25 m)."""
+    return build(env, [("D", 0, 0), ("C", 10, 0), ("N", 20, 0), ("T", 45, 0)], [("D", "C"), ("C", "N"), ("N", "T")])
+
+
+def test_a_target_beyond_the_reach_of_a_full_charge_repeats_the_trip_and_the_charge_without_end() -> None:
+    """The limit the rule shares with an order's travel (the guide's known limit "Charging"): the policy always names T,
+    and the arc N to T (25) is more than the 20 a full battery of 30 keeps on arrival at N from the charger on C. A,
+    making way from D, turns at N to charge on C; asked again, it sets off to T again, turns at N again, and so on: time
+    passes in every round (two arcs and a charge of 20), and the run does not end on its own."""
+    m = mission_world(
+        out_of_reach,
+        {"A": "D"},
+        chargers={"CS": ("C", 1)},
+        reserve=False,
+        agv_type=vehicle(battery=30.0),
+    )
+    m.fleet._repositioning_policy = Always(m.nodes["T"])
+    assert m.fleet.make_way(m.agvs["A"], m.nodes["T"]) is True
+    m.env.run(until=400.0)
+    starts = [e.t for e in m.events(ChargingStarted)]
+    assert len(starts) >= 5 and all(later - earlier > 0 for earlier, later in zip(starts, starts[1:]))
+    assert m.routed("A")[:4] == [
+        ("make_way", "D", "T"),
+        ("travel", "N", "C"),
+        ("travel", "C", "T"),
+        ("travel", "N", "C"),
+    ]
+
+
+def test_a_trip_after_a_charge_on_the_way_that_strands_leaves_the_agv_stranded() -> None:
+    """A, with 22 of 30 on D, makes way to T and cannot afford the arc C to N (20) on C, the charger's node, where it
+    charges at once. Asked again, it sets off to T again with 30 and strands at N, 20 from the only charger, with 10
+    left: the move ends there, stranded, and nothing else follows."""
+    m = mission_world(
+        lambda env: build(
+            env, [("D", 0, 0), ("C", 5, 0), ("N", 25, 0), ("T", 50, 0)], [("D", "C"), ("C", "N"), ("N", "T")]
+        ),
+        {"A": "D"},
+        chargers={"CS": ("C", 1)},
+        reserve=False,
+        agv_type=vehicle(battery=30.0),
+        battery={"A": 22.0},
+    )
+    m.fleet._repositioning_policy = Always(m.nodes["T"])
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["T"]) is True
+    m.env.run()
+    assert m.routed("A") == [("make_way", "D", "T"), ("travel", "C", "T")]
+    assert len(m.events(ChargingStarted)) == 1
+    assert [(e.node, e.reason) for e in m.events(AgvStranded)] == [("N", "no_reachable_charger")]
+    assert (a.state, a.current_node) == (AGVState.STRANDED, m.nodes["N"])

@@ -49,12 +49,14 @@ FINGERPRINTS = {
     182: "e36b053f438b2090df7cb1fe932b0d9dd2ed678619929b5c234804deabfa9024",
     236: "761629ac3bcb4ab91b8c6835cf4ef40de65ce15312eb1ad879a88a6001aa0bca",
     272: "b4f29be8b9f03f51449ca4b261f5e90c4b3f324ad0fbc6833096ec3227df05bf",
-    619: "d48e693d3dc0de65a73b199c1939765d11f3e5b5607e77294f6aaf3d49b00284",
+    619: "19a70b70ffdf70a98279a4f9f2ff2fbcc6b2e0131df8ca8d719f6d3fb1135a36",
 }
 """``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
 router), pinned at the last commit with explicit mode (e4afae4), where the run built with concrete objects and the run
 built through the layout gave equal run records. 619 is pinned again since a parking slot is given back when the trip to
-park turns to charge: its ``parking.left`` comes at 122.0 instead of 220.1, and no other event changes."""
+park turns to charge: its ``parking.left`` comes at 122.0 instead of 220.1, and no other event changes; and again since
+an AGV that charged on its way to park is asked again where to rest: after its charge agv-a goes to park on P1 at 220.1
+before it takes the pending order-6 from there, instead of taking order-6 from the charger."""
 
 
 SAFETY = {
@@ -232,7 +234,8 @@ def test_the_features_are_named_once():
 
 def test_a_trip_to_park_that_turns_to_charge_gives_its_parking_slot_back_as_it_turns():
     """Seed 619: agv-a takes a slot of P0 at 97.0 as it sets off to park, turns to the charger at 122.0 and gives the
-    slot back then; it charges from 148.6 to 220.1. Until the fix it kept the slot until the charge ended."""
+    slot back then; it charges from 148.6 to 220.1. Until the fix it kept the slot until the charge ended. After the
+    charge it is asked again where to rest and sets off to park on P1, with a slot taken at 220.1."""
     record = run_world(world_spec(619), controller="free", router="shortest")
     assert record.quiescent and not record.violations
     assert record.fingerprint.digest == FINGERPRINTS[619]
@@ -251,6 +254,10 @@ def test_a_trip_to_park_that_turns_to_charge_gives_its_parking_slot_back_as_it_t
     assert events[turned - 2] == (logistics_events.ParkingLeft, left)  # before the turn's state change and route
     assert left["t"] == events[turned][1]["t"] == pytest.approx(122.048, abs=1e-3)
     assert started["t"] == pytest.approx(148.587, abs=1e-3)
+    (again, *_) = [
+        fields for kind, fields in events if kind is logistics_events.ParkingEntered and fields["area"] == "P1"
+    ]
+    assert again["t"] == pytest.approx(220.061, abs=1e-3)
 
 
 def test_a_parking_slot_held_by_an_agv_resting_elsewhere_is_a_violation(monkeypatch):

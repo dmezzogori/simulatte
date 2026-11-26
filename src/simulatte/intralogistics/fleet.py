@@ -105,7 +105,9 @@ class FleetCoordinator(Entity, kind="fleet"):
     of a parking area takes a slot of the area (``area.enter``) at the decision and gives it back (``area.leave``) when
     the AGV next departs from that node or when the move ends without arriving, which for a move that turns to charge
     is when it turns, unless the charger is on the area's own node: there the AGV keeps the slot (it is given back if
-    the AGV does not get there) and rests parked after the charge.
+    the AGV does not get there) and rests parked after the charge. A repositioning, a clearance or a make-way move that
+    charges on its way and ends elsewhere than its target is not resumed: the AGV is asked where to rest as an AGV that
+    ends a mission on the charger's node (the repositioning policy, then the clearance of a service node).
 
     Its id is ``name`` when given, otherwise ``fleet-<n>``. ``graph`` is ``layout.graph()`` of the environment's
     layout, whose preparation binds the network's nodes (sorted by id). Construction registers the fleet with its
@@ -200,6 +202,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node
         self._made_way_from: dict[AGV, set[Node]] = {}  # nodes each AGV made way from in its current chain of moves
         self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
+        self._charges: dict[AGV, int] = {}  # charges each AGV completed: tells a trip that charged on its way
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
         self._load_recovery_strategy: LoadRecoveryStrategy = load_recovery_strategy or ReturnToOrigin()
@@ -731,42 +734,8 @@ class FleetCoordinator(Entity, kind="fleet"):
             # 5. Post-mission
             for cb in self._hooks_on_delivery_complete:
                 cb(order, agv)
-
-            # Battery check after mission
-            target = None
-            gave_up = False
-            agv.accrue_idle_power()  # the level the check reads includes the idle power of the waits of the mission
-            if agv.battery.is_low and self.charging_stations:
-                gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
-            else:
-                # Repositioning
-                repo_ctx = RepositioningContext(
-                    graph=self.graph,
-                    parking_areas=self.parking_areas,
-                    charging_stations=self.charging_stations,
-                    fleet=self.fleet,
-                    router=self.router,
-                    view=self.traffic_controller.view,
-                )
-                target = self._repositioning_policy.reposition(agv, repo_ctx)
-                if target is not None and target != agv.current_node:
-                    if self._take_slot(agv, target):
-                        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-                        outcome = yield from self._idle_travel(agv, target)
-                        if outcome is TravelOutcome.BATTERY_STRANDED:
-                            return
-                        if outcome is TravelOutcome.NO_ROUTE:
-                            self.env.warning(
-                                f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
-                                component="FleetCoordinator",
-                            )
-                    else:  # a full parking area is not a valid target (spec §7.10)
-                        target = None
-
-            # Clear a service node the AGV would otherwise idle on (not after a travel that gave up: it idles in place)
-            if not gave_up and target is None:
-                if (yield from self._clear_service_node(agv)) is TravelOutcome.BATTERY_STRANDED:
-                    return
+            if (yield from self._rest(agv)) is TravelOutcome.BATTERY_STRANDED:
+                return
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
@@ -971,7 +940,9 @@ class FleetCoordinator(Entity, kind="fleet"):
         AGV starts an order mission or becomes idle where it blocks no wait. Otherwise
         the AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
         when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
-        ``on_agv_idle`` hooks and the pending-queue check run as after any mission.
+        ``on_agv_idle`` hooks and the pending-queue check run as after any mission. A move that charges on its way and
+        ends elsewhere than its target is first followed by the decision of where to rest of an AGV that ends a mission
+        there.
         """
         origin = agv.current_node
         if agv.state is not AGVState.IDLE or origin is None:
@@ -1028,6 +999,51 @@ class FleetCoordinator(Entity, kind="fleet"):
             if agv.state is AGVState.IDLE and not controller.view.waiting_on(agv):
                 self._made_way_from.pop(agv, None)
 
+    def _rest(self, agv: AGV) -> ProcessGenerator:
+        """Decide where `agv` rests at the end of a mission, where it stands (spec §7.10): with a low battery it charges
+        (and then only clears a service node); otherwise the repositioning policy is asked and the AGV travels to the
+        node it names, taking a parking slot there; where the policy names none, a service node is cleared. The caller
+        makes the AGV ``IDLE``. Returns ``BATTERY_STRANDED`` when the AGV stranded, else None.
+
+        A trip of this decision, or of a make-way move, that charges on its way and ends away from its target is
+        followed by this decision again, from the charger's node (:meth:`_idle_travel`)."""
+        # Battery check after mission
+        target = None
+        gave_up = False
+        agv.accrue_idle_power()  # the level the check reads includes the idle power of the waits of the mission
+        if agv.battery.is_low and self.charging_stations:
+            gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
+        else:
+            # Repositioning
+            repo_ctx = RepositioningContext(
+                graph=self.graph,
+                parking_areas=self.parking_areas,
+                charging_stations=self.charging_stations,
+                fleet=self.fleet,
+                router=self.router,
+                view=self.traffic_controller.view,
+            )
+            target = self._repositioning_policy.reposition(agv, repo_ctx)
+            if target is not None and target != agv.current_node:
+                if self._take_slot(agv, target):
+                    self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+                    outcome = yield from self._idle_travel(agv, target)
+                    if outcome is TravelOutcome.BATTERY_STRANDED:
+                        return outcome
+                    if outcome is TravelOutcome.NO_ROUTE:
+                        self.env.warning(
+                            f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
+                            component="FleetCoordinator",
+                        )
+                else:  # a full parking area is not a valid target (spec §7.10)
+                    target = None
+
+        # Clear a service node the AGV would otherwise idle on (not after a travel that gave up: it idles in place)
+        if not gave_up and target is None:
+            if (yield from self._clear_service_node(agv)) is TravelOutcome.BATTERY_STRANDED:
+                return TravelOutcome.BATTERY_STRANDED
+        return None
+
     def _clear_service_node(self, agv: AGV) -> ProcessGenerator:
         """Move `agv` off the service node it would idle on, to the standard-search node (spec §7.10).
 
@@ -1052,7 +1068,12 @@ class FleetCoordinator(Entity, kind="fleet"):
         `target` is given back, whatever the outcome and for an interrupt, unless the AGV stands on `target` (an
         interrupt takes effect at the first node where the AGV can be at rest, which may be `target`); a travel that
         turns to charge gave it back already, as it turned (:meth:`_charge_agv`), unless the charger is on `target`
-        itself, where the slot is kept and given back here only if the AGV does not stand there."""
+        itself, where the slot is kept and given back here only if the AGV does not stand there.
+
+        A travel that turns to charge and charges is not resumed: when it ends away from `target`, the AGV is asked
+        where to rest as an AGV that ends a mission on the charger's node (:meth:`_rest`, Ruling A3-m), and the outcome
+        is that decision's ``BATTERY_STRANDED``, or else the travel's."""
+        charges = self._charges.get(agv, 0)
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
         except simpy.Interrupt:
@@ -1060,6 +1081,13 @@ class FleetCoordinator(Entity, kind="fleet"):
             raise
         if outcome is not TravelOutcome.ARRIVED:
             self._release_slots_unless_there(agv, target)
+        if (
+            outcome is TravelOutcome.RETRY_FROM_CURRENT_POSITION
+            and self._charges.get(agv, 0) != charges
+            and agv.current_node != target
+        ):
+            if (yield from self._rest(agv)) is TravelOutcome.BATTERY_STRANDED:
+                return TravelOutcome.BATTERY_STRANDED
         return outcome
 
     # Parking slots (spec §7.10)
@@ -1119,7 +1147,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         """Navigate to a charging station and recharge.
 
         Returns ``TravelOutcome.GAVE_UP`` when the travel to the station gave up (the AGV stands where it stopped,
-        nothing was charged), and None otherwise.
+        nothing was charged), and None otherwise. A charge made, at the station or by the ``on_low_battery`` callback
+        in its place, is counted in ``_charges``.
         """
         if station is None:
             station = self._find_reachable_charger(agv) or self._find_nearest_charger(agv)
@@ -1143,6 +1172,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             result = self._on_low_battery(agv)
             if result is not None:
                 yield from result
+                self._charges[agv] = self._charges.get(agv, 0) + 1
                 self._low_battery_flags.discard(agv)
                 return
 
@@ -1170,6 +1200,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         for cb in self._hooks_on_charging_complete:
             cb(agv, station)
 
+        self._charges[agv] = self._charges.get(agv, 0) + 1
         self._low_battery_flags.discard(agv)
 
     def _drop_cargo(self, agv: AGV) -> None:
