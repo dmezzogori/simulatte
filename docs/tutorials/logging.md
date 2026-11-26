@@ -170,7 +170,7 @@ Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings
 | `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node where the interrupted AGV came to rest), `reason`; no state change |
 | `agv.load_changed` | `AgvLoadChanged` | `agv`, `load` (SKU id to quantity, or null) |
 | `agv.battery_changed` | `AgvBatteryChanged` | `agv`, `battery` (recharge, battery swap, or idle power accounted outside a move) |
-| `agv.stranded` | `AgvStranded` | `agv`, `node`, `reason` (`no_reachable_charger` or `insufficient_after_charging`) |
+| `agv.stranded` | `AgvStranded` | `agv`, `node` (where it stands), `reason` (`no_reachable_charger`, `insufficient_after_charging` or `charger_not_reached`) |
 
 An order retires (`entity.retired`) when it reaches `COMPLETED`, `CANCELLED` or `FAILED`, after its mission cleanup.
 

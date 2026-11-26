@@ -97,6 +97,10 @@ see "Changed", "Removed" and "Migration".
   traces and digests. Under free flow `NearestParkingPolicy` therefore sees areas fill and sends AGVs elsewhere, or
   nowhere, so repositioning targets and the dispatches after them change. A custom repositioning policy that names a
   full area gets no move.
+- A repositioning that charges on its way and ends elsewhere than its target no longer ends with the AGV idle where
+  it charged: the trip is not resumed, and the AGV is asked where to rest again, as an AGV that ends a mission there
+  is (the repositioning policy, then the clearance of a service node). The same holds for a clearance and a make-way
+  move.
 - `order.status_changed` with reason `travel_failed` now means that the router found no route.
 - `traffic.reserved` and `traffic.released` carry `resources` (entity ids) instead of `node`; `traffic.wait_started`
   carries `resources`, `blockers` and the reason `occupied`; `traffic.wait_ended` has the reasons `granted`,
@@ -188,6 +192,9 @@ see "Changed", "Removed" and "Migration".
   was a retry tick ends earlier, and the time of a `retries_exhausted` failure can move by up to
   `pending_retry_delay`, because the loop restarts when it is needed again.
 - An order cancelled at the instant of its dispatch to an AGV already on its origin stays cancelled.
+- `agv.stranded` after a charging diversion names the node where the AGV stands, not the node where the diversion
+  started, and gives the reason `insufficient_after_charging` only when the AGV charged on the way; an AGV that
+  stopped before it reached the charger strands with the new reason `charger_not_reached`.
 
 ### Removed
 
