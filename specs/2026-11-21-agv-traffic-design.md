@@ -284,6 +284,14 @@ The trail follows the path travelled: the body is taken to be the last extent of
 track a rigid body through a reversal, so what a reversing vehicle longer than its last arcs would sweep or
 overhang is not held.
 
+A segment has one entry in the trail, with one clear point and one direction. When the AGV starts a leg over a
+segment that its trail still holds from the other direction (it reverses while its body is on it), the entry is
+replaced: from that instant the body on the segment is taken in the new direction, and its clear point is the one
+of the new leg. A single-lane segment that was claimed again in the new direction before that leg starts (§7.2)
+keeps its old clear point until then, and the executor tells the controller, with `cleared` (§7.1), when the body
+as it arrived no longer lies on it: when the odometer reaches the old clear point, when the leg over the segment
+starts, or when the AGV comes to rest on a node of capacity above 1.
+
 The time at which the odometer reaches a value inside the current arc is exact for kinematic profiles (§9.1).
 For other profiles, a clear point at the arc start is released at departure and every other clear point is
 released at the next arrival.
@@ -306,6 +314,7 @@ class TrafficController(Protocol):
     def withdraw(self, request: ClaimRequest) -> None: ...
     def release(self, agv: AGV, resources: Collection[Resource]) -> None: ...
     def retain(self, agv: AGV, resources: Collection[Resource]) -> None: ...
+    def cleared(self, agv: AGV, resources: Collection[Resource]) -> None: ...
 ```
 
 - `place` records the initial position at activation. It raises `RuntimeError` when the node, or a zone that
@@ -327,6 +336,9 @@ class TrafficController(Protocol):
   search see the withdrawing AGV in its travel's state, with what it held while waiting; detection ignores its
   holdings, since it no longer waits. `release` frees specific resources. `retain` frees everything the AGV holds
   except the given resources.
+- `cleared` tells the controller that the body of the AGV, as it arrived, no longer lies on resources it still
+  holds: single-lane segments it claimed again in a new direction (§7.2). Nothing is released.
+  `ReservationController` ends the both-directions state of those segments; `FreeFlowController` does nothing.
 - `WaitHooks` carries what the controller and the policy may ask of the waiting travel: `route` (remaining
   nodes), `loaded`, `resolutions` (the reactions staged for the AGV since it last arrived at the goal it travels to,
   §7.9), and the callables `try_reroute(avoid, max_cost_ratio)`,
@@ -357,15 +369,39 @@ rules extend it:
 
 The purpose of all three is the same: an AGV that cannot get in must wait where it does not block the way out.
 
+**Both directions.** A single-lane segment that is claimed again in a new direction is, from that grant, held in
+both directions by its holder: the recorded direction is the new one, and for every other claimant the holder also
+counts in the direction in which its body, as it arrived, lies on the segment, so that no other claimant is
+admissible on it (§7.3). It makes no difference whether the holder is at rest or moving, nor whether the segment
+is its next leg or lies farther along the route. The state ends at the first of:
+
+- the holder starts its own leg over the segment;
+- its odometer reaches the clear point the segment had in the trail when it was claimed again (§6.6), on whichever
+  arc that happens; for a profile without kinematic limits, at the arrival that ends that arc, as for any clear
+  point inside an arc;
+- the holder comes to rest on a node of capacity above 1, where its whole trail clears (§6.6);
+- the holder releases the segment (§7.5).
+
+The first three release nothing: the segment stays held in the new direction, and the executor reports them with
+`cleared` (§7.1). A `retain` that keeps the segment keeps the state: a travel that ends before the vehicle is back
+on the segment leaves it held in the new direction with the body as it arrived, for as long as the vehicle rests
+there. Without this state the record shows one direction while the body lies in the other, and a second vehicle
+is admitted head-on into the lane the body still occupies. The state is kept by the controller's ledger, which
+answers for it (`HoldingsLedger`); the `segment` entity lists the holder in the new direction only (§11.1), and no
+event marks the beginning or the end of the state, as none marks a waived gate (§7.8). A corridor's orientation
+has no such state: the corridor test of §7.3 already refuses an opposite entrant while the holder is inside, and
+what is exposed in a corridor or a dead-end branch is the segment next to a node of capacity above 1, which this
+rule covers. A segment with `passing` has no such state either.
+
 ### 7.3 Admission
 
 A resource is admissible for claimant `a` given the other holders `H` (the claimant's own holdings never block
 it):
 
 - node: `len(H) < capacity`;
-- segment, direction `d`, single lane: every holder has direction `d`, and `H` is empty or the extents of `H`
-  plus `a`'s extent do not exceed the length. With `passing`, the same test over the holders with direction `d`
-  only;
+- segment, direction `d`, single lane: no other holder is in the both-directions state (§7.2), every holder has
+  direction `d`, and `H` is empty or the extents of `H` plus `a`'s extent do not exceed the length. With
+  `passing`, the same test over the holders with direction `d` only, and no both-directions state;
 - zone: `len(H) < capacity`;
 - corridor, orientation `o`: no other holder has the opposite orientation. Holders without an orientation do
   not count. The same test applies to an AGV that already holds the corridor and sets or reverses its own
@@ -373,11 +409,16 @@ it):
 
 A claim is admissible when all its resources are.
 
+A holder in the both-directions state blocks every claim it makes inadmissible as any holder does: for the
+fairness gate (§7.4), for deadlock detection among the members (§7.8), for the blockers of a wait, the stuck rule
+and make-way (§7.9, §7.10), and for `TrafficView.blockers` (§10.1).
+
 ### 7.4 Queueing and grants
 
 Pending claims are ordered by priority (higher first, from the controller's `priority_fn(agv)`, default 0) and
-then by a request counter. After every request, release, withdrawal or waiver the controller scans the queue in
-order and grants every claim that is admissible and not gated.
+then by a request counter. After every request, release, withdrawal or waiver, and after the end of a
+both-directions state that blocked a pending claim (§7.2), the controller scans the queue in order and grants
+every claim that is admissible and not gated.
 
 **Fairness gate (T7).** A claim is gated on a segment or corridor `r` when an earlier, non-yielding pending claim
 names `r`, is inadmissible on `r`, and each of its other resources is either admissible or blocked only by AGVs
@@ -509,7 +550,10 @@ any longer (§7.8). The change count that decides whether a review is followed b
 or, for such a wait, at the instant the wait is looked at, after the detection and after the calls for the waits
 that opened before it. After a review,
 the next is due `review_after` later if a grant or release happened anywhere since the previous review;
-otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. A
+otherwise no timer is scheduled: the wait sleeps until the next grant or release and the delay starts then. The
+end of a both-directions state that blocked a pending claim (§7.2) counts here as a release does, for the next
+review and for the sleep: it frees a claimant without releasing anything; an end that blocked no pending claim
+counts for nothing. A
 blocker that strands also ends the sleep: the wait is reviewed at that instant (§7.10), since a stranding may release
 nothing. The
 grant or release that wakes a sleeping wait is consumed by the wake-up: the review it schedules is followed by
