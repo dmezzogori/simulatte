@@ -13,7 +13,7 @@ from threading import Lock
 from typing import Any
 
 from simulatte._wire import freeze
-from .auto import TargetMetadata, auto_algorithm, auto_layout
+from .auto import NetworkGeometry, TargetMetadata, auto_algorithm, auto_layout
 from .dependencies import DependencyClosure, evaluate_query
 from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
 from .schema import layout_version, traffic_fields, validate_definition
@@ -791,7 +791,9 @@ def reresolve_presentation(bundle: LayoutBundle, file_patch: Mapping[str, Any]) 
     if _version(explicit) != bundle.schema_version:
         # The version is part of every hash, and a field of a stale override is no physical read.
         return PresentationResult(True, (("schema_version",),), None, bundle.physical_hash)
-    auto = auto_layout(targets, StaticTopology.from_dict(data["topology"]), explicit)
+    # The facility rule reads the network's nodes and arcs, which the bundle saves (studio map spec §6.3).
+    geometry = None if data["network"] is None else NetworkGeometry.from_record(data["network"]["graph"])
+    auto = auto_layout(targets, StaticTopology.from_dict(data["topology"]), explicit, network=geometry)
     values = resolve_layers(stages, file_layer, targets=kinds, final=True, auto_layer=auto.data)
     data["layers"]["file"] = file_layer.to_dict()
     data["resolved"] = _effective(values, auto)

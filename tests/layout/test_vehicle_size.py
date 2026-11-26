@@ -14,12 +14,13 @@ from simulatte.builders import build_immediate_release_system
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.builders import build_simple_system
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.layout import LayoutBundle, LayoutError
-from simulatte.layout.auto import TargetMetadata, auto_layout
+from simulatte.layout import Layout, LayoutBundle, LayoutError
+from simulatte.layout.auto import NetworkGeometry, TargetMetadata, auto_layout
 from simulatte.layout.bundle import reresolve_presentation
 from simulatte.layout.identity import hashes
 from simulatte.layout.layers import FileLayer, resolve_layers
 from simulatte.layout.topology import StaticTopology
+from simulatte.layout.types import Point
 from simulatte.scenario import Scenario
 
 
@@ -49,6 +50,13 @@ def production():
 
 def hash_triple(bundle):
     return (bundle.physical_hash, bundle.full_hash, bundle.layers_hash)
+
+
+@pytest.fixture
+def unbound(monkeypatch):
+    """Facilities without ``node_ids`` (Task 12): the simple system is then a model with no new field, whose bundle
+    is the one the code before the vehicle size saved."""
+    monkeypatch.setattr(Layout, "_bound_nodes", lambda self, refs: None)
 
 
 # --- AGVType.width and the resolved size ------------------------------------------------------------------------
@@ -113,7 +121,7 @@ def test_a_length_alone_gives_a_depth_of_half_the_length():
 
 
 @pytest.mark.parametrize(("length", "width"), [(None, None), (0.0, None), (0.0, 2.0)])
-def test_no_length_or_a_length_of_0_keeps_1_by_1_and_writes_no_size(length, width):
+def test_no_length_or_a_length_of_0_keeps_1_by_1_and_writes_no_size(length, width, unbound):
     bundle = simple(length, width)
     assert footprint(bundle) == {"width": 1.0, "depth": 1.0, "height": 0.0}
     assert "size" not in bundle["targets"]["vehicle-0"]
@@ -158,7 +166,8 @@ def test_target_fields_round_trip_and_name_the_algorithm():
     for name in ("parking_area", "charging_station"):
         assert TargetMetadata(name, node_ids=("A",)).node_ids == ("A",)
     explicit = resolve_layers((), FileLayer({"schema_version": "1.0"}), targets={})
-    assert auto_layout({"w": bound}, StaticTopology(), explicit).algorithm == "layered-v2"
+    network = NetworkGeometry.from_arcs({"A": Point(0, 0), "B": Point(1, 0)}, [("A", "B")])
+    assert auto_layout({"w": bound}, StaticTopology(), explicit, network=network).algorithm == "layered-v2"
     assert auto_layout({"w": TargetMetadata("warehouse")}, StaticTopology(), explicit).algorithm == "layered-v1"
 
 
@@ -204,6 +213,13 @@ PINNED_UNSIZED = (
 )
 PINNED_UNSIZED_BUNDLE = "8c7638d75692c5e6130ca4b9a71bec334d4fbaf0437be7fc97b1b7a919a73cc9"
 PINNED_UNSIZED_RERESOLVED = "7f7516f713bf148148ba601d0572d1a2f9f6957c405660c003339c24e074f427"
+# The PINNED_UNSIZED values hold for the simple system with its facilities' node_ids withheld (fixture `unbound`).
+# With them, since Task 12, it is layered-v2 with these hashes; withheld, the code of Task 12 gives the values above.
+PINNED_BOUND = (
+    "caa6cfd94829fee53da83368c5492026d6a7df94de6d44f2b682209cc4011fd6",
+    "957110e4055958107ee5ac060ca67489dc1bd6b8396fd7e12fecb8a177f8fab3",
+    "3d9e1df3de16db051ab44ee4559b23d55277b89609fdf676c01b78ce6a8a2fe3",
+)
 
 
 def test_a_production_only_model_keeps_layered_v1_its_hashes_and_its_reresolution():
@@ -215,16 +231,24 @@ def test_a_production_only_model_keeps_layered_v1_its_hashes_and_its_reresolutio
     assert replay.bundle is not None and sha(replay.bundle.to_dict()) == PINNED_PRODUCTION_RERESOLVED
 
 
-def test_vehicles_without_a_length_keep_layered_v1_and_their_hashes():
+def test_vehicles_without_a_length_and_facilities_without_nodes_keep_layered_v1_and_their_hashes(unbound):
     bundle = simple()
     assert bundle["algorithms"]["auto"] == bundle["auto"]["algorithm"] == "layered-v1"
     assert hash_triple(bundle) == PINNED_UNSIZED
     assert sha(bundle.to_dict()) == PINNED_UNSIZED_BUNDLE
 
 
-def test_a_bundle_saved_before_the_size_reresolves_as_it_did():
+def test_facilities_bound_to_nodes_without_a_vehicle_length_give_layered_v2():
+    bundle = simple()
+    assert bundle["algorithms"]["auto"] == bundle["auto"]["algorithm"] == "layered-v2"
+    assert not any("size" in target for target in bundle["targets"].values())
+    assert hash_triple(bundle) == PINNED_BOUND
+
+
+def test_a_bundle_saved_before_the_size_reresolves_as_it_did(unbound):
     # Before the change a model with sized vehicles saved the very bundle of the same model without a length (its
     # sha256 was PINNED_UNSIZED_BUNDLE for both), so this is the bundle a released version saved for either model.
+    # Since Task 12 the model's facilities carry node_ids; withheld, it is that bundle again.
     saved = LayoutBundle.from_dict(json.loads(json.dumps(simple().to_dict())))
     assert sha(saved.to_dict()) == PINNED_UNSIZED_BUNDLE
     patch = {"schema_version": "1.0", "placements": {"WH-A": {"kind": "warehouse", "visual": {"label": "Alpha"}}}}
@@ -305,7 +329,7 @@ def test_the_reader_rejects_other_names_and_malformed_fields(path, value):
         LayoutBundle.from_dict(rehashed(data))
 
 
-def test_the_reader_rejects_a_layered_v2_name_without_the_fields_and_the_fields_under_layered_v1():
+def test_the_reader_rejects_a_layered_v2_name_without_the_fields_and_the_fields_under_layered_v1(unbound):
     data = simple().to_dict()
     data["algorithms"]["auto"] = data["auto"]["algorithm"] = "layered-v2"
     with pytest.raises(LayoutError, match="algorithm"):

@@ -172,7 +172,9 @@ PINNED_BUNDLES = {
     "code:line": "e9e85da59f7f582af9224c471407951165270e269511124e8b65c85478d3903f",
     # Re-pinned when the vehicle size entered the bundle (studio map Task 11): its cart has length 0.5, so its target
     # carries size [0.5, 0.25] and the bundle is layered-v2. With the size withheld it is f88b12dc...aa91331, as before.
-    "code:system": "b4f0e40f668c7e49b8a34775fd69943c4def5b275ea2f721eae5f45da140cc21",
+    # Re-pinned when facilities were placed at their node (Task 12): its two warehouses, its parking area and its
+    # charging station carry node_ids and new positions. With the node_ids withheld it is b4f0e40f...da140cc21.
+    "code:system": "11a22e3a0a49b0c11bbec47dc49062aa1a06a988fac6aa294bb6fbd52531948a",
     "code:chord_only_square": "4978578e56733e34f5a86c9835bdb237715ce8979742b1f9f1c8ccbcbbf5a5bc",
     "code:shop10": "40c22e1a7d45de449c7270538333991b672075cacf2100fa53a62014f713aace",
 }
@@ -200,6 +202,7 @@ def _pinned_model(name):
 @pytest.mark.parametrize("name", sorted(PINNED_BUNDLES))
 def test_whole_bundles_are_those_of_the_commit_before_the_bundle_became_lazy(name):
     """The digests were read at 2946ebb, where preparation built and validated the bundle (spec §9), except
-    ``code:system``, re-pinned at 0ccf5bb when the vehicle size entered the bundle (see the comment at the pin)."""
+    ``code:system``, re-pinned at 0ccf5bb when the vehicle size entered the bundle and again when facilities were
+    placed at their node (see the comment at the pin)."""
     bundle = _pinned_model(name).prepare().bundle
     assert hashlib.sha256(json.dumps(bundle.to_dict(), sort_keys=True).encode()).hexdigest() == PINNED_BUNDLES[name]

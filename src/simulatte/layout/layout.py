@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
-from .auto import AutoLayer, TargetMetadata, auto_layout
+from .auto import AutoLayer, NetworkGeometry, TargetMetadata, auto_layout
 from .binding import _loaded, bind_components
 from .dependencies import MISSING, DependencyClosure
 from .errors import LayoutDiagnostic, LayoutError, LayoutNotReady, sort_diagnostics
@@ -311,6 +311,12 @@ class Layout:
         self._coordinator._owner(ref)
         return self._coordinator.network.node(ref.address)
 
+    def _bound_nodes(self, refs: Sequence[NodeRef | PortRef]) -> tuple[str, ...] | None:
+        """The ids of the nodes a facility is bound to, in binding order, each once: the ``node_ids`` of its target,
+        the input of its placement (studio map spec §6.3, §6.5). A warehouse lists its input bays, then its output
+        bays."""
+        return tuple(dict.fromkeys(self._resolve_node(ref).id for ref in refs))
+
     def _resolve_late_node(self, ref: NodeRef | PortRef) -> Node:
         """`ref` resolved for a component constructed after preparation; without a network that names the cause."""
         if self._coordinator.values.at(("network",), explicit=True).state != "present":
@@ -483,6 +489,7 @@ class Layout:
             raise LayoutError("custom resource owner requires its registered on_bind hook")
         required = []
         metadata = {}
+        facilities: dict[str, list[NodeRef | PortRef]] = {}
         for entity in self.env.entities.live():
             if entity.id not in coordinator.values.targets:
                 continue
@@ -494,6 +501,8 @@ class Layout:
                     required.append(ref.address)
                     if entity.kind == "agv":
                         node_id = self._resolve_node(ref).id
+                    elif entity.kind in ("warehouse", "parking_area", "charging_station"):
+                        facilities.setdefault(entity.id, []).append(ref)
             # A vehicle's size comes from its type (studio map spec §6.1); the layout reads it without importing
             # the intralogistics package.
             size = getattr(getattr(entity, "agv_type", None), "size", None) if entity.kind == "agv" else None
@@ -521,8 +530,19 @@ class Layout:
                     "path": [address.to_dict() for address in result.path],
                 },
             )
+        for key, refs in facilities.items():
+            metadata[key] = replace(metadata[key], node_ids=self._bound_nodes(refs))
+        graph = coordinator.network.graph
+        geometry = NetworkGeometry.from_arcs(
+            {node.id: Point(node.x, node.y) for node in graph.nodes},
+            ((a.id, b.id) for a in graph.nodes for b in graph.neighbors(a)),
+        )
         self._auto = auto_layout(
-            metadata, snapshot_topology(self.env, tuple(self._flows)), coordinator.values, limits=self.limits
+            metadata,
+            snapshot_topology(self.env, tuple(self._flows)),
+            coordinator.values,
+            limits=self.limits,
+            network=geometry,
         )
         return resolve_layers(
             coordinator.values.bundle.code_stages,

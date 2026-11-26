@@ -14,9 +14,10 @@ With ``--patch`` (the default until the Python side records them) the fixtures a
 simulation does not record yet (spec §6): the ``wait`` and ``route`` of a vehicle, the capacities, the fleet counters,
 the ``node_ids`` of the facilities, and the facility positions of the placement rule of §6.3. Each is computed from the
 events up to the cursor or written as a literal below. The vehicle size is recorded since Task 11; the patch still
-writes it, with the values the recording already has. ``bare-layout`` is never patched, and the
-vehicle size the corridor example records is taken out of it (:func:`unsized`): it stands for a trace recorded
-before Stage 2.
+writes it, with the values the recording already has. ``bare-layout`` is never patched: it stands for a trace
+recorded before Stage 2, so the corridor example is recorded for it once more with the facilities' ``node_ids``
+withheld (:func:`without_node_ids`, which leaves them in the grid), and the vehicle size it records is taken out of it
+(:func:`unsized`). The facility positions and ``node_ids`` are recorded since Task 12; the patch writes the same values.
 """
 
 from __future__ import annotations
@@ -29,7 +30,8 @@ import runpy
 import sys
 import tempfile
 from collections import Counter
-from contextlib import redirect_stdout
+from collections.abc import Iterator
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate
 from simulatte import Trace, TraceRecorder
 from simulatte.environment import Environment
+from simulatte.layout.layout import Layout
 from simulatte.trace import ChunkLimits
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -220,6 +223,17 @@ def unsized(layout: Plain) -> Plain:
         if target.pop("size", None) is not None:
             layout["resolved"]["placements"][name]["footprint"].update(width=1.0, depth=1.0)
     return layout
+
+
+@contextmanager
+def without_node_ids() -> Iterator[None]:
+    """Record as before Task 12: no facility target carries ``node_ids``, so the placement packs them in the grid."""
+    bound_nodes = Layout._bound_nodes
+    Layout._bound_nodes = lambda self, refs: None
+    try:
+        yield
+    finally:
+        Layout._bound_nodes = bound_nodes
 
 
 def patch_state(
@@ -679,7 +693,10 @@ def main(argv: list[str] | None = None) -> int:
         corridor = Path(tmp) / "corridor.simtrace"
         advanced = Path(tmp) / "advanced.simtrace"
         production = Path(tmp) / "production.simtrace"
+        bare = Path(tmp) / "bare.simtrace"
         record_main(corridor, "intralogistics_traffic", seed=19)
+        with without_node_ids():
+            record_main(bare, "intralogistics_traffic", seed=19)
         record_main(advanced, "intralogistics_advanced", seed=42, plot=False)
         sys.path.insert(0, str(generate.EXAMPLES))
         import studio_recording
@@ -721,7 +738,7 @@ def main(argv: list[str] | None = None) -> int:
         two_fleets["state"]["AGV-3"]["fleet"] = "shuttles"
         frames["two-fleets"] = two_fleets
 
-        frames["bare-layout"] = frame_of(c, 128.0, None, patch=False, layout_patched=None)
+        frames["bare-layout"] = frame_of(Recording(bare), 128.0, None, patch=False, layout_patched=None)
         frames["bare-layout"]["layout"] = unsized(frames["bare-layout"]["layout"])
         no_layout = json.loads(json.dumps(corridor_wait))
         no_layout["layout"] = None

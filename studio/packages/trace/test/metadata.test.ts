@@ -233,10 +233,17 @@ it("rejects the layered-v2 name without its fields, and the fields under layered
   const renamed = structuredClone(exampleExpected.layout);
   renamed["algorithms"].auto = renamed["auto"].algorithm = "layered-v1";
   await expect(openTrace(buildTrace({ ...INITIAL, layout: renamed }))).rejects.toThrow(TraceCorrupted);
+  // the example's targets carry both fields (size since Task 11, node_ids since Task 12): both are taken out
   const halved = structuredClone(exampleExpected.layout);
-  for (const t of Object.values(halved["auto"].targets) as Record<string, unknown>[]) delete t["size"];
+  for (const t of Object.values(halved["auto"].targets) as Record<string, unknown>[]) {
+    delete t["size"];
+    delete t["node_ids"];
+  }
   await expect(openTrace(buildTrace({ ...INITIAL, layout: halved }))).rejects.toThrow(TraceCorrupted);
-  const saved = structuredClone(exampleExpected.layout); // the auto layer's targets still carry the size
-  for (const t of Object.values(saved["targets"]) as Record<string, unknown>[]) delete t["size"];
+  const saved = structuredClone(exampleExpected.layout); // the auto layer's targets still carry the fields
+  for (const t of Object.values(saved["targets"]) as Record<string, unknown>[]) {
+    delete t["size"];
+    delete t["node_ids"];
+  }
   await expect(openTrace(buildTrace({ ...INITIAL, layout: saved }))).rejects.toThrow(TraceCorrupted);
 });

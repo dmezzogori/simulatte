@@ -1,8 +1,9 @@
 """Pure layered-v1/layered-v2 presentation defaults and deterministic cell packing.
 
-``layered-v2`` is ``layered-v1`` plus two inputs a target may carry (studio map spec §6.5): a vehicle's ``size`` and
-a facility's ``node_ids``. One implementation serves both names; a bundle is named ``layered-v2`` exactly when a target
-carries one of them, so every other bundle keeps its name, its output and its hashes.
+``layered-v2`` is ``layered-v1`` plus two inputs a target may carry (studio map spec §6.5): a vehicle's ``size``, its
+default footprint, and a facility's ``node_ids``, which place it at its node instead of in the grid (§6.3). One
+implementation serves both names; a bundle is named ``layered-v2`` exactly when a target carries one of them, so every
+other bundle keeps its name, its output and its hashes.
 
 Graph positions and node-bound AGV locations are returned separately from auto
 leaves: neither may accidentally acquire auto-origin physical provenance.
@@ -27,6 +28,12 @@ from .types import LayoutLimits, Point, _freeze, normalize_rotation, number, pla
 _BOUND_KINDS = frozenset({"warehouse", "parking_area", "charging_station"})
 """The kinds whose target may carry ``node_ids``."""
 _TARGET_FIELDS = frozenset({"kind", "explicitly_placed", "graph_position", "node_id", "size", "node_ids"})
+_CENTRED = frozenset({"parking_area", "charging_station"})
+"""Bound kinds centred on their node with a default footprint of 3 m by 3 m (studio map spec §6.3, M21)."""
+_NOT_OBSTACLES = frozenset({"node", *_CENTRED})
+"""Explicit placements a node-placed warehouse may overlap."""
+_ZERO_MEAN = 1e-9
+"""Below this length the mean of the unit vectors to a node's neighbours is zero: they cancel."""
 
 
 @dataclass(frozen=True)
@@ -99,6 +106,36 @@ class TargetMetadata:
             if isinstance(copied.get(name), (list, tuple)):
                 copied[name] = tuple(copied[name])
         return cls(**copied)
+
+
+@dataclass(frozen=True)
+class NetworkGeometry:
+    """The positions of the network's nodes and the neighbours of each, the inputs of the facility rule (§6.3).
+
+    A neighbour is joined to the node by an arc in either direction and is listed once, in id order. Preparation builds
+    it from the resolved graph; re-resolution builds it from the bundle's saved ``network.graph`` record, which holds
+    the same node positions and arcs, so a saved bundle reproduces the placement.
+    """
+
+    positions: Mapping[str, Point]
+    neighbours: Mapping[str, tuple[str, ...]]
+
+    @classmethod
+    def from_arcs(cls, positions: Mapping[str, Point], arcs: Iterable[tuple[str, str]]) -> NetworkGeometry:
+        near: dict[str, set[str]] = {key: set() for key in positions}
+        for source, target in arcs:
+            if source != target:
+                near[source].add(target)
+                near[target].add(source)
+        return cls(dict(positions), {key: tuple(sorted(items, key=id_key)) for key, items in near.items()})
+
+    @classmethod
+    def from_record(cls, graph: Mapping[str, Any]) -> NetworkGeometry:
+        """The geometry of a bundle's ``network.graph`` record."""
+        return cls.from_arcs(
+            {node["id"]: Point(node["position"][0], node["position"][1]) for node in graph["nodes"]},
+            ((arc["source"], arc["target"]) for arc in graph["arcs"]),
+        )
 
 
 def auto_algorithm(targets: Iterable[TargetMetadata]) -> str:
@@ -268,12 +305,133 @@ def _size(placement: Mapping[str, Any], default: Mapping[str, Any]) -> tuple[flo
     )
 
 
+def _direction(anchor: str, network: NetworkGeometry) -> tuple[float, float]:
+    """Away from the network at `anchor`: the opposite of the mean of the unit vectors to its neighbours, else +y."""
+    origin = network.positions[anchor]
+    xs, ys = [], []
+    for other in network.neighbours[anchor]:
+        point = network.positions[other]
+        dx, dy = Fraction(point.x) - Fraction(origin.x), Fraction(point.y) - Fraction(origin.y)
+        scale = max(abs(dx), abs(dy))
+        if not scale:  # a neighbour on the anchor gives no direction
+            continue
+        x, y = float(dx / scale), float(dy / scale)  # scaled into [-1, 1] first: a far neighbour cannot overflow
+        length = math.hypot(x, y)
+        xs.append(x / length)
+        ys.append(y / length)
+    if not xs:
+        return 0.0, 1.0
+    # fsum rounds once, so the mean does not depend on the order of the neighbours
+    mean_x, mean_y = math.fsum(xs) / len(xs), math.fsum(ys) / len(ys)
+    length = math.hypot(mean_x, mean_y)
+    if length < _ZERO_MEAN:
+        return 0.0, 1.0
+    return -mean_x / length, -mean_y / length
+
+
+def _extent(placement: Mapping[str, Any], default: Mapping[str, Any], ux: float, uy: float) -> Fraction:
+    """The extent of the (rotated) footprint along the unit direction ``(ux, uy)``: its support width."""
+    footprint = {**default, **placement.get("footprint", {})}
+    angle = normalize_rotation(placement.get("rotation", 0))
+    if angle in (0, 180):
+        along, across = ux, uy
+    elif angle in (90, 270):
+        along, across = uy, ux
+    else:
+        cosine, sine = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+        along, across = ux * cosine + uy * sine, uy * cosine - ux * sine
+    return abs(Fraction(along)) * Fraction(footprint["width"]) + abs(Fraction(across)) * Fraction(footprint["depth"])
+
+
+def _raw(point: Point, size: tuple[float, float]) -> Bounds:
+    """The footprint's bounds without the padding of :func:`_bounds`."""
+    x, y = Fraction(point.x), Fraction(point.y)
+    dx, dy = Fraction(size[0]) / 2, Fraction(size[1]) / 2
+    return x - dx, y - dy, x + dx, y + dy
+
+
+def _clearing_step(
+    obstacle: Bounds,
+    half: tuple[Fraction, Fraction],
+    origin: tuple[Fraction, Fraction],
+    direction: tuple[Fraction, Fraction],
+    start: Fraction,
+    step: Fraction,
+) -> int:
+    """The first `k` at which a box of half size `half` centred at ``origin + direction * (start + k * step)`` is clear
+    of `obstacle`.
+
+    Moving along a fixed direction, the box leaves the obstacle on an axis once and for all, so the first clear `k` is
+    the earlier of the two axes'. A unit direction has a nonzero component on at least one axis.
+    """
+    steps = []
+    for axis in (0, 1):
+        component = direction[axis]
+        if component > 0:  # its near edge reaches the obstacle's far edge
+            distance = (obstacle[axis + 2] + half[axis] - origin[axis]) / component
+        elif component < 0:
+            distance = (obstacle[axis] - half[axis] - origin[axis]) / component
+        else:
+            continue
+        steps.append(math.ceil((distance - start) / step))
+    return min(steps)
+
+
+def _place_facilities(
+    keys: list[str],
+    targets: Mapping[str, TargetMetadata],
+    network: NetworkGeometry,
+    placements: dict[str, dict[str, Any]],
+    explicit: Mapping[str, Any],
+    sizes: Mapping[str, tuple[float, float]],
+    obstacles: Mapping[str, Bounds],
+) -> None:
+    """Studio map spec §6.3: each of `keys`, in id order, at the first node it is bound to.
+
+    A parking area or a charging station is centred on its node. A warehouse is moved from its node along the
+    direction away from the network by half its extent along it plus 1 m, then further by its own extent while its raw
+    footprint overlaps an obstacle (the raw footprint of an explicit placement other than a node, a parking area or a
+    charging station) or a warehouse placed before it. Positions are exact until a single conversion to float.
+    """
+    index = _BoundsIndex({key: box for key, box in obstacles.items() if targets[key].kind not in _NOT_OBSTACLES})
+    placed: list[Bounds] = []
+    for key in keys:
+        target = targets[key]
+        assert target.node_ids is not None
+        anchor = network.positions[target.node_ids[0]]
+        if target.kind in _CENTRED:
+            placements[key]["position"] = (anchor.x, anchor.y, 0.0)
+            continue
+        ux, uy = _direction(target.node_ids[0], network)
+        extent = _extent(explicit.get(key, {}), placements[key]["footprint"], ux, uy)
+        origin, direction = (Fraction(anchor.x), Fraction(anchor.y)), (Fraction(ux), Fraction(uy))
+        half = (Fraction(sizes[key][0]) / 2, Fraction(sizes[key][1]) / 2)
+        start, k = extent / 2 + 1, 0
+        while True:
+            distance = start + k * extent
+            try:
+                point = Point(float(origin[0] + direction[0] * distance), float(origin[1] + direction[1] * distance))
+            except OverflowError as exc:
+                raise LayoutError("auto position exceeds finite float64 range") from exc
+            box = _raw(point, sizes[key])
+            hits = [hit for _, hit in index.collisions(box)] + [other for other in placed if _overlap(box, other)]
+            if not hits:
+                break
+            if math.ulp(point.x) > extent / 4 or math.ulp(point.y) > extent / 4:
+                # a step must move the float position, or the search would not end
+                raise LayoutError("auto placement exceeds float64 precision for its extent")
+            k = max(k + 1, *(_clearing_step(other, half, origin, direction, start, extent) for other in hits))
+        placements[key]["position"] = (point.x, point.y, 0.0)
+        placed.append(box)
+
+
 def auto_layout(
     targets: Mapping[str, TargetMetadata],
     topology: StaticTopology,
     explicit_values: ResolvedValues,
     *,
     limits: LayoutLimits = LayoutLimits(),
+    network: NetworkGeometry | None = None,
 ) -> AutoLayer:
     """Compute once after all stages; `.data` is passed to resolve_layers.
 
@@ -281,6 +439,8 @@ def auto_layout(
     entries break adjacency. Explicit positions are never copied into auto data.
     Node visual positions are ignored in favor of metadata graph coordinates;
     consumers must use `.derived_positions` as the authoritative display location.
+    `network` holds the node positions and neighbours that a target with ``node_ids`` is placed from; it is required
+    when a target carries them.
     """
     if len(targets) > limits.max_placements:
         raise LayoutError(
@@ -304,6 +464,12 @@ def auto_layout(
         default_footprint = {"width": footprint.width, "depth": footprint.depth, "height": footprint.height}
         if target.size is not None:  # layered-v2: the vehicle's own size (the placement's x axis is its heading)
             default_footprint["width"], default_footprint["depth"] = target.size
+        if target.node_ids is not None:
+            # layered-v2: placed from its node, which the network must hold (studio map spec §6.3)
+            if network is None or any(node not in network.positions for node in target.node_ids):
+                raise LayoutError(f"node_ids of {key} name a node that is not in the network")
+            if target.kind in _CENTRED:
+                default_footprint["width"] = default_footprint["depth"] = 3.0
         placements[key] = {
             "kind": target.kind,
             "rotation": 0.0,
@@ -356,6 +522,12 @@ def auto_layout(
         if ordered[key].kind != "node"
         and explicit_values.at(("placements", key, "position"), explicit=True).state != "unset"
     }
+    # A facility bound to a node is placed there instead of in the grid (studio map spec §6.3).
+    facing = [key for key in ordered if key in auto_ids and ordered[key].node_ids is not None]
+    if facing:
+        assert network is not None
+        _place_facilities(facing, ordered, network, placements, explicit, sizes, unpadded)
+        auto_ids.difference_update(facing)
     if auto_ids:
         cell_width = number(max(sizes[key][0] for key in auto_ids) + 2, "auto cell width", positive=True)
         cell_depth = number(max(sizes[key][1] for key in auto_ids) + 2, "auto cell depth", positive=True)
