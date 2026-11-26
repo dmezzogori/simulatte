@@ -1033,6 +1033,89 @@ class TestWaitsWithNoReviewLeft:
         assert stuck_reports(w) == [(50.0, "A", {"B": "IDLE"})]
         assert len(policy.of("on_blocked")) == 2
 
+    def test_a_stalled_agv_is_not_asked_to_make_way(self) -> None:
+        """A, of a fleet that accepts every make-way move, travels and stalls on N1 at 40 with B asleep behind it. The
+        controller does not ask the policy for a target nor the fleet for a move; B is reported at once."""
+        policy = Scripted(blocked=KEEP)
+        w = world({"A": ("N1", "F1"), "B": "N0"}, policy=policy)
+        w.state("A", AGVState.TRAVELING_EMPTY)
+        w.wait("B", "N1")
+        run_to(w, 40.0)
+        w.stall("A")
+        w.controller.idle(w.agvs["A"])
+        assert policy.of("make_way_target") == []
+        assert w.fleets["F1"].moves == []
+        assert w.agvs["A"].state is AGVState.TRAVELING_EMPTY
+        assert stuck_reports(w) == [(40.0, "B", {"A": "STALLED"})]
+
+    def test_behind_a_reported_wait_whose_blocker_stalls(self) -> None:
+        """X is reported behind I, idle, at 30; I then travels; Y stops behind X at 32 and sleeps from 62. At 70 I's run
+        stalls and the executor tells the controller: X is reported already, and Y, behind it, is reported then, the
+        stalled I counting as at rest for the check."""
+        policy = Scripted(blocked=KEEP)
+        w = world({"I": "N2", "X": "N1", "Y": "N0"}, policy=policy)
+        w.wait("X", "N2")
+        w.env.run()
+        w.state("I", AGVState.TRAVELING_EMPTY)
+        run_to(w, 32.0)
+        w.wait("Y", "N1")
+        run_to(w, 70.0)
+        w.stall("I")
+        w.controller.idle(w.agvs["I"])
+        assert stuck_reports(w) == [(30.0, "X", {"I": "IDLE"}), (70.0, "Y", {"X": "WAITING"})]
+        assert policy.of("make_way_target") == []
+
+    def test_behind_a_member_that_keeps_its_review_timer(self) -> None:
+        """Hole C with a member whose own review is scheduled: a change at 10 (Z moves on) gives M, a member of the
+        unresolved {M, X}, a review at 30 that schedules another at 60. Y sleeps behind X, a member, through its gate,
+        and is stuck from the instant H rests idle (55). M's review will not report Y (its chain does not pass a
+        member), so Y is not left to it: Y is reported at 55, not at 60."""
+
+        def shape(env: Environment) -> Declared:
+            nodes = [Node(f"N{i}", 10 * i, 0) for i in range(8)]
+            arcs = [Arc(nodes[i], nodes[i + 1], passing=(i == 1)) for i in range(7)]
+            return declare(env, LayoutGraph(nodes, arcs))
+
+        policy = Scripted(blocked=KEEP)
+        w = world({"S": "N0", "H": "N1", "M": "N2", "X": "N3", "Y": "N4", "Z": "N6"}, shape=shape, policy=policy)
+        seg = w.seg("N1", "N2")
+        assert w.ask("H", (seg, "backward")).granted
+        assert w.ask("M", (seg, "backward")).granted
+        w.state("H", AGVState.WAITING_UNLOAD)
+        w.state("Z", AGVState.TRAVELING_EMPTY)
+        w.wait("M", "N3")
+        w.wait("X", (seg, "backward"), "N2")
+        assert w.deadlocks() == [(("M", "X"), None, "unresolved")]
+        run_to(w, 10.0)
+        w.leave("Z", "N7")
+        run_to(w, 20.0)
+        w.wait("Y", (seg, "forward"), "N0")
+        run_to(w, 55.0)
+        assert timers(w) == [60.0]  # M's review; Y sleeps since its review at 50
+        w.state("H", AGVState.IDLE)
+        w.controller.idle(w.agvs["H"])
+        assert stuck_reports(w) == [(55.0, "Y", {"S": "IDLE", "X": "WAITING"})]
+        w.env.run()
+        assert stuck_reports(w) == [(55.0, "Y", {"S": "IDLE", "X": "WAITING"})]
+
+    def test_under_a_policy_without_reviews_a_wait_made_stuck_by_a_release_is_reported_at_the_next_entry(self) -> None:
+        """The limit of spec §7.9 for a policy that asks for no review: B waits for N1, held by M, which travels, and
+        for N2, held by I, idle; not stuck. At 10 M moves on and releases N1: from then B's only blocker is I, idle,
+        and B is stuck, but a grant or a release does not check. B is reported at the next entry that is not a grant
+        or a release, here Q's rest at 20, not at 10. (Pins the behaviour as it is: a change of the rule changes this
+        test.)"""
+        w = world({"B": "N0", "M": "N1", "I": "N2", "Q": "N4"}, policy=Scripted())
+        w.state("M", AGVState.TRAVELING_EMPTY)
+        w.wait("B", "N1", "N2")
+        assert stuck_reports(w) == []
+        run_to(w, 10.0)
+        w.leave("M", "N3")
+        assert stuck_reports(w) == []
+        run_to(w, 20.0)
+        w.controller.idle(w.agvs["Q"])
+        assert stuck_reports(w) == [(20.0, "B", {"I": "IDLE"})]
+        assert timers(w) == []
+
 
 # --- idle blockers (spec §7.10) -----------------------------------------------------------------------------
 

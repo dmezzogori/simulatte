@@ -433,10 +433,11 @@ class ReservationController:
 
         A claim is gated on a segment or corridor ``r`` it names, and that its AGV does not hold, when an earlier,
         non-yielding claim names ``r``, is inadmissible on ``r``, and each of its other resources is admissible or
-        blocked only by holders of ``r``. With `among`, only the holdings of those AGVs exist. The earlier claims are
-        read at the first such ``r``, before anything is yielded: a claim without one costs nothing per earlier claim.
+        blocked only by holders of ``r``. With `among`, only the holdings of those AGVs exist.
         """
-        others: list[tuple[_Pending, tuple[ClaimItem, ...]]] | None = None
+        others = [
+            (claim, self.ledger.needed(claim.agv, claim.request.claim)) for claim in earlier if not claim.yielding
+        ]
         for item in items:
             resource = item.resource
             if not isinstance(resource, (Segment, Corridor)):
@@ -444,12 +445,6 @@ class ReservationController:
             holders = self.ledger.holders(resource)
             if agv in holders:
                 continue
-            if others is None:
-                others = [
-                    (claim, self.ledger.needed(claim.agv, claim.request.claim))
-                    for claim in earlier
-                    if not claim.yielding
-                ]
             for other, needed in others:
                 mine = next((own for own in needed if own.resource == resource), None)
                 if mine is None or not self.ledger.blockers(other.agv, mine, among):
@@ -698,15 +693,13 @@ class ReservationController:
             if not found:
                 not_stuck[current] = None
             for blocker in found:
-                motion = blocker.agv.motion
-                if motion is not None and motion.get("stalled"):
-                    continue
-                if blocker.disposition is Disposition.WAITING:
+                state = self._at_rest(blocker)
+                if state is None:
+                    not_stuck[current] = None
+                elif state == "WAITING":
                     ahead = self._pending[blocker.agv]
                     behind.setdefault(ahead, []).append(current)
                     todo.append(ahead)
-                elif blocker.disposition not in (Disposition.IDLE, Disposition.STRANDED):
-                    not_stuck[current] = None
         self._behind_all(not_stuck, behind, lambda waiting: True)
         # The waits a scheduled review reaches: those with a timer, then the waits behind them, through waits that
         # carry no report and are no member (the report chain does not pass those).
@@ -729,6 +722,17 @@ class ReservationController:
                     marked[waiting] = None
                     todo.append(waiting)
 
+    @staticmethod
+    def _at_rest(blocker: Blocker) -> str | None:
+        """How the stuck rule of spec §7.9 sees `blocker`: ``STALLED`` for an AGV whose motion is stalled, else its
+        disposition name when it is idle, stranded or waiting; None when it moves or serves."""
+        motion = blocker.agv.motion
+        if motion is not None and motion.get("stalled"):
+            return "STALLED"
+        if blocker.disposition in (Disposition.IDLE, Disposition.STRANDED, Disposition.WAITING):
+            return blocker.disposition.name
+        return None
+
     def _stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> dict[str, str] | None:
         """The disposition of each of the given blockers of `waiting` by AGV id when the wait is stuck, otherwise None.
 
@@ -746,12 +750,8 @@ class ReservationController:
             if not current_blockers:
                 return None
             for blocker in current_blockers:
-                motion = blocker.agv.motion
-                if motion is not None and motion.get("stalled"):
-                    state = "STALLED"
-                elif blocker.disposition in (Disposition.IDLE, Disposition.STRANDED, Disposition.WAITING):
-                    state = blocker.disposition.name
-                else:
+                state = self._at_rest(blocker)
+                if state is None:
                     return None
                 if current is waiting:
                     found[blocker.agv.id] = state
