@@ -2984,8 +2984,9 @@ takes the waits in queue order and keeps its marks in lists and insertion-ordere
   that becomes stuck through a grant, a release or the end of a both-directions state is reported at the next stop,
   withdrawal or rest of any AGV, not at that instant. A run cut by `until` in between ends without the report, and so
   would a run in which no such entry follows (the vehicle that released then serves for ever). The review measured it:
-  under `StandardTrafficPolicy(reroute_after=None)`, seeds 4510000..4510399, 88 of 1,200 runs have such a late report,
-  up to 38.8 s late (the reviewer's measurement, `reviewer-scratch-a3-T4/`). The default policy reviews every wait: a
+  under `StandardTrafficPolicy(reroute_after=None)`, seeds 4510000..4510399, 88 of 1,200 runs have such a wait (stuck,
+  unreported, nothing scheduled); in 70 of them a report comes late, by up to 38.8 s; in the others the wait stops
+  being stuck first (the reviewer's measurement, `reviewer-scratch-a3-T4/`). The default policy reviews every wait: a
   release wakes its review. Pinned as it is by
   `test_under_a_policy_without_reviews_a_wait_made_stuck_by_a_release_is_reported_at_the_next_entry` (stuck at 10,
   reported at 20), which fails under a mutant that checks after every release.
