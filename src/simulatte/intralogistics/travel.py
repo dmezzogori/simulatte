@@ -799,7 +799,11 @@ class _Trip:
         """The charging-or-stranded branch before an arc the battery cannot cover, as before the executor.
 
         A charging diversion that cannot leave the node it started from (the route it takes has a first arc the battery
-        cannot cover, though the charger counted as reachable) does not divert again: the AGV is stranded there.
+        cannot cover, though the charger counted as reachable) does not divert again: the AGV is stranded there. After
+        a diversion the level is compared with the arc at `current` again; an AGV that still cannot cover it strands
+        where the diversion left it, with the reason ``insufficient_after_charging`` when it charged on the way
+        (:meth:`FleetCoordinator._charge_agv` counted a charge, a nested diversion's included) and
+        ``charger_not_reached`` when it did not (its level turned critical on the way, or the travel found no route).
         """
         fleet, agv, env = self.fleet, self.agv, self.env
         self._settle()
@@ -809,6 +813,7 @@ class _Trip:
             prior_state = agv.state
             outer = diverting.get(agv)  # a diversion that diverts again from another node restores the guard it found
             diverting[agv] = current
+            charges = fleet._charges.get(agv, 0)
             try:
                 outcome = yield from fleet._charge_agv(agv, charger)
             finally:
@@ -822,12 +827,12 @@ class _Trip:
                 return TravelOutcome.BATTERY_STRANDED  # the diversion stranded the AGV where it stands
             fleet._transition_agv(agv, prior_state)
             if agv.battery.level < energy_cost:
+                here = fleet._require_current_node(agv)
+                charged = fleet._charges.get(agv, 0) != charges
                 fleet._transition_agv(agv, AGVState.STRANDED)
-                fleet._stranded(agv, current, "insufficient_after_charging")
-                env.error(
-                    f"{agv.agv_id} STRANDED at {current.id} — insufficient energy even after charging",
-                    component="FleetCoordinator",
-                )
+                fleet._stranded(agv, here, "insufficient_after_charging" if charged else "charger_not_reached")
+                cause = "insufficient energy even after charging" if charged else "the charger was not reached"
+                env.error(f"{agv.agv_id} STRANDED at {here.id} — {cause}", component="FleetCoordinator")
                 return TravelOutcome.BATTERY_STRANDED
             return TravelOutcome.RETRY_FROM_CURRENT_POSITION
 

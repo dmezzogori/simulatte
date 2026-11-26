@@ -226,10 +226,12 @@ class AgvBatteryChanged(DomainEvent):
 
 @event_type("agv.stranded")
 class AgvStranded(DomainEvent):
-    """The AGV is stranded at `node` without enough energy for its next segment.
+    """The AGV is stranded at `node`, the node it stands on, without enough energy for its next segment.
 
-    `reason` is ``"no_reachable_charger"`` or ``"insufficient_after_charging"``. It changes no state: the
-    preceding ``agv.state_changed`` to ``STRANDED`` carries the state change.
+    `reason` is ``"no_reachable_charger"`` (no charger is reachable from `node`), ``"insufficient_after_charging"`` (it
+    diverted to a charger and charged, and still cannot cover the segment it turned at) or ``"charger_not_reached"``
+    (it diverted to a charger and stopped before reaching it, its level critical on the way or without a route). It
+    changes no state: the preceding ``agv.state_changed`` to ``STRANDED`` carries the state change.
     """
 
     agv: str

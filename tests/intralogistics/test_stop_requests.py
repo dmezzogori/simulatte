@@ -32,6 +32,7 @@ from simulatte.intralogistics.events import (
     AgvMoveStarted,
     AgvRouted,
     AgvStranded,
+    ChargingStarted,
     TrafficReleased,
     TrafficReserved,
     TrafficWaitStarted,
@@ -456,15 +457,19 @@ def charger_world(
     shape: Callable[[Environment], Declared] | None = None,
     router: Any = None,
     start: str = "N0",
+    threshold: float = 0.05,
+    second: str | None = None,
 ) -> World:
     """The line ``N0 ... N4`` of 10 m arcs (or the graph `shape` declares) with a charging station on `station` (none:
-    no one)."""
+    no one) and, when given, a second one on `second`; `threshold` is the critical level of the AGV's battery."""
     env = Environment(debug=True)
     replay = FullReplay(env)
     declared = line(env, 5) if shape is None else shape(env)
     controller: Any = ReservationController(env=env, graph=declared.graph) if reserve else FreeFlowController()
-    agv = AGV(env=env, agv_type=weak(depletion, capacity=capacity), agv_id="A", initial_node=declared.ref(start))
-    stations = [] if station is None else [ChargingStation(env=env, name="CS", node=declared.ref(station), n_slots=1)]
+    kind = weak(depletion, capacity=capacity, threshold=threshold)
+    agv = AGV(env=env, agv_type=kind, agv_id="A", initial_node=declared.ref(start))
+    named = [("CS", station), ("CS2", second)]
+    stations = [ChargingStation(env=env, name=name, node=declared.ref(at), n_slots=1) for name, at in named if at]
     fleet = StillFleet(
         env=env,
         graph=declared.graph,
@@ -1061,3 +1066,62 @@ def test_float_ties_in_the_energy_horizon_change_nothing_for_the_default_depleti
                 continue  # passed at speed
             critical = level / capacity <= kind_kw["threshold"] * (1 + 1e-9) + 1e-9
             assert critical or level < length * (1 + 1e-9), (trial, node, level)
+
+
+# --- where a stranding after a charging diversion happens, and why (Assignment 3, T5) --------------------------------
+
+
+def short_of_the_goal(env: Environment) -> Declared:
+    """``C - N0 - N1 - G`` along a row (5, 5 and 30 m)."""
+    return build(
+        env, [("C", 0, 0), ("N0", 5, 0), ("N1", 10, 0), ("G", 40, 0)], [("C", "N0"), ("N0", "N1"), ("N1", "G")]
+    )
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+@pytest.mark.parametrize(
+    ("threshold", "node", "reason", "charged"),
+    [(0.6, "N0", "charger_not_reached", False), (0.05, "C", "insufficient_after_charging", True)],
+    ids=["stops short of the charger", "charges"],
+)
+def test_a_stranding_after_a_diversion_names_where_the_agv_stands_and_why(
+    reserve: bool, threshold: float, node: str, reason: str, charged: bool
+) -> None:
+    """A, with a full battery of 12 on N1, cannot afford the arc to G (30) and diverts to the charger on C, 10 away.
+    With a critical level of 60 % its level turns critical on N0 (7 left) and the diversion stops there, short of the
+    charger; otherwise A charges on C, to 12, which is still less than the arc. Either way it strands: the event names
+    the node it stands on, and says ``insufficient_after_charging`` only when it charged."""
+    w = charger_world(12.0, "C", reserve=reserve, shape=short_of_the_goal, start="N1", threshold=threshold)
+    w.go("A", "G")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
+    (stranded,) = w.of(AgvStranded)
+    assert (stranded.agv, stranded.node, stranded.reason) == ("A", node, reason)
+    assert w.agvs["A"].current_node == w.nodes[node]
+    assert bool(w.of(ChargingStarted)) is charged
+
+
+def two_chargers(env: Environment) -> Declared:
+    """S with G 40 m east, the charger C 10 m east and Y 15 m north; from Y the detour over Z (20 m) to C and the second
+    charger C2 5 m further north."""
+    return build(
+        env,
+        [("S", 0, 0), ("C", 10, 0), ("G", 40, 0), ("Y", 0, 15), ("Z", 20, 15), ("C2", 0, 20)],
+        [("S", "G"), ("S", "C"), ("S", "Y"), ("Y", "Z"), ("Z", "C"), ("Y", "C2")],
+    )
+
+
+@pytest.mark.parametrize("reserve", [False, True])
+def test_a_stranding_after_a_nested_diversion_names_the_charger_it_charged_on(reserve: bool) -> None:
+    """A, with 25 on S, cannot afford the arc to G (40) and diverts to C, reachable on the shortest path, which the
+    router then sends over Y and Z. At Y, with 10 left, it cannot afford the arc to Z (20) and diverts again, to C2, 5
+    away, where it charges to 25: enough for the arc to Z, not for the arc to G. The first diversion ends there and A
+    strands on C2, having charged."""
+    router = Detours({("S", "C"): ("S", "Y", "Z", "C")}, first={("S", "C")})
+    w = charger_world(25.0, "C", reserve=reserve, shape=two_chargers, router=router, start="S", second="C2")
+    w.go("A", "G")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.BATTERY_STRANDED}
+    assert [(e.station, e.agv) for e in w.of(ChargingStarted)] == [("CS2", "A")]
+    assert [(e.node, e.reason) for e in w.of(AgvStranded)] == [("C2", "insufficient_after_charging")]
+    assert w.agvs["A"].current_node == w.nodes["C2"]
