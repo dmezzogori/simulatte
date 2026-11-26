@@ -37,6 +37,7 @@ def build_simple_system(
     traffic_controller: TrafficController | None = None,
     router: Router | None = None,
     agv_length: float | None = None,
+    agv_width: float | None = None,
 ) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef]:
     """Create a complete intralogistics system with sensible defaults.
 
@@ -63,7 +64,8 @@ def build_simple_system(
     may override the builder defaults.
 
     ``traffic_controller`` and ``router`` go to the coordinator (defaults: free flow, shortest distance);
-    ``agv_length`` is the ``length`` of the AGV type, which ``ReservationController`` requires.
+    ``agv_length`` is the ``length`` of the AGV type, which ``ReservationController`` requires; ``agv_width`` is its
+    ``width`` (by default half the length; the two give the vehicle's footprint on the layout).
 
     The warehouses are placed with ``obstacle=False``. Plain bay nodes have no owner
     clearance exemption: use a port connector for an obstructing warehouse.
@@ -144,6 +146,7 @@ def build_simple_system(
         load_time=1.0,
         unload_time=1.0,
         length=agv_length,
+        width=agv_width,
     )
 
     # -- Fleet --

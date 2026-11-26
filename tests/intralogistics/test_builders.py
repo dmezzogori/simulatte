@@ -383,6 +383,19 @@ def test_builder_passes_traffic_controller_router_and_length_through(env: Enviro
     assert defaults[0].agv_type.length is None
 
 
+def test_builder_passes_width_through_to_the_type_and_the_footprint() -> None:
+    from simulatte.intralogistics import build_simple_system
+
+    env = Environment()
+    _, agvs, _, _, _ = build_simple_system(env, agv_length=1.5, agv_width=0.8)
+    assert all(agv.agv_type.width == 0.8 and agv.agv_type.size == (1.5, 0.8) for agv in agvs)
+    footprint = env.layout.prepare().bundle["resolved"]["placements"]["vehicle-0"]["footprint"]
+    assert (footprint["width"], footprint["depth"]) == (1.5, 0.8)
+    other = Environment()
+    _, defaults, _, _, _ = build_simple_system(other, agv_length=1.5)
+    assert defaults[0].agv_type.width is None and defaults[0].agv_type.size == (1.5, 0.75)
+
+
 def test_builder_digest():
     """The digest of a run of the builder's model on the environment's layout, its AGVs named ``vehicle-<i>``; pinned
     again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), then for the capacities and the traffic

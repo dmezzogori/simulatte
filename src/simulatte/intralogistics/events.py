@@ -284,11 +284,12 @@ class TrafficWaitStarted(DomainEvent):
     `resources` are the ids of the resources the waiting claim still needs, `blockers` the ids of the AGVs that hold
     them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. Its deltas set the AGV's ``wait``
     to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2), and add one to ``waits``
-    of the AGV's fleet, if it has one (§6.6). That is what ``ReservationController`` does; a custom controller that
-    emits this event must carry the same deltas (and set ``wait`` to null with its ``traffic.wait_ended``), and change
-    the AGV's attribute and the fleet's counter with them, whether or not the events are wanted (``AGV._open_wait``,
-    ``AGV._close_wait`` and :func:`~simulatte.intralogistics.traffic.count_traffic`), so that a replay of the deltas
-    equals the snapshot.
+    of the AGV's fleet, if it has one (§6.6). That is what ``ReservationController`` does. In 0.18 the AGV's ``wait``
+    is maintained by ``ReservationController`` only: a custom controller that emits this event leaves ``wait`` null,
+    in the state and in the deltas alike. It may count the wait with
+    :func:`~simulatte.intralogistics.traffic.count_traffic` and add
+    :func:`~simulatte.intralogistics.traffic.counter_deltas` to the event's deltas, whether or not the event is
+    wanted; if it does not, the counters stay at 0, again consistently, so a replay of the deltas equals the snapshot.
     """
 
     agv: str

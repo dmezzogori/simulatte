@@ -58,7 +58,7 @@ see "Changed", "Removed" and "Migration".
 - `Explicit(graph, capacities={"N1": 2})` gives single nodes of an explicit graph a capacity, by node id. In
   `Explicit(zones=...)` a member may be a node id or a pair of ids, the segment between the two nodes. Explicit arcs
   keep their `length` (schema 1.1 reads an optional `length` on explicit arcs; see "Changed").
-- `build_simple_system(traffic_controller=None, router=None, agv_length=None)`.
+- `build_simple_system(traffic_controller=None, router=None, agv_length=None, agv_width=None)`.
 - The example `examples/intralogistics_traffic.py` and a traffic section in the intralogistics guide.
 - Studio draws an intralogistics recording as a map: the floor to scale with strips for lanes, a sprite for each kind
   of element, the floor held by traffic, wait lines, a scale bar, an Overview panel and a readable click detail, all read
@@ -260,9 +260,11 @@ see "Changed", "Removed" and "Migration".
   warehouse can cover part of a lane: give it a position.
 - `AGVType.width` is keyword-only. `AGVType(..., 1.2, 0.6)` sets `length` and `min_gap`, as before, and not the width;
   write `width=0.6`. A `length` of 0 or `None` means no size is declared.
-- A custom traffic controller that emits `traffic.wait_started`, `traffic.wait_stuck` or `traffic.deadlock` calls
-  `count_traffic` at each such event and adds `counter_deltas` to its deltas; the AGVs' `fleet` must be a
-  `FleetCoordinator` (or None).
+- An AGV's `wait` is maintained by `ReservationController` only: a custom traffic controller that emits
+  `traffic.wait_started` leaves it null, in the state and in the deltas alike. To count waits, stuck waits and
+  deadlocks, such a controller calls `count_traffic` at each `traffic.wait_started`, `traffic.wait_stuck` or
+  `traffic.deadlock` it emits and adds `counter_deltas` to its deltas, whether or not the event is wanted; the AGVs'
+  `fleet` must be a `FleetCoordinator` (or None). If it does not, the counters stay at 0, again consistently.
 
 Models built with concrete objects no longer run. Build them through the layout:
 
