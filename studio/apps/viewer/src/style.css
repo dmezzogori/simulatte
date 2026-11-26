@@ -129,6 +129,7 @@ nav,
   height: 100%;
   width: 100%;
   overflow: hidden;
+  position: relative;
   background: #f4f5f0;
 }
 .scene-host canvas {
@@ -396,12 +397,14 @@ input[type="range"] {
   flex-wrap: wrap;
 }
 
-/* top: the scale bar of a map is drawn in the canvas's bottom-left corner */
+/* bottom right of the scene: the scale bar of a map is drawn in the canvas's bottom-left corner */
 .scene-legend {
   position: absolute;
-  top: 8px;
-  bottom: auto;
-  left: 12px;
+  top: auto;
+  bottom: 8px;
+  right: 12px;
+  left: auto;
+  text-align: right;
   z-index: 1;
   color: #516158;
   pointer-events: none;

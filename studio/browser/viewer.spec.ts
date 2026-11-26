@@ -221,6 +221,14 @@ test("the scene legend keeps clear of the scale bar in the bottom-left corner of
   const intersects =
     box.x < corner.right && box.x + box.width > corner.left && box.y < corner.bottom && box.y + box.height > corner.top;
   expect(intersects, JSON.stringify({ legend: box, canvas })).toBe(false);
+  // inside the canvas, so that it cannot reach the dock's tab strip
+  expect(
+    box.x >= canvas.x && box.y >= canvas.y && box.x + box.width <= canvas.x + canvas.width && box.y + box.height <= canvas.y + canvas.height,
+    JSON.stringify({ legend: box, canvas }),
+  ).toBe(true);
+  const tab = (await page.getByRole("tab", { name: "Scene", exact: true }).boundingBox())!;
+  const overTab = box.x < tab.x + tab.width && box.x + box.width > tab.x && box.y < tab.y + tab.height && box.y + box.height > tab.y;
+  expect(overTab, JSON.stringify({ legend: box, tab })).toBe(false);
 });
 
 test("the Overview panel written while it was hidden shows the current frame when its tab is chosen", async ({ page }) => {

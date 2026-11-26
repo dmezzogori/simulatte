@@ -619,8 +619,8 @@ targets of selection. The detail prints a vehicle's size from its type (the `siz
 placement footprint, which an explicit footprint can override), its heading only when it is known, and the next node
 of its route in brackets.
 
-**Viewer.** The scene legend is at the top left of the Scene panel, because at the bottom left it ran into the scale
-bar, which has a light outline like every sprite.
+**Viewer.** The scene legend is at the bottom right of the Scene panel, inside the canvas, because at the bottom left it ran
+into the scale bar, which has a light outline like every sprite, and at the top left it covered the dock's tab.
 
 **§6.1.** A type's `length` of 0 or `None` means the size is not declared: no `size` in the target, a 1 m by 1 m
 footprint and `layered-v1`, because about twenty existing tests use `length=0.0` for point vehicles and a footprint
