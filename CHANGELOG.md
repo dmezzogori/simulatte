@@ -60,6 +60,18 @@ see "Changed", "Removed" and "Migration".
   keep their `length` (schema 1.1 reads an optional `length` on explicit arcs; see "Changed").
 - `build_simple_system(traffic_controller=None, router=None, agv_length=None)`.
 - The example `examples/intralogistics_traffic.py` and a traffic section in the intralogistics guide.
+- Studio draws an intralogistics recording as a map: the floor to scale with strips for lanes, a sprite for each kind
+  of element, the floor held by traffic, wait lines, a scale bar, an Overview panel and a readable click detail, all read
+  from the recorded state at the cursor (see [the Studio map](docs/guides/studio-map.md)). The map has no lane width of
+  its own: lanes are drawn at a nominal width from the widest vehicle.
+- `AGVType.width` (keyword-only) and `AGVType.size`: the vehicle's size, written to its layout target and used as its
+  placement footprint.
+- State recorded for the map, kept without subscribers: the `agv` fields `wait` and `route` and `battery_capacity`, a
+  parking area's `capacity`, a charging station's `slots`, and the `fleet` counters `waits`, `stuck_waits` and
+  `deadlocks`. `agv.routed`, `traffic.wait_started`, `traffic.wait_ended`, `traffic.wait_stuck`, `traffic.deadlock` and
+  `agv.move_interrupted` carry deltas for them, and `agv.move_ended` and `agv.state_changed` clear `route` where the
+  travel ends (see the intralogistics guide). `count_traffic`, `counter_deltas` and `TrafficCounter` in
+  `simulatte.intralogistics.traffic` keep the counters for a custom traffic controller.
 
 ### Changed
 
@@ -70,6 +82,18 @@ see "Changed", "Removed" and "Migration".
   CPython 3.11, PyPy and CPython 3.12 and later.
   The new `agv.routed` event and the `heading` field enter semantic digests. Recorded results of intralogistics runs
   are not comparable with earlier releases.
+- **Layout hashes of models with sized vehicles or node-bound facilities change, and facilities are placed at their
+  nodes.** A warehouse, parking area or charging station with no explicit position is placed at the node it is bound
+  to instead of in the automatic grid (a warehouse beside its first input bay and away from the network; a parking area
+  or charging station centred on its node with a 3 m by 3 m footprint), and an AGV whose type declares a `length` has
+  that length by its `width` as its footprint. The layout saves a vehicle's `size` and a facility's `node_ids` in the
+  bundle's `targets`, and names the algorithm `layered-v2` exactly when a target has one of them: such bundles have new
+  full, physical and layers hashes (the algorithm name is part of all three). Every other bundle keeps `layered-v1`,
+  its output and its hashes. Both readers accept both names and the two fields. A facility's position is not part of
+  `physical_hash`.
+- The semantic digest of every run with AGVs changes: the `agv`, `parking_area`, `charging_station` and `fleet` state
+  schemas have the fields above, so they are in the initial state and, for the waits, routes and counters, in the
+  deltas. Runs without intralogistics components keep their digests.
 - An interrupt received while an AGV moves takes effect at the first node where it can come to rest, with the energy
   of the arcs covered charged; one received while it waits for a claim takes effect at once.
 - A critical battery found on arrival at the goal no longer interrupts the travel: it returns `ARRIVED`, and the
@@ -228,6 +252,17 @@ see "Changed", "Removed" and "Migration".
 - Code that read `agv.battery.level` with idle power should read `agv.battery_level_now()` for the level now.
 - Results, digests and recorded fixtures of intralogistics models change (see "Changed"); re-record them. Layout
   files of schema 1.0 load unchanged, and old traces stay readable.
+- Pinned fingerprints of intralogistics runs change with the new state fields, and the layout hashes of models with
+  sized vehicles or node-bound facilities change with `layered-v2`; re-pin them. A model with no declared vehicle
+  `length` and no warehouse, parking area or charging station bound to a node keeps its layout hashes.
+- Facilities that were in the automatic grid are now at their nodes. To keep a place you chose, declare it with
+  `layout.place(entity, position=...)`, or in a layout file; an explicit position is never moved. Inside a lattice a
+  warehouse can cover part of a lane: give it a position.
+- `AGVType.width` is keyword-only. `AGVType(..., 1.2, 0.6)` sets `length` and `min_gap`, as before, and not the width;
+  write `width=0.6`. A `length` of 0 or `None` means no size is declared.
+- A custom traffic controller that emits `traffic.wait_started`, `traffic.wait_stuck` or `traffic.deadlock` calls
+  `count_traffic` at each such event and adds `counter_deltas` to its deltas; the AGVs' `fleet` must be a
+  `FleetCoordinator` (or None).
 
 Models built with concrete objects no longer run. Build them through the layout:
 

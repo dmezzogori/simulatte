@@ -1,6 +1,10 @@
 # The Studio scene drawn as a map
 
-- **Status:** approved by Davide on 2026-11-25. Nothing is implemented; approval is not verification evidence.
+- **Status:** approved by Davide on 2026-11-25. Stage 1 (Tasks 1 to 10) and Stage 2 (Tasks 11 to 15) are implemented on
+  `feature/studio-map`, and this document, the amendment notes and the documentation are Task 16. The decisions and
+  deviations made while building are in §14, and the evidence for §10 is in the
+  [acceptance record](research/2026-11-25-studio-map-acceptance.md); its point 4 (Davide's review of the Stage 2
+  frames) is open. Approval is not verification evidence.
 - **Baseline:** branch `feature/layout-only-models` at `66a5a96` (version 0.18.0 prepared, not released).
 - **Branch:** `feature/studio-map`, from that baseline. Part of the 0.18.0 release.
 - **Amends:** the [AGV traffic design](2026-11-21-agv-traffic-design.md) §1.3 (drawing reservations and routes in
@@ -9,7 +13,7 @@
   §13 (the scene no longer ignores `segment` and `zone` entities); the
   [SP3 viewer design](2026-10-11-sp3-viewer-design.md) §7 (scene layers and per-kind adapters) and §8 (the
   inspector); the [layout-only design](2026-11-23-layout-only-models-design.md) §5.5 (automatic placement of
-  facilities). The last task of the plan appends an amendment note to each.
+  facilities). The amendment note was appended to each in Task 16.
 - **Decision ids:** `M1` to `M28`, recorded in §4 of this document only.
 - **Builder check:** a reviewer read the first draft on 2026-11-25 as a builder would and checked it against
   the code; its eight corrections and nine questions are answered in the text (M18 to M25) and listed in §13.
@@ -147,7 +151,7 @@ Davide's decisions are marked **D**; the others are calls made in this design, w
 | M9 | Capacities the map needs are recorded as constant state fields (§6.4). |
 | M10 | All held floor is tinted in one colour. A selection highlights what the selected vehicle holds, its route and its wait line. Agreed by Davide as a proposal ("all good"). |
 | M11 | The line from a waiting vehicle to its first blocker is always drawn. Agreed as a proposal. |
-| M12 | Goods on the map: the load mark on a vehicle, the stock count on a warehouse, a badge for orders waiting to leave it; a line from origin to destination for a selected order or loaded vehicle. Agreed as a proposal. |
+| M12 | Goods on the map: the load mark on a vehicle, the stock count on a warehouse, a badge for orders waiting to leave it; a curved arrow from origin to destination for a selected order or loaded vehicle (§14). Agreed as a proposal. |
 | M13 | The panel groups vehicles by fleet and puts those that need attention first; it has a text filter and a "waiting only" switch. Agreed as a proposal. |
 | M14 | The click detail replaces the content of today's Inspector for the selected element; the raw recorded fields stay reachable below it. Agreed as a proposal. |
 | M15 | The offline player gets the map and the click detail, and no panel. Agreed as a proposal. |
@@ -179,8 +183,10 @@ Davide's decisions are marked **D**; the others are calls made in this design, w
   generic glyph of today for every other kind. Entities whose kind has no placement (orders, fleets) are in the
   map model for the panel and are not drawn when the trace has a network (M24). Each takes the graphics object, its element of the map model, the
   scale and the level of detail. `registerRenderer` keeps overriding the drawing of a kind.
-- **Layers**, bottom to top: background grid; floor strips; held tint; facilities and ports; nodes; jobs and
-  generic glyphs; vehicles; wait lines; selection overlay; labels; scale bar; decorative trails. The floor
+- **Layers**, bottom to top: background grid; floor strips; held tint, with the stronger tint of what the selection
+  holds; facilities and ports; nodes; the selected vehicle's route; jobs and generic glyphs; vehicles; wait lines;
+  selection overlay; labels; scale bar; decorative trails (corrected in §14: the route and the stronger tint are
+  below the vehicles). The floor
   strips are static geometry redrawn only when the camera, the canvas size or the layout changes (the existing
   signature mechanism). Everything above is redrawn each frame.
 
@@ -382,8 +388,9 @@ the route's node ids are computed only behind `env.wants`. The builder keeps the
 hold the objects the controller already has (the waiting record, the route) and turn them into ids only when a
 snapshot or a delta is built.
 
-Both events stay as they are in payload and timing; only their deltas change. `traffic.wait_stuck` and
-`traffic.deadlock` keep having none.
+Both events stay as they are in payload and timing; only their deltas change. (`traffic.wait_stuck` and
+`traffic.deadlock` also carry deltas, those of the fleet counters of §6.6; the first draft said they keep having
+none, which §6.6 contradicts. See §14.)
 
 Assignment 3 changes when waits are reviewed and reported. This section is written against the events as they
 are at `66a5a96`. The builder reads that assignment's rulings first; whatever it changes in when
@@ -403,7 +410,7 @@ from its node bindings instead of being packed in the grid:
 
 - Anchor: the position of its bound node; for a warehouse with several bays, its first input bay (M28).
 - Direction: away from the network. It is the opposite of the mean of the unit vectors from the anchor to the
-  neighbours of the anchor node; when that mean is zero, the direction is +y.
+  neighbours of the anchor node; when that mean is shorter than 1e-9, the direction is +y (§14).
 - Position: the anchor moved along that direction by half the facility's extent in that direction plus a gap of
   1 m, so that the footprint does not cover the lane.
 - A parking area and a charging station are centred on their node instead, with a default footprint of 3 m by
@@ -583,3 +590,74 @@ the open geometry of the placement rule (§6.3, M21); non-placeable kinds (M24);
 
 None was put to Davide before the handover: each is a call of this design, marked in §4 as not his, for him to
 check while reading.
+
+## 14. Amendments during execution
+
+Written by the last task of the plan, from the ledger kept while the plan was executed (Tasks 1 to 15). The text
+above is corrected where a sentence was wrong (§4 M12, §5.1, §6.2, §6.3) and the rest is recorded here. Each item is a
+call made by the controller during execution, which Davide can overturn, unless it says he decided it.
+
+**§5.1 and M12: layers and the goods line.** A selected vehicle's route and the stronger tint of what it holds are
+drawn below the vehicles, not above them, because above them the route hid the vehicle ahead. The goods line of M12 is
+a curved arrow, because a straight one lay on the corridor, over the route and the wait line. Davide saw the renders
+and said the look is fine.
+
+**§5.4.** A vehicle at rest with a route is labelled `to <destination>` on the map, and the Overview's count for
+vehicles at rest is named "stopped". A registered renderer still draws a kind that the map otherwise hides, orders
+and fleets (M24).
+
+**§5.4 and §5.7.** An order that has ended but is still in the state (status `COMPLETED`, `FAILED` or `CANCELLED`) is
+not open: it has no goods arrow and is not among the open orders.
+
+**§5.5.** A wait line is drawn only for a vehicle shown as waiting, so a stranded vehicle with a stale wait has none.
+Selecting a lane, a node or a corridor tints it.
+
+**§5.6 and §5.7.** The map, the panel and the detail name vehicles and facilities by their labels, and keep ids as the
+targets of selection. The detail prints a vehicle's size from its type (the `size` of its layout target, not the
+placement footprint, which an explicit footprint can override), its heading only when it is known, and the next node
+of its route in brackets.
+
+**Viewer.** The scene legend is at the top left of the Scene panel, because at the bottom left it ran into the scale
+bar, which has a light outline like every sprite.
+
+**§6.1.** A type's `length` of 0 or `None` means the size is not declared: no `size` in the target, a 1 m by 1 m
+footprint and `layered-v1`, because about twenty existing tests use `length=0.0` for point vehicles and a footprint
+must be positive. A `width` of 0 or `None` with a positive length gives half the length. `AGVType.width` is
+keyword-only, so that a positional argument after `length` keeps meaning `min_gap`.
+
+**§6.2.** The sentence "`traffic.wait_stuck` and `traffic.deadlock` keep having none" is wrong since §6.6: they carry
+the deltas of the fleet counters. The route is cleared by the next `agv.state_changed` in four cases that have no
+event of their own to carry the clearing (a retry on a critical battery, the turn to a charger, a give-up, and a
+one-node route). When a fleet's `on_low_battery` callback replaces the charge without a state transition, the route
+stays recorded until the vehicle's next state change. Assignment 3 of the layout branch did not change when waits are
+announced, so a wait is still announced once and M7 stands.
+
+**§6.3.** "When that mean is zero" is "when it is shorter than 1e-9". A warehouse with only output bays anchors on its
+first output bay. The automatic grid avoids the footprints of facilities the rule placed (in `layered-v2` only;
+`layered-v1` bundles keep their output). The 3 m by 3 m default footprint of a parking area or charging station
+applies only where the rule places it; with an explicit position and no footprint the old 1 m by 1 m stays. By these
+numbers a warehouse and a charging station on one node overlap by 0.5 m, because nodes and stations are not obstacles
+of the overlap test. Inside a lattice the neighbours of a node cancel and the warehouse goes to +y, where it can cover
+a lane (seen in the 100-vehicle bench); an explicit position fixes it. Facility positions are not part of
+`physical_hash`.
+
+**§6.5.** Both readers refuse a bundle whose algorithm name disagrees with its targets (`layered-v2` with no target
+using a new field, or `layered-v1` with one), and a null `size` or `node_ids`.
+
+**§6.6.** The deadlock counter counts once for each distinct fleet among the vehicles of the event, so two vehicles of
+one fleet count once, and a vehicle with no fleet counts nowhere. A parking area's capacity and a charging station's
+slot count are latched at construction.
+
+**§8.2 and M25.** The screenshot comparison uses `maxDiffPixels: 300` (fewer than one vehicle symbol). Seven Linux
+baselines exist: the four of the plan and three more that pin the scene without a map and the sprite row. They were
+made with the native linux/arm64 Playwright image, because amd64 emulation crashes Chromium on Apple Silicon. CI runs
+on x86_64 and has not been checked against them, so it may need them refreshed
+(`studio/browser/README-baselines.md`).
+
+**§8.4.** Davide accepted on 2026-11-25 the frame time at 1,000 vehicles (about 22 ms at the 95th percentile of the
+scene's own work, against 16.7 ms) as a known limit for 0.18.0. The 100-vehicle workload meets the budget. The slow
+seeks first measured were an artefact of software rendering in the bench, which had no GPU; the bench now runs on a
+GPU-backed renderer on macOS and flags software rendering.
+
+**§9.** Stage 1 was developed against JSON frame fixtures and a render harness (`studio/harness`), not against a
+patched trace; Stage 2 replaced the hand-added fields by recorded ones.

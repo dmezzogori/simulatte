@@ -47,7 +47,7 @@ from simulatte.intralogistics import (
 
 **Warehouses** --- Each `Warehouse` has input/output bays (layout node handles), finite pick/put slots, and per-SKU inventory tracked as SimPy containers.
 
-**AGV fleet** --- `AGV` instances are typed by `AGVType`, which bundles a `SpeedProfile`, battery parameters, capacity limits, the vehicle's `length` and `min_gap`, and optional turning and idle-power models. `TrapezoidalProfile` models acceleration, cruising, and deceleration with optional battery degradation and load speed factors; it reports its kinematic limits, so its vehicles pass nodes at speed (see [Motion](#motion)). Without a `battery_degradation_fn` the speed factor equals the battery level, so maximum speed and acceleration fall in proportion to the charge (deceleration is unscaled); pass `lambda level: 1.0` for full speed at any level.
+**AGV fleet** --- `AGV` instances are typed by `AGVType`, which bundles a `SpeedProfile`, battery parameters, capacity limits, the vehicle's `length`, `width` and `min_gap`, and optional turning and idle-power models. `TrapezoidalProfile` models acceleration, cruising, and deceleration with optional battery degradation and load speed factors; it reports its kinematic limits, so its vehicles pass nodes at speed (see [Motion](#motion)). Without a `battery_degradation_fn` the speed factor equals the battery level, so maximum speed and acceleration fall in proportion to the charge (deceleration is unscaled); pass `lambda level: 1.0` for full speed at any level.
 
 **FleetCoordinator** --- The central orchestrator (analogous to `ShopFloor` for production). It manages the full mission lifecycle: dispatch, travel, pick, transit, deliver, reposition, and charge. Pluggable strategies control each decision point. Its `traffic_controller` decides which vehicles may move (default `FreeFlowController`, see [Traffic control](#traffic-control)) and its `router` chooses their routes (default `ShortestDistanceRouter`, see [Routing](#routing)).
 
@@ -189,6 +189,8 @@ with Environment() as env:
 The resources of a run appear in the trace: each segment is a `segment` entity (fields `source`, `target`, `length`, `forward`, `backward`), each zone and corridor a `zone` entity (`rule`, `capacity`, `members`, `reserved_by`, `orientation`), and nodes record their holders in `reserved_by`. These entities exist only under `ReservationController`.
 
 ### Vehicle length
+
+`AGVType.width` (keyword-only, finite and not negative, `None` by default) is the width of the vehicle. It is descriptive: no component reads it, and it changes no result of a run. The layout and Studio read it. A type that declares a positive `length` has a size, `AGVType.size`, which is `(length, width)`, with half the length for a `width` of 0 or `None`. The layout writes the size to the vehicle's target, and the vehicle's placement footprint becomes `length` along its heading by `width` across it, which Studio draws and uses to set the nominal width of lanes (see [the Studio map](studio-map.md#a-vehicles-size)). A `length` of 0 or `None` means no size is declared: the footprint stays 1 m by 1 m. A footprint you give the vehicle with `layout.place(agv, footprint=...)` wins over the type's size.
 
 `AGVType.length` is the length of the vehicle and `min_gap` (default 0) the distance it keeps to the vehicle ahead; the **extent** is `length + min_gap`. As the vehicle travels, the controller keeps every node and segment under its body held: a node until the front is one extent past it, a segment until the front is one extent past its far node. A vehicle that stops keeps what its body covers. With a length of 0 and no gap, a node is released the instant the AGV leaves it and a segment the instant it reaches the far node; a positive length makes vehicles hold more and follow each other at a distance.
 
@@ -338,6 +340,34 @@ print(kpis.scalars())
 ```
 
 The state of each fleet also counts its traffic from the start of the run, with or without observers: `waits` (one per `traffic.wait_started` of its AGVs), `stuck_waits` (one per `traffic.wait_stuck`) and `deadlocks` (one per `traffic.deadlock` with at least one of its AGVs, however many). A trace therefore shows them at any instant. They differ from the KPIs, which count from the end of the warm-up. An AGV that no fleet took counts nowhere. The state also records three constants once, in the initial state: a parking area's `capacity`, a charging station's `slots` and an AGV's `battery_capacity` (that of its type).
+
+## Placement of facilities
+
+A warehouse, parking area or charging station gets its place on the floor from the layout. With no explicit position, the layout places it at the node it is bound to, so that Studio draws it where it serves the network (the layout's automatic placement of other kinds is unchanged):
+
+- A warehouse is placed beside its first input bay, or beside its first output bay when it has no input bay. The direction is away from the network: opposite to the mean of the unit vectors from that node to its neighbours, or +y when they cancel (the mean is shorter than 1e-9). The warehouse's centre is the node moved along that direction by half the warehouse's extent in it plus 1 m, so that its footprint does not cover the lane.
+- A parking area or a charging station is centred on its node, with a default footprint of 3 m by 3 m. This default applies only where the rule places the station. Two of them on one node coincide.
+- A warehouse that would overlap the footprint of an explicit placement, or of a warehouse placed before it, is moved further along its direction in steps of its own extent until it does not. Warehouses are processed in id order. Nodes, parking areas and charging stations are not obstacles for this test, so a warehouse and a charging station on the same node overlap by 0.5 m with the default sizes. The automatic grid for the other entities avoids all of these footprints.
+- A facility with no node binding, and every production kind, keeps the grid placement.
+
+An explicit position (`layout.place(entity, position=...)`, or a layout file) wins, and so does an explicit footprint. Inside a lattice the neighbours of a node cancel, so a warehouse goes to +y of its node, where it can cover part of the next lane; give it a position. A warehouse with several bays is placed by its first bay only and drawn with a line to the others.
+
+The rule reads two inputs that the layout saves in the bundle's targets: a vehicle's `size` and the `node_ids` a facility is bound to. A bundle that has either is named `layered-v2`, and any other bundle keeps its name `layered-v1` and its hashes. Facility positions are presentation: they are not part of `physical_hash`.
+
+## State recorded for the map
+
+Studio draws the floor from state recorded at each instant. These fields were added in 0.18.0. All are kept whether or not anything observes the run:
+
+| Entity | Field | Value |
+|---|---|---|
+| `agv` | `wait` | null, or `{since, node, resources, blockers}` while a traffic wait is open: set by `traffic.wait_started`, cleared by `traffic.wait_ended`. The blockers are those named when the wait started |
+| `agv` | `route` | null, or `{nodes, destination, reason}` of the travel under way: set by `agv.routed`, cleared when the travel ends (see the event table in [logging](../tutorials/logging.md#fleetcoordinator-agvs-and-transfer-orders)) |
+| `agv` | `battery_capacity` | the type's battery capacity, written once |
+| `parking_area` | `capacity` | its number of slots, written once |
+| `charging_station` | `slots` | its number of charging slots, written once |
+| `fleet` | `waits`, `stuck_waits`, `deadlocks` | counters from the start of the run, described under [Traffic KPIs](#traffic-kpis) |
+
+Three limits of the route: when a fleet's `on_low_battery` callback replaces the charge without a state transition, the route stays recorded until the vehicle's next state change; a retry on a critical battery, the turn to a charger, a give-up and a one-node route clear it at the next `agv.state_changed`; and the position along the route is not recorded, so a reader finds the vehicle's node or arc in `nodes`. The digest of a run with a traffic controller that reports waits, or with routed travels, includes these fields, so it differs from a digest of the same model before 0.18.0.
 
 ## Examples
 

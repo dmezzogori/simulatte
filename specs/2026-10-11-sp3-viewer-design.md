@@ -258,3 +258,22 @@ D9 requires two adversarial reviews, corrections, then Davide's go-ahead or anot
 | Review 2 R2-5/R2-6/R2-7/R2-8 | Accepted: source/editable/sdist build policy, boundary flushes, executable bootstrap/renewal, exact frame duration (§§8–12) |
 
 Davide approved A1–A3, the libraries/export limits and the explicitly documented OPFS retention limitation on 2026-10-11. Browser/performance targets are implementation feasibility gates, not claimed results. The authoritative global/SP1 documents and decision log have been amended accordingly.
+
+## Studio map amendment (2026-11-26)
+
+The [Studio map design](2026-11-25-studio-map-design.md) amends this specification for recordings of intralogistics
+models whose layout has a network (decisions M1, M2, M14 to M17, M22 to M24, M27):
+
+- **§7 (scene and interaction).** The layers are, bottom to top: grid; floor strips; held tint (and the stronger tint
+  of what the selection holds); facilities and ports; nodes; the selected vehicle's route; jobs and generic glyphs;
+  vehicles; wait lines; selection overlay; labels; scale bar; decorative trails. The built-in adapters for warehouses,
+  parking areas, charging stations and AGVs become one drawing function per kind (a sprite each), drawn at one of
+  two levels of detail chosen by the zoom (symbols of a fixed pixel size, or true footprints). Nodes are hidden at
+  symbol level unless selected. Orders and fleets are not drawn on a map. A trace without a layout, or whose layout has
+  no network, keeps the glyphs of this section, with the scale bar added when there is a layout.
+- **§8 (shell, inspection and KPI panels).** Selecting an element fills the Inspector with a readable description
+  first and the raw recorded fields below it, collapsed; the descriptions of vehicles, orders, warehouses, parking
+  areas, charging stations, nodes, segments and zones are built from the map model. A new docked panel,
+  **Overview**, sits with the Inspector: vehicles by fleet, open orders, traffic counters and facilities, one line each,
+  refreshed at most four times a second while playing. It says "No map for this trace" when there is none. The offline
+  player shows the map and the readable description and has no Overview panel.

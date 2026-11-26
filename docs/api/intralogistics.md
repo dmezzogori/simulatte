@@ -215,12 +215,14 @@ The values a controller and a policy exchange with the travel executor. Custom c
 ::: simulatte.intralogistics.AGVType
     options:
       heading_level: 3
-      members: [depletion_fn, load_time, unload_time, length, min_gap, corner_speed, turn_time, idle_power]
+      members: [depletion_fn, load_time, unload_time, length, width, size, min_gap, corner_speed, turn_time, idle_power]
 
 ::: simulatte.intralogistics.AGVState
     options:
       heading_level: 3
       members: false
+
+The entity state of an AGV also holds `wait` and `route` (the traffic wait and the travel under way, or null) and `battery_capacity`; a parking area's state holds `capacity`, a charging station's `slots` and a fleet's `waits`, `stuck_waits` and `deadlocks`. They are described in the [intralogistics guide](../guides/intralogistics.md#state-recorded-for-the-map).
 
 ::: simulatte.intralogistics.SpeedProfile
     options:

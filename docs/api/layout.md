@@ -36,8 +36,11 @@ kept: a run that nobody records and whose manifest nobody reads never builds the
 ## Geometry and generators
 
 Lengths use meters; z must equal zero. Speeds use meters per simulation time unit. Grid snapping is explicit.
-Default footprints are 1×1 m (nodes: 0.1×0.1 m), rotation zero, no ports and `obstacle=False`. Servers, pre-shop
-pools, warehouses, charging stations and parking areas receive auto positions. Custom kinds require explicit
+Default footprints are 1×1 m (nodes: 0.1×0.1 m), rotation zero, no ports and `obstacle=False`. A parking area or a
+charging station placed at its node has 3×3 m, and an AGV whose type declares a `length` has that length by its
+`width` (see [placement of facilities](../guides/intralogistics.md#placement-of-facilities)). Servers, pre-shop
+pools, warehouses, charging stations and parking areas receive auto positions; a warehouse, parking area or charging
+station bound to a node is placed at it. Custom kinds require explicit
 placement; graph nodes use graph positions and placed AGVs use their bound node. Shop floors, routers, fleets,
 jobs and orders are not placement targets. Transient jobs/orders never become static obstacles.
 

@@ -48,6 +48,16 @@ Node when Python build dependencies are installed. `scripts/build_docs_wheel.sh`
 also requires the assets above because the documentation embeds a complete wheel.
 See [Studio](docs/development/studio.md) for browser checks and recording examples.
 
+To look at a change to the Studio scene, render the fixture frames with the harness, writing the PNGs outside
+`studio/`:
+
+```bash
+node studio/harness/render.mjs /tmp/studio-renders
+```
+
+`pnpm --dir studio test:browser` also compares seven canvases with stored images on Linux Chromium; after a
+deliberate change to the drawing, regenerate them as `studio/browser/README-baselines.md` describes.
+
 For SP4 execution changes, run `uv run --all-extras pytest tests/execution` and
 relevant `tests/core/test_studio*.py` checks, then the full 99% branch gate.
 Keep `src/simulatte` (including packaged assets) unchanged during full tests:

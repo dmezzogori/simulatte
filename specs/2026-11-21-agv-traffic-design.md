@@ -1238,3 +1238,25 @@ Scenario 2: `order-0` at 0, `order-1` at 9, `order-2` at 1509; run until 3000. O
 Expected with `ReservationController` and the standard policy: every order completes. In scenario 2, `agv-1`
 waits at `PARK` under the dead-end rule while `agv-0` picks, and each idle AGV left at `C2` after a delivery
 makes way to `PARK` when the other needs `C2`.
+
+## Studio map amendment (2026-11-26)
+
+The [Studio map design](2026-11-25-studio-map-design.md) (decisions M4, M6, M9, M18, M19, §6.2, §6.4 and §6.6) amends
+this specification:
+
+- **§1.3 (non-goals).** Drawing reservations and routes in Studio is done: Studio draws the held floor, the wait lines
+  and a selected vehicle's route (map design §5.5). Lane width stays out of the simulation: the map draws a nominal
+  width and nothing reads it.
+- **§11.1 (state schemas).** `agv` gains `wait` (null, or `{since, node, resources, blockers}`), `route` (null, or
+  `{nodes, destination, reason}`) and the constant `battery_capacity`; `parking_area` gains the constant `capacity` and
+  `charging_station` the constant `slots`; `fleet` gains the counters `waits`, `stuck_waits` and `deadlocks`. All are
+  kept without subscribers, and the three of the fleet count from the start of the run, where `TrafficKPIs` counts
+  after the warm-up.
+- **§11.2 (events).** `traffic.wait_started`, `traffic.wait_ended`, `traffic.wait_stuck`, `traffic.deadlock`,
+  `agv.routed` and `agv.move_interrupted` now carry deltas for those fields, so the sentence "It changes no state" no
+  longer holds for them. The rows of the table of §11.2 were edited in place when the fields were implemented and are
+  not repeated here. `agv.move_ended` and `agv.state_changed` also clear `route`, where the travel ends without an
+  event of its own to do it (map design §14).
+- **§13 (Studio).** The scene no longer skips `segment` and `zone` entities: it reads them, with the `reserved_by`
+  lists of nodes, to tint the floor that is held. Position is still interpolated on the straight line between two
+  node positions.

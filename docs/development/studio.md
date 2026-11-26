@@ -46,6 +46,13 @@ in an unplaced tray; invalid or approximate motion is identified. Decorative
 transfer trails are not job positions. Pan by dragging; use Fit, zoom or Focus
 selected to navigate. The entity list provides selection without canvas picking.
 
+From 0.18 a recording of an intralogistics model is drawn as a map: the floor to scale with a scale bar,
+a sprite for each kind of element, the floor held by traffic and the vehicles that wait. The **Overview**
+panel, docked with the Inspector, lists the vehicles by fleet, the open orders, the traffic counters and the
+facilities, one line each. Selecting an element shows a readable description in the Inspector, with the
+raw recorded fields below it. See [the Studio map](../guides/studio-map.md) for how to read the map, what
+older recordings show, and how to give vehicles sizes and facilities positions.
+
 Play and the slider use continuous simulation time. Previous/Next event inspect
 exact `(time, sequence)` positions, including distinct events at the same time.
 Preparation history is separate. Non-finite event times remain inspectable but do
@@ -141,14 +148,111 @@ network access. See the repository’s `CONTRIBUTING.md` for the contribution wo
 | --- | --- |
 | `packages/trace` | Binary reader, range sources, event/sample queries and replay |
 | `packages/playback` | Prepared frames, clock and KPI eligibility |
-| `packages/scene` | Recorded motion, projection, Pixi rendering and camera |
+| `packages/scene` | Recorded motion, projection, the map model, Pixi rendering, camera and the readable detail |
 | `packages/export` | Manual export schedule, streamed media and offline HTML |
-| `apps/viewer` | React shell, docked panels and imperative chart/inspector adapters |
+| `apps/viewer` | React shell, docked panels (including the Overview panel) and imperative chart/inspector adapters |
 | `apps/player` | Bundled offline player |
 
 Production browser checks enforce a restrictive content security policy and test
 saved HTML with networking disabled. The acceptance evidence in `specs/research/`
 records measured workloads, limits and outstanding platform checks.
+
+## The map (0.18)
+
+This section is for contributors to `studio/packages/scene` and the viewer. The design is in
+`specs/2026-11-25-studio-map-design.md` and the acceptance record, with the measurements, in
+`specs/research/2026-11-25-studio-map-acceptance.md`.
+
+### The map model
+
+`Scene` keeps its public class. Its `Projector.project(frame)` returns the projection it always returned and,
+for a recording with a transport network, a `MapModel` (`scene.map`, built in `src/map/`). The model is a pure
+function of the frame: it reads recorded state fields by name and never reduces events, so a frame reached by a
+seek gives the same model as one reached by playing. It holds the floor strips, the nodes, the vehicles, the
+facilities, the wait lines, the open and closed orders, the zones and the traffic summary. Its pieces, one file
+each: `floor.ts` (strips, lane width, the level-of-detail threshold), `vehicles.ts` (shown state, heading,
+load, wait, route, what the vehicle is doing), `facilities.ts` (bays, stock, badge), `overlay.ts` (what a
+selection highlights), `overview.ts` (the lines of the Overview panel), `describe.ts` (the lines of the click
+detail) and `model.ts` (the types and the shared helpers). The Overview panel's DOM is
+`apps/viewer/src/overview-panel.ts`; the detail is written by `renderDetail` in `map/detail-view.ts`. The panel and
+the detail are built from the model, not from the scene, so the map, the panel and the detail cannot disagree.
+Every displayed name goes through `nameOf`, and every figure that two views show (the seconds of a wait, a
+warehouse's stock, a vehicle's position on its route) is computed once in the model.
+
+A trace without a layout, and a layout without a network, have no map model: the scene draws the glyphs it drew
+before the map, with the scale bar added when there is a layout. The layout editor builds its own projection with
+no map model and so keeps those glyphs. Orders and fleets are in the model for the panel and are not drawn on a map,
+unless a renderer is registered for their kind.
+
+### Layers and the level of detail
+
+`draw/` has one drawing function per kind (`floor.ts`, `node.ts`, `vehicle.ts`, `facility.ts`, `traffic.ts`,
+`overlay.ts`, `scale-bar.ts`), the picking in `pick.ts` and every colour and pixel size in `palette.ts` and
+`map/model.ts` (`SYMBOL_PX`). Layers, bottom to top: grid, floor strips, held tint, facilities and their bay
+lines, ports, nodes, the selected vehicle's route and stronger holds, other glyphs and vehicles, wait lines,
+the selection overlay, labels, the scale bar and the decorative trails. The route and the stronger tint are
+below the vehicles so that a route does not hide the vehicle ahead. The grid and the floor strips are drawn
+into one graphics object that is redrawn only when its signature changes (the camera, the canvas size, the level
+of detail or the strips); everything above is redrawn each frame. `registerRenderer` still overrides the drawing
+of a kind, and `Scene.labels = false` hides all text, which the screenshot comparison uses.
+
+One number, the zoom in pixels per metre, selects the level: `detailAt(model, scale)` is `"true"` at or above
+`model.threshold`, the zoom at which the longest vehicle's footprint is as long as the fixed symbol (22 px),
+and `"symbol"` below it. At symbol level vehicles and facilities are symbols of fixed pixel size centred on
+their true position, nodes are hidden unless selected and a lane is at least 10 px wide. Symbols that share a
+position are fanned out by a pixel offset in natural id order.
+
+### The per-layout cache
+
+What depends only on the layout (the strips with their widths, the nodes, the lane width, the threshold, and the
+index from a facility to the nodes it is bound to) is computed once per layout object and held in a `StaticMap`
+by the `Projector`. A frame's own state (held floor, vehicles, orders, waits) is never in it. The cache is
+checked by a cheap comparison of the node positions and the count of placed graph nodes, and is dropped when the
+frame carries another layout object, so a layout must not be mutated in place. Without it the projection of the
+1,000-vehicle workload took 19 ms at the 95th percentile and with it about 9 ms.
+
+### The render harness
+
+`studio/harness` draws one fixture frame with the scene at a fixed size (1200 by 500 px). The fixtures are the
+JSON files in `studio/fixtures/map`, each the parts of a prepared frame that come from a recording
+(`time`, `cursor`, `state`, `initialState`, `layout`). They are produced by
+`tests/fixtures/traces/generate_map_frames.py`, which records the intralogistics examples and fails if an example no
+longer gives the facts the tests rely on; `tests/core/test_map_frame_fixtures.py` regenerates them and compares them
+with the stored files, floats within 1e-12. Two fixtures are built by hand: `sprites` (one of every sprite,
+including hostile labels) and `two-fleets`.
+
+`node studio/harness/render.mjs <out-dir>` builds the harness, serves it and writes one PNG for each shot, at
+device scale 2 and with labels, plus `mockup.png`. The output directory must be outside `studio/`; the script
+refuses a path inside it. Use it to look at a change: the screenshot comparison below does not judge the look.
+The page also takes query parameters (`frame`, `scale`, `x`, `y`, `select`, `labels`, `panel=1`, `detail=<id>`,
+`then=<fixture>`) for a browser test or a one-off look.
+
+### The screenshot comparison
+
+`studio/browser/map.spec.ts` opens the harness for seven shots with labels hidden (the corridor at symbol level
+and at true size, a selection, the advanced example, a recording without a layout, a production model and the
+sprite row). Every browser checks that the canvas holds at least 20 pixels of each palette colour the shot
+must show. On Chromium on Linux the canvas is also compared with a stored image in
+`studio/browser/map.spec.ts-snapshots/`, with `maxDiffPixels: 300`, which is fewer than one vehicle symbol, so a
+missing sprite fails and antialiasing does not. When the stored image is absent the comparison is skipped with a
+message. Firefox and WebKit assert the palette check and no page error only, because pixels are not promised across
+browsers.
+
+The seven images were made in the Playwright container of the pinned version, on the native linux/arm64 image,
+because amd64 emulation crashes Chromium on Apple Silicon. CI runs on x86_64 and has not been verified against
+them, so the first CI run may need them refreshed. To regenerate the baselines, and for the container recipe,
+the files to commit and what to do when CI differs, see `studio/browser/README-baselines.md`.
+
+### The bench
+
+`studio/bench` measures the open time, the seeks and the frame time of the scene on recorded workloads. The
+map workloads are `fleet100` (100 vehicles on a 20 by 20 lattice under `ReservationController`) and
+`lanes1000` (1,000 vehicles on 50 lanes), generated by `studio/bench/glyphs.py`. The budget is a scene p95 below
+16.7 ms. Run it in a browser with a GPU-backed WebGL renderer: without one, headless Chromium uses a software
+renderer that reads each frame back on the main thread, and that wait lands in the next seek, so the seek
+figures are about ten times too high. On macOS `run.mjs` launches Chromium with the flags for the Metal renderer
+and every result reports `webglRenderer` and `softwareRendered`; do not report the seek or frame figures of a
+run with `softwareRendered` true. See `studio/bench/README.md` for the commands and the page options.
 
 ## Model metadata and stopping (0.16)
 

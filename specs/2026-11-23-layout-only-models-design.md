@@ -420,3 +420,19 @@ this work is `specs/research/2026-11-23-layout-only-models-acceptance.md`.
 
 **Decided by Davide (L16).** Arcs between two nodes at the same position are dropped; the layout does not
 learn to accept them (§5.2).
+
+## Studio map amendment (2026-11-26)
+
+The [Studio map design](2026-11-25-studio-map-design.md) (decisions M8, M20, M21, M28, §6.1, §6.3 and §6.5, with the
+corrections in its §14) amends §5.5, which says that the layout positions the entities of a model automatically:
+
+- A warehouse, parking area or charging station bound to a node of a declared network, with no explicit position, is
+  placed at that node instead of in the automatic grid: a warehouse beside its first input bay (its first output bay
+  when it has none) and away from the network, a parking area or charging station centred on its node with a default
+  footprint of 3 m by 3 m. A vehicle's default footprint is its type's size when the type declares a length. Production
+  kinds and facilities with no node binding keep the grid.
+- The inputs of the rule are saved in the bundle's `targets` (`size` for a vehicle, `node_ids` for a facility). The
+  algorithm is named `layered-v2` exactly when a target carries one of them and `layered-v1` otherwise, so that
+  production-only models and every bundle saved by a released version keep their name, their output and their three
+  hashes. Both readers accept both names and refuse a bundle whose name disagrees with its targets. Facility positions
+  are not part of `physical_hash`.

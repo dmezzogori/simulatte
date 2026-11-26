@@ -214,6 +214,18 @@ Static entity names and topology determine auto positions;
 `flow` adds topology without invoking routing callbacks or drawing random numbers. Auto coordinates are
 presentation defaults and cannot be consumed as physical inputs.
 
+A warehouse, parking area or charging station bound to a node of the network is the exception to the grid: with no
+explicit position, the layout places it at its node (a warehouse beside its first input bay, away from the network;
+a parking area or charging station centred on its node with a 3 m by 3 m footprint), so that Studio draws it where it
+serves the network. An AGV whose type declares a `length` gets that length and its `width` (half the length when
+there is none) as its default footprint. The rule reads two inputs that the saved bundle keeps in its `targets`, a
+vehicle's `size` and a facility's `node_ids`. A bundle with either is named `layered-v2`; every other bundle keeps
+`layered-v1` and its hashes, and both names are accepted by the Python and the TypeScript readers, which refuse a
+bundle whose algorithm name disagrees with its targets, and a null `size` or `node_ids`. A facility's position is
+presentation and is not part of `physical_hash`; its footprint and a vehicle's size are in the layout hashes as any
+placement field is. The rule, its limits and how to override it are described under
+[placement of facilities](intralogistics.md#placement-of-facilities).
+
 ```python { .run }
 from simulatte import Environment
 from simulatte.layout import reresolve_presentation
