@@ -39,6 +39,7 @@ class TestEnvironment:
             yield env.timeout(10)
 
         env.process(process(env))
+        env.activate()  # step() needs activation (spec §5.1 of specs/2026-11-23-layout-only-models-design.md)
         # First step starts the process, second step processes the timeout
         env.step()
         env.step()

@@ -299,3 +299,52 @@ def test_connector_address_unset_and_later_replacement_keep_provenance():
     assert Address(replaced.require(target)).to_dict() == {"kind": "lattice", "i": 1, "j": 2}
     assert replaced.at(target).source == LayerSource("file")
     assert replaced.at((*target, "id")).state == "absent"
+
+
+def test_resolved_values_built_directly_equal_the_resolved_ones():
+    """`resolve_layers` keeps the frozen data and leaves it built; the public constructor freezes what it gets."""
+    from simulatte.layout.layers import ResolvedValues, _thaw
+
+    code = {"schema_version": "1.0", "placements": {"m": {"kind": "server", "position": [1, 2, 0]}}}
+    auto = {"schema_version": "1.0", "placements": {"m": {"kind": "server", "rotation": 0.0}}}
+    values = resolve_layers(
+        (("declare", code),), FileLayer({"schema_version": "1.0"}), auto, targets={"m": "server"}, final=True
+    )
+    built = ResolvedValues(
+        _thaw(values.data),
+        _thaw(values.explicit_data),
+        dict(values.leaves),
+        dict(values.explicit_leaves),
+        values.bundle,
+        dict(values.targets),
+        list(values.diagnostics),
+    )
+    assert built == values
+    assert values.leaves[("placements", "m", "rotation")].value == 0.0
+    assert ("placements", "m", "rotation") not in values.explicit_leaves
+
+
+def test_code_stages_taken_as_checked_resolve_like_the_ones_checked_again():
+    """A preparation resolves with the patches it declared, which were checked when declared (and a bundle's stages
+    were checked by the bundle): ``code_checked`` takes them as they are and the result is the same."""
+    code = {
+        "schema_version": "1.0",
+        "grid": {"dx": 1, "dy": 1},
+        "network": {"type": "lattice", "bounds": [0, 0, 2, 1]},
+        "placements": {"m": {"kind": "server", "position": [1, 2, 0]}},
+    }
+    declared = FileLayer(code).data  # what `PreparationCoordinator.declare` stores
+    stages = (("declare", declared), ("late", FileLayer(patch(grid={"dx": 2})).data))
+    file_layer = FileLayer(patch(placements={"m": {"kind": "server", "rotation": 90}}))
+    targets = {"m": "server"}
+    checked = resolve_layers(stages, file_layer, targets=targets, final=True, code_checked=True)
+    assert checked == resolve_layers(stages, file_layer, targets=targets, final=True)
+    assert (
+        checked.bundle.code_stages
+        == resolve_layers(checked.bundle.code_stages, file_layer, targets=targets, final=True).bundle.code_stages
+    )
+    assert checked.bundle.code_stages[0][1] is declared  # taken as it is, not copied again
+    unchecked = resolve_layers((("raw", code),), file_layer)  # raw data is still checked by default
+    assert unchecked.bundle.code_stages[0][1] == declared
+    with pytest.raises(LayoutError):
+        resolve_layers((("bad", patch(grid={"dx": "wide"})),), file_layer)

@@ -1203,3 +1203,11 @@ def test_cut_short_interior_record_rejected_by_indexed_kpi_scan(tmp_path: Path) 
     damaged[offset : offset + 4] = struct.pack(">I", len(data))
     with pytest.raises(TraceCorrupted, match=f"record at offset {offset} is cut short"):
         Trace.open(_write(tmp_path, "cut-interior-frame", bytes(damaged)))
+
+
+def test_a_trace_without_layout_stays_readable() -> None:
+    # Traces of earlier versions carry no layout; this one is frozen and was never regenerated.
+    trace = Trace.open(Path(__file__).resolve().parents[1] / "fixtures" / "traces" / "frozen" / "shop_small.simtrace")
+    assert trace.layout is None
+    trace.check()
+    assert trace.verify()

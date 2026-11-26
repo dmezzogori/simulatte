@@ -20,6 +20,7 @@ given, otherwise ``f"{kind}-{n}"`` with a per-kind counter of the environment) a
 from __future__ import annotations
 
 import re
+import sys
 import weakref
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
@@ -309,10 +310,10 @@ class EntityRegistry:
         else:
             self._check_name(name)
             entity_id = name
-        if self._env.layout is not None:
-            self._env.layout._before_attach(obj, entity_id)
-        elif getattr(obj, "_uses_explicit_graph", False):
-            self._env._register_graph_use()
+        layout = self._env._layout
+        # after activation the layout is final and new entities are no targets
+        if layout is not None and not self._env._activated:
+            layout._before_attach(obj, entity_id)
         if name is None:
             self._counters[kind] = n + 1
         else:
@@ -352,6 +353,13 @@ class EntityRegistry:
         """
         entity_id = getattr(obj, "id", None)
         if entity_id is None or self._live.get(entity_id) is not obj:
+            refs = sys.modules.get("simulatte.layout.refs")  # a handle exists only once its module is imported
+            if refs is not None and isinstance(obj, refs._Ref):
+                raise ValueError(
+                    "env.entities.retire takes an entity attached to this environment; "
+                    f"{type(obj).__name__} is a layout handle, which stands for a part of the layout when "
+                    "constructing a component, and is not an entity"
+                )
             raise ValueError(f"{obj!r} is not live in this environment")
         try:
             self._retired[entity_id] = obj  # first: the only step that can fail
@@ -372,20 +380,16 @@ class EntityRegistry:
     def bind_node(self, node: Node) -> NodeBinding:
         """The environment-local entity of the graph `node`, created and attached on first use (spec §5.2).
 
-        Binding an equal `Node` again (two fleets sharing a graph) returns the existing binding. Raises
-        `ValueError` for a different `Node` with the id of a bound one, and for a node id that is not a valid,
-        unused entity name.
+        The layout binds every node of its network when it is prepared; binding the node again returns the existing
+        binding. Raises `LayoutError` for a node that is not a canonical node of the layout's network.
         """
-        if self._env.layout is not None:
-            self._env.layout._validate_node(node)
+        self._env.layout._validate_node(node)
         binding = self._nodes.get(node.id)
         if binding is None:
             from simulatte.intralogistics.graph import NodeBinding  # lazy: the intralogistics subsystem is optional
 
             binding = NodeBinding(self._env, node)
             self._nodes[node.id] = binding
-        elif binding.node != node:
-            raise ValueError(f"node id {node.id!r} is already bound to a different node: {binding.node!r}")
         return binding
 
     def node_binding(self, node: Node) -> NodeBinding | None:

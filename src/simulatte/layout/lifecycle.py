@@ -15,6 +15,7 @@ from .dependencies import MISSING, DependencyClosure, evaluate_query
 from .errors import LayoutError, LayoutNotReady, diagnostic_context
 from .layers import FileLayer, ResolvedValues, resolve_layers
 from .refs import GraphRef, NodeRef, PortRef, ValueRef
+from .schema import layout_version
 from .stages import BindContext, StageContext, StageSpec, ordered_stages
 
 
@@ -81,8 +82,27 @@ class PreparationCoordinator:
         self._barrier = False
         self.network: Any = None
         self._result: Any = None
+        self._stale = False
+        self._last_view: tuple[Any, FileLayer, tuple[tuple[str, str], ...], ResolvedValues] | None = None
         self.values = self._resolve()
         self._network_values = self.values
+
+    @property
+    def values(self) -> ResolvedValues:
+        """The layers resolved with the current declarations and targets.
+
+        Attaching a target while declaring only marks them stale (spec §9): they are resolved again on the next read,
+        so attaching many entities before preparation resolves the layers once, not once per entity.
+        """
+        if self._stale:
+            self._values = self._resolve()
+            self._stale = False
+        return self._values
+
+    @values.setter
+    def values(self, values: ResolvedValues) -> None:
+        self._values = values
+        self._stale = False
 
     def stage_records(self) -> dict[str, Any]:
         """Copy registration-ordered author records for the saved layer bundle."""
@@ -93,7 +113,7 @@ class PreparationCoordinator:
 
     def _resolve(self, *, final: bool = False) -> ResolvedValues:
         targets = self._target_provider() if final and self._target_provider else self._targets
-        return resolve_layers(self._code, self.file_layer, targets=targets, final=final)
+        return resolve_layers(self._code, self.file_layer, targets=targets, final=final, code_checked=True)
 
     def ref(self, *path: str) -> ValueRef:
         return ValueRef(self.owner, tuple(path))
@@ -160,6 +180,13 @@ class PreparationCoordinator:
                     stage=self._stage,
                     target=entity_id,
                 )
+        if self.state is PreparationState.DECLARING:
+            # Before preparation nothing is frozen or recorded, and a new target cannot make the resolution fail (it
+            # only decides which placements apply): resolve on the next read of the values instead of now.
+            self._targets[entity_id] = kind
+            self._owners.setdefault(path, self._stage)
+            self._stale = True
+            return
         old_targets = dict(self._targets)
         self._targets[entity_id] = kind
         try:
@@ -174,7 +201,7 @@ class PreparationCoordinator:
     def declare(self, patch: Mapping[str, Any]) -> None:
         """Copy a validated code patch and atomically check stage-owned freezes."""
         self._mutable()
-        data = FileLayer({"schema_version": "1.0", **patch}).data
+        data = FileLayer({"schema_version": layout_version(patch), **patch}).data
         paths: list[tuple[str, ...]] = [("placements", key) for key in data.get("placements", {})]
         paths.extend((key,) for key in ("grid", "network") if key in data)
         for path in paths:
@@ -208,7 +235,28 @@ class PreparationCoordinator:
     def _network_view(self, values: ResolvedValues) -> ResolvedValues:
         """Compiler candidates are actual attachments/definitions, never pending code ids."""
         targets = self._target_provider() if self._target_provider else self._targets
-        return resolve_layers(values.bundle.code_stages, values.bundle.file_layer, targets=targets, final=True)
+        bundle = values.bundle
+        if values.at(("network",), explicit=True).state != "present":
+            # No network is declared: the view is small and only asked for once or twice, so nothing is kept (keeping
+            # the targets of a model of thousands of servers would cost more than resolving again).
+            return resolve_layers(bundle.code_stages, bundle.file_layer, targets=targets, final=True, code_checked=True)
+        stages, items = bundle.code_stages, tuple(targets.items())
+        # Preparation asks for the view twice with the same layers and targets (building the network, then checking the
+        # changes): the second ask gets the first's answer, which is immutable. The patches are compared by identity.
+        # For a lattice the second ask has other targets (the network's nodes), and resolves again.
+        last = self._last_view
+        if last is not None:
+            last_stages, last_file_layer, last_items, last_view = last
+            if (
+                last_file_layer is bundle.file_layer
+                and last_items == items
+                and len(last_stages) == len(stages)
+                and all(a is b for a, b in zip(last_stages, stages))
+            ):
+                return last_view
+        view = resolve_layers(stages, bundle.file_layer, targets=targets, final=True, code_checked=True)
+        self._last_view = (stages, bundle.file_layer, items, view)
+        return view
 
     def _check_changes(self, candidate: ResolvedValues) -> None:
         network_values = self._network_view(candidate) if self._barrier else None

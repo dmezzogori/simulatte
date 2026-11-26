@@ -1,6 +1,7 @@
 from simulatte import Environment, Layout, Trace, TraceRecorder
 from simulatte.trace.format import PREAMBLE
 import inspect
+from pathlib import Path
 import io
 import pytest
 from simulatte._wire import freeze, pack
@@ -88,15 +89,46 @@ def test_failed_prepare_has_no_layout_initial(tmp_path):
     assert trace.layout is None and not any(r.type == RecordType.INITIAL for r in _read(path))
 
 
-def test_no_layout_metadata_and_default_limit(tmp_path):
+def test_trace_layout_is_none_without_an_initial_record_or_without_a_layout_in_it(tmp_path):
+    """The three ways `Trace.layout` is None: no INITIAL record because activation failed (outcome ``failed``) or the
+    environment was never activated (outcome ``completed``), and an INITIAL record without a layout (a trace of a
+    version without one, here a frozen fixture)."""
+    frozen = Path(__file__).parents[1] / "fixtures" / "traces" / "frozen" / "cell_ops.simtrace"
+    trace = Trace.open(frozen)
+    assert trace._initial is not None and trace.layout is None  # the reader of the old format has no `_read`
+
+    env = Environment()
+    failed = tmp_path / "failed"
+    recorder = TraceRecorder(env, failed)
+
+    @env.layout.stage("fail", reads=[])
+    def fail(ctx):
+        raise LayoutError("fail")
+
+    with pytest.raises(LayoutError):
+        env.run()
+    recorder.close(outcome="failed")
+    never = tmp_path / "never"
+    idle = Environment()
+    TraceRecorder(idle, never)
+    idle.close()
+    for path, outcome in ((failed, "failed"), (never, "completed")):
+        trace = Trace.open(path)
+        assert not any(r.type == RecordType.INITIAL for r in _read(path)), outcome
+        assert trace.layout is None and trace.outcome == outcome
+
+
+def test_layout_metadata_of_an_environment_without_layout_code_and_default_limit(tmp_path):
+    """Every trace written by this version carries the layout (spec §5.8); traces of earlier versions without one
+    stay readable (``tests/core/test_trace_reader.py``, frozen fixtures)."""
     assert inspect.signature(TraceRecorder).parameters["max_initial_bytes"].default == 64 << 20
     env = Environment()
-    path = tmp_path / "none"
+    path = tmp_path / "created"
     TraceRecorder(env, path)
     env.run()
     env.close()
     trace = Trace.open(path)
-    assert trace.layout is None and trace.manifest["layout"] is None
+    assert trace.layout == env.layout.prepare().bundle and trace.manifest["layout"] == trace.layout.manifest()
     assert PREAMBLE.unpack(path.read_bytes()[: PREAMBLE.size])[1:] == (1, 3)
     trace.check()
 

@@ -99,6 +99,70 @@ export function motionProgress(value: unknown, time: number): MotionProgress {
     }
     return out(1);
   }
+  if (d["curve"] === "piecewise") {
+    const v0 = d["v0"],
+      phases = d["phases"],
+      distance = d["distance"];
+    if (
+      typeof v0 !== "number" ||
+      !Number.isFinite(v0) ||
+      v0 < -1e-9 ||
+      typeof distance !== "number" ||
+      !Number.isFinite(distance) ||
+      distance <= 0 ||
+      !Array.isArray(phases) ||
+      phases.length === 0
+    )
+      return fallback();
+    const parsed: [number, number][] = [];
+    for (const p of phases) {
+      if (
+        !Array.isArray(p) ||
+        p.length !== 2 ||
+        typeof p[0] !== "number" ||
+        typeof p[1] !== "number" ||
+        !Number.isFinite(p[0]) ||
+        !Number.isFinite(p[1]) ||
+        p[0] <= 0
+      )
+        return fallback();
+      parsed.push([p[0], p[1]]);
+    }
+    const tolerance = Math.max(
+      1e-12,
+      8 *
+        Math.pow(
+          2,
+          Math.floor(
+            Math.log2(
+              Math.max(Math.abs(start), Math.abs(end), Number.MIN_VALUE),
+            ),
+          ) - 52,
+        ),
+    );
+    if (
+      Math.abs(parsed.reduce((sum, p) => sum + p[0], 0) - (end - start)) >
+      tolerance
+    )
+      return fallback();
+    let covered = 0,
+      speed = v0,
+      remaining = elapsed,
+      position: number | null = null;
+    for (const [length, accel] of parsed) {
+      if (position === null && remaining <= length)
+        position =
+          covered + speed * remaining + (accel * remaining * remaining) / 2;
+      covered += speed * length + (accel * length * length) / 2;
+      speed += accel * length;
+      if (speed < -1e-9) return fallback();
+      speed = Math.max(0, speed);
+      remaining -= length;
+    }
+    if (Math.abs(covered - distance) > Math.max(1e-9, 1e-9 * distance))
+      return fallback();
+    return out(clamp((position ?? covered) / distance));
+  }
   if (d["curve"] === "trapezoidal") {
     const speed = d["v_max"],
       accel = d["accel"],

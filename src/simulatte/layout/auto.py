@@ -11,6 +11,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from fractions import Fraction
+from functools import lru_cache
 from typing import Any
 
 from .errors import LayoutDiagnostic, LayoutError
@@ -159,9 +160,14 @@ def _cells(ids: list[str], edges: set[tuple[str, str]]) -> list[tuple[str, int, 
 Bounds = tuple[Fraction, Fraction, Fraction, Fraction]
 
 
+@lru_cache(maxsize=256)  # most targets share a few sizes
+def _padding(size: tuple[float, float]) -> tuple[Fraction, Fraction]:
+    return Fraction(size[0]) / 2 + 1, Fraction(size[1]) / 2 + 1
+
+
 def _bounds(point: Point, size: tuple[float, float]) -> Bounds:
     x, y = Fraction(point.x), Fraction(point.y)
-    dx, dy = Fraction(size[0]) / 2 + 1, Fraction(size[1]) / 2 + 1
+    dx, dy = _padding(size)
     return x - dx, y - dy, x + dx, y + dy
 
 
@@ -232,7 +238,10 @@ def auto_layout(
     consumers must use `.derived_positions` as the authoritative display location.
     """
     if len(targets) > limits.max_placements:
-        raise LayoutError("max_placements exceeded by auto-layout targets")
+        raise LayoutError(
+            f"{len(targets)} layout targets exceed max_placements={limits.max_placements}: every entity created "
+            "before activation is a target; raise the limit with Layout(env, limits=...)"
+        )
     ordered = {key: targets[key] for key in sorted(targets, key=id_key)}
     placements, sizes, pinned, eligible, derived = {}, {}, {}, set(), {}
     diagnostics = []
@@ -303,6 +312,7 @@ def auto_layout(
     if auto_ids:
         cell_width = number(max(sizes[key][0] for key in auto_ids) + 2, "auto cell width", positive=True)
         cell_depth = number(max(sizes[key][1] for key in auto_ids) + 2, "auto cell depth", positive=True)
+        exact_width, exact_depth = Fraction(cell_width), Fraction(cell_depth)
         used: dict[int, dict[int, int]] = {}
         packed: dict[tuple[int, int], Bounds] = {}
         for key, column, assigned in cells:
@@ -319,7 +329,7 @@ def auto_layout(
                 for item in visited:
                     occupied[item] = row
                 try:
-                    point = Point(float(column * Fraction(cell_width)), float(row * Fraction(cell_depth)))
+                    point = Point(float(column * exact_width), float(row * exact_depth))
                 except OverflowError as exc:
                     raise LayoutError("auto position exceeds finite float64 range") from exc
                 if math.ulp(point.x) > cell_width / 2 or math.ulp(point.y) > cell_depth / 2:
@@ -341,7 +351,7 @@ def auto_layout(
                     row + 1,
                     max(
                         (
-                            math.ceil((other[3] + Fraction(sizes[key][1]) / 2 + 1) / Fraction(cell_depth))
+                            math.ceil((other[3] + Fraction(sizes[key][1]) / 2 + 1) / exact_depth)
                             for other in [*(hit[1] for hit in hits), *collisions]
                         ),
                         default=row + 1,

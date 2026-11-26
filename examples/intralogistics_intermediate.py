@@ -24,6 +24,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def fmt_time(value: float | None) -> str:
@@ -90,6 +91,10 @@ def main(*, plot: bool = True) -> None:
 
         graph = LayoutGraph(all_nodes, arcs)
 
+        # The graph is the network of the environment's layout; everything below refers to it through handles.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # --- SKUs ---
         steel = SKU(id="Steel Sheets", weight=80.0, volume=0.3)
         plastic = SKU(id="Plastic Pellets", weight=15.0, volume=0.8)
@@ -106,8 +111,8 @@ def main(*, plot: bool = True) -> None:
         raw_materials = Warehouse(
             env=env,
             name="Raw Materials",
-            input_bays=[rm_in],
-            output_bays=[rm_out],
+            input_bays=[layout.node("RM_IN")],
+            output_bays=[layout.node("RM_OUT")],
             n_slots=2,
             products=skus,
             initial_inventory={sku: 20 for sku in skus},
@@ -118,8 +123,8 @@ def main(*, plot: bool = True) -> None:
         finished_goods = Warehouse(
             env=env,
             name="Finished Goods",
-            input_bays=[fg_in],
-            output_bays=[fg_out],
+            input_bays=[layout.node("FG_IN")],
+            output_bays=[layout.node("FG_OUT")],
             n_slots=2,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
@@ -143,19 +148,19 @@ def main(*, plot: bool = True) -> None:
             load_time=10.0,
             unload_time=8.0,
         )
-        starting_nodes = [rm_out, c2, p]
+        starting_nodes = [layout.node("RM_OUT"), layout.node("C2"), layout.node("P")]
         agvs = [
             AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i + 1}", initial_node=node)
             for i, node in enumerate(starting_nodes)
         ]
 
         # --- Parking ---
-        parking = ParkingArea(env=env, name="Parking", node=p, capacity=3)
+        parking = ParkingArea(env=env, name="Parking", node=layout.node("P"), capacity=3)
 
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[raw_materials, finished_goods],
             charging_stations=[],

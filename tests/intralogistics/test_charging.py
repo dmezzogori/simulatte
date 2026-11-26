@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 import simpy
 from simpy.events import ProcessGenerator
@@ -7,8 +9,14 @@ from simpy.events import ProcessGenerator
 from simulatte.environment import Environment
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.charging import ChargingStation
-from simulatte.intralogistics.graph import Node
+from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import NodeRef
+
+from tests.intralogistics.traffic_support import declare
 
 
 @pytest.fixture
@@ -17,8 +25,9 @@ def env() -> Environment:
 
 
 @pytest.fixture
-def charging_node() -> Node:
-    return Node(id="CHARGE", x=5.0, y=5.0)
+def charging_node(env: Environment) -> NodeRef:
+    """The node ``CHARGE`` at (5, 5), declared as the network of `env`'s layout."""
+    return declare(env, LayoutGraph([Node(id="CHARGE", x=5.0, y=5.0)], [])).ref("CHARGE")
 
 
 @pytest.fixture
@@ -39,7 +48,7 @@ def _make_agv(env: Environment, agv_type: AGVType, battery_level: float) -> AGV:
 
 
 class TestChargingStationRecharge:
-    def test_basic_recharge_timing(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_basic_recharge_timing(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """AGV with 50% battery recharges to 100%. Verify timing and battery level."""
         station = ChargingStation(
             env=env,
@@ -62,7 +71,7 @@ class TestChargingStationRecharge:
         assert agv.battery.level == pytest.approx(100.0)
         assert agv.battery.level_pct == pytest.approx(1.0)
 
-    def test_slot_blocking(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_slot_blocking(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """1-slot station, two AGVs. Second AGV waits until first finishes."""
         station = ChargingStation(
             env=env,
@@ -94,7 +103,7 @@ class TestChargingStationRecharge:
         assert agv2.battery.level == pytest.approx(100.0)
 
     def test_station_recharge_time_overrides_battery(
-        self, env: Environment, charging_node: Node, agv_type: AGVType
+        self, env: Environment, charging_node: NodeRef, agv_type: AGVType
     ) -> None:
         """Station with custom recharge_time produces different timing than AGV default."""
 
@@ -125,7 +134,7 @@ class TestChargingStationRecharge:
 
 
 class TestChargingStationSwap:
-    def test_swap_with_available_pool(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_swap_with_available_pool(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """Station with available pool batteries. Swap is near-instant (swap_time)."""
         station = ChargingStation(
             env=env,
@@ -153,7 +162,7 @@ class TestChargingStationSwap:
         assert finish_time == pytest.approx(1.0)
         assert agv.battery.level == pytest.approx(agv.battery.capacity)
 
-    def test_swap_with_empty_pool(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_swap_with_empty_pool(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """Pool depleted, AGV must wait for swap_recharge_time before pool replenishes."""
         station = ChargingStation(
             env=env,
@@ -192,7 +201,7 @@ class TestChargingStationSwap:
         assert station.total_occupied_time == pytest.approx(1.0 + 12.0)
 
     def test_swap_with_zero_pool_blocks_until_replenished(
-        self, env: Environment, charging_node: Node, agv_type: AGVType
+        self, env: Environment, charging_node: NodeRef, agv_type: AGVType
     ) -> None:
         """T10: swap_pool_size=0 means the pool starts empty. swap() blocks
         until a battery is explicitly added to the pool."""
@@ -235,7 +244,7 @@ class TestChargingStationSwap:
         assert agv.battery.level == pytest.approx(agv.battery.capacity)
         assert station.total_swaps == 1
 
-    def test_swap_unsupported_raises(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_swap_unsupported_raises(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """Station with supports_swap=False. Calling swap() raises RuntimeError."""
         station = ChargingStation(
             env=env,
@@ -253,7 +262,7 @@ class TestChargingStationSwap:
 
 
 class TestChargingStationRechargeEdgeCases:
-    def test_recharge_already_at_target(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_recharge_already_at_target(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """Recharging an AGV already at target_pct should be a no-op (duration=0)."""
         station = ChargingStation(
             env=env,
@@ -274,7 +283,7 @@ class TestChargingStationRechargeEdgeCases:
         assert station.total_recharges == 1
 
     def test_recharge_without_station_recharge_time(
-        self, env: Environment, charging_node: Node, agv_type: AGVType
+        self, env: Environment, charging_node: NodeRef, agv_type: AGVType
     ) -> None:
         """Station with no recharge_time falls back to battery.recharge_time()."""
         station = ChargingStation(
@@ -298,7 +307,7 @@ class TestChargingStationRechargeEdgeCases:
 
 
 class TestChargingStationMetrics:
-    def test_metrics_tracking(self, env: Environment, charging_node: Node, agv_type: AGVType) -> None:
+    def test_metrics_tracking(self, env: Environment, charging_node: NodeRef, agv_type: AGVType) -> None:
         """total_recharges, total_swaps, total_occupied_time accumulate correctly."""
         station = ChargingStation(
             env=env,
@@ -335,7 +344,7 @@ class TestChargingStationMetrics:
 @pytest.mark.parametrize("mode", ["recharge", "swap"])
 @pytest.mark.parametrize("phase", ["queued", "granted", "active"])
 def test_interrupted_operation_releases_slot(
-    env: Environment, charging_node: Node, agv_type: AGVType, mode: str, phase: str
+    env: Environment, charging_node: NodeRef, agv_type: AGVType, mode: str, phase: str
 ) -> None:
     station = ChargingStation(
         env=env,
@@ -382,7 +391,9 @@ def test_interrupted_operation_releases_slot(
 
 
 @pytest.mark.parametrize("phase", ["queued", "granted"])
-def test_interrupted_swap_preserves_pool(env: Environment, charging_node: Node, agv_type: AGVType, phase: str) -> None:
+def test_interrupted_swap_preserves_pool(
+    env: Environment, charging_node: NodeRef, agv_type: AGVType, phase: str
+) -> None:
     station = ChargingStation(
         env=env,
         name="CS",
@@ -417,3 +428,94 @@ def test_interrupted_swap_preserves_pool(env: Environment, charging_node: Node, 
     assert station._slots.count == 0
     assert agv.battery.level == 20.0
     assert station.total_swaps == 0
+
+
+# ── Charger choice by route cost (spec §10.4) ─────────────────────────
+
+
+class Plain:
+    """A profile without limits: 2 m/s."""
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        return distance / 2.0
+
+
+def _charger_fleet(
+    env: Environment, nodes: list[Node], arcs: list[Arc], stations: list[str], profile: object, **options: Any
+) -> tuple[FleetCoordinator, AGV, list[ChargingStation]]:
+    """A fleet of one AGV on the first of `nodes` (battery 100, one unit of energy per metre) with a charger on each
+    node named in `stations`, in that order; `options` go to the ``AGVType``. The graph is declared on the layout of
+    `env`, which is prepared."""
+    world = declare(env, LayoutGraph(nodes, arcs))
+    kind = AGVType(
+        name="t",
+        speed_profile=profile,  # ty: ignore[invalid-argument-type]
+        battery_capacity=100.0,
+        weight_capacity=10.0,
+        volume_capacity=1.0,
+        **options,
+    )
+    agv = AGV(env=env, agv_type=kind, initial_node=world.ref(nodes[0].id))
+    sku = SKU(id="A", weight=1.0, volume=0.1)
+    warehouse = Warehouse(
+        env=env,
+        name="W",
+        input_bays=[world.ref(nodes[0].id)],
+        output_bays=[world.ref(nodes[0].id)],
+        n_slots=1,
+        products=[sku],
+        pick_time=1.0,
+        put_time=1.0,
+    )
+    chargers = [ChargingStation(env=env, name=f"CS-{name}", node=world.ref(name), n_slots=1) for name in stations]
+    fleet = FleetCoordinator(
+        env=env,
+        graph=world.graph,
+        fleet=[agv],
+        warehouses=[warehouse],
+        charging_stations=chargers,
+        default_metrics=False,
+    )
+    env.layout.prepare()
+    return fleet, agv, chargers
+
+
+@pytest.mark.parametrize("profile", [Plain(), TrapezoidalProfile(2.0, 1.0, 1.0)], ids=["no-limits", "limits"])
+def test_the_reachable_charger_estimate_sums_the_route_arc_lengths(env: Environment, profile: object) -> None:
+    """``A -- B`` has an explicit length of 12 m over a 10 m chord, ``B -- C`` its 10 m chord: the estimate is 22, not
+    the 20 of the chords."""
+    a, b, c = Node("A", 0.0, 0.0), Node("B", 10.0, 0.0), Node("C", 20.0, 0.0)
+    fleet, agv, (station,) = _charger_fleet(env, [a, b, c], [Arc(a, b, length=12.0), Arc(b, c)], ["C"], profile)
+    agv.battery.level = 21.9
+    assert fleet._find_reachable_charger(agv) is None
+    agv.battery.level = 22.0
+    assert fleet._find_reachable_charger(agv) is station
+
+
+def test_the_reachable_charger_estimate_reads_the_level_now(env: Environment) -> None:
+    """After 100 s idle at 0.1 the level now is 20, though 30 was last accounted: a charger 25 m away is out of
+    reach."""
+    a, c = Node("A", 0.0, 0.0), Node("C", 25.0, 0.0)
+    fleet, agv, (station,) = _charger_fleet(env, [a, c], [Arc(a, c)], ["C"], Plain(), idle_power=0.1)
+    agv.battery.level = 30.0
+    assert fleet._find_reachable_charger(agv) is station
+    env.run(until=100.0)
+    assert agv.battery.level == 30.0 and agv.battery_level_now() == 20.0
+    assert fleet._find_reachable_charger(agv) is None
+
+
+def test_an_arc_longer_than_its_chord_changes_the_charger_and_the_bay(env: Environment) -> None:
+    """``N`` is 10 m away by its chord but 30 m along its arc; ``F`` is 20 m away. The chord ranking of the warehouse's
+    helpers picks ``N``; the coordinator ranks by the default router's cost, the arc lengths, and picks ``F``."""
+    a, near, far = Node("A", 0.0, 0.0), Node("N", 10.0, 0.0), Node("F", 0.0, 20.0)
+    fleet, agv, (on_near, on_far) = _charger_fleet(
+        env, [a, near, far], [Arc(a, near, length=30.0), Arc(a, far)], ["N", "F"], Plain()
+    )
+    a, near, far = ({node.id: node for node in fleet.graph.nodes}[name] for name in ("A", "N", "F"))  # canonical
+    assert fleet._find_nearest_charger(agv) is on_far
+    assert fleet._find_reachable_charger(agv) is on_far
+    assert fleet.best_bay(agv, [near, far]) is far
+    (warehouse,) = fleet.warehouses
+    assert warehouse._nearest_bay(a, [near, far], fleet.graph) is near

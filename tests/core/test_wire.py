@@ -14,6 +14,7 @@ from simulatte._wire import (
     canonical_pack,
     escape_key,
     freeze,
+    frozen_map,
     new_packer,
     pack,
     prepared,
@@ -266,6 +267,19 @@ class TestCanonicalByConstruction:
 
         assert struct.pack(">d", v["n"]) == b"\x7f\xf8\x00\x00\x00\x00\x00\x00"
         assert struct.pack(">d", v["z"]) == struct.pack(">d", -0.0)
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"v0": 0.5, "phases": ((1.25, 0.8), (2.0, 0.0)), "curve": "piecewise", "distance": 10.0},
+            {"~b": 1, "__proto__": None, "a": fz({"y": 1, "x": 2})},
+        ],
+    )
+    def test_frozen_map_is_what_freeze_makes_of_frozen_values(self, data: dict[str, Any]) -> None:
+        built = frozen_map(dict(data))
+
+        assert list(built) == list(fz(data)) and built._wire == fz(data)._wire
+        assert freeze(built) is built and cpack(built) == cpack(data)
 
     def test_constructor_maps_are_not_canonical(self) -> None:
         direct = FrozenMap({"b": 1, "a": 2})

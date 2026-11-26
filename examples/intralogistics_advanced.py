@@ -30,6 +30,7 @@ from simulatte.intralogistics import (
     TrapezoidalProfile,
     Warehouse,
 )
+from simulatte.layout import Explicit
 
 
 def fmt_ema(value: float | None) -> str:
@@ -135,6 +136,10 @@ def main(*, plot: bool = True) -> None:
 
         graph = LayoutGraph(all_nodes, arcs)
 
+        # The graph is the network of the environment's layout; everything below refers to it through handles.
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+
         # --- SKUs (5) ---
         pallet_a = SKU(id="Pallet-A-Heavy", weight=120.0, volume=0.5)
         pallet_b = SKU(id="Pallet-B-Medium", weight=50.0, volume=0.8)
@@ -165,8 +170,8 @@ def main(*, plot: bool = True) -> None:
         receiving = Warehouse(
             env=env,
             name="Receiving",
-            input_bays=[rcv_in],
-            output_bays=[rcv_out],
+            input_bays=[layout.node("RCV_IN")],
+            output_bays=[layout.node("RCV_OUT")],
             n_slots=3,
             products=skus,
             initial_inventory={sku: 200 for sku in skus},
@@ -177,8 +182,8 @@ def main(*, plot: bool = True) -> None:
         bulk_storage = Warehouse(
             env=env,
             name="Bulk Storage",
-            input_bays=[bulk_in],
-            output_bays=[bulk_out],
+            input_bays=[layout.node("BULK_IN")],
+            output_bays=[layout.node("BULK_OUT")],
             n_slots=4,
             products=skus,
             initial_inventory={sku: 30 for sku in skus},
@@ -189,8 +194,8 @@ def main(*, plot: bool = True) -> None:
         dispatch = Warehouse(
             env=env,
             name="Dispatch",
-            input_bays=[dsp_in],
-            output_bays=[dsp_out],
+            input_bays=[layout.node("DSP_IN")],
+            output_bays=[layout.node("DSP_OUT")],
             n_slots=3,
             products=skus,
             initial_inventory={sku: 0 for sku in skus},
@@ -218,20 +223,20 @@ def main(*, plot: bool = True) -> None:
             load_time=12.0,
             unload_time=10.0,
         )
-        starting_nodes = [park, bulk_out, b1, r1, b3]
+        starting_nodes = [layout.node(n) for n in ("PARK", "BULK_OUT", "B1", "R1", "B3")]
         agvs = [
             AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i + 1}", initial_node=node)
             for i, node in enumerate(starting_nodes)
         ]
 
         # --- Parking & Charging ---
-        parking_area = ParkingArea(env=env, name="Parking", node=park, capacity=3)
-        charging_station = ChargingStation(env=env, name="Charger", node=chrg, n_slots=2)
+        parking_area = ParkingArea(env=env, name="Parking", node=layout.node("PARK"), capacity=3)
+        charging_station = ChargingStation(env=env, name="Charger", node=layout.node("CHRG"), n_slots=2)
 
         # --- Coordinator ---
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=layout.graph(),
             fleet=agvs,
             warehouses=[receiving, bulk_storage, dispatch],
             charging_stations=[charging_station],

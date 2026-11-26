@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import heapq
 import math
 import operator
 import os
@@ -35,6 +36,7 @@ from simulatte.rng import BindingKind, CountingRandom, DrawCounter, derive_seed,
 
 if TYPE_CHECKING:  # pragma: no cover
     from simulatte.kpi import Collector
+    from simulatte.layout.layout import Layout
     from simulatte.trace.writer import TraceRecorder
 
 SEED_LIMIT = 2**63
@@ -142,8 +144,7 @@ class Environment(simpy.Environment):
         self._projection_listeners: list[Callable[[InitialState], None]] = []
         self._initializers: list[Callable[[], object]] = []
         self._commands: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = []
-        self._layout = None
-        self._explicit_graph_use = False
+        self._layout: Layout | None = None  # created by Layout(env), env.layout or activation
         self._activation_started = False
         self._initializers_done = False  # set once the initializer loop of activate() finished
         self._activated = False
@@ -359,16 +360,24 @@ class Environment(simpy.Environment):
         self._projection_listeners.append(on_initial_state)
 
     @property
-    def layout(self):
-        """The attached Layout, or None (layout is imported only on explicit use)."""
-        return self._layout
+    def layout(self) -> Layout:
+        """The layout of this environment, created on first use (spec §5.1).
 
-    def _register_graph_use(self) -> None:
-        """Record a validated explicit graph consumer before its publication."""
-        self._explicit_graph_use = True
+        ``Layout(env, file=..., limits=...)`` creates it with a file layer or limits; it must come before the first
+        use of this property. Without either, activation creates the layout. The layout package is imported only
+        when the layout is created.
+        """
+        layout = self._layout
+        if layout is None:
+            from simulatte.layout.layout import Layout
+
+            layout = Layout(self)
+        return layout
 
     def _guard_layout_advance(self) -> None:
-        if self._layout is not None:
+        # Activation finalized the layout for good (prepare() succeeded before it, and a finalized layout stays
+        # finalized), so an activated environment reads this one field and nothing of the layout (spec §9).
+        if not self._activated and self._layout is not None:
             from simulatte.layout.lifecycle import PreparationState
             from simulatte.layout.errors import LayoutError
 
@@ -393,9 +402,13 @@ class Environment(simpy.Environment):
             return
         if self._activation_started:
             raise RuntimeError("activation is in progress or failed; the environment cannot be activated again")
+        layout = self._layout
+        if layout is None:
+            from simulatte.layout.layout import Layout
+
+            layout = Layout(self)  # no layout was asked for: activation creates it (spec §5.5)
         self._activation_started = True
-        if self._layout is not None:
-            self._layout.prepare()
+        layout.prepare()
         initializers = self._initializers
         index = 0
         while index < len(initializers):  # initializers may register further initializers
@@ -583,12 +596,11 @@ class Environment(simpy.Environment):
             seed, time_unit, provenance, warmup = (
                 inputs if inputs is not None else (self._seed, self.time_unit, self._provenance, self._warmup)
             )
-            layout_metadata = None
-            if self._layout is not None:
-                result = self._layout._coordinator._result
-                layout_metadata = (
-                    {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
-                )
+            layout = self._layout  # every environment has one; before its first use it is not created yet
+            result = None if layout is None else layout._coordinator._result
+            layout_metadata = (
+                {"schema_version": "1.0", "status": "unresolved"} if result is None else result.bundle.manifest()
+            )
             requested = build_requested(
                 seed=seed,
                 time_unit=time_unit,
@@ -608,6 +620,28 @@ class Environment(simpy.Environment):
         """Host, wall-clock start and wall-clock time spent in :meth:`run`; separate from the manifest."""
         return volatile_metadata(self._wall_clock_start, self._run_seconds)
 
+    def unschedule(self, event: simpy.Event) -> None:
+        """Remove `event`, scheduled and not yet processed, from the event queue: it never fires and never advances the
+        clock. A process waiting on the removed event never resumes.
+
+        Raises `ValueError` when the event is not in the queue (never scheduled, already processed or already
+        unscheduled). SimPy has no cancellation, so this is the one place that knows the layout of its event queue: a
+        heap of ``(time, priority, eid, event)`` entries with a unique ``eid``. The entries are totally ordered, so
+        deleting one and restoring the heap leaves the order of every other entry unchanged. An event being processed
+        was popped before its callbacks run and is no longer in the queue.
+        """
+        queue = self._queue
+        for index, entry in enumerate(queue):
+            if entry[3] is event:
+                break
+        else:
+            raise ValueError(
+                f"cannot unschedule {event!r}: it is not in the event queue "
+                "(never scheduled, already processed or already unscheduled)"
+            )
+        del queue[index]
+        heapq.heapify(queue)
+
     def step(self) -> None:
         """
         Process the next event in the queue.
@@ -617,11 +651,17 @@ class Environment(simpy.Environment):
         as ``cancelled``.
         """
 
-        self._guard_layout_advance()
-        if self._layout is not None and not self._activated:
+        if not self._activated:
+            self._guard_layout_advance()
             from simulatte.layout.errors import LayoutError
 
-            raise LayoutError("call env.activate() before env.step() with a layout", code="lifecycle-error")
+            if self._activation_started:
+                raise LayoutError(
+                    "env.step() needs a completed env.activate(): activation is in progress or failed; the "
+                    "environment cannot be activated again",
+                    code="lifecycle-error",
+                )
+            raise LayoutError("call env.activate() before env.step()", code="lifecycle-error")
         try:
             super().step()
         except KeyboardInterrupt:

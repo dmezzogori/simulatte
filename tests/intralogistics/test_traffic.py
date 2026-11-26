@@ -1,16 +1,31 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 import simpy
 
+from simulatte._wire import freeze
 from simulatte.environment import Environment
-from simulatte.intralogistics.agv import AGV, AGVType
+from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeTrafficManager, PathCheckResult, ResourceBasedTrafficManager
+from simulatte.layout import NodeRef
+from simulatte.intralogistics.network import Claim
+from simulatte.intralogistics.traffic import (
+    ClaimRequest,
+    Disposition,
+    FreeFlowController,
+    Granted,
+    Rerouted,
+    TrafficController,
+    TrafficView,
+    WaitHooks,
+)
+from tests.intralogistics.traffic_support import declare, line
 
 
-def _make_agv(env: Environment, node: Node | None = None) -> AGV:
+def _make_agv(env: Environment, node: NodeRef | None = None) -> AGV:
     profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
     agv_type = AGVType(
         name="test",
@@ -22,573 +37,177 @@ def _make_agv(env: Environment, node: Node | None = None) -> AGV:
     return AGV(env=env, agv_type=agv_type, initial_node=node)
 
 
-class TestPathCheckResult:
-    def test_feasible(self) -> None:
-        r = PathCheckResult(feasible=True)
-        assert r.feasible is True
-        assert r.conflict_nodes is None
-
-    def test_infeasible_with_conflicts(self) -> None:
-        n = Node(id="X", x=0.0, y=0.0)
-        r = PathCheckResult(feasible=False, conflict_nodes=[n])
-        assert r.feasible is False
-        assert r.conflict_nodes == [n]
-
-
-class TestFreeTrafficManager:
-    def test_check_path_always_feasible(self) -> None:
-        tm = FreeTrafficManager()
-        agv = _make_agv(Environment())
-        result = tm.check_path(agv, [])
-        assert result.feasible is True
-
-    def test_place_now_is_noop(self) -> None:
+class TestFreeFlowController:
+    def _controller(self) -> tuple[FreeFlowController, Environment, AGV, dict[str, Node]]:
         env = Environment()
-        tm = FreeTrafficManager()
-        node = Node(id="A", x=0.0, y=0.0)
-        agv = _make_agv(env, node)
-        tm.place_now(agv, node)
-        tm.place_now(agv, node)
-        assert env.peek() == float("inf")
+        world = line(env, 4)
+        agv = _make_agv(env, world.ref("N0"))
+        controller = FreeFlowController()
+        controller.register_fleet(SimpleNamespace(env=env, graph=world.canonical_graph()))  # type: ignore[arg-type]
+        return controller, env, agv, {f"N{i}": world.node(f"N{i}") for i in range(4)}
 
-    def test_enter_leave_are_noops(self) -> None:
+    def test_satisfies_the_protocols(self) -> None:
+        controller = self._controller()[0]
+        assert isinstance(controller, TrafficController)
+        assert isinstance(controller.view, TrafficView)
+        assert controller.controls_occupancy is False
+
+    def test_next_claim_covers_the_rest_of_the_route(self) -> None:
+        controller, _, agv, nodes = self._controller()
+        route = [nodes[f"N{i}"] for i in range(4)]
+        assert controller.next_claim(agv, route, 1) == Claim((), 2)
+
+    def test_request_is_granted_at_once(self) -> None:
+        controller, _, agv, _ = self._controller()
+        hooks = WaitHooks(
+            route=lambda: (), loaded=lambda: False, resolutions=lambda: 0,
+            try_reroute=lambda avoid, ratio: False, try_step_aside=lambda target: False, give_up=lambda: False,
+        )  # fmt: skip
+        claim = Claim((), 1)
+        request = controller.request(agv, claim, hooks)
+        assert request.agv is agv
+        assert request.claim is claim
+        assert request.hooks is hooks
+        assert request.event.triggered
+        assert request.event.value == Granted()
+        assert request.granted is True
+
+    def test_request_not_granted_until_event_succeeds(self) -> None:
+        _, env, agv, _ = self._controller()
+        hooks = None  # type: ignore[assignment]
+        pending_request = ClaimRequest(agv, Claim((), 1), hooks, simpy.Event(env))
+        assert pending_request.granted is False
+        pending_request.event.succeed(Rerouted())
+        assert pending_request.granted is False
+
+    def test_lifecycle_calls_do_nothing(self) -> None:
+        controller, env, agv, nodes = self._controller()
+        seen: list[object] = []
+        env.bus.subscribe(seen.append, "**")
+        before = dict(env.entities._live)
+        request = controller.request(agv, Claim((), 1), None)  # type: ignore[arg-type]
+        controller.place(agv, nodes["N0"])
+        controller.stopped(request)
+        controller.withdraw(request)
+        controller.release(agv, [nodes["N1"]])
+        controller.retain(agv, [nodes["N1"]])
+        controller.cleared(agv, [nodes["N1"]])
+        assert seen == []
+        assert env.entities._live == before
+
+    def test_view_reports_an_empty_network(self) -> None:
+        controller, _, agv, nodes = self._controller()
+        view = controller.view
+        n0, n1 = nodes["N0"], nodes["N1"]
+        assert view.length(n0, n1) == 10.0
+        assert view.speed_limit(n0, n1) is None
+        assert view.capacity(n0) == 1
+        assert view.resources(n0, n1) == ()
+        assert view.holders(n0) == ()
+        assert view.pending(n0) == 0
+        assert view.route_of(agv) == ()
+        assert view.admissible(agv, Claim((), 1)) is True
+        assert view.mean_hold(n0) == 0.0
+        assert view.blockers(agv, n0, n1) == ()
+        assert view.branch_root(n0) is False
+
+    def test_view_graph_is_the_registered_fleets_and_fleets_on_it_share(self) -> None:
+        controller, env, _, _ = self._controller()
+        graph = controller.view.graph
+        controller.register_fleet(SimpleNamespace(env=env, graph=graph))  # type: ignore[arg-type]
+        assert controller.view.graph is graph
+
+    def test_a_fleet_on_another_graph_is_refused(self) -> None:
+        controller, _, _, _ = self._controller()
+        graph = controller.view.graph
+        other = Environment()
+        with pytest.raises(ValueError, match="each environment needs its own FreeFlowController"):
+            controller.register_fleet(SimpleNamespace(env=other, graph=line(other, 2).canonical_graph()))  # type: ignore[arg-type]
+        assert controller.view.graph is graph
+
+    def test_built_systems_of_two_environments_cannot_share_one_controller(self) -> None:
+        """The successor of the explicit-mode rule for two graphs in one environment: one environment has one network
+        (spec §5.6), so the controller refuses only a fleet of another environment's layout."""
+        from simulatte.intralogistics import build_simple_system
+
+        controller = FreeFlowController()
+        build_simple_system(Environment(), traffic_controller=controller)
+        with pytest.raises(ValueError, match="another environment's layout"):
+            build_simple_system(Environment(), traffic_controller=controller)
+
+    def test_two_fleets_on_one_graph_share_one_controller(self) -> None:
+        from simulatte.intralogistics.fleet import FleetCoordinator
+
         env = Environment()
-        tm = FreeTrafficManager()
-        node = Node(id="A", x=0.0, y=0.0)
-        agv = _make_agv(env, node)
-
-        def run():
-            yield from tm.enter_node(agv, node)
-            tm.leave_node(agv, node)
-
-        env.process(run())
+        world = line(env, 3)
+        controller = FreeFlowController()
+        fleets = [
+            FleetCoordinator(
+                env=env,
+                graph=world.graph,
+                fleet=[_make_agv(env, world.ref(start))],
+                warehouses=[],
+                charging_stations=[],
+                traffic_controller=controller,
+            )
+            for start in ("N0", "N2")
+        ]
+        processes = [
+            env.process(fleet._executor.travel(fleet.fleet[0], world.node(goal), loaded=False))
+            for fleet, goal in zip(fleets, ("N1", "N1"))
+        ]
         env.run()
+        assert all(process.value.name == "ARRIVED" for process in processes)
 
-    def test_register_intent_is_noop(self) -> None:
-        tm = FreeTrafficManager()
-        agv = _make_agv(Environment())
-        node = Node(id="A", x=0.0, y=0.0)
-        tm.register_intent(agv, [node])
+    def test_a_layout_fleet_registers_with_its_pending_graph(self) -> None:
+        from simulatte import Layout
+        from simulatte.intralogistics.fleet import FleetCoordinator
 
-    def test_cancel_is_noop(self) -> None:
-        tm = FreeTrafficManager()
-        agv = _make_agv(Environment())
-        tm.cancel(agv)
-
-    def test_no_priority_method(self) -> None:
-        tm = FreeTrafficManager()
-        assert not hasattr(tm, "priority")
-
-
-class TestResourceBasedTrafficManager:
-    def test_place_now_acquires_node(self) -> None:
         env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        graph = LayoutGraph([n1], [])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv = _make_agv(env, n1)
-
-        tm.place_now(agv, n1)
-        assert tm._node_resources[n1].count == 1
-
-    def test_place_now_raises_when_node_is_full(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        tm = ResourceBasedTrafficManager(graph=LayoutGraph([n1], []), env=env, node_capacity=1)
-        first, second = _make_agv(env, n1), _make_agv(env, n1)
-        tm.place_now(first, n1)
-        with pytest.raises(RuntimeError, match="fully reserved"):
-            tm.place_now(second, n1)
-        resource = tm._node_resources[n1]
-        assert resource.count == 1 and not resource.queue  # the refused request was withdrawn
-        assert (second, n1) not in tm._node_requests
-
-    def test_enter_blocks_when_full(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-
-        agv1 = _make_agv(env, n1)
-        agv2 = _make_agv(env, n1)
-        entered = []
-
-        def occupy():
-            tm.place_now(agv1, n2)
-            yield env.timeout(10.0)
-            tm.leave_node(agv1, n2)
-
-        def try_enter():
-            yield from tm.enter_node(agv2, n2)
-            entered.append(env.now)
-
-        env.process(occupy())
-        env.process(try_enter())
-        env.run()
-
-        assert entered[0] == pytest.approx(10.0)
-
-    def test_register_intent_and_cancel(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv = _make_agv(env, n1)
-
-        tm.register_intent(agv, [n1, n2])
-        assert agv in tm._intents
-        tm.cancel(agv)
-        assert agv not in tm._intents
-
-    def test_priority_uses_priority_fn(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        graph = LayoutGraph([n1], [])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, priority_fn=lambda agv: 7.5 if agv.agv_id else 0.0)
-        agv = _make_agv(env, n1)
-        assert tm.priority(agv) == 7.5
-
-    def test_check_path_detects_head_on_conflict(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        n3 = Node(id="N3", x=2.0, y=0.0)
-        graph = LayoutGraph(
-            [n1, n2, n3],
-            [
-                Arc(source=n1, target=n2),
-                Arc(source=n2, target=n3),
-            ],
-        )
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-
-        agv1 = _make_agv(env, n1)
-        agv2 = _make_agv(env, n3)
-
-        tm.register_intent(agv1, [n1, n2, n3])
-        result = tm.check_path(agv2, [n3, n2, n1])
-        assert result.feasible is False
-        assert result.conflict_nodes is not None
-        assert n2 in result.conflict_nodes
-
-    def test_check_path_detects_shared_destination(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        n3 = Node(id="N3", x=2.0, y=0.0)
-        graph = LayoutGraph(
-            [n1, n2, n3],
-            [
-                Arc(source=n1, target=n2),
-                Arc(source=n3, target=n2),
-            ],
-        )
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv1 = _make_agv(env, n1)
-        agv2 = _make_agv(env, n3)
-
-        tm.register_intent(agv1, [n1, n2])
-        result = tm.check_path(agv2, [n3, n2])
-        assert result.feasible is False
-        assert result.conflict_nodes is not None
-        assert n2 in result.conflict_nodes
-
-    def test_cancel_removes_pending_request(self) -> None:
-        """Cancel should remove intents AND cancel pending SimPy requests."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-
-        agv_blocker = _make_agv(env, n2)
-        agv_waiter = _make_agv(env, n1)
-        entered_after_cancel = []
-
-        def block_then_release():
-            tm.place_now(agv_blocker, n2)
-            yield env.timeout(20.0)
-            tm.leave_node(agv_blocker, n2)
-
-        def try_enter_then_get_cancelled():
-            tm.register_intent(agv_waiter, [n1, n2])
-            # Start entering — this will block because agv_blocker holds n2
-            gen = tm.enter_node(agv_waiter, n2)
-            yield from gen
-
-        def cancel_after_delay():
-            yield env.timeout(5.0)
-            tm.cancel(agv_waiter)
-
-        def late_entrant():
-            # Another AGV tries to enter n2 after cancel — should succeed at t=20
-            yield env.timeout(10.0)
-            agv3 = _make_agv(env, n1)
-            yield from tm.enter_node(agv3, n2)
-            entered_after_cancel.append(env.now)
-
-        env.process(block_then_release())
-        env.process(try_enter_then_get_cancelled())
-        env.process(cancel_after_delay())
-        env.process(late_entrant())
-        env.run()
-
-        assert agv_waiter not in tm._intents
-        assert agv_waiter not in tm._pending_requests
-        # late_entrant should get in at t=20 when blocker leaves
-        assert entered_after_cancel[0] == pytest.approx(20.0)
-
-    def test_leave_node_updates_intent(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        n3 = Node(id="N3", x=2.0, y=0.0)
-        graph = LayoutGraph(
-            [n1, n2, n3],
-            [
-                Arc(source=n1, target=n2),
-                Arc(source=n2, target=n3),
-            ],
-        )
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv = _make_agv(env, n1)
-
-        tm.register_intent(agv, [n1, n2, n3])
-        assert tm._intents[agv] == [n1, n2, n3]
-
-        def move():
-            tm.place_now(agv, n1)
-            yield from tm.enter_node(agv, n2)
-            tm.leave_node(agv, n1)
-
-        env.process(move())
-        env.run()
-
-        assert n1 not in tm._intents[agv]
-
-    def test_check_path_no_conflict_different_paths(self) -> None:
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        n3 = Node(id="N3", x=0.0, y=1.0)
-        n4 = Node(id="N4", x=1.0, y=1.0)
-        graph = LayoutGraph(
-            [n1, n2, n3, n4],
-            [
-                Arc(source=n1, target=n2),
-                Arc(source=n3, target=n4),
-            ],
-        )
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv1 = _make_agv(env, n1)
-        agv2 = _make_agv(env, n3)
-
-        tm.register_intent(agv1, [n1, n2])
-        result = tm.check_path(agv2, [n3, n4])
-        assert result.feasible is True
-
-    def test_check_path_short_path_is_feasible(self) -> None:
-        """A path with fewer than 2 nodes has no future nodes, so it is always feasible."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        graph = LayoutGraph([n1], [])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv = _make_agv(env, n1)
-        assert tm.check_path(agv, [n1]).feasible is True
-        assert tm.check_path(agv, []).feasible is True
-
-    def test_check_path_skips_own_intent(self) -> None:
-        """An AGV's own intent must not conflict with itself."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-        agv = _make_agv(env, n1)
-
-        tm.register_intent(agv, [n1, n2])
-        result = tm.check_path(agv, [n1, n2])
-        assert result.feasible is True
-
-    def test_enter_node_interrupt_key_already_cleaned(self) -> None:
-        """Line 138: enter_node interrupted after key was already deleted
-        from _node_requests (e.g. via cancel() before interrupt fires)."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-
-        agv_blocker = _make_agv(env, n2)
-        agv_waiter = _make_agv(env, n1)
-
-        def block_forever():
-            tm.place_now(agv_blocker, n2)
-            yield env.timeout(100.0)
-
-        def enter_then_get_interrupted():
-            # Start entering n2 - will block
-            enter_proc = env.process(tm.enter_node(agv_waiter, n2))
-            yield env.timeout(1.0)
-            # Before interrupt: delete the key from _node_requests to simulate
-            # cancel() cleaning up first
-            key = (agv_waiter, n2)
-            if key in tm._node_requests:
-                del tm._node_requests[key]
-            # Now interrupt the enter_node process
-            if enter_proc.is_alive:
-                enter_proc.interrupt("test")
-            with pytest.raises(simpy.Interrupt):
-                yield enter_proc
-
-        env.process(block_forever())
-        env.process(enter_then_get_interrupted())
-        env.run(until=5.0)
-
-        # Cleanup tolerates a missing key while the interrupt still reaches its caller
-        assert (agv_waiter, n2) not in tm._node_requests
-
-    def test_cancel_stale_node_requests_not_triggered_not_processed(self) -> None:
-        """Lines 185-186: cancel() with _node_requests entry that is not triggered
-        and not processed, and NOT in _pending_requests."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-
-        agv_blocker = _make_agv(env, n2)
-        agv_stale = _make_agv(env, n1)
-
-        # Blocker occupies n2
-        tm.place_now(agv_blocker, n2)
-        env.run()
-
-        # Manually insert a stale request for agv_stale on n2 (pending, not processed)
-        # This simulates a state where _pending_requests was already cleaned up
-        # but _node_requests still has the entry
-        resource = tm._node_resources[n2]
-        req = resource.request()
-        tm._node_requests[(agv_stale, n2)] = req
-        # Verify it's not triggered (blocked by blocker)
-        assert not req.triggered
-        # Do NOT add to _pending_requests — simulating the stale cleanup path
-
-        # Now cancel should clean up via the stale-keys loop
-        tm.cancel(agv_stale)
-
-        assert (agv_stale, n2) not in tm._node_requests
-        assert agv_stale not in tm._pending_requests
-
-    def test_cancel_pending_request_already_triggered(self) -> None:
-        """Line 173->178: cancel() when pending_request is already triggered
-        (already acquired the resource)."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        graph = LayoutGraph([n1], [])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
-
-        agv = _make_agv(env, n1)
-
-        # Place AGV: request triggers immediately (capacity=2, no contention)
-        tm.place_now(agv, n1)
-        # After placement, the request is triggered
-        # Manually add it to _pending_requests to simulate the state
-        req = tm._node_requests[(agv, n1)]
-        tm._pending_requests[agv] = req
-        assert req.triggered  # it's already triggered/acquired
-        env.run()
-
-        # cancel() should handle the triggered pending request
-        tm.cancel(agv)
-        assert agv not in tm._pending_requests
-
-    def test_cancel_preserves_triggered_node_requests(self) -> None:
-        """cancel() clears intents/pending requests but does not release occupied nodes."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
-
-        agv = _make_agv(env, n1)
-
-        def setup():
-            # Place AGV at n1 (triggered, acquired)
-            tm.place_now(agv, n1)
-            # Also enter n2 (triggered, acquired since capacity=2)
-            yield from tm.enter_node(agv, n2)
-
-        env.process(setup())
-        env.run()
-
-        # Now we have two _node_requests for agv: (agv, n1) and (agv, n2)
-        # Both are triggered. _pending_requests should be empty (cleared after yield req)
-        assert agv not in tm._pending_requests
-        assert (agv, n1) in tm._node_requests
-        assert (agv, n2) in tm._node_requests
-
-        tm.cancel(agv)
-
-        # Triggered requests represent physical occupancy and remain until leave_node().
-        assert tm._node_resources[n1].count == 1
-        assert tm._node_resources[n2].count == 1
-        assert (agv, n1) in tm._node_requests
-        assert (agv, n2) in tm._node_requests
-
-        tm.leave_node(agv, n1)
-        tm.leave_node(agv, n2)
-        assert tm._node_resources[n1].count == 0
-        assert tm._node_resources[n2].count == 0
-
-    def test_cancel_releases_triggered_pending_for_stale_node(self) -> None:
-        """cancel() releases a triggered pending request that maps to a node
-        different from the AGV's current_node (lines 179-180)."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=2)
-
-        agv = _make_agv(env, n1)
-
-        def setup():
-            tm.place_now(agv, n1)
-            yield from tm.enter_node(agv, n2)
-
-        env.process(setup())
-        env.run()
-
-        # Both nodes occupied. Simulate a pending request that references n2
-        # while current_node is n1 (stale next-node request after an interrupt).
-        req = tm._node_requests[(agv, n2)]
-        assert req.triggered
-        tm._pending_requests[agv] = req
-        agv.current_node = n1
-
-        tm.cancel(agv)
-
-        # n2 should be released (stale), n1 should be kept (current occupancy)
-        assert agv not in tm._pending_requests
-        assert (agv, n2) not in tm._node_requests
-
-    def test_leave_node_without_node_request_entry(self) -> None:
-        """Line 148->155: leave_node when there's no entry in _node_requests
-        for the given (agv, node) pair."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env)
-
-        agv = _make_agv(env, n1)
-        tm.register_intent(agv, [n1, n2])
-
-        # leave_node without any prior place/enter -> no key in _node_requests
-        tm.leave_node(agv, n1)
-
-        # Should not crash; intent for n1 should be removed
-        assert n1 not in tm._intents[agv]
-
-    def test_leave_node_cancels_untriggered_request(self) -> None:
-        """leave_node on a pending (untriggered) request should cancel it, not release it."""
-        env = Environment()
-        n1 = Node(id="N1", x=0.0, y=0.0)
-        n2 = Node(id="N2", x=1.0, y=0.0)
-        graph = LayoutGraph([n1, n2], [Arc(source=n1, target=n2)])
-        tm = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-
-        agv_blocker = _make_agv(env, n2)
-        agv_waiter = _make_agv(env, n1)
-
-        def block_forever():
-            tm.place_now(agv_blocker, n2)
-            yield env.timeout(100.0)
-
-        def try_enter_then_leave():
-            yield env.timeout(1.0)
-            # Start entering — will block because blocker holds n2
-            resource = tm._node_resources[n2]
-            req = resource.request()
-            tm._node_requests[(agv_waiter, n2)] = req
-            # req is pending (not triggered) because n2 is full
-            assert not req.triggered
-            # leave_node should cancel the pending request safely
-            tm.leave_node(agv_waiter, n2)
-            assert (agv_waiter, n2) not in tm._node_requests
-            # The resource queue should be empty after cancelling
-            assert len(resource.queue) == 0
-
-        env.process(block_forever())
-        env.process(try_enter_then_leave())
-        env.run(until=10.0)
-
-
-class TestMinimalTrafficManager:
-    """A TrafficManager with only the 6 core methods should satisfy the protocol."""
-
-    def test_minimal_implementation_satisfies_protocol(self) -> None:
-        from simulatte.intralogistics.traffic import TrafficManager
-
-        class MinimalTM:
-            def place_now(self, agv, node):
-                pass
-
-            def check_path(self, agv, path):
-                return PathCheckResult(feasible=True)
-
-            def register_intent(self, agv, path):
-                pass
-
-            def enter_node(self, agv, node):
-                return
-                yield
-
-            def leave_node(self, agv, node):
-                pass
-
-            def cancel(self, agv):
-                pass
-
-        assert isinstance(MinimalTM(), TrafficManager)
-
-
-@pytest.mark.parametrize("timeout", [None, 30.0])
-@pytest.mark.parametrize("phase", ["queued", "granted"])
-def test_enter_node_propagates_interrupt_and_releases_request(timeout: float | None, phase: str) -> None:
-    env = Environment()
-    start, target = Node("start", 0.0, 0.0), Node("target", 1.0, 0.0)
-    graph = LayoutGraph([start, target], [Arc(start, target)])
-    tm = ResourceBasedTrafficManager(graph=graph, env=env, deadlock_timeout=timeout)
-    waiter, holder = _make_agv(env, start), _make_agv(env, target)
-    tm.place_now(waiter, start)
-    if phase == "queued":
-        tm.place_now(holder, target)
-    env.run()
-    causes = []
-
-    def enter():
-        try:
-            yield from tm.enter_node(waiter, target)
-        except simpy.Interrupt as exc:
-            causes.append(exc.cause)
-        else:
-            pytest.fail("Interrupted entry must not continue as if the node was acquired")
-
-    process = env.process(enter())
-    env.step()  # queued or granted, before its request event is processed
-    process.interrupt("cancelled")
-    env.run()
-    assert causes == ["cancelled"]
-    assert waiter not in tm._pending_requests
-    assert (waiter, target) not in tm._node_requests
-    assert tm._node_resources[start].count == 1
-    assert tm._node_resources[target].count == (1 if phase == "queued" else 0)
-    assert not tm._node_resources[target].queue
-    tm.leave_node(holder, target)
-    follower = _make_agv(env, start)
-    subsequent = env.process(tm.enter_node(follower, target))
-    env.run()
-    assert subsequent.triggered
+        layout = Layout(env)
+        world = line(env, 2)
+        controller = FreeFlowController()
+        for name in ("a", "b"):  # both graphs are still references to the layout's graph: one graph
+            FleetCoordinator(
+                env=env,
+                graph=layout.graph(),
+                fleet=[],
+                warehouses=[],
+                charging_stations=[],
+                traffic_controller=controller,
+                name=name,
+            )
+        layout.prepare()
+        assert controller.view.graph is world.canonical_graph()
+
+    def test_view_graph_requires_a_fleet(self) -> None:
+        with pytest.raises(RuntimeError):
+            FreeFlowController().view.graph
+
+    def test_view_speed_limit_reads_the_arc(self) -> None:
+        a, b = Node("A", 0, 0), Node("B", 10, 0)
+        world = declare(Environment(), LayoutGraph([a, b], [Arc(a, b, speed_limit=1.5)]))
+        controller = FreeFlowController()
+        controller.register_fleet(SimpleNamespace(graph=world.canonical_graph()))  # type: ignore[arg-type]
+        assert controller.view.speed_limit(world.node("A"), world.node("B")) == 1.5
+
+    @pytest.mark.parametrize(
+        ("state", "moving", "expected"),
+        [
+            (AGVState.IDLE, False, Disposition.IDLE),
+            (AGVState.STRANDED, False, Disposition.STRANDED),
+            (AGVState.WAITING_LOAD, False, Disposition.SERVING),
+            (AGVState.WAITING_UNLOAD, False, Disposition.SERVING),
+            (AGVState.CHARGING, False, Disposition.SERVING),
+            (AGVState.TRAVELING_EMPTY, True, Disposition.MOVING),
+            (AGVState.TRAVELING_LOADED, True, Disposition.MOVING),
+            # travelling at rest between two arcs and not in a traffic wait: turning (spec §9.4)
+            (AGVState.TRAVELING_EMPTY, False, Disposition.SERVING),
+            (AGVState.TRAVELING_LOADED, False, Disposition.SERVING),
+        ],
+    )
+    def test_view_disposition(self, state: AGVState, moving: bool, expected: Disposition) -> None:
+        controller, _, agv, _ = self._controller()
+        agv._state = state
+        agv.motion = freeze({"from": "N0", "to": "N1", "t_start": 0.0, "t_end": 1.0}) if moving else None
+        assert controller.view.disposition(agv) is expected

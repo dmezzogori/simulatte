@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from simulatte import Environment, Layout, Trace, TraceRecorder
+from simulatte import Environment, Trace, TraceRecorder
 from simulatte.builders import build_immediate_release_system
 from simulatte.collectors import ShopFloorKPIs
 from simulatte.intralogistics import FleetKPIs, build_simple_system
@@ -20,7 +20,6 @@ from simulatte.scenario import Scenario
 def record(path: Path, model: str) -> None:
     with Environment(seed=17) as env:
         TraceRecorder(env, path)
-        Layout(env)
         if model == "shop":
             system = build_immediate_release_system(
                 env=env, scenario=Scenario.pure_job_shop(n_servers=5), collect_time_series=True

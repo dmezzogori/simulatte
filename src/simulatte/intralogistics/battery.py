@@ -50,6 +50,12 @@ class Battery:
         consumed = self._depletion_fn(distance, load_weight, speed)
         self.level = max(0.0, self.level - consumed)
 
+    def drain(self, amount: float) -> None:
+        """Lower the level by `amount` of energy, to 0 at the lowest (idle power, spec §9.5)."""
+        if not amount >= 0:
+            raise ValueError(f"drain: amount must be >= 0, got {amount}")
+        self.level = max(0.0, self.level - amount)
+
     def recharge_time(self, target_pct: float = 1.0) -> float:
         target_level = target_pct * self.capacity
         if target_level <= self.level:

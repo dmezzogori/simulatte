@@ -79,7 +79,7 @@ Ids in payloads are entity ids: `job-0`, `job-1`, ... for jobs, and the `name=` 
 id. The builders name their entities `wc-0`, `wc-1`, ..., `shopfloor`, `router` and `psp`, each with the optional
 `prefix=`.
 
-The intralogistics components (`FleetCoordinator`, AGVs, traffic managers, warehouses, charging stations and
+The intralogistics components (`FleetCoordinator`, AGVs, traffic controllers, warehouses, charging stations and
 parking areas) emit typed events as well. The fleet coordinator keeps its warnings and errors as log messages
 (`component="FleetCoordinator"`); query them from the in-memory history after the run:
 
@@ -159,17 +159,18 @@ Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings
 | --- | --- | --- |
 | `fleet.agv_added` | `FleetAgvAdded` | `fleet`, `agv` (at coordinator construction, per AGV) |
 | `fleet.pending_changed` | `FleetPendingChanged` | `fleet`, `order`, `op` (`added` or `removed`), `index` |
-| `order.status_changed` | `OrderStatusChanged` | `order`, `status`, `previous`, `reason` (for example `dispatched`, `picked`, `delivered`, `cancelled`, `travel_failed`) |
+| `order.status_changed` | `OrderStatusChanged` | `order`, `status`, `previous`, `reason` (for example `dispatched`, `picked`, `delivered`, `cancelled`, `travel_failed` when the router found no route, `traffic_requeued` when the AGV gave up its travel in traffic before pickup) |
 | `order.assigned` | `OrderAssigned` | `order`, `agv` |
 | `order.unassigned` | `OrderUnassigned` | `order`, `agv` (re-queue after an interruption, mission cleanup) |
 | `agv.state_changed` | `AgvStateChanged` | `agv`, `state`, `previous` (every `AGV.transition_to`) |
-| `agv.placed` | `AgvPlaced` | `agv`, `node`, `previous` (created at a bound node, or `current_node` assigned directly) |
-| `agv.move_started` | `AgvMoveStarted` | `agv`, `from_node`, `to_node`, `t_end`, `motion` (the speed profile's motion description), `loaded` |
-| `agv.move_ended` | `AgvMoveEnded` | `agv`, `node`, `battery` |
-| `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node the AGV stays at), `reason` |
+| `agv.placed` | `AgvPlaced` | `agv`, `node`, `previous` (created at a bound node, or `current_node` assigned directly; the heading becomes unknown) |
+| `agv.routed` | `AgvRouted` | `agv`, `origin`, `destination`, `nodes`, `cost` (in the router's unit), `reason` (`travel`, `blocked`, `deadlock`, `step_aside`, `make_way` or `clear_node`); no state change |
+| `agv.move_started` | `AgvMoveStarted` | `agv`, `from_node`, `to_node`, `t_end`, `motion` (the motion description; `piecewise` for a vehicle with kinematic limits), `loaded` |
+| `agv.move_ended` | `AgvMoveEnded` | `agv`, `node`, `battery` (also sets the AGV's `heading`; an interrupted stalled segment ends at its departure node) |
+| `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node where the interrupted AGV came to rest), `reason`; no state change |
 | `agv.load_changed` | `AgvLoadChanged` | `agv`, `load` (SKU id to quantity, or null) |
-| `agv.battery_changed` | `AgvBatteryChanged` | `agv`, `battery` (recharge or battery swap) |
-| `agv.stranded` | `AgvStranded` | `agv`, `node`, `reason` (`no_reachable_charger` or `insufficient_after_charging`) |
+| `agv.battery_changed` | `AgvBatteryChanged` | `agv`, `battery` (recharge, battery swap, or idle power accounted outside a move) |
+| `agv.stranded` | `AgvStranded` | `agv`, `node` (where it stands), `reason` (`no_reachable_charger`, `insufficient_after_charging` or `charger_not_reached`) |
 
 An order retires (`entity.retired`) when it reaches `COMPLETED`, `CANCELLED` or `FAILED`, after its mission cleanup.
 
@@ -179,10 +180,12 @@ Classes in `simulatte.intralogistics.events`:
 
 | Event type | Class | Payload |
 | --- | --- | --- |
-| `traffic.reserved` | `TrafficReserved` | `agv`, `node` (initial placement, or `enter_node` granted) |
-| `traffic.released` | `TrafficReleased` | `agv`, `node` (`leave_node`) |
-| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `reason` (`node_occupied`, `path_delay` or `deadlock_backoff`) |
-| `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `cancelled`, `interrupted` or `elapsed`) |
+| `traffic.reserved` | `TrafficReserved` | `agv`, `resources` (entity ids); one event per grant or placement, with the deltas of every resource |
+| `traffic.released` | `TrafficReleased` | `agv`, `resources` (entity ids); one event per release |
+| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `resources` (still needed), `blockers` (AGV ids), `reason` (`occupied`); no state change |
+| `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `rerouted`, `stepped_aside`, `gave_up` or `interrupted`); no state change |
+| `traffic.wait_stuck` | `TrafficWaitStuck` | `agv`, `blockers` (AGV id to disposition: `IDLE`, `STRANDED`, `WAITING` or `STALLED`); once per wait; no state change |
+| `traffic.deadlock` | `TrafficDeadlock` | `agvs` (sorted ids), `victim` (id or null), `action` (`reroute`, `step_aside`, `give_up` or `unresolved`); no state change |
 | `warehouse.inventory_changed` | `WarehouseInventoryChanged` | `warehouse`, `sku`, `level`, `delta` (positive for a put, negative for a pick) |
 | `warehouse.slot_changed` | `WarehouseSlotChanged` | `warehouse`, `in_use` (a pick or put slot acquired or released) |
 | `charging.started` | `ChargingStarted` | `station`, `agv`, `mode` (`recharge` or `swap`; the AGV was granted a slot) |
@@ -191,8 +194,12 @@ Classes in `simulatte.intralogistics.events`:
 | `parking.entered` | `ParkingEntered` | `area`, `agv` (`ParkingArea.enter`) |
 | `parking.left` | `ParkingLeft` | `area`, `agv` (`ParkingArea.leave`) |
 
-Only the `ResourceBasedTrafficManager` reserves nodes; with the default free traffic, several AGVs share a node and
-no reservation events occur. `FleetCoordinator` never calls `ParkingArea.enter` or `leave` itself.
+The `traffic.*` events come from a `ReservationController`, whose resources are `node` entities (their
+`reserved_by`), `segment` entities (`forward` and `backward`) and `zone` entities for zones and corridors
+(`reserved_by`, `orientation`). With the default `FreeFlowController` several AGVs share a node, no `segment` or
+`zone` entity exists and no traffic event occurs. A pending claim of a moving AGV is not a wait and emits nothing.
+The coordinator takes a parking slot (`parking.entered`) when it sends an idle AGV to a parking area and gives it
+back (`parking.left`) when the AGV leaves, under both controllers.
 
 #### MaterialCoordinator
 

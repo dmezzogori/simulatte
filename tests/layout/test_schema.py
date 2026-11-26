@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
-from simulatte.layout.schema import parse_patch, schema
+from simulatte.layout.schema import parse_patch, schema, validate_definition
 from simulatte.layout import LayoutError
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "layout"
@@ -194,3 +194,52 @@ def test_unique_items_uses_json_equality(value, valid):
     else:
         with pytest.raises(LayoutError, match="duplicate array item"):
             _validate(value, rule, ())
+
+
+def _discriminated():
+    from simulatte.layout.schema import _schema
+
+    definitions = _schema()["$defs"]
+    return {name: definitions[name]["oneOf"] for name in ("address", "nodeAddress", "elementAddress", "selector")}
+
+
+def test_a_kind_filter_leaves_the_outcome_of_every_discriminated_rule_unchanged():
+    """``oneOf`` over branches that fix ``kind`` only evaluates the branches of the value's kind: for values of every
+    kind, of a swapped kind, of a boolean or numeric kind, without a kind and with extra fields, the outcome equals
+    that of counting the matches of every branch."""
+    from simulatte.layout.schema import _matches, _validate
+
+    def probes(branch):
+        fixed = {key: rule["const"] for key, rule in branch["properties"].items() if "const" in rule}
+        filled = {key: "x" if rule.get("$ref") == "#/$defs/id" else 1 for key, rule in branch["properties"].items()}
+        filled.update(fixed)
+        yield filled
+        yield {**filled, "extra": 1}
+        yield {key: value for key, value in filled.items() if key != "kind"}
+        for kind in (True, 1, None, "", "unknown", ["explicit"]):
+            yield {**filled, "kind": kind}
+
+    for name, branches in _discriminated().items():
+        for branch in branches:
+            for value in probes(branch):
+                expected = sum(_matches(value, other, ()) for other in branches)
+                try:
+                    _validate(value, {"$ref": f"#/$defs/{name}"}, ())
+                except LayoutError as error:
+                    assert expected != 1
+                    assert str(error) == "$: does not match oneOf schema branches"
+                else:
+                    assert expected == 1
+
+
+def test_validation_messages_are_those_of_the_first_failure():
+    for definition, value, message, path in [
+        ("address", {"kind": "lattice", "i": 1}, "$: does not match oneOf schema branches", ()),
+        ("address", {"kind": "lattice", "i": 2**60, "j": 0}, "$: does not match oneOf schema branches", ()),
+        ("explicitNode", {"id": "a", "position": [0, 0, 0], "extra": 1}, "$: unknown field extra", ()),
+        ("explicitNode", {"id": "", "position": [0, 0, 0]}, "$/id: invalid string", ("id",)),
+    ]:
+        with pytest.raises(LayoutError) as caught:
+            validate_definition(value, definition)
+        assert str(caught.value) == message
+        assert [(item.code, item.path) for item in caught.value.diagnostics] == [("schema-error", path)]

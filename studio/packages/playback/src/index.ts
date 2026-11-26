@@ -2,6 +2,7 @@ import {pinPresentation} from './presentation';
 export {pinPresentation, freezePresentation} from './presentation';
 import {
   compare,
+  isKnownLayoutVersion,
   type Cursor,
   type LayoutBundle,
   type RecordingView,
@@ -365,7 +366,7 @@ export class Session {
               "KPI-only recording: entity animation and event stepping are unavailable",
             ]
           : []),
-        ...(r.trace.layout && r.trace.layout.schema_version !== "1.0"
+        ...(r.trace.layout && !isKnownLayoutVersion(r.trace.layout.schema_version)
           ? ["Unknown layout version: using viewer fallback geometry"]
           : []),
         ...(r.trace.endTime !== null && !Number.isFinite(r.trace.endTime)

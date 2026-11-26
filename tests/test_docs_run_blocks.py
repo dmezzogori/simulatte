@@ -37,11 +37,12 @@ def test_pairs_cover_all_gallery_scripts() -> None:
     assert sorted(PAIRS.values()) == scripts
 
 
-# intralogistics.md embeds three scripts, in document order.
+# intralogistics.md embeds four scripts, in document order.
 INTRALOGISTICS_BLOCKS = [
     "intralogistics_simple.py",
     "intralogistics_intermediate.py",
     "intralogistics_advanced.py",
+    "intralogistics_traffic.py",
 ]
 
 

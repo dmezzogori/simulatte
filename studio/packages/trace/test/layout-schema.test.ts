@@ -27,6 +27,21 @@ it("uses the shared schema for geometry, atomic addresses, typed tombstones and 
   ]) expect(() => validateLayoutPatch(value)).toThrow();
 });
 
+it("accepts the schema 1.1 traffic fields and still rejects unknown keys", () => {
+  validateLayoutPatch({ schema_version: "1.1", network: { type: "lattice", bounds: [0, 0, 2, 1], passing: true, block_length: 0.5, zones: { row: { members: [{ kind: "row", j: 0 }] } } } });
+  validateLayoutPatch({ schema_version: "1.1", overrides: [{ id: "p", target: { kind: "column", i: 1 }, properties: { passing: false } }] });
+  expect(() => validateLayoutPatch({ schema_version: "1.1", network: { type: "lattice", bounds: [0, 0, 2, 1], block_length: 0 } })).toThrow();
+  expect(() => validateLayoutPatch({ schema_version: "1.1", network: { type: "lattice", bounds: [0, 0, 2, 1], unknown_key: 1 } })).toThrow();
+  expect(() => validateLayoutPatch({ schema_version: "1.1", unknown_key: 1 })).toThrow();
+});
+
+it("accepts a length on explicit arcs of schema 1.1 and rejects a bad one or an unknown sibling", () => {
+  const arcs = (arc: object) => ({ schema_version: "1.1", network: { type: "explicit", nodes: [{ id: "A", position: [0, 0, 0] }, { id: "B", position: [10, 0, 0] }], arcs: [{ source: "A", target: "B", ...arc }] } });
+  validateLayoutPatch(arcs({ length: 25 }));
+  validateLayoutPatch(arcs({ length: { $unset: true } }));
+  for (const arc of [{ length: 0 }, { length: -1 }, { length: "long" }, { extent: 25 }]) expect(() => validateLayoutPatch(arcs(arc))).toThrow();
+});
+
 it("bundles the canonical schema and opens layout metadata without runtime filesystem or network access", async () => {
   const result = await build({ configFile: false, logLevel: "silent", ssr: {noExternal: ["@noble/hashes"]}, build: {
     ssr: fileURLToPath(new URL("../src/index.ts", import.meta.url)), write: false, minify: false,

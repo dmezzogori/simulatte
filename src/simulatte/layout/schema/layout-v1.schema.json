@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://simulatte.dev/schema/layout-v1.schema.json",
-  "title": "Simulatte layout 1.0 file patch",
+  "title": "Simulatte layout 1.0 and 1.1 file patch",
   "type": "object",
   "properties": {
     "$schema": {
@@ -9,7 +9,10 @@
       "pattern": "^[^\\uD800-\\uDFFF]*$"
     },
     "schema_version": {
-      "const": "1.0"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "grid": {
       "$ref": "#/$defs/grid"
@@ -256,6 +259,9 @@
               "$ref": "#/$defs/unset"
             }
           ]
+        },
+        "passing": {
+          "$ref": "#/$defs/passing"
         }
       },
       "required": [],
@@ -524,6 +530,48 @@
           },
           "required": [
             "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "block_node"
+            },
+            "edge": {
+              "$ref": "#/$defs/address"
+            },
+            "index": {
+              "$ref": "#/$defs/integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "edge",
+            "index"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "block_edge"
+            },
+            "edge": {
+              "$ref": "#/$defs/address"
+            },
+            "index": {
+              "$ref": "#/$defs/integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "edge",
+            "index"
           ],
           "additionalProperties": false
         }
@@ -883,6 +931,48 @@
             "segment"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "block_node"
+            },
+            "edge": {
+              "$ref": "#/$defs/address"
+            },
+            "index": {
+              "$ref": "#/$defs/integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "edge",
+            "index"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "block_edge"
+            },
+            "edge": {
+              "$ref": "#/$defs/address"
+            },
+            "index": {
+              "$ref": "#/$defs/integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "kind",
+            "edge",
+            "index"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -1017,6 +1107,9 @@
               "$ref": "#/$defs/unset"
             }
           ]
+        },
+        "passing": {
+          "$ref": "#/$defs/passing"
         }
       },
       "required": [],
@@ -1306,6 +1399,9 @@
               "$ref": "#/$defs/unset"
             }
           ]
+        },
+        "passing": {
+          "$ref": "#/$defs/passing"
         }
       },
       "required": [],
@@ -1408,6 +1504,19 @@
               "$ref": "#/$defs/unset"
             }
           ]
+        },
+        "passing": {
+          "$ref": "#/$defs/passing"
+        },
+        "length": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/positive"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
         }
       },
       "required": [
@@ -1500,6 +1609,15 @@
                   "$ref": "#/$defs/unset"
                 }
               ]
+            },
+            "block_length": {
+              "$ref": "#/$defs/blockLength"
+            },
+            "zones": {
+              "$ref": "#/$defs/zones"
+            },
+            "passing": {
+              "$ref": "#/$defs/passing"
             }
           },
           "required": [
@@ -1538,6 +1656,12 @@
             },
             "lanes": {
               "$ref": "#/$defs/lanes"
+            },
+            "block_length": {
+              "$ref": "#/$defs/blockLength"
+            },
+            "zones": {
+              "$ref": "#/$defs/zones"
             }
           },
           "required": [
@@ -1599,6 +1723,12 @@
                   "$ref": "#/$defs/unset"
                 }
               ]
+            },
+            "block_length": {
+              "$ref": "#/$defs/blockLength"
+            },
+            "zones": {
+              "$ref": "#/$defs/zones"
             }
           },
           "required": [
@@ -1687,6 +1817,15 @@
                       "$ref": "#/$defs/unset"
                     }
                   ]
+                },
+                "block_length": {
+                  "$ref": "#/$defs/blockLength"
+                },
+                "zones": {
+                  "$ref": "#/$defs/zones"
+                },
+                "passing": {
+                  "$ref": "#/$defs/passing"
                 }
               },
               "required": [],
@@ -1720,6 +1859,12 @@
                 },
                 "lanes": {
                   "$ref": "#/$defs/lanes"
+                },
+                "block_length": {
+                  "$ref": "#/$defs/blockLength"
+                },
+                "zones": {
+                  "$ref": "#/$defs/zones"
                 }
               },
               "required": [],
@@ -1776,6 +1921,12 @@
                       "$ref": "#/$defs/unset"
                     }
                   ]
+                },
+                "block_length": {
+                  "$ref": "#/$defs/blockLength"
+                },
+                "zones": {
+                  "$ref": "#/$defs/zones"
                 }
               },
               "required": [],
@@ -1843,6 +1994,9 @@
                   "$ref": "#/$defs/unset"
                 }
               ]
+            },
+            "passing": {
+              "$ref": "#/$defs/passing"
             }
           },
           "required": [],
@@ -1855,6 +2009,90 @@
         "properties"
       ],
       "additionalProperties": false
+    },
+    "passing": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/unset"
+        }
+      ]
+    },
+    "blockLength": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/positive"
+        },
+        {
+          "$ref": "#/$defs/unset"
+        }
+      ]
+    },
+    "zone": {
+      "type": "object",
+      "properties": {
+        "capacity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/capacity"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "hold_back": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        },
+        "members": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/elementAddress"
+                  },
+                  {
+                    "$ref": "#/$defs/selector"
+                  }
+                ]
+              },
+              "minItems": 1
+            },
+            {
+              "$ref": "#/$defs/unset"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "zones": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/zone"
+          },
+          {
+            "$ref": "#/$defs/unset"
+          }
+        ]
+      }
     }
   }
 }

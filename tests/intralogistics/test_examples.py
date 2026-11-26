@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import inspect
 import re
 import runpy
 from importlib.util import find_spec
 from pathlib import Path
+
+import pytest
+
+from simulatte.environment import Environment
+from simulatte.trace import Trace, TraceRecorder
 
 
 def test_intralogistics_simple_example_runs(capsys) -> None:
@@ -88,6 +94,21 @@ def test_intralogistics_advanced_example_runs(monkeypatch, capsys) -> None:
     assert "Fulfillment time:" in captured.out
 
 
+def test_intralogistics_traffic_example_runs(capsys) -> None:
+    example = Path(__file__).resolve().parents[2] / "examples" / "intralogistics_traffic.py"
+    runpy.run_path(str(example), run_name="__main__")
+    output = capsys.readouterr().out
+    assert "Layout: 13 nodes; fleet: 3 AGVs" in output
+    assert "Completed orders: 12/12 at t = 1079.5 s" in output
+    assert "Blocked time:   408.7 s over 22 waits" in output
+    assert "Deadlocks:      2 resolved, 0 unresolved" in output
+    assert "Stuck waits:    0" in output
+    assert "Reroutes:       1" in output
+    assert "Make-way moves: 0" in output
+    for agv in ("AGV-1", "AGV-2", "AGV-3"):
+        assert f"{agv}: state=IDLE, node=S" in output
+
+
 def test_layout_intralogistics_example_runs(capsys) -> None:
     example = Path(__file__).resolve().parents[2] / "examples" / "layout_intralogistics.py"
     runpy.run_path(str(example), run_name="__main__")
@@ -109,3 +130,32 @@ def test_layout_stages_example_runs(capsys) -> None:
     assert "File width: 6 m; machines: 2; orphan placements: 2" in output
     assert "First machine position after machines stage: (1.5, 0.0, 0.0)" in output
     assert "Preserved orphan ids: machine-02, machine-03" in output
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "intralogistics_simple",
+        "intralogistics_intermediate",
+        "intralogistics_advanced",
+        "intralogistics_traffic",
+        "building_an_agv_system",
+    ],
+)
+def test_each_transport_example_records_a_resolved_layout_with_arcs(name: str, tmp_path: Path) -> None:
+    trace_path = tmp_path / f"{name}.simtrace"
+
+    class Recording(Environment):
+        def __init__(self, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            TraceRecorder(self, trace_path)
+
+    example = Path(__file__).resolve().parents[2] / "examples" / f"{name}.py"
+    main = runpy.run_path(str(example), run_name="__headless__")["main"]
+    # run_path returns a copy of the globals; the function holds the module's own
+    main.__globals__["Environment"] = Recording
+    main(**({"plot": False} if "plot" in inspect.signature(main).parameters else {}))
+
+    layout = Trace.open(trace_path).layout
+    assert layout is not None
+    assert len(layout["network"]["graph"]["arcs"]) > 0

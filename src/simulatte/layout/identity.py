@@ -32,6 +32,8 @@ _GEOMETRY = frozenset(
         "speed_limit",
         "approach_margin",
         "max_distance",
+        "block_length",
+        "length",
     }
 )
 
@@ -50,7 +52,7 @@ def normalize(value: Any, path: tuple[str, ...] = (), *, canonical: bool = True)
     if type(value) in (int, float):
         if not math.isfinite(value):
             raise LayoutError("layout numbers must be finite")
-        if path and path[-1] in {"capacity", "neighbors", "i", "j", "vertex", "row", "column", "code_count"}:
+        if path and path[-1] in {"capacity", "neighbors", "i", "j", "index", "vertex", "row", "column", "code_count"}:
             if value != int(value):
                 raise LayoutError("layout counts and indices must be integers")
             return int(value)

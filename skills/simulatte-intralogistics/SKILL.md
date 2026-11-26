@@ -8,8 +8,8 @@ description: >
   ChargingStation, ParkingArea), or the user asks about warehouse simulation,
   AGV fleet management, material transport, or warehouse layout design in a
   Python project. Also trigger when the user mentions dispatch strategies,
-  replenishment policies, AGV battery management, traffic management,
-  pathfinding, or order fulfillment in an intralogistics context.
+  replenishment policies, AGV battery management, traffic control,
+  deadlocks, routing, or order fulfillment in an intralogistics context.
 ---
 
 # Simulatte Intralogistics Guide
@@ -34,11 +34,14 @@ use the `simulatte:dev` skill instead.
 | Add battery management and charging          | Fleet section + charging station  |
 | Set up automatic replenishment               | Replenishment policy section      |
 | Analyze fleet performance                    | Metrics and plots section         |
+| Model congestion, blocking and deadlocks     | Traffic control section           |
+| Route by travel time or around congestion    | Routing section                   |
 
 ## Quick setup
 
-`build_simple_system()` creates a 5-node linear graph, 2 warehouses, and
-a fleet with sensible defaults. Good for smoke tests and prototyping.
+`build_simple_system()` declares a 5-node linear network on `env.layout`, and
+builds 2 warehouses and a fleet with sensible defaults on handles of it. Good for
+smoke tests and prototyping. Its AGVs are named `vehicle-<i>`.
 
 ```python
 from simulatte.environment import Environment
@@ -60,18 +63,20 @@ ids, graph node ids) share one namespace per environment and must not look like
 
 ## Manual composition
 
-For custom layouts, follow this sequence:
+Every environment has a layout, `env.layout`. For custom layouts, follow this sequence:
 
 1. **Define nodes** with (x, y) coordinates in meters
 2. **Define arcs** between nodes (bidirectional or one-way)
-3. **Create `LayoutGraph`**
+3. **Create `LayoutGraph`** and declare it with `env.layout.set_network(Explicit(graph))` before activation
 4. **Define SKUs** with weight and volume
-5. **Create warehouses** with input/output bays, inventory, pick/put times
+5. **Create warehouses** with input/output bays (handles `layout.node("ID")`), inventory, pick/put times
 6. **Create AGV type and fleet** with speed profile and battery config
 7. **Create facilities** (parking areas, charging stations)
-8. **Create `FleetCoordinator`** with policies and metrics
+8. **Create `FleetCoordinator`** with `graph=layout.graph()`, policies and metrics
 9. **Wire replenishment** if needed
 10. **Start order processes** and run
+
+Components take handles of the layout, never `Node` or `LayoutGraph` objects: a concrete one raises `LayoutError`.
 
 ```python
 from simulatte.environment import Environment
@@ -92,7 +97,11 @@ from simulatte.intralogistics import (
     OrderEMACollector,
     FleetTimeSeries,
     FleetKPIs,
+    ReservationController,  # optional: traffic control
+    FastestRouter,  # optional: routing by travel time
+    TrafficKPIs,
 )
+from simulatte.layout import Explicit
 ```
 
 See `references/api-reference.md` for all constructor signatures.
@@ -101,7 +110,10 @@ See `references/api-reference.md` for all constructor signatures.
 
 ### Nodes and arcs
 
-Nodes have string IDs and (x, y) coordinates. Distances are Euclidean.
+Nodes have string IDs and (x, y) coordinates. An arc's travelled length is the
+distance between its nodes unless you pass `length=` (never shorter than that);
+`speed_limit=` caps the speed on it and `passing=True` lets opposite traffic pass
+on it under traffic control.
 
 ```python
 wh_in = Node(id="WH_IN", x=0, y=0)
@@ -113,7 +125,15 @@ arcs = [
     Arc(wh_out, c1, bidirectional=True),
 ]
 graph = LayoutGraph([wh_in, wh_out, c1], arcs)
+
+layout = env.layout
+layout.set_network(Explicit(graph))  # once, before activation; a second call before preparation replaces the first
+# Components take handles: layout.graph(), layout.node("WH_IN")
 ```
+
+`Lattice(...)` and `Lanes(...)` are the other two declarations (see the layout guide). An arc between two nodes at the
+same position is rejected: model a lift or a transfer point with a small offset and an explicit `length`. With
+`corner_speed` or `turn_time`, put the offset along the direction of travel, so that the lift adds no turn.
 
 ### Layout rules
 
@@ -122,27 +142,68 @@ to warehouse B, they must be able to return. Use bidirectional arcs for
 main corridors. One-way arcs work for bypass routes (alternate paths AGVs
 can take in one direction).
 
-**Spread AGV starting positions.** Each AGV must start at a different node
-when using `ResourceBasedTrafficManager` with `node_capacity=1`, or the
-second AGV's placement blocks forever.
+**Spread AGV starting positions.** Under `ReservationController` the AGVs
+placed on one node must fit its capacity (1 by default; a parking area or
+charging station on the node gives it its capacity), or activation raises
+`RuntimeError`.
 
 **Warehouse bays are graph nodes.** Each warehouse has `input_bays` and
-`output_bays` — lists of nodes. AGVs travel to an output bay to pick and
-to an input bay to deliver.
+`output_bays` — sequences of node handles (`layout.node("ID")`). AGVs travel to
+an output bay to pick and to an input bay to deliver.
 
-### ResourceBasedTrafficManager
+**Physical fields exist after preparation.** `agv.current_node`, `fleet.graph`,
+`controller.graph`, bays, `station.node` and `area.node` raise `LayoutNotReady`
+until `env.layout.prepare()` or `env.activate()`. They hold canonical nodes: equal
+to the ones you declared and different objects, so compare with `==`, not `is`.
+The resolved graph's arcs are one-way: a two-way arc is two arcs with `bidirectional`
+false, so test for the way back with `fleet.graph.arc_between(v, u) is not None`.
+Declaring the network after activation raises `LayoutError` (also through
+`build_simple_system`, or a component given a handle when no network was declared).
+On a network declared before activation, an AGV, warehouse, parking area, charger
+and a free-flow fleet with handles may be added later; a fleet on a
+`ReservationController` must be built before activation (`RuntimeError`).
+`env.step()` needs `env.activate()` first.
 
-The intent-based traffic system (`check_path`) flags ANY shared future
-node between two AGV paths as a conflict. On layouts where all paths
-share corridor nodes, this effectively serializes all AGV missions to one
-at a time. Concurrent multi-AGV operation requires layouts with true
-parallel routes.
+### Traffic control
 
-**When to use it:** Complex layouts with multiple independent corridors
-where concurrent AGVs genuinely need conflict avoidance.
+`FleetCoordinator(traffic_controller=...)` decides whether AGVs can block
+each other:
 
-**When to skip it:** Simple or linear layouts. Omit `traffic_manager` from
-`FleetCoordinator` to use the default `FreeTrafficManager`.
+- `FreeFlowController` (default): every move is granted at once; AGVs share
+  nodes and lanes and never wait. Use it when traffic is not studied.
+- `ReservationController(env=, graph=layout.graph(), node_capacity=1,
+  derive_corridors=True, hold_back_dead_ends=True, policy=None,
+  priority_fn=None)`: AGVs claim nodes, lane segments, zones and derived
+  corridors all or nothing, wait when they cannot, and deadlocks are
+  detected and resolved by `StandardTrafficPolicy` (reroute, step aside,
+  give up). Every `AGVType` needs a `length` (and optionally `min_gap`), or
+  `register_fleet` raises `ValueError`. Build it before the coordinator and
+  pass the same instance to every fleet: an environment has one network.
+  Node capacities and zones are declared with the network
+  (`Explicit(graph, capacities={"N1": 2}, zones={"z": {"capacity": 1,
+  "members": ["N1", ("N1", "N2")]}})`), not on the controller.
+
+Design the layout for it: two vehicles cannot pass on a single lane, so give
+them passing places (a siding, or a `passing=True` arc whose end nodes have
+room for two), capacity above 1 on junctions and bays, parking areas off the
+main lanes, and one-way loops around bays. `block_length` in the network
+declaration splits long arcs into blocks (`LayoutGraph.subdivide(max_length)`
+does the same to a graph before `Explicit`). `TrafficKPIs(coordinator).attach(env)` counts
+blocked time, waits, deadlocks (resolved and unresolved), stuck waits,
+reroutes and make-way moves; `traffic.deadlock` and `traffic.wait_stuck`
+events say what happened. A deadlock no reaction resolves stands
+(`unresolved`), and the run still ends. See `examples/intralogistics_traffic.py`.
+
+### Routing
+
+`FleetCoordinator(router=...)`: `ShortestDistanceRouter()` (default; `"astar"`
+for A*), `FastestRouter()` (travel time with the AGV's limits, speed limits
+and turning model) or `CongestionAwareRouter(base=FastestRouter(),
+wait_weight=1.0, horizon=60.0)` (a heuristic that penalises legs blocked
+now). Costs are comparable only within one router. Dispatch, bays, chargers
+and parking are ranked by the router's cost, one route search per candidate,
+which is slow on large layouts with `FastestRouter` and turning, or with
+`CongestionAwareRouter`.
 
 ## Fleet configuration
 
@@ -150,6 +211,7 @@ where concurrent AGVs genuinely need conflict avoidance.
 
 `TrapezoidalProfile` models acceleration, cruising, and deceleration.
 Optional functions degrade speed based on battery level and load weight.
+By default the battery factor equals the battery level, so speed falls in proportion to the charge; pass `lambda level: 1.0` for full speed at any level.
 
 ```python
 speed = TrapezoidalProfile(
@@ -231,7 +293,7 @@ reorder_qty = min(desired_qty, int(weight_cap // sku.weight), int(vol_cap // sku
 
 | Strategy             | Behavior                                      |
 |----------------------|-----------------------------------------------|
-| `NearestIdleStrategy`| Closest idle AGV by graph distance. Tie-breaks by `agv_id`. |
+| `NearestIdleStrategy`| Idle AGV with the least router cost to an output bay of the origin. Tie-breaks by `agv_id`. |
 | `RoundRobinStrategy` | Cycles through idle AGVs. Ensures balanced utilization. |
 
 **Fleet balance trap:** `NearestIdleStrategy` + `NearestParkingPolicy`
@@ -243,7 +305,7 @@ Tie-breaking by `agv_id` means one AGV handles most orders. Fix: use
 
 | Policy               | Behavior                                      |
 |----------------------|-----------------------------------------------|
-| `NearestParkingPolicy`| Send to nearest parking area with capacity.  |
+| `NearestParkingPolicy`| Send to the parking area with capacity at the least router cost. |
 | `StayInPlace`         | AGV stays where it delivered.                 |
 
 ### Replenishment
@@ -410,27 +472,42 @@ AGVs need to return after delivery. If all corridors are one-way in the
 same direction, AGVs get trapped. Use bidirectional arcs for main
 corridors; reserve one-way for bypass routes.
 
-**Multiple AGVs at one node with `node_capacity=1`.**
-At activation `ResourceBasedTrafficManager.place_now(agv, node)` reserves a node
-resource for each AGV and requires an immediate grant. With `node_capacity=1`,
-placing two AGVs at the same node raises instead of waiting. (`place` was renamed
-`place_now`.)
+**Reading a physical field too early.**
+`agv.current_node` right after construction raises `LayoutNotReady`; call
+`env.layout.prepare()` first, or read it after the run starts.
+
+**More than 100,000 entities before activation.** Entities (jobs and orders
+included) created before activation are layout targets; past
+`LayoutLimits.max_placements` preparation raises `LayoutError`. Use
+`Layout(env, limits=...)` before anything reads `env.layout`.
+
+**Multiple AGVs at one node under `ReservationController`.**
+At activation the controller places each AGV and requires an immediate grant.
+With a node capacity of 1, placing two AGVs at the same node raises
+`RuntimeError`. Start them on a parking node with enough capacity, or spread them.
+
+**Custom dispatch strategies take a context.**
+`select(order, fleet, context)`: `context.graph`, `context.router`,
+`context.view`, `context.cost(agv, node)`. The fleet passed includes AGVs that
+are making way (`TRAVELING_EMPTY` without an order): choose only `IDLE` ones.
+With `AGVType.idle_power`, read the battery with `agv.battery_level_now()`.
 
 **`NearestIdleStrategy` + single parking = fleet collapse.**
 All AGVs reposition to the same parking node. Tie-breaking by `agv_id`
 means one AGV monopolizes dispatch. Use `RoundRobinStrategy` for balanced
 utilization, or spread AGVs across multiple parking areas.
 
-**`ResourceBasedTrafficManager` serializes on shared paths.**
-The intent system's `check_path` rejects paths that share ANY future node
-with another AGV's planned path. On layouts without true parallel routes,
-only one AGV moves at a time. For simple layouts, omit `traffic_manager`
-(defaults to `FreeTrafficManager`).
+**Single-lane layouts under `ReservationController`.**
+On a line or corridor without passing places, opposite traffic takes turns
+and head-on meetings become deadlocks resolved by a step aside, or left
+unresolved when no vehicle can move aside. Small layouts without parking can
+end with stuck waits. Add sidings, capacity and parking (see Traffic control).
 
 ## Examples
 
-Three progressive examples in `examples/`:
+Four progressive examples in `examples/`:
 
 - `intralogistics_simple.py`: 5-node preset, 2 AGVs, text output
 - `intralogistics_intermediate.py`: 10-node custom layout, 3 AGVs, 3 SKUs, staggered batches, plots
 - `intralogistics_advanced.py`: 16-node hub, 5 AGVs, 5 SKUs, 3 warehouses, battery, charging, replenishment, EMA metrics (`OrderEMACollector`), 4 plots
+- `intralogistics_traffic.py`: two-way corridor with a siding, 3 AGVs, `ReservationController`, `FastestRouter`, `TrafficKPIs`

@@ -6,12 +6,16 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
-from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.policies import ReorderPointPolicy
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.routing import ShortestDistanceRouter
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import FreeTrafficManager, ResourceBasedTrafficManager
+from simulatte.intralogistics.traffic import FreeFlowController, TrafficController
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import GraphRef, NodeRef
+
+from tests.intralogistics.traffic_support import declare
 
 
 # ---------------------------------------------------------------------------
@@ -26,9 +30,9 @@ def _build_test_system(
     battery_capacity: float = 100.0,
     initial_inventory_a: int = 100,
     initial_inventory_b: int = 0,
-    traffic_manager: FreeTrafficManager | ResourceBasedTrafficManager | None = None,
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph, SKU, list[Node]]:
-    """Build a reusable 5-node linear test system.
+    traffic_controller: TrafficController | None = None,
+) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef, SKU, list[NodeRef]]:
+    """Build a reusable 5-node linear test system, its graph declared on the layout of `env`.
 
     Graph::
 
@@ -42,7 +46,7 @@ def _build_test_system(
 
     Returns:
         ``(coordinator, agvs, wh_a, wh_b, graph, sku, nodes)``
-        where *nodes* is ``[A, B, C, D, E]``.
+        where *graph* is the layout's graph and *nodes* the handles of ``[A, B, C, D, E]``.
     """
     sku = SKU(id="TEST-SKU", weight=1.0, volume=0.1)
 
@@ -59,13 +63,15 @@ def _build_test_system(
         Arc(source=node_c, target=node_d, bidirectional=True),
         Arc(source=node_d, target=node_e, bidirectional=True),
     ]
-    graph = LayoutGraph(nodes, arcs)
+    world = declare(env, LayoutGraph(nodes, arcs))
+    refs = [world.ref(node.id) for node in nodes]
+    ref_a, ref_b, ref_c, _, ref_e = refs
 
     wh_a = Warehouse(
         env=env,
         name="WH-A",
-        input_bays=[node_a],
-        output_bays=[node_a],
+        input_bays=[ref_a],
+        output_bays=[ref_a],
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_a},
@@ -76,8 +82,8 @@ def _build_test_system(
     wh_b = Warehouse(
         env=env,
         name="WH-B",
-        input_bays=[node_e],
-        output_bays=[node_e],
+        input_bays=[ref_e],
+        output_bays=[ref_e],
         n_slots=max(2, n_agvs),
         products=[sku],
         initial_inventory={sku: initial_inventory_b},
@@ -88,7 +94,7 @@ def _build_test_system(
     charging_station = ChargingStation(
         env=env,
         name="CS-CENTER",
-        node=node_c,
+        node=ref_c,
         n_slots=max(1, n_agvs),
     )
 
@@ -108,22 +114,22 @@ def _build_test_system(
         unload_time=1.0,
     )
 
-    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=node_b) for i in range(n_agvs)]
+    agvs: list[AGV] = [AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i}", initial_node=ref_b) for i in range(n_agvs)]
 
-    if traffic_manager is None:
-        traffic_manager = FreeTrafficManager()
+    if traffic_controller is None:
+        traffic_controller = FreeFlowController()
 
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=world.graph,
         fleet=agvs,
         warehouses=[wh_a, wh_b],
         charging_stations=[charging_station],
-        traffic_manager=traffic_manager,
-        path_planner=DijkstraPlanner(),
+        traffic_controller=traffic_controller,
+        router=ShortestDistanceRouter(),
     )
 
-    return coordinator, agvs, wh_a, wh_b, graph, sku, nodes
+    return coordinator, agvs, wh_a, wh_b, world.graph, sku, refs
 
 
 # ===========================================================================
@@ -307,15 +313,15 @@ class TestReplenishmentPolicy:
         # Run long enough for drain + replenishment check + replenishment mission.
         env.run(until=200.0)
 
-        # After draining 60 units, WH_B should have gone below 50.
-        # The replenishment policy should have submitted an order restocking WH_B.
-        # Either inventory rebounded or there is an active/pending replenishment order.
-        has_replenishment = (
-            wh_b.get_inventory_level(sku) > 40
-            or len(coordinator._active_missions) > 0
-            or len(coordinator._pending_queue) > 0
-        )
-        assert has_replenishment
+        # Four drain orders are delivered and WH_B falls to 40, below the threshold; the policy then submits an order
+        # of 30 from WH_A to WH_B at each check. None is served inside the horizon: each AGV starts its last drain
+        # mission with 25 (above the low threshold, so it does not charge), reaches WH_B with 5 and runs empty at D on
+        # the way back, where the charger on C is one arc it cannot afford, and strands at 166.12.
+        assert wh_b.get_inventory_level(sku) == 40
+        assert [o.status for o in orders_to_drain].count(OrderStatus.COMPLETED) == 4
+        replenishments = list(coordinator._pending_queue)
+        assert replenishments
+        assert all((o.origin, o.destination, o.sku, o.quantity) == (wh_a, wh_b, sku, 30) for o in replenishments)
 
 
 # ===========================================================================
@@ -350,19 +356,16 @@ class TestOrderCancellation:
 
 
 # ===========================================================================
-# 6. Traffic with ResourceBasedTrafficManager
+# 6. Traffic with ReservationController
 # ===========================================================================
 
 
 class TestTrafficManagement:
-    """Two AGVs on a corridor with ResourceBasedTrafficManager.
+    """Two AGVs of length 1 on a line with ``ReservationController`` and node capacity 2.
 
-    On a linear graph with no alternative routes, when both AGVs are
-    dispatched concurrently, the second AGV's path conflicts with the
-    first at the intent level.  Because ``check_path`` flags the overlap
-    and no alternative path exists, the second order fails.  The key
-    property under test is that no deadlock occurs — the simulation
-    terminates and at least one order completes.
+    Both are dispatched at once along the same line, travel together to the origin bay and on to the destination:
+    the simulation terminates and both orders complete. Resting on a node of capacity 2 holds a vehicle wholly
+    (spec §6.6), so neither keeps the segment it arrived on and both can turn back over it.
     """
 
     def test_no_deadlock(self, env: Environment) -> None:
@@ -379,15 +382,15 @@ class TestTrafficManagement:
             Arc(source=node_c, target=node_d, bidirectional=True),
             Arc(source=node_d, target=node_e, bidirectional=True),
         ]
-        graph = LayoutGraph(nodes, arcs)
+        world = declare(env, LayoutGraph(nodes, arcs))
 
         sku = SKU(id="TEST-SKU", weight=1.0, volume=0.1)
 
         wh_a = Warehouse(
             env=env,
             name="WH-A",
-            input_bays=[node_a],
-            output_bays=[node_a],
+            input_bays=[world.ref("A")],
+            output_bays=[world.ref("A")],
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 200},
@@ -397,8 +400,8 @@ class TestTrafficManagement:
         wh_b = Warehouse(
             env=env,
             name="WH-B",
-            input_bays=[node_e],
-            output_bays=[node_e],
+            input_bays=[world.ref("E")],
+            output_bays=[world.ref("E")],
             n_slots=4,
             products=[sku],
             initial_inventory={sku: 0},
@@ -409,12 +412,12 @@ class TestTrafficManagement:
         charging_station = ChargingStation(
             env=env,
             name="CS-CENTER",
-            node=node_c,
+            node=world.ref("C"),
             n_slots=2,
         )
 
-        traffic_mgr = ResourceBasedTrafficManager(
-            graph=graph,
+        traffic = ReservationController(
+            graph=world.graph,
             env=env,
             node_capacity=2,
         )
@@ -432,19 +435,20 @@ class TestTrafficManagement:
             volume_capacity=10.0,
             load_time=1.0,
             unload_time=1.0,
+            length=1.0,
         )
 
-        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=node_b)
-        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=node_b)
+        agv1 = AGV(env=env, agv_type=agv_type, agv_id="AGV-0", initial_node=world.ref("B"))
+        agv2 = AGV(env=env, agv_type=agv_type, agv_id="AGV-1", initial_node=world.ref("B"))
 
         coordinator = FleetCoordinator(
             env=env,
-            graph=graph,
+            graph=world.graph,
             fleet=[agv1, agv2],
             warehouses=[wh_a, wh_b],
             charging_stations=[charging_station],
-            traffic_manager=traffic_mgr,
-            path_planner=DijkstraPlanner(),
+            traffic_controller=traffic,
+            router=ShortestDistanceRouter(),
         )
 
         order1 = coordinator.create_order(
@@ -465,11 +469,8 @@ class TestTrafficManagement:
         # The simulation must terminate (no deadlock / infinite hang)
         env.run()
 
-        # First order completes; second order fails because it cannot
-        # find an alternative path around the intent conflict on the
-        # linear topology.
         assert order1.status == OrderStatus.COMPLETED
-        assert order2.status in {OrderStatus.COMPLETED, OrderStatus.FAILED}
+        assert order2.status == OrderStatus.COMPLETED
 
 
 # ===========================================================================
@@ -518,7 +519,7 @@ class TestBuildSimpleSystemE2E:
     def test_build_simple_system_order_completes(self, env: Environment) -> None:
         from simulatte.intralogistics import build_simple_system
 
-        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env)
+        coordinator, agvs, wh_a, wh_b, graph = build_simple_system(env, layout=env.layout)
 
         sku_a = SKU("A", 1.0, 0.1)
 

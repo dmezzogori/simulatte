@@ -39,8 +39,8 @@ class Warehouse(Entity, kind="warehouse"):
         {"inventory": FieldSpec("float", collection="map"), "slots_in_use": FieldSpec("int")}
     )
 
-    _input_bays: list[Node] | tuple[Node, ...]
-    _output_bays: list[Node] | tuple[Node, ...]
+    _input_bays: tuple[Node, ...]
+    _output_bays: tuple[Node, ...]
     _pending_input_bays: tuple[NodeRef | PortRef, ...] | None
     _pending_output_bays: tuple[NodeRef | PortRef, ...] | None
 
@@ -49,8 +49,8 @@ class Warehouse(Entity, kind="warehouse"):
         *,
         env: Environment,
         name: str,
-        input_bays: Sequence[Node] | Sequence[NodeRef | PortRef],
-        output_bays: Sequence[Node] | Sequence[NodeRef | PortRef],
+        input_bays: Sequence[NodeRef | PortRef],
+        output_bays: Sequence[NodeRef | PortRef],
         n_slots: int,
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
@@ -61,10 +61,9 @@ class Warehouse(Entity, kind="warehouse"):
         self.env = env
         self.name = name
         for field, supplied in (("input_bays", input_bays), ("output_bays", output_bays)):
-            checked = [node_input(env, node) for node in supplied]
-            nodes = [node for node, _ in checked]
+            checked = [node_input(env, node, component="Warehouse", parameter=field) for node in supplied]
             refs = tuple(ref for _, ref in checked if ref is not None)
-            setattr(self, "_" + field, tuple(nodes) if env.layout is not None else nodes)
+            setattr(self, "_" + field, tuple(node for node, _ in checked))
             setattr(self, "_pending_" + field, refs or None)
         self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
 
@@ -83,32 +82,31 @@ class Warehouse(Entity, kind="warehouse"):
         self.total_puts: int = 0
         self._total_pick_time: float = 0.0
         self._total_put_time: float = 0.0
-        self._uses_explicit_graph = env.layout is None and bool(input_bays or output_bays)
         env.entities.attach(self, name=name, label=label)
         self._pick_time = env.bind(pick_time, kind="contextual", stream=f"{self.id}/pick", owner=self.id)
         self._put_time = env.bind(put_time, kind="contextual", stream=f"{self.id}/put", owner=self.id)
 
     @property
-    def input_bays(self) -> list[Node] | tuple[Node, ...]:
+    def input_bays(self) -> tuple[Node, ...]:
+        """The input bays, canonical nodes of the layout's network, in the order given; read-only."""
         if self._pending_input_bays is not None:
             pending(self, "input_bays")
         return self._input_bays
 
     @input_bays.setter
-    def input_bays(self, value: list[Node]) -> None:
-        readonly(self.env, "input_bays")
-        self._input_bays = value
+    def input_bays(self, value: tuple[Node, ...]) -> None:
+        readonly("input_bays")
 
     @property
-    def output_bays(self) -> list[Node] | tuple[Node, ...]:
+    def output_bays(self) -> tuple[Node, ...]:
+        """The output bays, canonical nodes of the layout's network, in the order given; read-only."""
         if self._pending_output_bays is not None:
             pending(self, "output_bays")
         return self._output_bays
 
     @output_bays.setter
-    def output_bays(self, value: list[Node]) -> None:
-        readonly(self.env, "output_bays")
-        self._output_bays = value
+    def output_bays(self, value: tuple[Node, ...]) -> None:
+        readonly("output_bays")
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: inventory level per SKU id and the number of slots in use."""
@@ -188,9 +186,15 @@ class Warehouse(Entity, kind="warehouse"):
             self._total_put_time += put_time
 
     def nearest_input_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
+        """The input bay nearest `from_node` by the chord length of the shortest path, the first among equals.
+
+        A chord-distance helper: the fleet coordinator chooses bays by its router's cost instead
+        (:meth:`~simulatte.intralogistics.FleetCoordinator.best_bay`), which differs on an arc longer than its chord.
+        """
         return self._nearest_bay(from_node, self.input_bays, graph)
 
     def nearest_output_bay(self, from_node: Node, graph: LayoutGraph) -> Node:
+        """The output bay nearest `from_node`, as :meth:`nearest_input_bay` ranks the input bays."""
         return self._nearest_bay(from_node, self.output_bays, graph)
 
     @staticmethod

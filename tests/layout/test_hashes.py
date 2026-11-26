@@ -1,7 +1,14 @@
+import hashlib
+import json
+from pathlib import Path
+
 from simulatte import Environment, Layout
+from simulatte.builders import build_immediate_release_system
+from simulatte.scenario import Scenario
 from simulatte.layout import LayoutBundle, ResolvedLayout
 from simulatte.layout.identity import layout_hash
-from tests.layout.test_binding import line
+from tests.layout.test_binding import line, system
+from tests.layout.test_traffic_fields import chord_only_square
 import dataclasses
 import pytest
 from simulatte.layout import LayoutError, Point, NetworkOverride
@@ -148,3 +155,48 @@ def test_disabled_edge_tombstones_and_obstacle_geometry_metadata():
     assert bundle["network"]["edges"][0]["direction"] is None
     assert bundle["network"]["obstacles"][0]["vertices"][0] == (9.0, 9.0, 0.0)
     bundle.check()
+
+
+PINNED_BUNDLES = {
+    "valid-addresses": "9cb2bfb466803c33d5951d7b8e0f91c4f82aeb26a8c1e624be0b27c21614fb5c",
+    "valid-empty": "de4be8c2bc9f2acaba156a6946fc5432ffa92a7e12edb2fb4373d6c48858e4d9",
+    "valid-explicit": "c7b26ab69296592387323feca4273d6db544943f2e97eb54e0836eefe2b32794",
+    "valid-grid": "07c6d076634a665cb053bc1f2aed8f6a8352cd89618be44d94fa5db8d09b8b48",
+    "valid-lanes": "3d7eba3850f5324d82517107edc4543951132f28c989830dbb4e9baa3634bcbe",
+    "valid-overrides": "72e0fac487b9da3d5e23690ebb6f8851815248b08b86dc7851b81c54fbec746d",
+    "valid-placement": "1517b8fde4ee7d171205a83360d2b53c5389fb39c5406f6b92846094a58f28cd",
+    "valid-traffic-explicit": "800f73ccd677366695fed4d85d0b25f463b61757ca3963ef8d88162a0ea515dd",
+    "valid-traffic-lanes": "bf9cc8ca6895bffe656651c3c5ede98de1712b8dfd70cc1086d06dcd8ccde998",
+    "valid-traffic-lattice": "1139feed0e7341f15bf2b1ecd7e2892ca93a9246f76538f36cb0eed1bb0ac36e",
+    "valid-unset": "859fddbbb411ce36a75f8901f3cf37f524838c0cffa454fd544d4d4708efce9a",
+    "code:line": "e9e85da59f7f582af9224c471407951165270e269511124e8b65c85478d3903f",
+    "code:system": "f88b12dc44d37b8f2e4f032e731f4b4ebca2f000be76c2c25e4762485aa91331",
+    "code:chord_only_square": "4978578e56733e34f5a86c9835bdb237715ce8979742b1f9f1c8ccbcbbf5a5bc",
+    "code:shop10": "40c22e1a7d45de449c7270538333991b672075cacf2100fa53a62014f713aace",
+}
+
+
+def _pinned_model(name):
+    if not name.startswith("code:"):
+        path = Path(__file__).parents[1] / "fixtures" / "layout" / f"{name}.json"
+        return Layout.from_dict(Environment(), json.loads(path.read_text()))
+    if name == "code:line":
+        return line(Environment())
+    if name == "code:system":
+        env = Environment()
+        layout = line(env)
+        system(env, layout)
+        return layout
+    if name == "code:chord_only_square":
+        return chord_only_square()
+    env = Environment(seed=3)
+    layout = Layout(env)
+    build_immediate_release_system(env=env, scenario=Scenario.pure_job_shop(n_servers=10))
+    return layout
+
+
+@pytest.mark.parametrize("name", sorted(PINNED_BUNDLES))
+def test_whole_bundles_are_those_of_the_commit_before_the_bundle_became_lazy(name):
+    """The digests were read at 2946ebb, where preparation built and validated the bundle (spec §9)."""
+    bundle = _pinned_model(name).prepare().bundle
+    assert hashlib.sha256(json.dumps(bundle.to_dict(), sort_keys=True).encode()).hexdigest() == PINNED_BUNDLES[name]

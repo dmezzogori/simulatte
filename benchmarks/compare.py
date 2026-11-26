@@ -7,6 +7,9 @@ required for such a pair. Every other pair (``default`` or ``default_logging`` a
 version, ``default_logging`` against ``bare``, ``kpi``, ``digest`` or ``full`` against ``none``, intralogistics,
 sampling) is reported only.
 Both results must come from the same workload, interpreter and job/operation counts (status 2 otherwise).
+``--allow-different-trajectory`` keeps the workload, interpreter and logging checks but accepts different counts,
+hashes and statuses: for a pair whose trajectories are known to differ (the branch's intralogistics traffic
+control against released 0.12.0). The row is then reported only, with the verdict ``info, trajectories differ``.
 
 Usage::
 
@@ -39,7 +42,9 @@ def _name(result: dict[str, Any]) -> str:
     return f"{result['label']} `{result['mode']}`"
 
 
-def _check_comparable(base: dict[str, Any], head: dict[str, Any]) -> str | None:
+def _check_comparable(
+    base: dict[str, Any], head: dict[str, Any], *, allow_different_trajectory: bool = False
+) -> str | None:
     """Why the two results are not comparable, or None."""
     if base["python"]["implementation"] != head["python"]["implementation"]:
         return "different interpreters"
@@ -47,7 +52,7 @@ def _check_comparable(base: dict[str, Any], head: dict[str, Any]) -> str | None:
         return "different workloads"
     if base.get("log_info", False) != head.get("log_info", False):
         return "different logging workloads"
-    if base["counts"] != head["counts"]:
+    if base["counts"] != head["counts"] and not allow_different_trajectory:
         return f"different job/operation counts or trajectories: {base['counts']} vs {head['counts']}"
     return None
 
@@ -55,17 +60,21 @@ def _check_comparable(base: dict[str, Any], head: dict[str, Any]) -> str | None:
 def compare(
     base: dict[str, Any], head: dict[str, Any], *, budget: float, noise: float, report_only: bool = False
 ) -> tuple[str, bool]:
-    """The Markdown row for the pair and whether the gate fails."""
+    """The Markdown row for the pair and whether the gate fails.
+
+    A pair whose counts differ (accepted only with ``--allow-different-trajectory``) is never gated.
+    """
     ratio = head["median_s"] / base["median_s"]
     overhead = ratio - 1
-    gated = base["mode"] == head["mode"] == "none" and not report_only
+    different = base["counts"] != head["counts"]
+    gated = base["mode"] == head["mode"] == "none" and not report_only and not different
     limit = budget + noise
     failed = gated and overhead > limit
     if gated:
         verdict = "**FAIL**" if failed else "pass"
         limit_text = f"{limit:+.1%} ({budget:.1%} + {noise:.1%})"
     else:
-        verdict = "info"
+        verdict = "info, trajectories differ" if different else "info"
         limit_text = "–"
     python = head["python"]
     workload = Path(head["workload"]["path"]).name
@@ -85,16 +94,22 @@ def main(argv: list[str] | None = None) -> int:
         "--budget", type=float, help="allowed median overhead of mode none (required when both results are mode none)"
     )
     parser.add_argument("--report-only", action="store_true", help="report without applying a performance gate")
+    parser.add_argument(
+        "--allow-different-trajectory",
+        action="store_true",
+        help="accept results whose counts and trajectory hashes differ (reported only, never gated)",
+    )
     parser.add_argument("--noise", type=float, default=0.0, help="noise band added to the budget")
     parser.add_argument("--summary", help="also append the printed Markdown to this file")
     parser.add_argument("--no-header", action="store_true", help="print the row without the table header")
     args = parser.parse_args(argv)
     base, head = _load(args.base), _load(args.head)
-    problem = _check_comparable(base, head)
+    problem = _check_comparable(base, head, allow_different_trajectory=args.allow_different_trajectory)
     if problem is not None:
         print(f"compare.py: {args.base} and {args.head} are not comparable: {problem}", file=sys.stderr)
         return 2
-    if base["mode"] == head["mode"] == "none" and args.budget is None and not args.report_only:
+    different = base["counts"] != head["counts"]
+    if base["mode"] == head["mode"] == "none" and args.budget is None and not args.report_only and not different:
         parser.error("--budget is required when both results are mode none (the gated comparison)")
     row, failed = compare(base, head, budget=args.budget or 0.0, noise=args.noise, report_only=args.report_only)
     text = row if args.no_header else HEADER + row

@@ -11,6 +11,7 @@ import simpy
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.environment import Environment, deferrable
 from simulatte.events import DomainEvent, Event, event_type
+from simulatte.layout import LayoutError
 
 
 @event_type("test.activation_tick")
@@ -123,8 +124,13 @@ def test_scheduling_is_restored_after_initializers(env: Environment) -> None:
 def test_initializer_cannot_advance_time(env: Environment) -> None:
     env.timeout(3)  # scheduled during preparation, allowed
     env.on_activate(env.step)
-    with pytest.raises(RuntimeError, match="advanced simulated time"):
+    with pytest.raises(LayoutError, match=r"env\.activate\(\)"):  # step() needs activation (spec §5.1)
         env.activate()
+    other = Environment()
+    other.timeout(3)
+    other.on_activate(lambda: simpy.Environment.step(other))  # past the check of step()
+    with pytest.raises(RuntimeError, match="advanced simulated time"):
+        other.activate()
 
 
 def test_failed_activation_cannot_be_retried(env: Environment) -> None:
@@ -137,6 +143,20 @@ def test_failed_activation_cannot_be_retried(env: Environment) -> None:
     with pytest.raises(RuntimeError, match="in progress or failed"):
         env.run()
     assert not env.activated
+
+
+def test_step_after_a_failed_activation_names_the_failed_activation(env: Environment) -> None:
+    def boom() -> None:
+        raise KeyError("boom")
+
+    env.on_activate(boom)
+    with pytest.raises(KeyError):
+        env.activate()
+    with pytest.raises(LayoutError, match="activation is in progress or failed") as raised:
+        env.step()  # not "call env.activate()": activating again raises too
+    assert "cannot be activated again" in str(raised.value)
+    with pytest.raises(RuntimeError, match="in progress or failed"):
+        env.activate()
 
 
 def test_activate_from_initializer_raises(env: Environment) -> None:

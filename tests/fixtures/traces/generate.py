@@ -17,11 +17,13 @@ The expected JSON is canonical: sorted keys, tuples as arrays, and the floats JS
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import math
+import runpy
 import sys
 from collections.abc import Callable, Generator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 from unittest import mock
@@ -44,9 +46,16 @@ SEEDS: dict[str, int] = {
     "cell_ops": 7,
     "layout_full": 19,
     "layout_kpi": 19,
+    "layout_traffic": 19,
     "execution_full": 19,
+    "example_traffic": 19,
 }
 """Generated fixtures and the explicit seed of each."""
+
+EXAMPLES = HERE.parents[2] / "examples"
+EXAMPLE_FIXTURES: dict[str, tuple[str, int]] = {"example_traffic": ("intralogistics_traffic", 200)}
+"""Generated fixtures recorded from a script of ``examples/``: the script and the events per chunk. The script runs to
+its own end, so these have no horizon."""
 
 PROVENANCE = Provenance(
     model="sha256:" + "1" * 64,
@@ -106,7 +115,7 @@ def record(
         )
 
         def resolved():
-            assert env is not None and env.layout is not None
+            assert env is not None  # every environment has a layout (spec §5.1)
             return ResolvedManifest(
                 runtime=request.runtime,
                 dependencies={"hash": "4" * 64},
@@ -129,6 +138,27 @@ def record(
             env.run(until=until)
         env.close()
     return env
+
+
+def record_example(path: Path, example: str, *, max_events: int, seed: int) -> None:
+    """Run ``main()`` of ``examples/<example>.py`` with its environment recording to `path`.
+
+    The script builds and closes its own environment, so the recording environment takes its place: the script's
+    ``Environment`` is replaced, in its namespace only, by a subclass that fixes the seed and the provenance and
+    attaches the recorder. The script is not changed and its model is the one a reader of the documentation sees.
+    """
+    limits = ChunkLimits(max_events=max_events, max_bytes=1 << 30, max_latency_s=3600.0)
+
+    class Recorded(Environment):
+        def __init__(self) -> None:
+            super().__init__(seed=seed, provenance=PROVENANCE)
+            TraceRecorder(self, path, chunk_limits=limits)
+
+    main = runpy.run_path(str(EXAMPLES / f"{example}.py"), run_name="__headless__")["main"]
+    # run_path returns a copy of the globals; the function holds the module's own
+    main.__globals__["Environment"] = Recorded
+    with fixed_volatile_metadata(), redirect_stdout(io.StringIO()):  # the script prints its report
+        main()
 
 
 def deterministic_scenario(*, service_time: float, due_date_offset: float) -> Scenario:
@@ -271,12 +301,43 @@ def build_layout(env: Environment) -> None:
     layout.on_bind("width", lambda ctx: ctx.physical(width), reads=[width])
 
 
+def build_layout_traffic(env: Environment) -> None:
+    """A schema 1.1 layout: a passing lattice split into blocks, a zone and a non-passing column."""
+    from simulatte import Layout
+    from simulatte.layout import Grid, Lattice, Point
+    from simulatte.server import Server
+
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.1",
+            "overrides": [{"id": "p", "target": {"kind": "column", "i": 1}, "properties": {"passing": False}}],
+        },
+    )
+    layout.set_grid(Grid(2, 2))
+    layout.set_network(
+        Lattice(
+            (0, 0, 2, 0),
+            capacity=2,
+            passing=True,
+            block_length=1.0,
+            zones={"row": {"members": [{"kind": "row", "j": 0}]}},
+        )
+    )
+
+    @layout.stage("stations", reads=[])
+    def stations(ctx):
+        machine = Server(env=env, capacity=1, name="station")
+        layout.place(machine, position=Point(0, 3), footprint={"width": 2}, visual={"color": "#112233"})
+
+
 BUILDERS: dict[str, tuple[Callable[[Environment], object], float, int]] = {
     "shop_small": (build_shop_small, 20.0, 15),
     "lumscor": (build_lumscor, 25.0, 20),
     "cell_ops": (build_cell_ops, 30.0, 7),
     "layout_full": (build_layout, 1.0, 7),
     "layout_kpi": (build_layout, 1.0, 7),
+    "layout_traffic": (build_layout_traffic, 1.0, 7),
     "execution_full": (build_layout, 1.0, 7),
 }
 """For each generated fixture: the builder, the horizon and the events per chunk."""
@@ -383,8 +444,13 @@ def generate(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for name, seed in SEEDS.items():
-        build, until, max_events = BUILDERS[name]
         path = out / f"{name}.simtrace"
+        if name in EXAMPLE_FIXTURES:
+            example, events_per_chunk = EXAMPLE_FIXTURES[name]
+            record_example(path, example, max_events=events_per_chunk, seed=seed)
+            written += [path, write_expected(path)]
+            continue
+        build, until, max_events = BUILDERS[name]
         record(
             path,
             build,

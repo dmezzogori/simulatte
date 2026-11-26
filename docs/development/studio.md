@@ -27,8 +27,8 @@ platform-specific verification evidence.
 Record a model with `TraceRecorder` as described in
 [events and traces](../guides/events-and-traces.md). Full recordings include entity
 state, domain events, inspect-only observer events and recorded KPIs. KPI-only
-recordings provide charts/results but no entity animation. Both retain resolved
-layout metadata when available.
+recordings provide charts/results but no entity animation. Both retain the resolved
+layout, which every model has.
 
 The repository includes two small examples:
 
@@ -40,8 +40,8 @@ uv run --extra studio simulatte view /tmp/fleet.simtrace
 
 ## Navigate and inspect
 
-The scene uses recorded equipment placements and motion. Without layout metadata,
-static entities use a labelled viewer fallback layout. Unlocated entities appear
+The scene uses recorded equipment placements, transport lanes and motion. A recording written
+by an earlier version has no layout; its static entities use a labelled viewer fallback layout. Unlocated entities appear
 in an unplaced tray; invalid or approximate motion is identified. Decorative
 transfer trails are not job positions. Pan by dragging; use Fit, zoom or Focus
 selected to navigate. The entity list provides selection without canvas picking.
@@ -329,7 +329,9 @@ simulatte studio examples/studio_model.py --no-browser
 
 A file containing multiple decorated models requires `MODEL.py:build_name`.
 Build functions receive `(env, layout, params)` and must finish preparation
-without advancing simulation time. Complete layout/component wiring there;
+without advancing simulation time. `layout` is `env.layout`, created by the driver (with the project's
+layout file, when it has one): declare the transport network on it with `layout.set_network(...)` and give components
+its handles (see the [layout guide](../guides/layout.md)). Complete layout/component wiring there;
 schedule generators with `env.process`. The worker activates and runs the
 prepared environment only after the coordinator accepts durable initial state.
 

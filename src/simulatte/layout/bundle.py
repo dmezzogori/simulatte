@@ -7,18 +7,22 @@ network for model inspection, which is never serialized into a trace.
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import re
+from threading import Lock
 from typing import Any
 
 from simulatte._wire import freeze
 from .auto import TargetMetadata, auto_layout
 from .dependencies import DependencyClosure, evaluate_query
 from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
-from .schema import validate_definition
+from .schema import layout_version, traffic_fields, validate_definition
 from .identity import ALGORITHMS, hashes, normalize, normalized_query
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .topology import StaticTopology
+
+_VERSIONS = ("1.0", "1.1")
+"""The bundle versions this reader knows: 1.1 adds ``passing`` to edges and arcs and the resolved zones."""
 
 _FIELDS = frozenset(
     {
@@ -250,6 +254,7 @@ def _validate_details(data: Mapping[str, Any]) -> None:
     network = data["network"]
     if network is None:
         return
+    traffic = data["schema_version"] == "1.1"  # the edge and graph records of 1.1 carry passing and zones
     _keys(network, "nodes edges clearance obstacles lineage adjacency weak_components strong_components graph")
     validate_definition(network["clearance"], "nonnegative")
     for obstacle in _array(network["obstacles"]):
@@ -269,7 +274,9 @@ def _validate_details(data: Mapping[str, Any]) -> None:
         if node["capacity"] is not None:
             validate_definition(node["capacity"], "capacity")
     for edge in network["edges"]:
-        _keys(edge, "address source target enabled direction speed_limit lineage blockers")
+        _keys(edge, "address source target enabled direction speed_limit lineage blockers" + " passing" * traffic)
+        if traffic and type(edge["passing"]) is not bool:
+            raise LayoutError("invalid edge passing state")
         for address in (edge["address"], edge["source"], edge["target"], *_array(edge["lineage"])):
             validate_definition(_thaw(address), "address")
         if edge["enabled"] is not None and type(edge["enabled"]) is not bool:
@@ -291,13 +298,37 @@ def _validate_details(data: Mapping[str, Any]) -> None:
         for address in _array(group):
             validate_definition(_thaw(address), "address")
     graph = network["graph"]
-    _keys(graph, "nodes arcs")
+    _keys(graph, "nodes arcs" + " zones" * traffic)
     for node in _array(graph["nodes"]):
         _keys(node, "id position capacity")
         validate_definition(_thaw({k: v for k, v in node.items() if v is not None}), "explicitNode")
     for arc in _array(graph["arcs"]):
-        _keys(arc, "source target speed_limit")
+        _keys(arc, "source target speed_limit" + " passing" * traffic, "length" * traffic)
         validate_definition(_thaw({k: v for k, v in arc.items() if v is not None}), "explicitArc")
+    for zone in _array(graph["zones"]) if traffic else ():
+        _keys(zone, "id capacity hold_back members")
+        validate_definition(zone["id"], "id")
+        validate_definition(zone["capacity"], "capacity")
+        if type(zone["hold_back"]) is not bool:
+            raise LayoutError("invalid zone hold_back")
+        for member in _array(zone["members"]):
+            _strings([member] if isinstance(member, str) else _array(member))
+            if not isinstance(member, str) and len(member) != 2:
+                raise LayoutError("invalid zone member")
+
+
+def _settle(data: Any, *, check: bool) -> Any:
+    """The frozen, normalized form of bundle data; ``check`` validates every field of a known version first."""
+    data = _thaw(data)
+    if not isinstance(data, Mapping) or not isinstance(data.get("schema_version"), str):
+        raise LayoutError("layout bundle requires a schema_version string")
+    if data["schema_version"] in _VERSIONS:
+        if check:
+            _validate(data)
+        data = normalize(data, canonical=False)
+        for query in data["dependencies"]["queries"]:
+            query.update(normalized_query(query["descriptor"], query["observed"]))
+    return freeze(data)
 
 
 @dataclass(frozen=True)
@@ -307,19 +338,21 @@ class LayoutBundle(Mapping[str, Any]):
     _data: Mapping[str, Any]
 
     def __post_init__(self) -> None:
-        data = _thaw(self._data)
-        if not isinstance(data, Mapping) or not isinstance(data.get("schema_version"), str):
-            raise LayoutError("layout bundle requires a schema_version string")
-        if data["schema_version"] == "1.0":
-            _validate(data)
-            data = normalize(data, canonical=False)
-            for query in data["dependencies"]["queries"]:
-                query.update(normalized_query(query["descriptor"], query["observed"]))
-        object.__setattr__(self, "_data", freeze(data))
+        object.__setattr__(self, "_data", _settle(self._data, check=True))
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> LayoutBundle:
         return cls(data)
+
+    @classmethod
+    def _built(cls, data: Mapping[str, Any]) -> LayoutBundle:
+        """The bundle of data that preparation built from its validated inputs.
+
+        It is not validated again (spec §9): the tests check every bundle the code builds, as ``from_dict`` checks a
+        saved one."""
+        bundle = object.__new__(cls)
+        object.__setattr__(bundle, "_data", _settle(data, check=False))
+        return bundle
 
     def to_dict(self) -> dict[str, Any]:
         return _thaw(self._data)
@@ -339,7 +372,7 @@ class LayoutBundle(Mapping[str, Any]):
 
     @property
     def reusable(self) -> bool:
-        return self.schema_version == "1.0"
+        return self.schema_version in _VERSIONS
 
     @property
     def full_hash(self) -> str:
@@ -366,7 +399,13 @@ class LayoutBundle(Mapping[str, Any]):
 
 @dataclass(frozen=True)
 class ResolvedLayout:
-    bundle: LayoutBundle
+    """The result of preparation. Its `bundle` and the three hashes are built on first read and then kept.
+
+    Every field is immutable once preparation finished (frozen values and auto layer, a frozen graph, a sealed
+    dependency closure, names read at preparation), so a bundle built late, after the run or from another thread,
+    describes the layout as prepared; concurrent first reads get the same bundle.
+    """
+
     values: Any
     auto: Any
     network: Any
@@ -375,6 +414,18 @@ class ResolvedLayout:
     required_paths: Any
     diagnostics: Any
     explicitly_named: frozenset[str]
+    _lock: Any = field(default_factory=Lock, init=False, repr=False, compare=False)
+
+    @property
+    def bundle(self) -> LayoutBundle:
+        bundle = self.__dict__.get("_bundle")
+        if bundle is None:
+            with self._lock:
+                bundle = self.__dict__.get("_bundle")
+                if bundle is None:
+                    bundle = _build_bundle(self)
+                    object.__setattr__(self, "_bundle", bundle)
+        return bundle
 
     @property
     def full_hash(self) -> str:
@@ -389,7 +440,10 @@ class ResolvedLayout:
         return self.bundle.layers_hash
 
 
-def _network(network: Any) -> dict[str, Any]:
+def _network(network: Any, traffic: bool) -> dict[str, Any]:
+    """The network record; ``traffic`` (a 1.1 layout) adds edge ``passing``, arc ``passing`` and the graph's zones.
+
+    A declared arc length is an arc field of its own (1.1 only: declaring one makes the layout 1.1)."""
     definitions = network.definitions
     nodes = []
     for address, node in sorted(definitions.nodes.items(), key=lambda pair: pair[0]._json):
@@ -415,10 +469,19 @@ def _network(network: Any) -> dict[str, Any]:
                 "speed_limit": edge.speed_limit,
                 "lineage": [a.to_dict() for a in edge.lineage],
                 "blockers": list(edge.blockers),
+                **({"passing": edge.passing} if traffic else {}),
             }
         )
     graph = network.graph
-    return {
+    # An arc whose length was declared (explicit arcs, spec 5.2) records it; every other length follows from the
+    # nodes and the block length, and its bundle stays as it was.
+    recorded = {
+        (definitions.nodes[source].id, definitions.nodes[target].id)
+        for source, edges in definitions.adjacency.items()
+        for target, edge in edges
+        if definitions.edges[edge].recorded
+    }
+    record = {
         "nodes": nodes,
         "edges": edges,
         "clearance": definitions.clearance,
@@ -441,16 +504,35 @@ def _network(network: Any) -> dict[str, Any]:
                 {"id": n.id, "position": [n.x, n.y, 0.0], "capacity": network.capacities[n]} for n in graph.nodes
             ],
             "arcs": [
-                {"source": a.id, "target": b.id, "speed_limit": graph.arc_between(a, b).speed_limit}
+                {
+                    "source": a.id,
+                    "target": b.id,
+                    "speed_limit": graph.arc_between(a, b).speed_limit,
+                    **({"passing": graph.arc_between(a, b).passing} if traffic else {}),
+                    **({"length": graph.length(a, b)} if (a.id, b.id) in recorded else {}),
+                }
                 for a in graph.nodes
                 for b in graph.neighbors(a)
             ],
         },
     }
+    if traffic:
+        record["graph"]["zones"] = [
+            {
+                "id": zone.id,
+                "capacity": zone.capacity,
+                "hold_back": zone.hold_back,
+                "members": [[m[0].id, m[1].id] if isinstance(m, tuple) else m.id for m in zone.members],
+            }
+            for zone in network.zones
+        ]
+    return record
 
 
 def _effective(values: Any, auto: Any) -> dict[str, Any]:
     result = {key: _thaw(value) for key, value in values.data.items() if key not in ("network", "overrides")}
+    # The merged label is the last layer's; the placements here may use a 1.1 field that another layer declared.
+    result["schema_version"] = layout_version(result)
     for target, metadata in auto.targets.items():
         if metadata.kind == "agv":
             result["placements"][target].pop("position", None)
@@ -471,10 +553,32 @@ def _leaves(values: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _version(values: Any) -> str:
+    """``"1.1"`` when any layer, code or file, uses a 1.1 field (spec §12); the version of the saved bundle."""
+    patches = (*(patch for _, patch in values.bundle.code_stages), values.bundle.file_layer.data)
+    return "1.1" if any(traffic_fields(patch) for patch in patches) else "1.0"
+
+
 def finalize_layout(prepared: Any) -> ResolvedLayout:
+    """The result of preparation; its bundle is built on first read (:func:`_build_bundle`)."""
+    return ResolvedLayout(
+        prepared.values,
+        prepared.auto,
+        prepared.network,
+        prepared.closure,
+        prepared.stage_records,
+        prepared.required_paths,
+        prepared.diagnostics,
+        prepared.explicitly_named,
+    )
+
+
+def _build_bundle(prepared: Any) -> LayoutBundle:
+    """The bundle of a prepared layout, with its hashes."""
     values, auto, network = prepared.values, prepared.auto, prepared.network
+    version = _version(values)
     data = {
-        "schema_version": "1.0",
+        "schema_version": version,
         "algorithms": ALGORITHMS,
         "stages": _thaw(prepared.stage_records),
         "topology": auto.topology.to_dict(),
@@ -488,7 +592,7 @@ def finalize_layout(prepared: Any) -> ResolvedLayout:
         },
         "dependencies": prepared.closure.to_dict(),
         "resolved": _effective(values, auto),
-        "network": _network(network) if "network" in values.explicit_data else None,
+        "network": _network(network, version == "1.1") if "network" in values.explicit_data else None,
         "aliases": [
             {"address": a.to_dict(), "canonical": b.to_dict()}
             for a, b in sorted(network.aliases.items(), key=lambda pair: pair[0]._json)
@@ -505,18 +609,7 @@ def finalize_layout(prepared: Any) -> ResolvedLayout:
     for query in data["dependencies"]["queries"]:
         query.update(normalized_query(query["descriptor"], query["observed"]))
     data.update(hashes(data))
-    bundle = LayoutBundle.from_dict(data)
-    return ResolvedLayout(
-        bundle,
-        values,
-        auto,
-        network,
-        prepared.closure,
-        prepared.stage_records,
-        prepared.required_paths,
-        prepared.diagnostics,
-        prepared.explicitly_named,
-    )
+    return LayoutBundle._built(data)
 
 
 def validate_file_eligibility(
@@ -683,6 +776,9 @@ def reresolve_presentation(bundle: LayoutBundle, file_patch: Mapping[str, Any]) 
     changed = closure.reevaluate(stages, file_layer)
     if changed:
         return PresentationResult(True, changed, None, bundle.physical_hash)
+    if _version(explicit) != bundle.schema_version:
+        # The version is part of every hash, and a field of a stale override is no physical read.
+        return PresentationResult(True, (("schema_version",),), None, bundle.physical_hash)
     auto = auto_layout(targets, StaticTopology.from_dict(data["topology"]), explicit)
     values = resolve_layers(stages, file_layer, targets=kinds, final=True, auto_layer=auto.data)
     data["layers"]["file"] = file_layer.to_dict()
