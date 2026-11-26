@@ -287,14 +287,14 @@ overhang is not held.
 A segment has one entry in the trail, with one clear point and one direction. When the AGV starts a leg over a
 segment that its trail still holds from the other direction (it reverses while its body is on it), the entry is
 replaced: from that instant the body on the segment is taken in the new direction, and its clear point is the one
-of the new leg. A single-lane segment that was claimed again in the new direction before that leg starts (§7.2)
-keeps its old clear point until then, and the executor tells the controller, with `cleared` (§7.1), when the body
-as it arrived no longer lies on it: when the odometer reaches the old clear point, when the leg over the segment
-starts, or when the AGV comes to rest on a node of capacity above 1.
+of the new leg. A segment that was claimed again before that leg starts (§7.2) keeps its old clear point until
+then, and the executor tells the controller, with `cleared` (§7.1), when the body as it arrived no longer lies on
+it: when the odometer reaches the old clear point, when the leg over the segment starts, or when the AGV comes to
+rest on a node of capacity above 1.
 
 The time at which the odometer reaches a value inside the current arc is exact for kinematic profiles (§9.1).
 For other profiles, a clear point at the arc start is released at departure and every other clear point is
-released at the next arrival.
+released, or reported with `cleared`, at the next arrival.
 
 ## 7. Claims and the controller
 
@@ -337,8 +337,12 @@ class TrafficController(Protocol):
   holdings, since it no longer waits. `release` frees specific resources. `retain` frees everything the AGV holds
   except the given resources.
 - `cleared` tells the controller that the body of the AGV, as it arrived, no longer lies on resources it still
-  holds: single-lane segments it claimed again in a new direction (§7.2). Nothing is released.
-  `ReservationController` ends the both-directions state of those segments; `FreeFlowController` does nothing.
+  holds: segments it claimed again while its body lay on them (§6.6). Nothing is released. The executor cannot
+  tell which of them have the both-directions state (§7.2), so the call may name segments without it (a segment
+  with `passing`, or one whose state has ended): `ReservationController` ends the state of those that have it,
+  and `FreeFlowController` does nothing. Within an instant the call comes after `agv.move_started` when the leg
+  over the segment starts, and after the releases at a clear point or at an arrival. The executor makes it only
+  for a controller that controls occupancy, and such a controller must have it.
 - `WaitHooks` carries what the controller and the policy may ask of the waiting travel: `route` (remaining
   nodes), `loaded`, `resolutions` (the reactions staged for the AGV since it last arrived at the goal it travels to,
   §7.9), and the callables `try_reroute(avoid, max_cost_ratio)`,
@@ -385,7 +389,12 @@ is its next leg or lies farther along the route. The state ends at the first of:
 The first three release nothing: the segment stays held in the new direction, and the executor reports them with
 `cleared` (§7.1). A `retain` that keeps the segment keeps the state: a travel that ends before the vehicle is back
 on the segment leaves it held in the new direction with the body as it arrived, for as long as the vehicle rests
-there. Without this state the record shows one direction while the body lies in the other, and a second vehicle
+there. The segment is then a trail entry again with its old clear point: a later travel that reaches that point
+releases it, a rest on a node of capacity above 1 releases it with the rest of the trail, and a later travel
+whose granted claim names it again, in either direction, ends the state by its own leg or at the old clear point,
+as above. A holder in the state that is granted the segment again in the direction its body lies in stays in the
+state until one of those ends: the record then equals the body, and the state keeps a follower out for longer
+than the body requires, never for less. Without this state the record shows one direction while the body lies in the other, and a second vehicle
 is admitted head-on into the lane the body still occupies. The state is kept by the controller's ledger, which
 answers for it (`HoldingsLedger`); the `segment` entity lists the holder in the new direction only (§11.1), and no
 event marks the beginning or the end of the state, as none marks a waived gate (§7.8). A corridor's orientation
