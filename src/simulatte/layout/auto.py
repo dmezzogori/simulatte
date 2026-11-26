@@ -94,6 +94,8 @@ class TargetMetadata:
         if "graph_position" in copied:
             copied["graph_position"] = Point(*copied["graph_position"])
         for name in ("size", "node_ids"):
+            if name in copied and copied[name] is None:
+                raise LayoutError(f"layout target {name} must be omitted, not null")
             if isinstance(copied.get(name), (list, tuple)):
                 copied[name] = tuple(copied[name])
         return cls(**copied)

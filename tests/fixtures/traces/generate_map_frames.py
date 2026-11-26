@@ -12,8 +12,9 @@ algorithms, stages, topology, diagnostics, required_paths, the other ``network``
 
 With ``--patch`` (the default until the Python side records them) the fixtures also carry what the map needs and the
 simulation does not record yet (spec §6): the ``wait`` and ``route`` of a vehicle, the capacities, the fleet counters,
-the vehicle size and ``node_ids`` of the facilities, and the facility positions of the placement rule of §6.3. Each is
-computed from the events up to the cursor or written as a literal below. ``bare-layout`` is never patched, and the
+the ``node_ids`` of the facilities, and the facility positions of the placement rule of §6.3. Each is computed from the
+events up to the cursor or written as a literal below. The vehicle size is recorded since Task 11; the patch still
+writes it, with the values the recording already has. ``bare-layout`` is never patched, and the
 vehicle size the corridor example records is taken out of it (:func:`unsized`): it stands for a trace recorded
 before Stage 2.
 """

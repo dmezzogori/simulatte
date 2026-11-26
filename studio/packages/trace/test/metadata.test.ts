@@ -214,6 +214,10 @@ it.each([
   [["auto", "targets", "West", "node_ids"], "W"],
   [["targets", "West", "extent"], 1],
   [["auto", "targets", "AGV-1", "extent"], 1],
+  [["targets", "AGV-1", "size"], null],
+  [["auto", "targets", "AGV-1", "size"], null],
+  [["targets", "West", "node_ids"], null],
+  [["auto", "targets", "West", "node_ids"], null],
 ])("rejects other algorithm names and malformed target fields %j", async (path, value) => {
   const layout = structuredClone(exampleExpected.layout);
   let parent: any = layout;
@@ -232,4 +236,7 @@ it("rejects the layered-v2 name without its fields, and the fields under layered
   const halved = structuredClone(exampleExpected.layout);
   for (const t of Object.values(halved["auto"].targets) as Record<string, unknown>[]) delete t["size"];
   await expect(openTrace(buildTrace({ ...INITIAL, layout: halved }))).rejects.toThrow(TraceCorrupted);
+  const saved = structuredClone(exampleExpected.layout); // the auto layer's targets still carry the size
+  for (const t of Object.values(saved["targets"]) as Record<string, unknown>[]) delete t["size"];
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: saved }))).rejects.toThrow(TraceCorrupted);
 });

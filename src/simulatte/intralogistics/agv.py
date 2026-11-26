@@ -78,10 +78,10 @@ class AGVType:
     """Length of the vehicle; ``ReservationController`` requires it (spec §6.6). It is also the vehicle's size along
     its heading in the layout (:attr:`size`): ``None`` and ``0`` count as not declared there, and the vehicle keeps
     the default 1 x 1 m placement footprint."""
-    width: float | None = None
-    """Width of the vehicle, finite and >= 0; descriptive, no component reads it. With a positive :attr:`length` it is
-    the depth of the vehicle's placement footprint (:attr:`size`); ``None`` and ``0`` count as not declared, and the
-    depth is then half the length. Without a length it is not used."""
+    width: float | None = field(default=None, kw_only=True)
+    """Width of the vehicle, finite and >= 0, keyword-only; descriptive, no component reads it. With a positive
+    :attr:`length` it is the depth of the vehicle's placement footprint (:attr:`size`); ``None`` and ``0`` count as not
+    declared, and the depth is then half the length. Without a length it is not used."""
     min_gap: float = 0.0
     """Distance kept to the vehicle ahead; the extent of the vehicle is ``length + min_gap``."""
     corner_speed: Callable[[float], float] | None = None
@@ -114,11 +114,12 @@ class AGVType:
         """``(length, width)`` of the vehicle's placement footprint, or None when the type declares no length.
 
         A length of ``None`` or ``0`` is not declared (no size: the footprint stays 1 x 1 m); a width of ``None`` or
-        ``0`` with a positive length gives half the length (studio map spec §6.1). The layout writes it to the
-        vehicle's target in the bundle."""
+        ``0`` with a positive length gives half the length (studio map spec §6.1), or the length itself when half of
+        it rounds to 0. The layout writes it to the vehicle's target in the bundle."""
         if not self.length:
             return None
-        return (float(self.length), float(self.width) if self.width else self.length / 2)
+        length = float(self.length)
+        return (length, float(self.width) if self.width else length / 2 or length)
 
 
 class AGV(Entity, kind="agv"):

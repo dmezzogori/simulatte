@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import math
 
@@ -61,6 +62,16 @@ def test_width_is_validated_like_length(width):
         kind(length=width)
 
 
+def test_width_is_keyword_only_and_the_positional_order_is_unchanged():
+    profile, depletion, recharge = TrapezoidalProfile(2, 1, 1), lambda d, w, s: d, lambda b, t: t
+    positional = AGVType("cart", profile, 100, 200, 300, bool, depletion, recharge, 0.3, 0.1, 2.0, 3.0, 1.5, 0.25)
+    assert (positional.length, positional.min_gap, positional.width) == (1.5, 0.25, None)
+    assert (positional.load_time, positional.unload_time) == (2.0, 3.0)
+    assert inspect.signature(AGVType).parameters["width"].kind is inspect.Parameter.KEYWORD_ONLY
+    with pytest.raises(TypeError):
+        AGVType("cart", profile, 100, 200, 300, bool, None, None, 0.2, 0.05, 0.0, 0.0, 1.5, 0.25, None, None, 0.0, 1.0)
+
+
 @pytest.mark.parametrize(
     ("length", "width", "size"),
     [
@@ -71,6 +82,7 @@ def test_width_is_validated_like_length(width):
         (None, 0.5, None),  # no length, no size
         (0.0, None, None),  # a length of 0 is not declared
         (0.0, 0.5, None),
+        (5e-324, None, (5e-324, 5e-324)),  # half of it is 0.0: the length itself
     ],
 )
 def test_the_size_of_a_type(length, width, size):
@@ -112,6 +124,11 @@ def test_a_width_of_0_with_a_length_gives_half_the_length():
     bundle = simple(1.0, 0.0)
     assert footprint(bundle) == {"width": 1.0, "depth": 0.5, "height": 0.0}
     assert bundle["targets"]["vehicle-0"]["size"] == (1.0, 0.5)
+
+
+def test_the_smallest_length_still_prepares():
+    bundle = simple(5e-324)
+    assert footprint(bundle) == {"width": 5e-324, "depth": 5e-324, "height": 0.0}
 
 
 def test_an_explicit_footprint_wins():
@@ -275,6 +292,10 @@ def _set(data, path, value):
         (("targets", "WH-A", "node_ids"), []),
         (("targets", "WH-A", "node_ids"), [7]),
         (("auto", "targets", "WH-A", "extent"), 1),
+        (("targets", "vehicle-0", "size"), None),
+        (("auto", "targets", "vehicle-0", "size"), None),
+        (("targets", "WH-A", "node_ids"), None),
+        (("auto", "targets", "WH-A", "node_ids"), None),
     ],
 )
 def test_the_reader_rejects_other_names_and_malformed_fields(path, value):
@@ -295,5 +316,9 @@ def test_the_reader_rejects_a_layered_v2_name_without_the_fields_and_the_fields_
         LayoutBundle.from_dict(rehashed(data))
     data = sized_data()
     del data["auto"]["targets"]["vehicle-0"]["size"], data["auto"]["targets"]["vehicle-1"]["size"]
+    with pytest.raises(LayoutError, match="algorithm"):
+        LayoutBundle.from_dict(rehashed(data))
+    data = sized_data()  # the auto layer's targets still carry the size, the saved targets do not
+    del data["targets"]["vehicle-0"]["size"], data["targets"]["vehicle-1"]["size"]
     with pytest.raises(LayoutError, match="algorithm"):
         LayoutBundle.from_dict(rehashed(data))
