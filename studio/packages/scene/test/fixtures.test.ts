@@ -6,6 +6,8 @@ const NAMES = [
   "corridor-wait",
   "corridor-idle",
   "advanced-charging",
+  "simple-moving",
+  "intermediate-moving",
   "two-fleets",
   "bare-layout",
   "production",

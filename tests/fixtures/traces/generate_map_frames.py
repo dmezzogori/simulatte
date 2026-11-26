@@ -1,26 +1,23 @@
-"""Frame fixtures for the Studio map: ``python tests/fixtures/traces/generate_map_frames.py [--out DIR] [--no-patch]``.
+"""Frame fixtures for the Studio map: ``python tests/fixtures/traces/generate_map_frames.py [--out DIR]``.
 
 Each fixture is one JSON file ``{time, cursor, state, initialState, layout}``, the parts of a ``PreparedFrame`` that
 come from a recording. The TypeScript tests (``studio/packages/scene/test/fixtures.ts``) and the render harness
 (``studio/harness``) load them, so the map is developed and looked at without a simulation run.
 
-The corridor and advanced examples are recorded as ``generate.record_example`` records them (the corridor with seed 19,
-the advanced one with its own seed 42, ``main(plot=False)``). The state is the trace's ``state_at`` and the layout is
-the trace's bundle, cut down to what the scene reads: ``schema_version``, ``resolved``, ``network.graph``,
-``bindings`` and ``targets``. Every other key of the bundle (hashes, layers, leaves, dependencies, auto, aliases,
-algorithms, stages, topology, diagnostics, required_paths, the other ``network`` keys) is dropped.
+The four intralogistics examples are recorded as ``generate.record_example`` records them (the corridor with seed 19,
+the advanced one with its own seed 42 and ``main(plot=False)``, the simple and the intermediate one with seed 0). The
+state is the trace's ``state_at`` and the layout is the trace's bundle, cut down to what the scene reads:
+``schema_version``, ``resolved``, ``network.graph``, ``bindings`` and ``targets``. Every other key of the bundle
+(hashes, layers, leaves, dependencies, auto, aliases, algorithms, stages, topology, diagnostics, required_paths, the
+other ``network`` keys) is dropped.
 
-With ``--patch`` (the default) the generator checks what the map needs (spec §6) against values it computes on its
-own, and writes what the simulation does not record. The ``wait`` and ``route`` of a vehicle are recorded since Task 13,
-the capacities and the fleet counters since Task 14: the patch no longer writes them, it computes them from the events
-up to the cursor or takes them from the literals below, as before, and checks that the recording holds the same. The
-vehicle size is recorded since Task 11; the patch still writes it, with the values the recording already has. The
-facilities' ``node_ids`` and their positions by the placement rule of §6.3 are recorded since Task 12: the patch no
-longer writes them, it checks them against the bindings and the literals below. ``bare-layout`` is never patched: it
-stands for a trace recorded before Stage 2, so the corridor example is recorded for it once more with the facilities'
-``node_ids`` withheld (:func:`without_node_ids`, which leaves them in the grid), and the vehicle size, ``wait``,
-``route``, capacities and counters it records are taken out of it (:func:`unsized`, :func:`unrouted`,
-:func:`uncounted`).
+Everything the map reads (spec §6: the vehicle size, the facilities' ``node_ids`` and positions, ``wait``, ``route``,
+the capacities and the fleet counters) is recorded; nothing is added by hand except in ``two-fleets`` (a second fleet)
+and ``sprites``, which is built by hand. The generator fails when an example no longer gives the measured facts the
+tests rely on (:func:`check_corridor`, :func:`check_advanced`, :func:`check_moving`). ``bare-layout`` stands for a
+trace recorded before Stage 2: the corridor example is recorded for it once more with the facilities' ``node_ids``
+withheld (:func:`without_node_ids`, which leaves them in the grid), and the vehicle size, ``wait``, ``route``,
+capacities and counters it records are deleted from it (:func:`unsized`, :func:`unrouted`, :func:`uncounted`).
 """
 
 from __future__ import annotations
@@ -32,7 +29,6 @@ import math
 import runpy
 import sys
 import tempfile
-from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
@@ -121,101 +117,8 @@ class Recording:
 
 
 # ---------------------------------------------------------------------------------------------------------
-# The patch: what Stage 2 will record
+# A trace recorded before Stage 2, for ``bare-layout``
 # ---------------------------------------------------------------------------------------------------------
-
-CAPACITIES: dict[str, dict[str, Any]] = {
-    # read from examples/intralogistics_traffic.py and examples/intralogistics_advanced.py
-    "corridor": {"battery_capacity": 1000.0, "capacity": {"Siding": 3}, "slots": {}},
-    "advanced": {"battery_capacity": 100.0, "capacity": {"Parking": 3}, "slots": {"Charger": 2}},
-}
-"""Per example: the vehicle type's battery capacity, each parking area's capacity and each station's slots."""
-
-CORRIDOR_SIZE = (1.2, 0.6)
-"""The corridor vehicle type has length 1.2 and no width: footprint width 1.2 (along the heading), depth 0.6 (§6.1)."""
-
-POSITIONS: dict[str, dict[str, tuple[float, float, float]]] = {
-    # §6.3 with M28. Direction: opposite of the mean of the unit vectors from the anchor to its neighbours (+y when
-    # that mean is zero). Position: anchor + direction * (half the 1 m extent along it + 1 m gap) = anchor + 1.5 m.
-    # Parking areas and charging stations are centred on their node.
-    "corridor": {
-        # West: first input bay W (-5, 0); neighbours W_N (0, 5) and W_S (0, -5); unit vectors (.707, .707) and
-        # (.707, -.707); mean (.707, 0); direction (-1, 0); (-5, 0) + 1.5 * (-1, 0) = (-6.5, 0).
-        "West": (-6.5, 0.0, 0.0),
-        # East: first input bay E (95, 0); neighbours E_N (90, 5) and E_S (90, -5); mean (-.707, 0); direction (1, 0);
-        # (95, 0) + 1.5 * (1, 0) = (96.5, 0).
-        "East": (96.5, 0.0, 0.0),
-        # Siding: parking area centred on S.
-        "Siding": (45.0, 6.0, 0.0),
-    },
-    "advanced": {
-        # Receiving: first input bay RCV_IN (0, 30); neighbour RCV_OUT (20, 30); mean (1, 0); direction (-1, 0);
-        # (0, 30) + 1.5 * (-1, 0) = (-1.5, 30).
-        "Receiving": (-1.5, 30.0, 0.0),
-        # Bulk Storage: first input bay BULK_IN (110, 30); neighbour R2 (80, 30); mean (-1, 0); direction (1, 0);
-        # (110, 30) + 1.5 * (1, 0) = (111.5, 30). M28: not the mean of its two bays.
-        "Bulk Storage": (111.5, 30.0, 0.0),
-        # Dispatch: first input bay DSP_IN (140, 0); neighbours B3 (110, 0) and DSP_OUT (160, 0); unit vectors
-        # (-1, 0) and (1, 0); the mean is zero, so the direction is +y; (140, 0) + 1.5 * (0, 1) = (140, 1.5).
-        "Dispatch": (140.0, 1.5, 0.0),
-        # Charger on CHRG (80, 15) and Parking on PARK (100, 15): centred.
-        "Charger": (80.0, 15.0, 0.0),
-        "Parking": (100.0, 15.0, 0.0),
-    },
-}
-CENTRED = {"parking_area", "charging_station"}
-"""Kinds centred on their node with a 3 m by 3 m footprint."""
-
-
-def _expected_position(layout: Plain, name: str) -> tuple[float, float]:
-    """§6.3 recomputed from the layout's graph, to check the literals above."""
-    kind = layout["targets"][name]["kind"]
-    nodes = {n["id"]: n["position"] for n in layout["network"]["graph"]["nodes"]}
-    anchor_id = layout["targets"][name]["node_ids"][0]
-    ax, ay = nodes[anchor_id][0], nodes[anchor_id][1]
-    if kind in CENTRED:
-        return ax, ay
-    near = {a["target"] for a in layout["network"]["graph"]["arcs"] if a["source"] == anchor_id}
-    near |= {a["source"] for a in layout["network"]["graph"]["arcs"] if a["target"] == anchor_id}
-    sx = sy = 0.0
-    for other in sorted(near):
-        dx, dy = nodes[other][0] - ax, nodes[other][1] - ay
-        length = math.hypot(dx, dy)
-        sx, sy = sx + dx / length, sy + dy / length
-    sx, sy = sx / len(near), sy / len(near)
-    if math.hypot(sx, sy) < 1e-9:
-        ux, uy = 0.0, 1.0
-    else:
-        ux, uy = -sx / math.hypot(sx, sy), -sy / math.hypot(sx, sy)
-    reach = (abs(ux) * 1.0 + abs(uy) * 1.0) / 2 + 1.0  # half the 1 m x 1 m extent along the direction, plus 1 m
-    return ax + ux * reach, ay + uy * reach
-
-
-def patch_layout(layout: Plain, example: str) -> None:
-    """Add the vehicle size of §6.1, and check the facilities' ``node_ids`` (§6.5) and positions (§6.3) the recording
-    holds since Task 12 against the bindings and the literals of :data:`POSITIONS`."""
-    targets, placements, bindings = layout["targets"], layout["resolved"]["placements"], layout["bindings"]
-    for name, target in targets.items():
-        if target["kind"] == "agv" and example == "corridor":
-            target["size"] = list(CORRIDOR_SIZE)
-            placements[name]["footprint"].update(width=CORRIDOR_SIZE[0], depth=CORRIDOR_SIZE[1])
-        if target["kind"] in {"warehouse", "parking_area", "charging_station"}:
-            # input bays first, then output bays, then the node; a node bound twice is listed once
-            order = {"input_bays": 0, "output_bays": 1, "node": 2}
-            bound = [
-                binding["endpoint"]
-                for _key, binding in sorted(
-                    ((k, b) for k, b in bindings.items() if k.startswith(f"{name}:")),
-                    key=lambda item: (order.get(item[0].split(":", 1)[1].split("/")[0], 3), item[0]),
-                )
-            ]
-            assert target["node_ids"] == list(dict.fromkeys(bound)), (name, target["node_ids"])
-    for name, position in POSITIONS[example].items():
-        expected = _expected_position(layout, name)
-        assert math.isclose(position[0], expected[0]) and math.isclose(position[1], expected[1]), (name, expected)
-        assert placements[name]["position"] == list(position), (name, placements[name]["position"])
-        if targets[name]["kind"] in CENTRED:
-            assert (placements[name]["footprint"]["width"], placements[name]["footprint"]["depth"]) == (3.0, 3.0), name
 
 
 def unsized(layout: Plain) -> Plain:
@@ -267,76 +170,16 @@ def without_node_ids() -> Iterator[None]:
         Layout._bound_nodes = bound_nodes
 
 
-def patch_state(
-    state: Plain, events: list[tuple[float, int, str, Plain]], cursor: tuple[float, int], example: str
-) -> None:
-    """Check that the ``wait`` and ``route``, the capacities and the fleet counters the recording holds in `state` are
-    those the events up to `cursor` and the literals of :data:`CAPACITIES` give."""
-    waits: dict[str, Plain] = {}
-    routes: dict[str, Plain] = {}
-    counted: dict[str, Counter[str]] = {"waits": Counter(), "stuck_waits": Counter(), "deadlocks": Counter()}
-    fleet_of = {k: v.get("fleet") for k, v in state.items() if v["$kind"] == "agv"}
-    for t, seq, kind, payload in events:
-        if (t, seq) > cursor:
-            break
-        if kind == "traffic.wait_started":
-            waits[payload["agv"]] = {
-                "blockers": list(payload["blockers"]),
-                "node": payload["node"],
-                "resources": list(payload["resources"]),
-                "since": t,
-            }
-            counted["waits"][fleet_of[payload["agv"]]] += 1
-        elif kind == "traffic.wait_ended":
-            waits.pop(payload["agv"], None)
-        elif kind == "traffic.wait_stuck":
-            counted["stuck_waits"][fleet_of[payload["agv"]]] += 1
-        elif kind == "traffic.deadlock":
-            for fleet in {fleet_of[a] for a in payload["agvs"]}:
-                counted["deadlocks"][fleet] += 1
-        elif kind == "agv.routed":
-            routes[payload["agv"]] = {
-                "destination": payload["destination"],
-                "nodes": list(payload["nodes"]),
-                "reason": payload["reason"],
-            }
-    facts = CAPACITIES[example]
-    for name, fields in state.items():
-        match fields["$kind"]:
-            case "agv":
-                route = routes.get(name)
-                if route is not None and fields["node"] == route["destination"] and fields["motion"] is None:
-                    route = None  # arrived and not moving
-                # Recorded since Task 13 and Task 14: the recording must hold what this patch used to write.
-                assert fields["wait"] == waits.get(name), (name, cursor, fields["wait"], waits.get(name))
-                assert fields["route"] == route, (name, cursor, fields["route"], route)
-                assert fields["battery_capacity"] == facts["battery_capacity"], (name, fields["battery_capacity"])
-            case "parking_area":
-                assert fields["capacity"] == facts["capacity"][name], (name, fields["capacity"])
-            case "charging_station":
-                assert fields["slots"] == facts["slots"][name], (name, fields["slots"])
-            case "fleet":
-                for counter, values in counted.items():
-                    assert fields[counter] == values[name], (name, cursor, counter, fields[counter], values[name])
-
-
-def frame_of(
-    recording: Recording, t: float, example: str | None, *, patch: bool, layout_patched: Plain | None
-) -> Plain:
-    """The fixture of `recording` at time `t`; `example` names the patch constants, `layout_patched` the layout."""
+def frame_of(recording: Recording, t: float) -> Plain:
+    """The fixture of `recording` at time `t`: the state after every event at `t`."""
     cursor = recording.cursor_at(t)
-    state = recording.state((t, LARGE_SEQ))
     bounds = recording.trace.cursor_range
     assert bounds is not None
-    initial = recording.state(bounds[0])
-    if patch and example is not None:
-        patch_state(state, recording.events, (t, LARGE_SEQ), example)
-        patch_state(initial, [], bounds[0], example)
     return {
         "cursor": [cursor[0], cursor[1]],
-        "initialState": initial,
-        "layout": layout_patched if patch else recording.layout,
-        "state": state,
+        "initialState": recording.state(bounds[0]),
+        "layout": recording.layout,
+        "state": recording.state((t, LARGE_SEQ)),
         "time": t,
     }
 
@@ -353,7 +196,7 @@ def _strips(layout: Plain) -> dict[frozenset[str], set[tuple[str, str]]]:
     return strips
 
 
-def check_corridor(frame: Plain, *, patched: bool) -> None:
+def check_corridor(frame: Plain) -> None:
     state, layout = frame["state"], frame["layout"]
     graph = layout["network"]["graph"]
     assert (len(graph["nodes"]), len(graph["arcs"])) == (13, 22), "corridor graph"
@@ -394,16 +237,28 @@ def check_corridor(frame: Plain, *, patched: bool) -> None:
     pending = {k: v["origin"] for k, v in state.items() if v["$kind"] == "order" and v["status"] == "PENDING"}
     assert pending == {"order-3": "East", "order-4": "West"}, pending
     assert state["Siding"]["parked"] == []
-    if patched:
-        wait = a1["wait"]
-        assert math.isclose(wait["since"], 121.5426, abs_tol=1e-4) and wait["node"] == "D", wait
-        assert wait["resources"] == ["corridor:M2", "C~D", "D"] and wait["blockers"] == ["AGV-2"], wait
-        assert a1["route"]["nodes"] == ["W", "W_S", "J1", "M1", "C", "D", "M2", "J2", "E_S", "E"]
-        assert a2["wait"] is None and a3["wait"] is None
-        assert a3["route"] is None, "AGV-3 arrived at 103.757"
-        fleet = state["tuggers"]
-        assert (fleet["waits"], fleet["deadlocks"], fleet["stuck_waits"]) == (2, 0, 0), fleet
-        assert state["Siding"]["capacity"] == 3
+    wait = a1["wait"]
+    assert math.isclose(wait["since"], 121.5426, abs_tol=1e-4) and wait["node"] == "D", wait
+    assert wait["resources"] == ["corridor:M2", "C~D", "D"] and wait["blockers"] == ["AGV-2"], wait
+    assert a1["route"]["nodes"] == ["W", "W_S", "J1", "M1", "C", "D", "M2", "J2", "E_S", "E"]
+    assert a2["wait"] is None and a3["wait"] is None
+    assert a3["route"] is None, "AGV-3 arrived at 103.757"
+    fleet = state["tuggers"]
+    assert (fleet["waits"], fleet["deadlocks"], fleet["stuck_waits"]) == (2, 0, 0), fleet
+    assert state["Siding"]["capacity"] == 3
+    # the type has length 1.2 and no width: size [1.2, 0.6] and the footprint 1.2 x 0.6 (spec §6.1)
+    for name in ("AGV-1", "AGV-2", "AGV-3"):
+        footprint = layout["resolved"]["placements"][name]["footprint"]
+        assert layout["targets"][name]["size"] == [1.2, 0.6], name
+        assert (footprint["width"], footprint["depth"]) == (1.2, 0.6), name
+
+
+def check_moving(frame: Plain, expected: dict[str, tuple[str, str, str]]) -> None:
+    """Every vehicle of `frame` is loaded and moves: its recorded state and the arc under way are `expected`."""
+    agvs = {k: v for k, v in frame["state"].items() if v["$kind"] == "agv"}
+    found = {k: (v["state"], v["motion"]["from"], v["motion"]["to"]) for k, v in agvs.items() if v["motion"]}
+    assert found == expected, found
+    assert all(v["load"] for v in agvs.values()), "every vehicle is loaded"
 
 
 def check_advanced(frame: Plain) -> None:
@@ -711,14 +566,7 @@ def dump(document: Plain) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write the frame fixtures of the Studio map.")
     parser.add_argument("--out", type=Path, default=OUT, help="output directory")
-    parser.add_argument(
-        "--patch",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="check the recorded state and layout fields the map needs, and add the vehicle size (default)",
-    )
     args = parser.parse_args(argv)
-    patch: bool = args.patch
     args.out.mkdir(parents=True, exist_ok=True)
     frames: dict[str, Plain] = {}
 
@@ -727,10 +575,14 @@ def main(argv: list[str] | None = None) -> int:
         advanced = Path(tmp) / "advanced.simtrace"
         production = Path(tmp) / "production.simtrace"
         bare = Path(tmp) / "bare.simtrace"
+        simple = Path(tmp) / "simple.simtrace"
+        intermediate = Path(tmp) / "intermediate.simtrace"
         record_main(corridor, "intralogistics_traffic", seed=19)
         with without_node_ids():
             record_main(bare, "intralogistics_traffic", seed=19)
         record_main(advanced, "intralogistics_advanced", seed=42, plot=False)
+        record_main(simple, "intralogistics_simple", seed=0)
+        record_main(intermediate, "intralogistics_intermediate", seed=0, plot=False)
         sys.path.insert(0, str(generate.EXAMPLES))
         import studio_recording
 
@@ -739,46 +591,50 @@ def main(argv: list[str] | None = None) -> int:
         c, a, p = Recording(corridor), Recording(advanced), Recording(production)
         assert c.layout is not None and a.layout is not None
 
-        patched_layouts: dict[str, Plain] = {}
-        for key, rec in (("corridor", c), ("advanced", a)):
-            layout = json.loads(json.dumps(rec.layout))
-            patch_layout(layout, key)
-            patched_layouts[key] = layout
-
-        corridor_wait = frame_of(c, 128.0, "corridor", patch=patch, layout_patched=patched_layouts["corridor"])
-        check_corridor(corridor_wait, patched=patch)
+        corridor_wait = frame_of(c, 128.0)
+        check_corridor(corridor_wait)
         frames["corridor-wait"] = corridor_wait
 
         # the first whole second in 1000..1015 with one vehicle waiting, one moving and one idle
         found: float | None = None
         for second in range(1000, 1016):
-            candidate = frame_of(c, float(second), "corridor", patch=True, layout_patched=patched_layouts["corridor"])
-            if waiting_moving_idle(candidate["state"]):
+            if waiting_moving_idle(frame_of(c, float(second))["state"]):
                 found = float(second)
                 break
         if found is None:
             raise SystemExit("no whole second in 1000..1015 has one vehicle waiting, one moving and one idle")
         print(f"corridor-idle: t = {found}")
-        frames["corridor-idle"] = frame_of(
-            c, found, "corridor", patch=patch, layout_patched=patched_layouts["corridor"]
-        )
+        frames["corridor-idle"] = frame_of(c, found)
 
-        advanced_frame = frame_of(a, 22960.0, "advanced", patch=patch, layout_patched=patched_layouts["advanced"])
+        advanced_frame = frame_of(a, 22960.0)
         check_advanced(advanced_frame)
         frames["advanced-charging"] = advanced_frame
+
+        # the two other examples, at an instant with every vehicle loaded and moving (acceptance 1 of the spec)
+        simple_frame = frame_of(Recording(simple), 12.0)
+        check_moving(simple_frame, {v: ("TRAVELING_LOADED", "N1", "N2") for v in ("vehicle-0", "vehicle-1")})
+        frames["simple-moving"] = simple_frame
+        intermediate_frame = frame_of(Recording(intermediate), 78.0)
+        check_moving(
+            intermediate_frame,
+            {
+                "AGV-1": ("TRAVELING_LOADED", "C3", "FG_IN"),
+                "AGV-2": ("TRAVELING_LOADED", "C1", "C2"),
+                "AGV-3": ("TRAVELING_LOADED", "RM_OUT", "C1"),
+            },
+        )
+        frames["intermediate-moving"] = intermediate_frame
 
         two_fleets = json.loads(json.dumps(corridor_wait))
         two_fleets["state"]["AGV-3"]["fleet"] = "shuttles"
         frames["two-fleets"] = two_fleets
 
-        frames["bare-layout"] = uncounted(
-            unrouted(frame_of(Recording(bare), 128.0, None, patch=False, layout_patched=None))
-        )
+        frames["bare-layout"] = uncounted(unrouted(frame_of(Recording(bare), 128.0)))
         frames["bare-layout"]["layout"] = unsized(frames["bare-layout"]["layout"])
         no_layout = json.loads(json.dumps(corridor_wait))
         no_layout["layout"] = None
         frames["no-layout"] = no_layout
-        frames["production"] = frame_of(p, 60.0, None, patch=False, layout_patched=None)
+        frames["production"] = frame_of(p, 60.0)
         frames["sprites"] = sprites_frame()
 
         for name in ("corridor-wait", "corridor-idle"):

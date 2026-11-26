@@ -34,6 +34,9 @@ const SHOTS = [
   { name: "idle-symbol", frame: "corridor-idle", scale: 8 },
   { name: "advanced-symbol", frame: "advanced-charging" },
   { name: "advanced-true", frame: "advanced-charging", scale: 30, x: 80, y: 15 },
+  // the two other intralogistics examples, recorded with every vehicle moving (acceptance 1 of the spec)
+  { name: "simple-fit", frame: "simple-moving" },
+  { name: "intermediate-fit", frame: "intermediate-moving" },
   { name: "two-fleets", frame: "two-fleets", scale: 8 },
   { name: "bare", frame: "bare-layout" },
   { name: "sprites-symbol", frame: "sprites", scale: 8 },

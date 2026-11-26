@@ -78,3 +78,20 @@ Task 14 adds the capacities (spec §6.4: `parking_area.capacity`, `charging_stat
 | Random world 182 (bare; two fleets, 64 waits, 11 stuck waits, 25 deadlocks counted per fleet) | 70.7, 72.5, 70.6 | 71.1, 71.3, 71.3 | -0.1 % |
 
 The changes are within run-to-run noise and below the 2 % limit. The bench job's intralogistics benchmark (`--shifts 10`, mode `none`, three runs) gave 2.548 s before and 2.542 s after (-0.3 %, reported only), and its gate passed locally (against released 0.12.0: -24.9 % and -23.7 %; against the stripped copy: +8.6 % and +6.7 %, limit +12.5 %).
+
+## Bench (Stage 2, recorded fields)
+
+Task 15 ran both workloads again on traces recorded at commit 487a81d with this branch's Python (`studio/bench/glyphs.py`, default seed and horizon), so the frames carry what Stage 2 records: at the end of `fleet100` 34 vehicles have a `wait` and 69 a `route`, its fleet counted 316 waits, 1 stuck wait and 30 deadlocks, its vehicles carry `size` (1.2 x 0.6 m) and its 12 warehouses `node_ids` and a position at their node; `lanes1000` has 750 routes, no waits (`FreeFlowController`), vehicles of 0.8 x 0.4 m and its 100 warehouses at their nodes. Same method as "On the GPU-backed renderer": headless Chromium 156.0.8078.4 from `studio/bench/run.mjs`, WebGL renderer `ANGLE (Apple, ANGLE Metal Renderer: Apple M4 Pro, Unspecified Version)` in every run (`softwareRendered` false), no browser error, three runs per workload, default page options, each figure the median of the three runs. The machine's load average was 3.3 to 4.0.
+
+| Median of three runs | `fleet100` | `lanes1000` |
+| --- | ---: | ---: |
+| Open | 2,091 ms | 511 ms |
+| Seek p50 / p95 | 17.0 / 32.6 ms | 55.2 / 83.4 ms (p95 81.0 to 97.7) |
+| of which prepare p50 / p95 | 10.3 / 20.8 ms | 32.9 / 59.1 ms |
+| of which render p50 / p95 | 5.7 / 8.4 ms | 22.3 / 29.9 ms |
+| Scene p95 | 4.7 ms | 21.9 ms |
+| of which projection p95 | 2.8 ms | 9.1 ms |
+| of which the rest of the render p95 | 2.0 ms | 14.4 ms |
+| Gate (scene p95 below 16.7 ms) | met | not met (known limit) |
+
+The gate that matters, `fleet100`, is met: its scene p95 went from 4.2 to 4.7 ms with waits, wait lines, routes and the held floor drawn from recorded state. `lanes1000` stays above the budget, as in Stage 1, which the owner accepted as a known limit of the 1,000-vehicle workload; its projection and the rest of its render are unchanged within noise (9.5 and 14.4 ms before). The seeks stay inside the viewer's 200 ms target on both workloads.

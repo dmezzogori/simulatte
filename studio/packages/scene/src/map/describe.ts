@@ -125,7 +125,7 @@ function vehicleLines(model: MapModel, state: Readonly<Record<string, Fields>>, 
   }
 
   if (v.holds.length) lines.push(make(`Holds ${v.holds.join(", ")}`, v.holds));
-  if (v.sized) lines.push(make(`Size ${one(v.length)} × ${one(v.width)} m`));
+  if (v.size) lines.push(make(`Size ${one(v.size.length)} × ${one(v.size.width)} m`));
   return lines;
 }
 

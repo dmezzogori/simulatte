@@ -234,6 +234,28 @@ test("the Overview panel written while it was hidden shows the current frame whe
   await expect(page.locator(".overview")).toContainText("AGV-1");
 });
 
+test("a seek into a recorded wait shows it in the detail and the Overview without playing through its start", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/");
+  await page.locator("input[type=file]").setInputFiles(traffic);
+  await expect(page.locator(".status")).toHaveText("paused");
+  // the corridor example recorded with seed 19: AGV-1 waits for AGV-2 from 121.54 s; the seek lands inside that wait
+  await page.locator("input[type=range]").fill("128");
+  await expect(page.locator("output")).toContainText("t = 128");
+  await page.locator(".entities").getByRole("button", { name: "AGV-1", exact: true }).click();
+  await expect(page.locator(".detail .detail-line").filter({ hasText: /^Blocked by/ })).toHaveText(/^Blocked by AGV-2/);
+  await page.getByRole("tab", { name: "Overview", exact: true }).click();
+  const trafficLine = page
+    .locator(".overview .ov-section")
+    .filter({ has: page.getByRole("heading", { name: "Traffic", exact: true }) })
+    .locator("p");
+  await expect(trafficLine).toHaveText(/^1 waiting/);
+  expect(errors).toEqual([]);
+});
+
 test("a vehicle chosen in the entity list shows its readable detail, and the offline HTML of that trace opens from file", async ({
   page,
   context,

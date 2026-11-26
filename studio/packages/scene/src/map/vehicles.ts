@@ -32,9 +32,11 @@ export interface VehicleInput {
   facilities: readonly FacilityItem[];
 }
 
-/** A target `size` is `[length, width]`, both positive. */
-const hasSize = (v: unknown): boolean =>
-  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0);
+/** A target `size` is `[length, width]`, both positive; anything else is not known. */
+const sizeOf = (v: unknown): { length: number; width: number } | null =>
+  Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n) && n > 0)
+    ? { length: v[0] as number, width: v[1] as number }
+    : null;
 
 const parseWait = (v: unknown): Wait | null => {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
@@ -102,6 +104,7 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
     const fields = input.state[id];
     if (!fields || fields["$kind"] !== "agv") continue;
     const footprint = object(object(placements[id])["footprint"]);
+    const typeSize = sizeOf(object(targets[id])["size"]);
     const size = (v: unknown) => {
       const n = finite(v);
       return n !== null && n > 0 ? n : 1;
@@ -155,10 +158,9 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       heading,
       length: size(footprint["width"]),
       width: size(footprint["depth"]),
-      // the same source as `length` and `width`: the type's size and a placement footprint that carries it
-      sized:
-        hasSize(object(targets[id])["size"]) &&
-        [footprint["width"], footprint["depth"]].every((n) => typeof n === "number" && Number.isFinite(n) && n > 0),
+      // the type's size, from the target: an explicit placement footprint may differ from it
+      size: typeSize,
+      sized: typeSize !== null,
       headingKnown,
       shown,
       state,

@@ -227,15 +227,32 @@ describe("a size and a heading only when known", () => {
     const known = mapOf({ ...bare, state }).vehicles.map((v) => [v.id, v.headingKnown]);
     expect(known).toEqual([["AGV-1", false], ["AGV-2", true], ["AGV-3", true]]);
   });
-  it("takes sized from the target and a placement footprint together", () => {
+  it("prints the type's size from the target, whatever footprint the placement has", () => {
     const frame = loadFrame("corridor-wait");
     expect(mapOf(frame).vehicles.every((v) => v.sized)).toBe(true);
-    const layout = structuredClone(frame.layout) as unknown as { resolved: { placements: Record<string, { footprint: Record<string, unknown> }> } };
-    delete layout.resolved.placements["AGV-1"]!.footprint["depth"];
-    const model = mapOf({ ...frame, layout: layout as never });
-    expect(model.vehicles.find((v) => v.id === "AGV-1")!.sized).toBe(false);
-    expect(texts(describeEntity(model, frame.state, "AGV-1")).some((t) => t.startsWith("Size"))).toBe(false);
-    expect(model.vehicles.find((v) => v.id === "AGV-2")!.sized).toBe(true);
+    type Layout = {
+      targets: Record<string, Record<string, unknown>>;
+      resolved: { placements: Record<string, { footprint: Record<string, unknown> }> };
+    };
+    // an explicit placement footprint wins over the type's: the map draws it, the detail names the type's size
+    const explicit = structuredClone(frame.layout) as unknown as Layout;
+    Object.assign(explicit.resolved.placements["AGV-1"]!.footprint, { width: 2, depth: 1 });
+    delete explicit.resolved.placements["AGV-2"]!.footprint["depth"];
+    let model = mapOf({ ...frame, layout: explicit as never });
+    const agv1 = model.vehicles.find((v) => v.id === "AGV-1")!;
+    expect([agv1.length, agv1.width, agv1.sized, agv1.size]).toEqual([2, 1, true, { length: 1.2, width: 0.6 }]);
+    expect(line(describeEntity(model, frame.state, "AGV-1"), "Size").text).toBe("Size 1.2 × 0.6 m");
+    expect(line(describeEntity(model, frame.state, "AGV-2"), "Size").text).toBe("Size 1.2 × 0.6 m");
+    // without the target's size the type's size is not known, whatever the footprint
+    const unsized = structuredClone(frame.layout) as unknown as Layout;
+    delete unsized.targets["AGV-1"]!["size"];
+    unsized.targets["AGV-2"]!["size"] = [1.2, 0];
+    model = mapOf({ ...frame, layout: unsized as never });
+    for (const id of ["AGV-1", "AGV-2"]) {
+      expect(model.vehicles.find((v) => v.id === id)!.size).toBeNull();
+      expect(texts(describeEntity(model, frame.state, id)).some((t) => t.startsWith("Size"))).toBe(false);
+    }
+    expect(model.vehicles.find((v) => v.id === "AGV-3")!.sized).toBe(true);
   });
 });
 
