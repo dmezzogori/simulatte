@@ -1062,10 +1062,17 @@ class _Trip:
     def _stall(self, current: Node) -> ProcessGenerator:
         """A segment with an infinite travel time is never left (spec §8.3): nothing is released and no timer runs.
 
-        An interrupt takes effect at once at the departure node: ``agv.move_ended`` there clears the motion, the
-        claim ahead goes with ``retain``, then ``agv.move_interrupted`` and the interrupt is raised again.
+        A request still pending (a look-ahead claim asked for before the run stalled) is withdrawn, since it can never
+        be used, and the controller is told that the AGV cannot move (``idle``, spec §7.1): the waits it blocks are
+        checked for the stuck condition. An interrupt takes effect at once at the departure node: ``agv.move_ended``
+        there clears the motion, the claim ahead goes with ``retain``, then ``agv.move_interrupted`` and the interrupt
+        is raised again.
         """
         executor, agv = self.executor, self.agv
+        request, self.request = self.request, None
+        if request is not None:
+            self.controller.withdraw(request)
+        self.controller.idle(agv)
         try:
             yield self.env.event()  # never triggered
         except simpy.Interrupt as interrupt:

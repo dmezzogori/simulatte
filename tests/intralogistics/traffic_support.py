@@ -1,5 +1,5 @@
 """Support shared by the traffic tests: worlds declared on the layout, a full replay checker, the traffic invariants,
-fake hooks.
+fake hooks, worlds of travels and the scenario of a segment claimed again twice.
 
 Each builder declares its graph on the environment's layout with ``Explicit`` and returns a `World`; the keyword
 arguments of a builder (``capacities``, ``zones``, ``block_length``, ...) go to ``Explicit``. All arcs are two-way and
@@ -8,17 +8,22 @@ keep the default chord length.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import simpy
+
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent, apply_deltas
-from simulatte.intralogistics.agv import AGV
+from simulatte.intralogistics.agv import AGV, AGVState, AGVType
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node, NodeBinding
 from simulatte.intralogistics.reservation import ReservationController, SegmentBinding, ZoneBinding
-from simulatte.intralogistics.traffic import WaitHooks
+from simulatte.intralogistics.routing import Route, RouteRequest, ShortestDistanceRouter
+from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.traffic import FreeFlowController, Reaction, StepAside, TrafficView, Wait, WaitHooks
+from simulatte.intralogistics.travel import TravelOutcome
 from simulatte.layout import Explicit, GraphRef, NodeRef
 
 
@@ -221,3 +226,203 @@ def fake_hooks(route: Sequence[Node] = (), loaded: bool = False, resolutions: in
         give_up=recording("give_up", False),
         calls=calls,
     )
+
+
+def steady() -> TrapezoidalProfile:
+    """``v_max=1.5``, ``accel=decel=0.8``, not slowed by a draining battery."""
+    return TrapezoidalProfile(1.5, 0.8, 0.8, battery_degradation_fn=lambda level: 1.0)
+
+
+def vehicle(length: float | None = 0.0, profile: Any = None, battery: float = 1000.0) -> AGVType:
+    return AGVType(
+        name="cart",
+        speed_profile=profile if profile is not None else steady(),
+        battery_capacity=battery,
+        weight_capacity=100.0,
+        volume_capacity=10.0,
+        length=length,
+    )
+
+
+@dataclass
+class TravelWorld:
+    """A world of travels: one fleet on a declared graph, with a full replay of its events; see :func:`world`."""
+
+    env: Environment
+    fleet: FleetCoordinator
+    nodes: dict[str, Node]
+    agvs: dict[str, AGV]
+    replay: FullReplay
+    start: int
+    outcomes: dict[str, TravelOutcome] = field(default_factory=dict)
+    caught: dict[str, object] = field(default_factory=dict)
+
+    @property
+    def controller(self) -> Any:
+        return self.fleet.traffic_controller
+
+    def go(self, agv: str, goal: str, *, at: float = 0.0, purpose: str = "travel") -> simpy.Process:
+        """Travel `agv` to `goal` from the absolute time `at`, as a mission does: moving, then idle."""
+        env, vehicle = self.env, self.agvs[agv]
+
+        def mission() -> Any:
+            if at:
+                yield env.timeout(at - env.now)
+            vehicle.transition_to(AGVState.TRAVELING_EMPTY)
+            try:
+                self.outcomes[agv] = yield from self.fleet._executor.travel(
+                    vehicle, self.nodes[goal], loaded=False, purpose=purpose
+                )
+            except simpy.Interrupt as interrupt:
+                self.caught[agv] = interrupt.cause
+            vehicle.transition_to(AGVState.IDLE)
+
+        return env.process(mission())
+
+    def interrupt(self, process: simpy.Process, at: float, cause: object = "cancelled") -> None:
+        def later() -> Any:
+            yield self.env.timeout(at)
+            process.interrupt(cause)
+
+        self.env.process(later())
+
+    @property
+    def events(self) -> list[DomainEvent]:
+        """The events since activation."""
+        return self.replay.events[self.start :]
+
+    def of(self, *types: type[DomainEvent], agv: str | None = None) -> list[Any]:
+        return [e for e in self.events if isinstance(e, types) and (agv is None or getattr(e, "agv", None) == agv)]
+
+    def held(self, agv: str) -> list[str]:
+        return [resource.id for resource in self.controller.ledger.held(self.agvs[agv])]
+
+    def hooks(self, agv: str) -> WaitHooks:
+        return self.controller._pending[self.agvs[agv]].request.hooks
+
+
+def world(
+    shape: Callable[[Environment], World],
+    agvs: dict[str, str],
+    *,
+    reserve: bool = True,
+    agv_type: AGVType | None = None,
+    router: Any = None,
+    make_way: bool = False,
+    lookahead_margin: float = 0.0,
+    **options: Any,
+) -> TravelWorld:
+    """An activated world: `agvs` maps each AGV id to its start node id; one fleet with all the AGVs. Idle AGVs make
+    way only with `make_way` (spec §7.10; tests of idle traffic have their own file). `shape` declares the graph on the
+    environment's layout (a builder of this module or of a test file, its other arguments bound); `options` go to
+    the ``ReservationController``. ``World.nodes`` holds the canonical nodes of the resolved network."""
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    declared = shape(env)
+    controller: Any = (
+        ReservationController(env=env, graph=declared.graph, **options) if reserve else FreeFlowController()
+    )
+    kind = agv_type or vehicle()
+    vehicles = {
+        name: AGV(env=env, agv_type=kind, agv_id=name, initial_node=declared.ref(start)) for name, start in agvs.items()
+    }
+    fleet = (FleetCoordinator if make_way else StillFleet)(
+        env=env,
+        graph=declared.graph,
+        fleet=list(vehicles.values()),
+        warehouses=[],
+        charging_stations=[],
+        traffic_controller=controller,
+        router=router,
+        default_metrics=False,
+        lookahead_margin=lookahead_margin,
+    )
+    if reserve:
+        TrafficInvariants(env, controller)
+    env.activate()
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
+    return TravelWorld(env, fleet, nodes, vehicles, replay, len(replay.events))
+
+
+def reverser(turn: Callable[[float], float] | None = None) -> AGVType:
+    """3 m long, ``v_max=2.0``, ``accel=0.8``, ``decel=0.4``, not slowed by its battery; `turn` is its ``turn_time``."""
+    profile = TrapezoidalProfile(2.0, 0.8, 0.4, battery_degradation_fn=lambda level: 1.0)
+    return AGVType(
+        name="cart",
+        speed_profile=profile,
+        battery_capacity=1e9,
+        weight_capacity=100.0,
+        volume_capacity=10.0,
+        length=3.0,
+        turn_time=turn,
+    )
+
+
+def turn_back(angle: float) -> float:
+    """4 s to turn back; nothing otherwise."""
+    return 4.0 if angle > 2.5 else 0.0
+
+
+class AsideOnce:
+    """Sends A aside to U the first time it is blocked; every wait keeps waiting, without a review."""
+
+    def __init__(self) -> None:
+        self.done = False
+
+    def on_blocked(self, wait: Wait, view: TrafficView) -> tuple[Reaction, ...]:
+        if wait.agv.id == "A" and not self.done:
+            self.done = True
+            return (StepAside(next(n for n in view.graph.nodes if n.id == "U")),)
+        return ()
+
+    def on_deadlock(self, waits: Any, view: TrafficView) -> list[tuple[AGV, Reaction]]:
+        return []
+
+    def make_way_target(self, blocker: AGV, wait: Wait, view: TrafficView) -> Node | None:
+        return None
+
+
+class AroundOnRequest(ShortestDistanceRouter):
+    """Routes from W to V round the cycle ``W, K, U, V`` once `around` is set, otherwise by shortest distance."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.nodes: dict[str, Node] = {}
+        self.around = False
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        n = self.nodes
+        if self.around and request.origin == n["W"] and request.destination == n["V"]:
+            return Route((n["W"], n["K"], n["U"], n["V"]), 30.0)
+        return super().route(request, view)
+
+
+def claimed_again_twice() -> tuple[TravelWorld, AroundOnRequest]:
+    """The world of the test of a segment claimed again twice (``test_travel``, spec §7.2, Ruling A3-n), activated,
+    with its travels scheduled; the router is told to go round at 19.9."""
+    router = AroundOnRequest()
+    w = world(
+        lambda env: build(
+            env,
+            [("U", 0, 0), ("V", 10, 0), ("W", 12.5, 0), ("Q", 22.5, 0), ("K", 6, -8)],
+            [("U", "V"), ("V", "W"), ("W", "Q"), ("W", "K"), ("K", "U")],
+            capacities={"U": 2, "V": 2},
+        ),
+        {"A": "U", "B": "U", "C": "Q"},
+        agv_type=reverser(turn=turn_back),
+        hold_back_dead_ends=False,
+        policy=AsideOnce(),
+        router=router,
+        lookahead_margin=100.0,
+    )
+    router.nodes = w.nodes
+
+    def around() -> Any:
+        yield w.env.timeout(19.9)
+        router.around = True
+
+    w.interrupt(w.go("A", "Q"), 12.0)
+    w.env.process(around())
+    w.go("A", "V", at=20.0)
+    w.go("B", "V", at=20.5)
+    return w, router

@@ -233,11 +233,13 @@ class TrafficController(Protocol):
     def request(self, agv: AGV, claim: Claim, hooks: WaitHooks) -> ClaimRequest: ...
     def stopped(self, request: ClaimRequest) -> None: ...
     def idle(self, agv: AGV) -> None:
-        """`agv` has just come to rest without a travel where it stands: idle or stranded. The coordinator calls it on
-        every transition to ``IDLE`` and to ``STRANDED``.
+        """`agv` has just come to rest without a travel where it stands, idle or stranded, or it cannot move: its run
+        stalled (spec §7.1). The coordinator calls it on every transition to ``IDLE`` and to ``STRANDED``, and the
+        travel executor when a run stalls.
 
-        ``ReservationController`` asks an idle AGV to make way for the waits it blocks, and reviews at once the waits a
-        stranded AGV blocks (spec §7.10); ``FreeFlowController`` does nothing.
+        ``ReservationController`` asks an idle AGV to make way for the waits it blocks, reviews at once the waits a
+        stranded AGV blocks, and checks the waits a stalled AGV blocks for the stuck condition (spec §7.9, §7.10);
+        ``FreeFlowController`` does nothing.
         """
         ...
 
@@ -252,8 +254,9 @@ class TrafficController(Protocol):
         over it, or when the AGV comes to rest on a node of capacity above 1.
 
         The executor cannot tell which of them have the both-directions state (spec §7.2), so the call may name
-        segments without it, one with ``passing`` or one whose state has ended. ``ReservationController`` ends the state
-        of those that have it; ``FreeFlowController`` does nothing. A controller that controls occupancy must have it:
+        segments without it: one with ``passing``, or a single-lane segment that the claim names in the direction in
+        which it is already held, which begins no state. ``ReservationController`` ends the state of those that have it;
+        ``FreeFlowController`` does nothing. A controller that controls occupancy must have it:
         without it the travel raises `AttributeError` at the first such report.
         """
         ...
