@@ -14,6 +14,7 @@ import pytest
 from simulatte.environment import Environment
 from simulatte.events import Deltas
 from simulatte.intralogistics import events as logistics_events
+from simulatte.intralogistics import travel
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.network import Segment
@@ -717,19 +718,91 @@ def _undone(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_with_the_rule_undone_the_monitor_reports_the_admission_before_the_physical_conflict(monkeypatch):
     """The admission is reported at agv-g's grant (its `traffic.reserved`), three events before agv-g's move starts and
-    the bodies meet."""
+    the bodies meet; no older kind comes before it. The check of recorded directions against bodies fires earlier, at
+    every re-claim of the run (the first at 30.6)."""
     _undone(monkeypatch)
     record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
     kinds = [violation[1] for violation in record.violations]
-    assert kinds == ["ADMITTED against a body on a segment", "PHYSICAL opposite directions on a segment"]
-    admitted = record.violations[0]
+    older = [kind for kind in kinds if kind != "LEDGER recorded direction against the body"]
+    assert older == ["ADMITTED against a body on a segment", "PHYSICAL opposite directions on a segment"]
+    admitted = next(v for v in record.violations if v[1] == "ADMITTED against a body on a segment")
     assert admitted[2:] == ("g0_2~g1_0", "agv-c", "forward", "agv-g", "backward")
-    assert admitted[0] == record.violations[1][0] == pytest.approx(471.171, abs=1e-3)
+    physical = next(v for v in record.violations if v[1] == "PHYSICAL opposite directions on a segment")
+    assert admitted[0] == physical[0] == pytest.approx(471.171, abs=1e-3)
+    assert record.violations[0][1] == "LEDGER recorded direction against the body"
+    assert record.violations[0][0] == pytest.approx(30.619, abs=1e-3)
 
 
 def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body():
     record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
     assert record.quiescent and not record.violations
+
+
+def _state_ends_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The executor reports every segment a grant lifts out of the trail as cleared at the grant."""
+    granted = travel._Trip._granted
+
+    def at_once(self, request):
+        granted(self, request)
+        segments = [resource for resource in self.lifted if isinstance(resource, Segment)]
+        if segments:
+            self.controller.cleared(self.agv, segments)
+
+    monkeypatch.setattr(travel._Trip, "_granted", at_once)
+
+
+def _no_end_at_the_old_clear_point(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The executor releases at clear points as before the rule and never reports the old clear point of a segment
+    claimed again: the state lasts until the holder's own leg, a rest with room, or a release."""
+
+    def release(self, trail, resources):
+        resources = [resource for resource in resources if resource in trail.entries]
+        if resources:
+            for resource in resources:
+                del trail.entries[resource]
+            self.controller.release(self.agv, resources)
+
+    monkeypatch.setattr(travel._Trip, "_release", release)
+
+
+def _cleared_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The controller ignores ``cleared``: the state lasts until a release."""
+    monkeypatch.setattr(ReservationController, "cleared", lambda self, agv, resources: None)
+
+
+def _state_unread(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The state is recorded, but admission does not read it."""
+    blockers = HoldingsLedger.blockers
+
+    def unread(self, agv, item, among=None):
+        both, self._both = self._both, {}
+        try:
+            return blockers(self, agv, item, among)
+        finally:
+            self._both = both
+
+    monkeypatch.setattr(HoldingsLedger, "blockers", unread)
+
+
+@pytest.mark.parametrize(
+    ("mutant", "first"),
+    [
+        (_state_ends_at_once, "LEDGER recorded direction against the body"),
+        (_no_end_at_the_old_clear_point, "LEDGER both directions outlived the body"),
+        (_cleared_ignored, "LEDGER both directions outlived the body"),
+        (_state_unread, "ADMITTED against a body on a segment"),
+    ],
+)
+def test_a_both_directions_state_that_is_wrong_is_a_violation(monkeypatch, mutant, first):
+    """A state that ends at once fails the check of recorded directions against bodies; one that never ends at the old
+    clear point, or that the controller never ends, outlives the body; one that admission does not read lets agv-g in
+    against agv-c's body, a second holder of a segment in the state."""
+    mutant(monkeypatch)
+    record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
+    kinds = [violation[1] for violation in record.violations]
+    assert kinds and kinds[0] == first
+    if mutant is _state_unread:
+        assert "LEDGER both directions with another holder" in kinds
 
 
 GATE_WAIVER = [(7702388, "shortest")]

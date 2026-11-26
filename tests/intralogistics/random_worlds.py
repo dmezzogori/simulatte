@@ -14,11 +14,13 @@ built graph that differs from it. It keeps its own body model of every vehicle, 
 checks after every domain event that the replayed deltas equal the live entities (from the first event and from the
 initial state), and, under a `ReservationController`, that the bodies respect node, segment, zone and corridor
 admission, that no other holder of a single-lane segment holds it against a body that lies on it, that the holdings
-cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), and that the entities agree with the
-holdings ledger. It follows the waits and their reports from the traffic events alone: what a stuck report says of the
-wait and its blockers (the rule of the stuck report, as far as the holdings decide it), that a reported deadlock is the
-deadlocked set by its own admission test over the replayed holdings and that every deadlock is reported, and, at the
-end, that every open wait carries a report. It follows the parking slots from the parking events: a slot is held by an
+cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), that the entities agree with the
+holdings ledger, and that the ledger's both-directions state (traffic spec §7.2) covers every body that lies on a
+segment against its holder's recorded direction, no longer than the body does, with no other holder. It follows the
+waits and their reports from the traffic events alone: what a stuck report says of the wait and its blockers (the rule
+of the stuck report, as far as the holdings decide it), that a reported deadlock is the deadlocked set by its own
+admission test over the replayed holdings and that every deadlock is reported, and, at the end, that every open wait
+carries a report. It follows the parking slots from the parking events: a slot is held by an
 AGV at rest on the area's node or travelling there, and given back as the AGV departs from the node or when its travel
 there does not arrive. It records violations instead of raising, so a run always ends.
 """
@@ -1093,6 +1095,16 @@ class Monitor:
         self._departed: set[tuple[str, str]] = set()  # (agv, node) of the moves started in this instant
         fleet_of = {agv_id: fleet.vehicle for fleet in world.spec.fleets for agv_id, _ in fleet.agvs}
         self.extents = {agv_id: vehicle.length + vehicle.min_gap for agv_id, vehicle in fleet_of.items()}
+        # Vehicles without kinematic limits: their clear points inside an arc are released at the arrival (spec §6.6).
+        self.plain = {agv_id for agv_id, vehicle in fleet_of.items() if vehicle.profile[0] != "trapezoidal"}
+        self._sure: tuple[tuple[int, float], dict[str, dict[str, Any]]] = (
+            (-1, 0.0),
+            {},
+        )  # bodies on segments, by event
+        self._reversing: set[str] = set()  # segments a grant may have put in the both-directions state
+        self._against_record: set[tuple[str, str]] = set()  # (agv, segment) of the stretch of check M1'
+        self._sole: set[tuple[str, str]] = set()  # (agv, segment) of the stretch of check M2'
+        self._outlived: dict[tuple[str, str], list[Any]] = {}  # (agv, segment): [deadline, reported] of the stretch
         self.env.bus.subscribe(self.on, "*")
         if self.reservation:
             self._patch_exits()
@@ -1136,6 +1148,7 @@ class Monitor:
                 steps[u, v], steps[v, u] = "forward", "backward"
         self.areas = {name: (node, capacity) for name, node, capacity in world.spec.parking}
         if self.reservation:
+            self.segments = {segment.id: segment for segment in self.controller.network.segments}
             self._compare_traffic()
         self._ready = True
 
@@ -1492,7 +1505,11 @@ class Monitor:
 
     def _blockers(self, agv: str, item: Item, among: Collection[str] | None = None) -> list[str]:
         """The holders that make `item` inadmissible for `agv` (spec §7.3), by the monitor's own test over the replayed
-        entity state; with `among`, only the holdings of those AGVs exist. The claimant's holdings never block it."""
+        entity state; with `among`, only the holdings of those AGVs exist. The claimant's holdings never block it.
+
+        The rule of a segment claimed again in a new direction (§7.2) is taken in the monitor's own terms, from its body
+        model and not from the ledger's state: on a single-lane segment a holder whose body surely lies on the segment
+        against its recorded direction blocks every other claimant."""
         kind, resource, direction = item
         state = self.state.get(resource, {})
         if kind == "segment":
@@ -1502,12 +1519,15 @@ class Monitor:
                 for holder in state.get(way, ())
                 if holder != agv and (among is None or holder in among)
             ]
+            against: set[str] = set()
             if self.passing[resource]:  # opposite traffic passes: only the holders in the same direction count
                 others = [(holder, way) for holder, way in others if way == direction]
+            else:
+                against = {holder for holder, way in others if self._lies_against(holder, resource, way)}
             extents = math.fsum([*(self.extents[holder] for holder, _ in others), self.extents[agv]])
             if others and extents > self.lengths[resource]:
                 return [holder for holder, _ in others]
-            return [holder for holder, way in others if way != direction]
+            return [holder for holder, way in others if way != direction or holder in against]
         holders = [h for h in state.get("reserved_by", ()) if h != agv and (among is None or h in among)]
         if kind == "corridor":  # holders placed inside hold it without orientation and do not count
             if state["orientation"] in (None, direction):
@@ -1515,6 +1535,20 @@ class Monitor:
             return [holder for holder in holders if (resource, holder) not in self._placed]
         capacity = self.cap[resource] if kind == "node" else self.zone_members[resource][1]
         return holders if len(holders) >= capacity else []
+
+    def _lies_against(self, holder: str, segment: str, way: str) -> bool:
+        """Whether the body of `holder` surely lies on `segment`, at the instant looked at, against the direction `way`
+        recorded for it."""
+        assert self.bodies is not None
+        key = (self.events, self._instant)
+        if self._sure[0] != key:
+            self._sure = (key, {})
+        found = self._sure[1]
+        lying = found.get(holder)
+        if lying is None:
+            lying = found[holder] = self.bodies[holder].occupancy(self._instant)[2]
+        ends = lying.get(segment)
+        return ends is not None and ("forward" if ends[0] < ends[1] else "backward") != way
 
     def _admissible(self, agv: str, items: Sequence[Item], among: Collection[str]) -> bool:
         return not any(self._blockers(agv, item, among) for item in items)
@@ -1734,17 +1768,70 @@ class Monitor:
             if len(set(directions.values())) > 1:
                 self.violation("PHYSICAL opposite directions in a corridor", chain, directions)
         agvs = self.world.agvs
+        ledger = self.controller.ledger
+        against_record: set[tuple[str, str]] = set()
         for agv_id, (sure_n, _, sure_s, _) in occupancy.items():
             agv = agvs[agv_id]
             nodes, segs, _ = self.held_ids(agv)
             if not sure_n <= nodes:
                 self.violation("body not covered (nodes)", agv_id, sorted(sure_n - nodes), event.type_name)
-            for s in sure_s:
+            for s, (a, b) in sure_s.items():
                 if s not in segs:
                     self.violation("body not covered (segment)", agv_id, s, event.type_name)
+                elif not self.passing[s] and segs[s] != ("forward" if a < b else "backward"):
+                    if agv not in ledger.both_directions(self.segments[s]):  # check M1'
+                        against_record.add((agv_id, s))
             if agv.state.name not in TRAVELING:
                 self._exact(agv, "state:" + agv.state.name)
+        for agv_id, s in sorted(against_record - self._against_record):
+            self.violation("LEDGER recorded direction against the body", s, agv_id, event.type_name)
+        self._against_record = against_record
+        if isinstance(event, TrafficReserved):
+            self._reversing.update(resource for resource in event.resources if resource in self.segments)
+        self._check_both_directions(occupancy, t)
         self._check_ledger()
+
+    def _check_both_directions(self, occupancy: Mapping[str, Any], t: float) -> None:
+        """The both-directions state of spec §7.2, read through ``HoldingsLedger.both_directions``, against the bodies:
+        a holder in the state is the only holder of its segment (check M2'), and the state does not outlive the body as
+        it arrived. A state seen with its holder's body off the segment, or lying in the recorded direction, is a
+        violation from the next instant on (the body leaves at ``agv.move_started`` and the state ends just after it,
+        in the same instant), and for a vehicle without kinematic limits seen so during an arc, from the instant after
+        that arc's arrival (its clear points inside an arc are released at the arrival, spec §6.6). Each is reported
+        once per stretch. A state can begin only at a grant, so only the segments of the ``traffic.reserved`` seen are
+        looked at, until their state ends."""
+        assert self.bodies is not None
+        ledger = self.controller.ledger
+        sole: set[tuple[str, str]] = set()
+        outlived: dict[tuple[str, str], list[Any]] = {}
+        for s in sorted(self._reversing):
+            segment = self.segments[s]
+            holders = ledger.both_directions(segment)
+            if not holders:
+                self._reversing.discard(s)
+                continue
+            held = ledger.holders(segment)
+            for agv in holders:
+                key = (agv.id, s)
+                if held != (agv,):
+                    sole.add(key)
+                    if key not in self._sole:
+                        self.violation("LEDGER both directions with another holder", s, agv.id, [h.id for h in held])
+                _, _, sure_s, maybe_s = occupancy[agv.id]
+                ends = sure_s.get(s) or maybe_s.get(s)
+                if ends is not None and ("forward" if ends[0] < ends[1] else "backward") != ledger.direction(
+                    segment, agv
+                ):
+                    continue
+                seen = outlived[key] = self._outlived.get(key) or [t, False]
+                arc = self.bodies[agv.id].arc
+                if key not in self._outlived and agv.id in self.plain and arc is not None:
+                    seen[0] = arc[3]  # released at the arrival that ends the arc
+                if t > seen[0] and not seen[1]:
+                    seen[1] = True
+                    self.violation("LEDGER both directions outlived the body", s, agv.id, seen[0])
+        self._sole = sole
+        self._outlived = outlived
 
     def _check_ledger(self) -> None:
         """The ledger against the admission rules, and the entities against the ledger."""
