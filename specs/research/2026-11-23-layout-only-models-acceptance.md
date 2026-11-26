@@ -1970,14 +1970,16 @@ of seeds 7700000..7702999 and 1 in the 33,000 reservation runs of that review in
 the same basis as item (b). It is residual item 9. Fixing it changes when sleeping reviews wake, a rule of the
 wait-review code that Assignment 2 left alone.
 
-**(b) A physical conflict from a direction re-claim through look-ahead (seed 8101904).** `ReservationController`,
-`FastestRouter`. Reproduction, run for this list at `229ea61`: `uv run --all-extras python benchmarks/layout_safety.py
---worlds 1 --first 8101904` gives 6 runs, 7,018 events, one violation, `seed 8101904 reservation fastest: (471.171,
-'PHYSICAL opposite directions on a segment', 'g0_2~g1_0', [('agv-c', ('g0_2', 'g1_0')), ('agv-g', ('g1_0', 'g0_2'))])`,
-exit status 1. It is the violation that B1 and B2 name as "not this task's". The facts below are from the read-only
-investigation made at `687ad66` (Ruling A2-g; its scripts and outputs are in
-`.superpowers/sdd/2026-11-23-layout-only-models/reviewer-scratch-a2-8101904/`); what I confirmed again for this list is
-said as such.
+**(b) A physical conflict from a direction re-claim through look-ahead (seed 8101904).** **Fixed** (Assignment 3,
+T3, `adfdd30`): a segment claimed again in a new direction is held in both directions until the body has left it; see
+"T3. No admission against a body after a direction re-claim". The run now ends without a violation.
+`ReservationController`, `FastestRouter`. Reproduction, run for this list at `229ea61`: `uv run --all-extras python
+benchmarks/layout_safety.py --worlds 1 --first 8101904` gives 6 runs, 7,018 events, one violation, `seed 8101904
+reservation fastest: (471.171, 'PHYSICAL opposite directions on a segment', 'g0_2~g1_0', [('agv-c', ('g0_2',
+'g1_0')), ('agv-g', ('g1_0', 'g0_2'))])`, exit status 1. It is the violation that B1 and B2 name as "not this
+task's". The facts below are from the read-only investigation made at `687ad66` (Ruling A2-g; its scripts and outputs
+are in `.superpowers/sdd/2026-11-23-layout-only-models/reviewer-scratch-a2-8101904/`); what I confirmed again for this
+list is said as such.
 
 - Mechanism. A vehicle at rest whose tail still lies on a single-lane segment claims that segment again in the new
   direction through look-ahead (traffic spec §7.2: the grant changes the recorded direction; §7.3: a vehicle's own
@@ -2537,3 +2539,192 @@ have`). No mutant: 1 run of 1,800 with a violation, 4316274 `shortest`, `open wa
 its stranding form by the episode detector of audit (i) (one episode, to the end of the run), closed by `p_min` and
 `p_sweep2` and not by `base` (`r2/classify-4316274.out`).
 
+### T3. No admission against a body after a direction re-claim
+
+Decided by the maintainer on 2026-11-25: the physical conflict of seed 8101904 (item (b) of "Open after Assignment 2")
+is fixed before 0.18.0 is tagged, by the exact rule. Base `fcecc40` (the traffic spec amended for this task: §6.6, §7.1
+`cleared`, §7.2 "Both directions", §7.3, §7.4, §7.9). Fix in `adfdd30`, the monitor's checks in `3e7e781`.
+
+**The cause.** A vehicle whose body still lies on a single-lane segment claims that segment again in the new direction
+(it reverses; the claim comes through look-ahead or a claim of several legs, at rest or moving). The grant overwrote the
+recorded direction (`HoldingsLedger.take`), a holder's own holdings never block it, and the controller then admitted a
+second vehicle head-on into the lane that the first one's body still occupied. Seed 8101904, `FastestRouter`: agv-c
+claims `g0_2~g1_0` again at 471.171 and agv-g is granted it the other way at the same instant. It was a gap of the
+design (the code did what the spec said), present since the traffic work.
+
+**Where the exposure is** (audit (ii), `a3-T1-ii-audit.md`, sections 1 to 3, with its hand-built scenarios). Every case
+passes over a single-lane segment: the segment next to a node of capacity above 1 on which the holder did not come to
+rest (`base`, seed 8101904); the last segment of a corridor or of a dead-end branch next to a port or root of capacity
+above 1, when the re-claim outlives a stop of the holder before the segment (`corr_stop`, `branch_stop`: the far node is
+given back and the segment kept, so the exposure reaches inside corridors and branches); a zone of capacity 2 over the
+segment hides nothing (`zone2`); a route staged inside a travel that starts with a turn re-claims the segment before the
+turn and holds the record through the whole turn wait (`turn_staged`). A corridor's orientation alone admits nobody
+against a body, and zones and branches record no direction.
+
+**The rule** (traffic spec §7.2, "Both directions"). A single-lane segment claimed again in a new direction is, from
+that grant, held in both directions by its holder: no other claimant is admissible on it, in either direction, until the
+first of (a) the holder starts its own leg over the segment, (b) its odometer reaches the clear point the segment had in
+the trail when it was claimed again, on whichever arc that happens (for a profile without kinematic limits, at the
+arrival that ends that arc), (c) the holder comes to rest on a node of capacity above 1, (d) the holder releases the
+segment. A `retain` that keeps the segment keeps the state. `passing` segments and corridor orientations have no state
+(Ruling A3-f). Two rulings shaped it: the state lives in the ledger only, with no entity field, event or schema change
+(Ruling A3-c: the trace cannot explain an admission on a segment today either, and a field or an event would have moved
+about 78 % of the reservation digests for a rule that changes very few runs); and end (a) holds, so that the rule, the
+executor's trail and the monitor's body mean the same by "the body as it arrived" (Ruling A3-d). An end that releases
+nothing makes the controller scan, and counts as a change for the reviews, only when a pending claim was blocked by the
+state at that instant (Ruling A3-e).
+
+**What changed in the code.**
+
+- `HoldingsLedger` (`traffic_holdings.py`) keeps the holders in the state per segment; `take` begins it for a
+  single-lane segment that the holder already held with the other direction, `drop` ends it (d), `end_both_directions`
+  ends it without a release. `blockers` reads it: on a single-lane segment a holder in the state blocks every other
+  claimant, in grant order, restricted to `among` when the reduction asks. Every admission test goes through `blockers`
+  (the scan, `view.admissible`, the gate, the blockers of a wait, the waits an AGV blocks, the reduction, `place`,
+  `TrafficView.blockers`, hence the standard search and `CongestionAwareRouter`). The public read method is
+  `HoldingsLedger.both_directions(resource)`: the holders in the state, empty for any other resource.
+- The protocol has a new method, `TrafficController.cleared(agv, resources)`: the body of the AGV, as it arrived, no
+  longer lies on those segments, which it still holds; nothing is released. `FreeFlowController.cleared` does nothing.
+  `ReservationController.cleared` ends the state of those that have it and, when the state made a pending claim
+  inadmissible at that instant, adds one to the change count of the reviews and scans the queue.
+- The travel executor (`travel.py`) keeps the old clear point of a segment claimed again (as it did, in `_Trip.lifted`)
+  and reports with `cleared`: (a) at the departure onto the segment; (b) at the old clear point, timed with the releases
+  of the arc on which it lies (a re-claim taken at rest has its clear point classified with the trail's at each
+  departure; one granted while moving reuses the release that the departure scheduled for the same clear point, which
+  then finds the segment lifted); (c) at a rest on a node of capacity above 1, after the trail's releases.
+- No event, entity field, schema, trace fixture, digest pin or layout hash changes.
+
+**Timers.** End (b) inside an arc is timed by the arc's own release sleep, which the travel process waits for inside
+`_move`: an interrupt or a stop request received during the arc is remembered and takes effect where the vehicle comes
+to rest after it, a stalled arc schedules no timer, a travel that ends or stops before the old clear point schedules
+nothing for it (the segment goes back into the trail with the state, and a later travel releases it at that point), and
+a release of the segment before the instant leaves a `cleared` that the controller ignores. Every such timer lies before
+the arrival of its arc, so it never advances the clock of a network in which nothing else happens, and `env.run()`
+without `until` returns as before (`test_no_timer_of_the_state_outlives_the_arc_or_the_travel`). No timer is cut, since
+none can outlive its arc.
+
+**Before and after.** Base `fcecc40` against the fix, paired by run, reservation runs under the three routers, monitor
+of the tree (T2's strict monitor at the base, this task's at the head); 95 % intervals are 1.96 standard errors of the
+paired difference. Scratch: `.superpowers/sdd/2026-11-23-layout-only-models/scratch-a3-T3/` (`scripts/measure.py`,
+`scripts/cmp.py`, `out/cmp-4200000.txt`, `out/cmp-4400000.txt`).
+
+| | Seeds 4200000..4202999 (the audit's) | Seeds 4400000..4402999 (fresh) |
+|---|---|---|
+| Reservation runs, returned (base / head) | 9,000 / 9,000 of 9,000 | 9,000 / 9,000 of 9,000 |
+| Events (base / head) | 12,471,644 / 12,471,671 | 12,008,590 / 12,008,590 |
+| Runs with a violation (base / head) | 3 / 3, the same runs, `open wait with no report` (T4) | 7 / 7, the same runs, `open wait with no report` (T4) |
+| Fingerprints changed | 12, all `congestion` | 14, all `congestion` |
+| Orders completed, mean difference per run | +0 (+0 .. +0); 115,254 both | +0 (+0 .. +0); 111,126 both |
+| Waits opened | +0.00067 (-0.00031 .. +0.00164); 323,631 and 323,637 | +0 (+0 .. +0); 306,592 both |
+| `traffic.wait_stuck` | +0 (+0 .. +0); 19,527 both | +0 (+0 .. +0); 19,265 both |
+| Deadlock reports: give up, reroute, step aside, unresolved | 12,351 / 26,075 / 70,983 / 7,940 at base; +0, +1, +2, +0 at head (every interval contains 0) | 12,843 / 25,289 / 70,043 / 7,747, the same at head |
+| End time, runs that differ | 2 (mean +0.0031, interval -0.0015 .. +0.0077) | 0 |
+
+The violating runs: 4200171 `fastest` and `shortest`, 4201442 `shortest`; 4400263 `congestion`, 4401673 `congestion`,
+4402051 `fastest` and `shortest`, 4402618 `fastest`, 4402902 `fastest` and `shortest`; none of them has a changed
+fingerprint. On 4200000..4202999 the 12 changed runs are exactly those the audit's prototype `exact3` changed, and each
+has the prototype's fingerprint (4200169, 4200377, 4200385, 4200455, 4200509, 4200862, 4200980, 4201507, 4201841,
+4202075, 4202601, 4202667, all `congestion`); in the other 8,988 runs head, base and prototype agree.
+
+**Every changed fingerprint has one cause, the congestion router reading the state.** `CongestionAwareRouter` reads
+`TrafficView.blockers` for its costs, and a holder in the state now counts there. With the state hidden from what that
+router reads while it computes a route, and kept everywhere else (`scripts/routerblind.py`), each of the 26 changed runs
+gives the base's fingerprint again; so no admission that the state refused changed the outcome of a run in these 18,000.
+Seed 8101904: `fastest` now ends without a violation (28 orders before and after; the base had `ADMITTED against a body
+on a segment` and `PHYSICAL opposite directions on a segment` at 471.171); `shortest` and `congestion` keep the base's
+fingerprint. `benchmarks/layout_safety.py --first 8101904 --worlds 1`: exit status 1 at the base, 0 now.
+
+**Free flow is byte-identical.** The 18,000 free-flow runs of the same 6,000 worlds: events, initial and final state and
+end time equal at base and head in every run.
+
+**How often** (head, by wrapping the ledger and the controller in the measuring process):
+
+| | 4200000..4202999 | 4400000..4402999 |
+|---|---|---|
+| States begun (at rest / while moving) | 258,379 (258,221 / 158) | 249,619 (249,464 / 155) |
+| Ended by (a), the holder's own leg | 233,610 | 226,786 |
+| Ended by (b), the old clear point (inside an arc / at an arrival) | 24,734 (22,372 / 2,362) | 22,790 (20,911 / 1,879) |
+| of which (b) for a re-claim granted while moving | 132 | 114 |
+| Ended by (c), at rest with room | 0 | 0 |
+| Ended by (d), a release | 15 | 25 |
+| Standing when the run ended | 20 | 18 |
+| Ends that blocked a pending claim (runs) | 1,118 (343) | 822 (262) |
+| Timers added per run, runs with an unchanged fingerprint | +2.56 (+2.38 .. +2.74) | +2.42 (+2.26 .. +2.57) |
+
+The 1,118 blocking ends in 343 runs match the audit's count for `exact3`. A timer added is a `simpy` timeout of a clear
+point inside an arc that no release of the arc shares; none is cut. End (c) occurs in no random run; the hand-built
+`roomy_stop` covers it.
+
+**The two recorded safety ranges** (`benchmarks/layout_safety.py --worlds 1000`, six runs per world), base and head
+alike: 100000..100999, 6,000 runs, 6,570,200 events, exit status 1 with two violating runs, 100281 `shortest` and
+`fastest`, `open wait with no report` (agv-f at 579.996; hole R, pinned for T4); 2000000..2000999, 6,000 runs, 6,720,030
+events, no violation, exit status 0. No run raised or was cut; none of the violations is physical, `ADMITTED` or a kind
+of this task.
+
+**Other checks.** `PYTHONHASHSEED` 0, 1 and 2 give the same events in every hand-built scenario
+(`scripts/scen_hash.py`); 600 runs of seeds 4400000..4400099 (both controllers) under `PYTHONHASHSEED` 1 and 2 have the
+fingerprints and whole records of the head run. No pinned digest, fingerprint or fixture moves. Cost:
+`benchmarks/layout_safety.py --first 100000 --worlds 200 --jobs 10`, base and head alternating in one session, three
+times, one-minute load 8.9 to 10.1 before each (the runner's own workers; `out/cost/`): 38.74 s and 40.29 s, 40.11 s and
+40.19 s, 39.35 s and 39.50 s (means 39.40 s and 39.99 s, +1.5 %, the monitor's new checks included);
+`benchmarks/intralogistics.py --mode none --shifts 2 --warmup 1 --repeat 3` (free flow, which this change does not
+touch), alternating twice: medians 0.457 s and 0.474 s, 0.472 s and 0.461 s.
+
+**The hand-built scenarios, as tests** (`tests/intralogistics/test_travel.py`, 3 m vehicles, `TrapezoidalProfile(2.0,
+0.8, 0.4)`). At the base B is granted at once and the bodies lie head-on; now: `base`, B waits from 50.0 behind A and is
+granted at 51.118, A's odometer at the old clear point of `U~V` (0.5 m into `W -> V`), with no release and no other
+traffic event at that instant; `zone2`, the same through a zone of capacity 2; `short_same`, end (a): B is granted at
+51.581, when A starts its own leg `V -> U`; `turn_staged`, B waits through A's 4 s turn and is granted at 15.118;
+`corr_stop` and `branch_stop`, B waits behind the idle A from 56.0 and is reported stuck at its first review (86.0,
+`{"A": "IDLE"}`); with a fleet that makes way, A makes way at 56.0 and B follows when A's tail releases `R~b`.
+`roomy_stop`, end (c): B is admitted at once at 53.0, as at the base. The other ends each on their own: (b) for a
+re-claim granted while moving (ended 0.5 m into the arc on which the grant came, at 51.118); (b) for a profile without
+limits (at the arrival, 51.25); (d) by `release` and by a `retain` that drops the segment, and a `retain` that keeps it
+keeps the state (`tests/intralogistics/test_reservation.py`, `TestBothDirections`, with the wake-up: a wait blocked only
+by the state is granted at its end; a wait blocked by the state and by an idle holder sleeps, is woken by the end,
+reviewed at 70 and reported stuck; an end that blocked nothing leaves the review timer the same timer and a sleeping
+wait asleep; a waiting holder in the state closes a deadlock; a wait blocked only by an idle, stranded or stalled holder
+in the state is reported stuck).
+
+**The monitor** (`tests/intralogistics/random_worlds.py`, Ruling A3-g). Three new checks, all reading the state through
+`HoldingsLedger.both_directions` and the monitor's own body model:
+
+- `LEDGER recorded direction against the body` (M1' of audit (ii)): every single-lane segment a body surely lies on and
+  that its vehicle holds is recorded in the direction the body lies in, unless the vehicle is in the state there; once
+  per stretch.
+- `LEDGER both directions with another holder` (M2'): a holder in the state is the only holder of its segment.
+- `LEDGER both directions outlived the body`: a state seen with its holder's body off the segment, or lying in the
+  recorded direction, is a violation from the next instant on, and for a vehicle without kinematic limits seen so during
+  an arc, from the instant after that arc's arrival; once per stretch.
+- The monitor's own admission test (used for the deadlock and stuck checks) takes the rule in its own terms, from its
+  body model and not from the ledger: on a single-lane segment, a holder whose body surely lies on the segment against
+  its recorded direction blocks every other claimant. Validated as T2 did (`scripts/val3.py`, a copy of the T2
+  reviewer's, seeds 4400000..4400999, 3,000 reservation runs): 0 differences in 5,792,304 item tests (625 of them on a
+  segment in the state, each blocked by its holder in both computations), 247,527 reductions at wait events, 103,076
+  detections and 51,829 resolutions.
+- `ADMITTED against a body on a segment` stays as it was. Seed 8101904 `fastest` with the rule undone (the state never
+  begins) shows it at agv-g's grant, 471.171, before `PHYSICAL opposite directions on a segment`, with no older kind
+  before it; the new check of recorded directions fires earlier, from the first re-claim of the run (30.619).
+- Mutants, as tests on 8101904 `fastest`: a state that ends at the grant gives `LEDGER recorded direction against the
+  body` first; an executor that never reports the old clear point, and a controller that ignores `cleared`, give `LEDGER
+  both directions outlived the body` first; a state that admission does not read gives `ADMITTED against a body on a
+  segment` first and `LEDGER both directions with another holder`. A state that never begins gives the check of recorded
+  directions, then `ADMITTED`, then the physical conflict.
+
+The pin of 8101904 `fastest` is now an ordinary test that expects no violation, and the test that asserted both kinds at
+the base is replaced by the test with the rule undone. The marks of T4's holes stay. The item "a holder's recorded
+direction against its own body" of T2's list "What the monitor still does not check" is checked now; the `passing` item
+stays.
+
+**What is not covered.**
+
+- `passing` segments (Ruling A3-f): a re-claim moves the holder's extent to the other lane's count while its body lies
+  in the first lane; suspected, not produced, and the monitor has no check of extents against bodies.
+- A rigid body through a reversal: both body models are path models, and spec §6.6 says such a body is not tracked.
+- The literal path model of `short_same`: when the rest point is nearer to the segment than half an extent, end (a)
+  admits a vehicle behind the holder up to about 0.6 s before the old piece of the folded path has left the segment
+  (Ruling A3-d).
+- The look-ahead after a staged route (audit (ii), `turn_staged`): a route staged inside a travel keeps the look-ahead
+  of the run before, so it re-claims farther segments before a turn; the rule closes the scenario without changing that.
+- A holder that serves for a long time with a state left from an interrupted travel blocks without a report until it
+  moves (the body is there).
