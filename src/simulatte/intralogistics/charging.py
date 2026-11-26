@@ -80,6 +80,7 @@ class ChargingStation(Entity, kind="charging_station"):
         self.swap_recharge_time = swap_recharge_time
 
         self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
+        self._n_slots = int(self._slots.capacity)  # the state's constant, read once (studio map spec §6.4)
 
         self._swap_pool: NotifyingContainer | None = None
         if supports_swap:
@@ -116,12 +117,12 @@ class ChargingStation(Entity, kind="charging_station"):
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: slots in use, the swap-pool level (None without battery swapping) and the number of
-        slots, a constant written once in the initial state (studio map spec §6.4)."""
+        slots, a constant written once in the initial state (studio map spec §6.4), as read at construction."""
         pool = self._swap_pool
         return {
             "slots_in_use": self._slots.count,
             "swap_pool": None if pool is None else wire_float(pool.level),
-            "slots": self.n_slots,
+            "slots": self._n_slots,
             "label": self.label,
         }
 

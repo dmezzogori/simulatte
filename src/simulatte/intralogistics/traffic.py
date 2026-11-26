@@ -299,7 +299,9 @@ def count_traffic(counter: TrafficCounter, agvs: Iterable[AGV]) -> tuple[tuple[s
     A controller calls it where it emits the counted event (``waits`` for ``traffic.wait_started``, ``stuck_waits``
     for ``traffic.wait_stuck``, ``deadlocks`` for ``traffic.deadlock``), whether or not the event is wanted, and adds
     :func:`counter_deltas` of the result to the event's deltas, so that a replay of the deltas equals the snapshot. A
-    vehicle that no fleet took (``agv.fleet`` is None) counts nowhere.
+    vehicle that no fleet took (``agv.fleet`` is None) counts nowhere. Otherwise ``agv.fleet`` must be a
+    :class:`~simulatte.intralogistics.fleet.FleetCoordinator`, or an object with its ``id`` and ``_count_traffic``
+    method; another object raises ``AttributeError`` at the first counted event.
     """
     fleets = dict.fromkeys(agv.fleet for agv in agvs if agv.fleet is not None)
     return tuple((fleet.id, fleet._count_traffic(counter)) for fleet in fleets)

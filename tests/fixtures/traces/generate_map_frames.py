@@ -715,7 +715,7 @@ def main(argv: list[str] | None = None) -> int:
         "--patch",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="add the state and layout fields the simulation will record (default until they are recorded)",
+        help="check the recorded state and layout fields the map needs, and add the vehicle size (default)",
     )
     args = parser.parse_args(argv)
     patch: bool = args.patch

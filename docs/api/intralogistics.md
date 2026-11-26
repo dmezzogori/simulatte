@@ -62,6 +62,8 @@ A router finds the routes of a fleet's travels and its cost ranks the candidates
 
 A traffic controller grants each AGV the resources it needs to move. `FreeFlowController` is the default; `ReservationController` enforces the occupancy of nodes, segments, zones and corridors. Node capacities and zones are declared with the network on the layout, not on the controller (see the [layout guide](../guides/layout.md#traffic-fields-schema-11)); `Zone` is the value the controller takes from it. See the [traffic section of the guide](../guides/intralogistics.md#traffic-control).
 
+A custom controller that emits `traffic.wait_started`, `traffic.wait_stuck` or `traffic.deadlock` must also keep the fleets' traffic counters: at each such event, whether or not anything subscribes, it calls `count_traffic(counter, agvs)` from `simulatte.intralogistics.traffic` (`counter` is a `TrafficCounter`: `"waits"`, `"stuck_waits"` or `"deadlocks"`), and adds `counter_deltas(build, counter, counted)` to the event's deltas, as `ReservationController` does. The AGVs' `fleet` must be `FleetCoordinator` objects (or None, which counts nowhere).
+
 ::: simulatte.intralogistics.TrafficController
     options:
       heading_level: 3

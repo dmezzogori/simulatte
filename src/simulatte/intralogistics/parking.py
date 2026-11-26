@@ -57,6 +57,7 @@ class ParkingArea(Entity, kind="parking_area"):
         self.name = name
         self._node, self._pending_node = node_input(env, node, component="ParkingArea", parameter="node")
         self._resource = simpy.Resource(env, capacity=capacity)
+        self._capacity = int(self._resource.capacity)  # the state's constant, read once (studio map spec §6.4)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
         self._pending_entries: dict[AGV, _PendingEntry] = {}
         env.entities.attach(self, name=name, label=label)
@@ -74,8 +75,8 @@ class ParkingArea(Entity, kind="parking_area"):
 
     def snapshot(self) -> dict[str, Any]:
         """Current entity state: the ids of the parked AGVs, in order of arrival, and the capacity, a constant written
-        once in the initial state (studio map spec §6.4)."""
-        return {"parked": [agv.id for agv in self._agv_requests], "capacity": self.capacity, "label": self.label}
+        once in the initial state (studio map spec §6.4), as read at construction."""
+        return {"parked": [agv.id for agv in self._agv_requests], "capacity": self._capacity, "label": self.label}
 
     @property
     def capacity(self) -> int:

@@ -316,14 +316,29 @@ def random_run(seed: int, *, events: list[DomainEvent] | None = None, until: flo
 
 def test_the_counters_are_kept_without_subscribers() -> None:
     """Random world 272, with no subscriber and with a ``"*"`` subscriber, stopped one second after its first deadlock
-    (before its end): every entity's snapshot is the same, and the wait and deadlock counters are not zero."""
+    (a resolved one) and run to its end: every entity's snapshot is the same at both instants. At the end the run has
+    counted waits, stuck waits, resolved and unresolved deadlocks, so each emit site that counts is reached."""
     events: list[DomainEvent] = []
     end = random_run(272, events=events).now
-    at = min(event.t for event in events if isinstance(event, TrafficDeadlock)) + 1.0
+    deadlocks = [event for event in events if isinstance(event, TrafficDeadlock)]
+    assert {event.action == "unresolved" for event in deadlocks} == {True, False}
+    at = deadlocks[0].t + 1.0
     assert at < end
-    bare, observed = random_run(272, until=at), random_run(272, events=[], until=at)
-    snapshot = bare.entities.snapshot()
-    assert snapshot == observed.entities.snapshot()
-    fleets = [fields for fields in snapshot.values() if fields["$kind"] == "fleet"]
-    assert sum(fields["waits"] for fields in fleets) > 0
-    assert sum(fields["deadlocks"] for fields in fleets) > 0
+    for until in (at, None):
+        bare, observed = random_run(272, until=until), random_run(272, events=[], until=until)
+        snapshot = bare.entities.snapshot()
+        assert snapshot == observed.entities.snapshot()
+        (fleet,) = [fields for fields in snapshot.values() if fields["$kind"] == "fleet"]
+        assert fleet["waits"] > 0 and fleet["deadlocks"] > 0
+    assert (fleet["waits"], fleet["stuck_waits"], fleet["deadlocks"]) == (22, 4, 5)
+
+
+def test_the_facility_constants_keep_their_constructed_values() -> None:
+    """A later change of the SimPy resources' capacity does not reach the state: the snapshot holds the value the
+    initial state recorded."""
+    env, fleet = facilities_world()
+    area, station = fleet.parking_areas[0], fleet.charging_stations[0]
+    area._resource._capacity = 5
+    station._slots._capacity = 7
+    assert area.snapshot()["capacity"] == 2
+    assert station.snapshot()["slots"] == 3
