@@ -3075,18 +3075,22 @@ turn (B2), charges, and then returns `RETRY_FROM_CURRENT_POSITION`; no caller re
 charger's node: the trip was not resumed, the repositioning policy was not asked again, and the service node was not
 cleared, because clearing runs only where the policy named no node, after a mission.
 
-**The rule** (Ruling A3-m). After such a charge, when the trip ends elsewhere than its target, the AGV goes through the
-decision of an AGV that ends a mission on that node: the battery check, the repositioning policy asked again (a parking
-slot taken at the decision), and the clearance of a service node where the policy names none and the controller
-controls occupancy (not while an order is pending). The trip is not resumed. The pending-queue check comes where it
-comes after a mission: when the AGV becomes `IDLE` at the end, after the decision; the policy is asked whether or not
-an order is pending, as after a mission.
+**The rule** (Ruling A3-m, as amended in fix round 1 by Rulings A3-q and A3-r). After such a charge, when the trip
+ends elsewhere than its target and no order is pending, the AGV goes once through the decision of an AGV that ends a
+mission on that node: the battery check, the repositioning policy asked again (a parking slot taken at the decision),
+and the clearance of a service node where the policy names none and the controller controls occupancy. The trip is not
+resumed. With an order pending the AGV becomes `IDLE` where it charged and the pending-queue check offers it the order,
+as at the base. A trip of the decision that charges on its way again is followed by no further decision: the AGV
+becomes `IDLE` where it charged. (As committed in `186d4ab` the decision ran with orders pending and could follow
+itself without bound; see "Fix round 1".)
 
 **The change** (`186d4ab`). The post-mission decision of `_run_mission` moves, unchanged, into
 `FleetCoordinator._rest`, which `_run_mission` calls; `_idle_travel` calls it too when its travel returned
 `RETRY_FROM_CURRENT_POSITION`, a charge was completed during the travel and the AGV does not stand on the target.
 `_charge_agv` counts the charges it completes (at the station, or by the `on_low_battery` callback in its place) in
-`_charges`, which `_idle_travel` reads before and after the travel. A make-way move enters the decision through
+`_charges`, which `_idle_travel` reads before and after the travel. Since fix round 1 `_idle_travel` also requires an
+empty pending queue and that the AGV is not already in such a decision (`_after_charge`). A make-way move enters the
+decision through
 `_idle_travel` and then ends as before (`IDLE`, the hooks, the pending-queue check, `idle`). Unchanged: a charger on the
 area's own node (the AGV stands on the target: it keeps the slot and rests parked, not asked again), a charge during an
 order (the order's travel resumes), what `idle` does for the waits the AGV blocks, charging and stranding themselves.
@@ -3123,6 +3127,8 @@ Worlds: the 7,002 of B2's review (seeds 3300000..3301999, 640000..641999, 911000
 per tree, paired by seed, controller and router; the interval is the 95 % interval of the sum of the paired
 differences. CPython 3.14.3, Apple M4 Pro, 9 or 10 worker processes. Every run of the three trees returned with an
 empty queue (`env.run()` without `until`), none raised, none was cut, and none has a violation of the strict monitor.
+
+Item 1 as committed in `186d4ab`, before fix round 1 (the code since then is measured under "Fix round 1"):
 
 | Measure | `db9af3d` | `186d4ab` (item 1) | Difference, 95 % interval | Runs that differ |
 |---|---|---|---|---|
@@ -3183,21 +3189,22 @@ trees, differs from the parent only in the fields `node` and `reason` of `agv.st
 (same events otherwise, same length). None of the 52 `insufficient_after_charging` events of the parent followed a
 charge, and all 52 named the node where the diversion started.
 
-**Termination.** No cycle without time passing: the decision after a charge starts with a full battery (a charge at a
-station fills it; an `on_low_battery` callback in its place is the user's), so its battery check sends nobody to charge, and a trip of it that turns to charge again must first
-travel at least one arc, since the first arc of a trip that a full battery cannot cover strands the AGV after the charge
-instead of starting a trip. The decision does not start a trip when the policy names the node the AGV stands on (a
-charger's own node included), when it names none and clearing is off, or when the standard search finds no node: the AGV
-stays, as after a mission (tests `test_after_a_charge_on_the_way_an_agv_with_nowhere_to_go_stays_on_the_charger`, three
-cases, each with one charge and `env.run()` returning). A cycle without end is possible: when the node the decision names
-again lies beyond the reach of a full charge (an arc that the level a full charge leaves on arrival at the node before it
-cannot cover), the AGV travels between that node and the charger without end, as an order's travel does in the same
-case (the guide's known limit "Charging"). Pinned by
-`test_a_target_beyond_the_reach_of_a_full_charge_repeats_the_trip_and_the_charge_without_end` (`until=400`, five charges
-or more, each later than the one before). Before the fix such a trip ended idle on the charger after one charge. In the
-60,012 measured runs no trip after a charge turned to charge again (`scripts/turns.py`), and every run returned.
+**Termination** (since fix round 1). The decision after a charge on the way is made at most once per such charge: a
+trip of it that charges on its way again ends with the AGV `IDLE` where it charged, as at the base, so a move without an
+order charges on its way at most twice (in the move, and in the trip of the one decision that follows) and
+`_idle_travel` and `_rest` call each other at most once. The decision does not start a trip when the policy names the node
+the AGV stands on (a charger's own node included), when it names none and clearing is off, or when the standard search
+finds no node: the AGV stays, as after a mission (tests
+`test_after_a_charge_on_the_way_an_agv_with_nowhere_to_go_stays_on_the_charger`, three cases, one charge each). Where
+the node the decision names lies beyond the reach of a full charge, the AGV charges a second time and rests on the
+charger (`test_after_a_charge_on_the_way_the_decision_is_made_once`: the policy, a parking area and the clearance, under
+the controllers that apply; and through two chargers, `..._also_through_two_chargers`); every such run returns. (As
+committed in `186d4ab` the decision followed itself without bound there, and `env.run()` raised `RecursionError` after
+about 490 rounds; the test that pinned it with `until` is replaced.) An order's travel has no such bound: an order whose
+origin or destination lies beyond the reach of a full charge travels between the charger and that node without end
+(the guide's known limit "Charging"), at the base as now.
 
-**Make-way.** A make-way move that charged on its way enters the decision before it ends; then the AGV is `IDLE`, and
+**Make-way.** A make-way move that charged on its way, with no order pending, enters the decision once before it ends; then the AGV is `IDLE`, and
 `idle` asks it to make way again by the ordinary rule if it still blocks a wait. Its chain of make-way moves is not
 ended by the charge or by the decision's trip (neither is a mission): a move from a node it already made way from is
 refused. Tests: an AGV on the charger's node X that blocks a wait, asked to make way, charges where it stands; with
@@ -3209,14 +3216,15 @@ charge elsewhere ends where the decision puts it, and its chain ends there when 
 
 **Free flow.** The repositioning policy and the parking slots apply under both controllers, the clearance only when the
 controller controls occupancy: item 1 changes the free-flow runs with a trip that charged on its way (6 above, each with
-such a turn) and item 2 those with a stranding after a diversion, by the two fields (30). All other free-flow runs are
-identical.
+such a turn; 6 again in fix round 1's sample) and item 2 those with a stranding after a diversion, by the two fields (30;
+25 in fix round 1's sample). All other free-flow runs are identical.
 
-**Pins.** Seed 619 (`FreeFlowController`, shortest) is pinned again by item 1: agv-a, which turned to charge at 122.0 on
-its way to park, after its charge at 220.1 goes to park on P1 (taking a slot then) before it takes the pending order-6
-from there, where the parent took order-6 at once from the charger. The run takes another course from there (a later
-breakdown interrupts another mission): 4 orders completed instead of 5, agv-a strands at 407.3 on g0_0 instead of 439.0
-on g1_1, the same end time (459.270), 398 events instead of 394; nothing before 220.1 differs. The other five
+**Pins.** Seed 619 (`FreeFlowController`, shortest) was pinned again by item 1 as committed in `186d4ab`: agv-a, which
+turned to charge at 122.0 on its way to park, after its charge at 220.1 went to park on P1 before it took the pending
+order-6 from there, where the parent took order-6 at once from the charger (4 orders completed instead of 5, 398 events
+instead of 394). Since fix round 1 an order pending at the end of the charge comes first (Ruling A3-r): agv-a takes
+order-6 at once, as at `3aac5c4`, and the run and its pin are those of `3aac5c4` again
+(`d48e693d…`, 394 events). The other five
 fingerprints, the five safety pins, `tests/fixtures/traces/generated/`, `test_examples.py` and
 `test_traffic_scenarios.py` hold under both items (full suite); the stdout of the seven transport and layout examples is
 identical to `3aac5c4`. The frozen fixtures are untouched.
@@ -3234,5 +3242,93 @@ no set or dict whose order decides anything new: `_charges` is keyed by AGV and 
 **What the monitor still does not check** (T4's list, brought up to date): a trip to park that holds no slot is checked
 now. Still not checked: the spacing of followers on the bodies; the gate part of a stuck report; `passing` segments
 during a reversal; the review timer and the pending claim at quiescence from events; a wait stuck and unreported for a
-while and reported later; a `STALLED` blocker in a random run; and an AGV idle on a service node after a charge (the
-measurement counts it, the monitor does not: an AGV may rest on a service node when the decision names no node).
+while and reported later; a `STALLED` blocker in a random run; an AGV idle on a service node after a charge (the
+measurement counts it, the monitor does not: an AGV may rest on a service node when the decision names no node); and a
+trip to a parking node that carries one of the fleet's chargers, which the slot rule leaves out (a charge there takes
+no slot), so a world whose only parking area is on a charger's node has no check of its trips to park.
+
+**Fix round 1.** The review (fresh seeds 4610000..4616999, its own hand-built loops and a fuzz of 4,000 small worlds)
+confirmed item 2, the monitor's rule and item 1's ordinary behaviour, and found the decision after a charge recursing
+without bound: when the node it names again lies beyond the reach of a full charge, each round nested two more
+generator frames and `env.run()` raised `RecursionError` (about 490 rounds on CPython), with built-in parts only
+(`NearestParkingPolicy` and a parking area beyond such an arc, or the clearance to such a node), in models that returned
+at `3aac5c4` after one charge. It also found the test that pinned this with `until`, sentences that described the cycle
+as "without end", the cost of the rule stated on the generator's worlds only, and the order with pending work left to a
+ruling. Rulings of the controller: the decision after a charge is made once, and a trip of it that charges again ends
+with the AGV idle where it charged (A3-q); it is not made while an order is pending: the AGV becomes idle where it
+charged and the pending-queue check offers it the order, as at the base (A3-r).
+
+The change (`fleet.py`): `_idle_travel` enters the decision only with an empty pending queue and when the AGV is not
+already in one (`_after_charge`, a set entered and left around the call, also when the trip is interrupted); the
+decision's own trip that charges again is therefore not followed by another. The decision's trip to the policy's node no
+longer emits `agv.state_changed` with the state it already has (after a charge on the way the AGV is
+`TRAVELING_EMPTY`; at a mission's end it comes from `WAITING_UNLOAD`, so missions are unchanged). The clearance keeps its
+transition, which after a charge on the way repeats `TRAVELING_EMPTY`: a mission's end does the same before a clearance
+at `3aac5c4` (67 times in the reservation runs of seeds 4600000..4600999), and that line is shared.
+
+Tests (`test_idle_traffic.py`), each failing at `4ed7d6e` (`9 failed, 261 passed` with `test_random_worlds.py`, seven of
+them by `RecursionError`): `test_after_a_charge_on_the_way_the_decision_is_made_once` (the policy, an area and the
+clearance send A to T, out of the reach of a full charge; two charges, A idle on C, the run returns without `until`; five
+cases) and `..._also_through_two_chargers` (a ring with chargers on A and B and a policy that names T1 from A and T2 from
+B: charges on B then A, the vehicle idle on A; both controllers); `test_after_a_charge_on_the_way_with_an_order_pending_
+the_agv_takes_the_order` (an order submitted during the charge is dispatched at the instant the charge ends, from CH);
+and seed 619's pin, back to `d48e693d…`. Tests that pass at `4ed7d6e` and each fail under one source mutant
+(`scratch-a3-T5/fix1/mutants.py`): a retry without a charge (critical on arrival, no charger) is not followed by the
+decision, though the parking policy would act (fails when the charge condition is dropped); a charge by the
+`on_low_battery` callback counts (fails when the callback's charge is not counted); a stranding after a charge on the way
+is not followed by the decision (fails when any outcome but `ARRIVED` enters it). The decision repeated and the pending
+queue ignored each fail the new tests above.
+
+The reviewer's cases at the head (`scratch-a3-T5/fix1/loop.out`, `loop23.out`, `fuzz.out`): every hand-built case that
+returned at `3aac5c4` returns, after two charges where the base had one (a ring through two chargers included); in its
+case with uniform arcs (a full charge covers 2.5 arcs, the area 3 arcs away) the AGV sent on after its charge strands on
+the way, where the base left it idle and full on the charger. The cases of an order beyond the reach of a full charge
+cycle at both trees (pre-existing). The fuzz of 4,000 worlds: 3,937 return at `3aac5c4` and all 3,937 at the head; the
+other 63 are cut at both (orders out of reach).
+
+Measured again, `3aac5c4` (with this monitor) against the head of this round, each a copy first on `PYTHONPATH`, with
+the reviewer's measuring script (`reviewer-scratch-a3-T5/scripts/measure_tight.py`, which counts orders by order): seeds
+4600000..4602999 and the reviewer's 4610000..4614999, both controllers, three routers (48,000 runs), and small-battery
+worlds, seeds 4620000..4620999 rewritten as the reviewer's 4616000..4616999 are (every fleet's battery 2.5 to 8 times
+the longest arc, thresholds redrawn; 6,000 runs). Every run returned, none was cut, none has a violation. Every changed
+run is attributed (`scratch-a3-T5/fix1/attrib.py`, each run replayed on both trees): its first differing event is the
+decision at the end of a charge of a trip without an order that charged away from its target (item 1), or it differs
+only in `node` and `reason` of `agv.stranded` and the message of its log line (item 2).
+
+| Measure | Seeds 4600000..4602999 and 4610000..4614999 (48,000 runs) | Small batteries, 4620000..4620999 (6,000 runs) |
+|---|---|---|
+| changed runs: item 1 (reservation / free), item 2 | 43 (37 / 6), 39 | 55 (49 / 6), 16 |
+| orders completed | 729,433 both, 0 [-19.0, +19.0] | 27,896 and 27,886, -10 [-24.9, +4.9] |
+| orders failed | -4 [-27.7, +19.7] | +28 [-7.6, +63.6] |
+| completion time of orders completed in both, paired by order | +656.9 [-148.9, +1,462.7] (20 runs) | -317.3 [-801.4, +166.8] (20 runs) |
+| first dispatch time of orders dispatched in both, paired by order | +206.4 [-322.3, +735.1] (13 runs) | -279.6 [-671.4, +112.2] (15 runs) |
+| orders completed only at the base / only at the head | 22 / 22 | 24 / 14 |
+| strandings (`agv.state_changed` to `STRANDED`) | -33 [-60.9, -5.1] | +25 [-1.4, +51.4] |
+| AGVs stranded at the end | -3 [-10.1, +4.1] | +7 [-2.8, +16.8] |
+| `parking.entered` | +28 [+15.6, +40.4] | +32 [+15.4, +48.6] |
+| time AGVs are idle on a service node of their fleet | -1,259.9 [-2,113.9, -405.8] | -3,728.7 [-5,689.8, -1,767.6] |
+| `traffic.wait_stuck` | -20 [-37.3, -2.7] | -10 [-29.0, +9.0] |
+| end time (sum) | +729.6 [-3.1, +1,462.4] | -136.4 [-298.0, +25.2] |
+| `agv.stranded` `insufficient_after_charging` / `charger_not_reached` (base, head); naming another node | 39 / 0, 0 / 39; 39 and 0 | 20 / 0, 0 / 20; 20 and 0 |
+
+Where the AGVs rest after a charge on the way (turns of a trip without an order that charged away from its target):
+on the 48,000 runs, 87 at the base and 86 at the head, in 84 runs; idle on the charger's node at the end of the charge's
+instant 51 and 13 (at the head: an order pending in 3, the decision naming nothing in 10); idle there for a while 41
+(14 to the end of the run) and 12 (1), longest 364.4 and 249.9, in all 2,194.5 and 645.6; no trip of a decision turned
+to charge. On the small-battery worlds: 84 and 85 turns; idle on the charger's node at the end of the instant 60 and
+12; for a while 60 (4 to the end) and 12 (2), in all 5,111.5 and 1,347.3; 3 trips of a decision turned to charge again,
+and the AGV then rests where it charged.
+
+The cost of the rule, on small batteries. The review measured on its worlds 4616000..4616999 (`4ed7d6e` against
+`3aac5c4`, quoted): strandings +34 [+3.8, +64.2], AGVs stranded at the end +15 [+4.1, +25.9], a second turn in 2 of
+6,000 runs. With the decision made once and not with an order pending, on 4620000..4620999: strandings +25 [-1.4,
++51.4], AGVs stranded at the end +7 [-2.8, +16.8], orders completed -10 [-24.9, +4.9]. The mechanism is the one of the
+reviewer's case with uniform arcs: an AGV that the base left idle with a full battery on the charger is sent on by the
+decision, and with a small battery it can strand on the way.
+
+The recorded safety ranges at the head of this round (`benchmarks/layout_safety.py --worlds 1000 --jobs 10`):
+100000..100999, 6,000 runs, 6,570,403 events, 0 raised, 0 not returned, 0 with the queue not empty, 0 with violations,
+exit status 0 (199 s); 2000000..2000999, 6,000 runs, 6,720,267 events, the same zeros, exit status 0 (194 s). The 300
+runs of seeds 4600000..4600049 under `PYTHONHASHSEED` 1 and 2 have the fingerprints and records of the measured head
+run. The focused test files (`test_idle_traffic.py`, `test_stop_requests.py`, `test_random_worlds.py`,
+`test_charging.py`) pass on PyPy 3.11 (`389 passed`).
