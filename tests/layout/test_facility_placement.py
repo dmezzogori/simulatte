@@ -25,6 +25,7 @@ from simulatte.intralogistics.warehouse import Warehouse
 from simulatte.layout import Explicit, LayoutBundle, LayoutError
 from simulatte.layout.auto import NetworkGeometry, TargetMetadata, auto_layout
 from simulatte.layout.bundle import reresolve_presentation
+from simulatte.layout.identity import hashes
 from simulatte.layout.layers import FileLayer, resolve_layers
 from simulatte.layout.topology import StaticTopology
 from simulatte.layout.types import Point
@@ -174,6 +175,37 @@ def test_a_facility_without_binding_and_a_server_keep_the_grid():
     assert without.algorithm == "layered-v1"
 
 
+def test_an_oblique_direction_is_the_same_on_every_platform():
+    # from N the neighbour M is at (-3, -4): the direction is (0.6, 0.8); a 1 m square extends 1.4 m along it, so the
+    # centre is 0.7 + 1 m from N. The length is the square root of an exact sum of squares, not libm's hypot.
+    result = place({"N": (0.0, 0.0), "M": (-3.0, -4.0)}, [("M", "N")], {"w": bound("warehouse", "N")})
+    assert position(result, "w") == (1.02, 1.36, 0.0)
+
+
+def test_the_grid_avoids_the_facilities_placed_at_their_node():
+    # A warehouse beside B reaches into the grid near the origin; the servers packed there must keep clear of it.
+    nodes = {"A": (-20.0, 0.3), "B": (1.0, 0.3)}
+    servers = {f"s{i}": TargetMetadata("server") for i in range(6)}
+    explicit = {"w": {"kind": "warehouse", "footprint": {"width": 4, "depth": 2}}}
+    result = place(nodes, [("A", "B")], {"w": bound("warehouse", "B"), **servers}, explicit)
+    assert position(result, "w") == (4.0, 0.3, 0.0)
+    wx, wy, _ = position(result, "w")
+    for key in servers:
+        x, y, _ = position(result, key)
+        apart = abs(x - wx) >= (4 + 1) / 2 or abs(y - wy) >= (2 + 1) / 2  # touching is no overlap
+        assert apart, (key, (x, y))
+
+
+def test_a_station_with_an_explicit_position_keeps_the_1_by_1_default():
+    explicit = {"p": {"kind": "parking_area", "position": [11.2, -1.2, 0]}}
+    targets, geometry = network({"A": (0.0, 0.0), "B": (10.0, 0.0)}, [("A", "B")])
+    result = auto_layout(
+        {**targets, "p": bound("parking_area", "B")}, StaticTopology(), values(explicit), network=geometry
+    )
+    assert dict(result.data["placements"]["p"]["footprint"]) == {"width": 1, "depth": 1, "height": 0}
+    assert not [item for item in result.diagnostics if item.code == "placement-overlap"]
+
+
 def test_an_explicit_position_wins():
     explicit = {
         "w": {"kind": "warehouse", "position": [50, 50, 0]},
@@ -218,6 +250,19 @@ def test_a_step_below_float_precision_is_refused():
     explicit = {"s": {"kind": "server", "position": [1e17, 0, 0], "footprint": {"width": 64, "depth": 1}}}
     with pytest.raises(LayoutError, match="precision"):
         place(far, [("A", "B")], {"w": bound("warehouse", "B"), "s": TargetMetadata("server")}, explicit)
+
+
+def test_a_graph_record_naming_a_missing_node_is_refused():
+    record = {"nodes": [{"id": "A", "position": [0.0, 0.0, 0.0]}], "arcs": [{"source": "A", "target": "Z"}]}
+    with pytest.raises(LayoutError, match="Z"):
+        NetworkGeometry.from_record(record)
+    env = Environment(seed=1)
+    build_simple_system(env)
+    data = env.layout.prepare().bundle.to_dict()
+    data["network"]["graph"]["arcs"][0]["target"] = "nowhere"
+    data.update(hashes(data))
+    with pytest.raises(LayoutError, match="nowhere"):
+        reresolve_presentation(LayoutBundle.from_dict(data), {"schema_version": "1.0"})
 
 
 def test_the_geometry_of_a_bundle_record():
@@ -282,21 +327,47 @@ def test_a_model_records_the_bound_nodes_in_binding_order_and_reresolves_them():
 
 
 _SCRIPT = """
-import hashlib, json
+import hashlib, io, json, runpy, sys
+from contextlib import redirect_stdout
 from simulatte import Environment
 from simulatte.intralogistics.builders import build_simple_system
+
+def digest(bundle):
+    return hashlib.sha256(json.dumps(bundle.to_dict(), sort_keys=True).encode()).hexdigest()
+
 env = Environment(seed=1)
 build_simple_system(env)
-print(hashlib.sha256(json.dumps(env.layout.prepare().bundle.to_dict(), sort_keys=True).encode()).hexdigest())
+print(digest(env.layout.prepare().bundle))
+
+class Prepared(Exception):
+    pass
+
+class Captured(Environment):  # the advanced example: five facilities, warehouses with two bays
+    def run(self, *args, **kwargs):
+        print(digest(self.layout.prepare().bundle))
+        raise Prepared
+
+main = runpy.run_path(sys.argv[1], run_name="__headless__")["main"]
+main.__globals__["Environment"] = Captured
+try:
+    with redirect_stdout(io.StringIO()) as quiet:
+        main(plot=False)
+except Prepared:
+    print(quiet.getvalue().splitlines()[-1])
 """
 
 
 def test_the_same_model_gives_the_same_bundle_under_any_hash_seed():
     output = [
-        subprocess.check_output([sys.executable, "-c", _SCRIPT], env={**os.environ, "PYTHONHASHSEED": seed}, text=True)
+        subprocess.check_output(
+            [sys.executable, "-c", _SCRIPT, str(EXAMPLES / "intralogistics_advanced.py")],
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            text=True,
+        )
         for seed in ("0", "1")
     ]
     assert output[0] == output[1]
+    assert len(output[0].split()) == 2
 
 
 class _Prepared(Exception):

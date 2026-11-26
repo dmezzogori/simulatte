@@ -11,13 +11,14 @@ the trace's bundle, cut down to what the scene reads: ``schema_version``, ``reso
 algorithms, stages, topology, diagnostics, required_paths, the other ``network`` keys) is dropped.
 
 With ``--patch`` (the default until the Python side records them) the fixtures also carry what the map needs and the
-simulation does not record yet (spec §6): the ``wait`` and ``route`` of a vehicle, the capacities, the fleet counters,
-the ``node_ids`` of the facilities, and the facility positions of the placement rule of §6.3. Each is computed from the
-events up to the cursor or written as a literal below. The vehicle size is recorded since Task 11; the patch still
-writes it, with the values the recording already has. ``bare-layout`` is never patched: it stands for a trace
-recorded before Stage 2, so the corridor example is recorded for it once more with the facilities' ``node_ids``
-withheld (:func:`without_node_ids`, which leaves them in the grid), and the vehicle size it records is taken out of it
-(:func:`unsized`). The facility positions and ``node_ids`` are recorded since Task 12; the patch writes the same values.
+simulation does not record yet (spec §6): the ``wait`` and ``route`` of a vehicle, the capacities and the fleet
+counters. Each is computed from the events up to the cursor or written as a literal below. The vehicle size is recorded
+since Task 11; the patch still writes it, with the values the recording already has. The facilities' ``node_ids`` and
+their positions by the placement rule of §6.3 are recorded since Task 12: the patch no longer writes them, it checks
+them against the bindings and the literals below. ``bare-layout`` is never patched: it stands for a trace recorded
+before Stage 2, so the corridor example is recorded for it once more with the facilities' ``node_ids`` withheld
+(:func:`without_node_ids`, which leaves them in the grid), and the vehicle size it records is taken out of it
+(:func:`unsized`).
 """
 
 from __future__ import annotations
@@ -189,7 +190,8 @@ def _expected_position(layout: Plain, name: str) -> tuple[float, float]:
 
 
 def patch_layout(layout: Plain, example: str) -> None:
-    """Add what the placement of §6.1 and §6.3 and the bundle of §6.5 will hold."""
+    """Add the vehicle size of §6.1, and check the facilities' ``node_ids`` (§6.5) and positions (§6.3) the recording
+    holds since Task 12 against the bindings and the literals of :data:`POSITIONS`."""
     targets, placements, bindings = layout["targets"], layout["resolved"]["placements"], layout["bindings"]
     for name, target in targets.items():
         if target["kind"] == "agv" and example == "corridor":
@@ -205,13 +207,13 @@ def patch_layout(layout: Plain, example: str) -> None:
                     key=lambda item: (order.get(item[0].split(":", 1)[1].split("/")[0], 3), item[0]),
                 )
             ]
-            target["node_ids"] = list(dict.fromkeys(bound))
+            assert target["node_ids"] == list(dict.fromkeys(bound)), (name, target["node_ids"])
     for name, position in POSITIONS[example].items():
         expected = _expected_position(layout, name)
         assert math.isclose(position[0], expected[0]) and math.isclose(position[1], expected[1]), (name, expected)
-        placements[name]["position"] = list(position)
+        assert placements[name]["position"] == list(position), (name, placements[name]["position"])
         if targets[name]["kind"] in CENTRED:
-            placements[name]["footprint"].update(width=3.0, depth=3.0)
+            assert (placements[name]["footprint"]["width"], placements[name]["footprint"]["depth"]) == (3.0, 3.0), name
 
 
 def unsized(layout: Plain) -> Plain:

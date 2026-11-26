@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
-from .auto import AutoLayer, NetworkGeometry, TargetMetadata, auto_layout
+from .auto import _BOUND_KINDS, AutoLayer, NetworkGeometry, TargetMetadata, auto_layout
 from .binding import _loaded, bind_components
 from .dependencies import MISSING, DependencyClosure
 from .errors import LayoutDiagnostic, LayoutError, LayoutNotReady, sort_diagnostics
@@ -501,7 +501,7 @@ class Layout:
                     required.append(ref.address)
                     if entity.kind == "agv":
                         node_id = self._resolve_node(ref).id
-                    elif entity.kind in ("warehouse", "parking_area", "charging_station"):
+                    elif entity.kind in _BOUND_KINDS:
                         facilities.setdefault(entity.id, []).append(ref)
             # A vehicle's size comes from its type (studio map spec §6.1); the layout reads it without importing
             # the intralogistics package.

@@ -124,6 +124,8 @@ class NetworkGeometry:
     def from_arcs(cls, positions: Mapping[str, Point], arcs: Iterable[tuple[str, str]]) -> NetworkGeometry:
         near: dict[str, set[str]] = {key: set() for key in positions}
         for source, target in arcs:
+            if source not in near or target not in near:
+                raise LayoutError(f"network arc {source} -> {target} names a node that is not in the network")
             if source != target:
                 near[source].add(target)
                 near[target].add(source)
@@ -305,6 +307,15 @@ def _size(placement: Mapping[str, Any], default: Mapping[str, Any]) -> tuple[flo
     )
 
 
+def _norm(x: float, y: float) -> float:
+    """The length of ``(x, y)``: the exact sum of squares, rounded once, then the correctly rounded square root.
+
+    Unlike ``math.hypot``, which libm computes, this is the same on every platform, and so are the directions and the
+    hashes that depend on them.
+    """
+    return math.sqrt(float(Fraction(x) ** 2 + Fraction(y) ** 2))
+
+
 def _direction(anchor: str, network: NetworkGeometry) -> tuple[float, float]:
     """Away from the network at `anchor`: the opposite of the mean of the unit vectors to its neighbours, else +y."""
     origin = network.positions[anchor]
@@ -316,14 +327,14 @@ def _direction(anchor: str, network: NetworkGeometry) -> tuple[float, float]:
         if not scale:  # a neighbour on the anchor gives no direction
             continue
         x, y = float(dx / scale), float(dy / scale)  # scaled into [-1, 1] first: a far neighbour cannot overflow
-        length = math.hypot(x, y)
+        length = _norm(x, y)
         xs.append(x / length)
         ys.append(y / length)
     if not xs:
         return 0.0, 1.0
     # fsum rounds once, so the mean does not depend on the order of the neighbours
     mean_x, mean_y = math.fsum(xs) / len(xs), math.fsum(ys) / len(ys)
-    length = math.hypot(mean_x, mean_y)
+    length = _norm(mean_x, mean_y)
     if length < _ZERO_MEAN:
         return 0.0, 1.0
     return -mean_x / length, -mean_y / length
@@ -455,6 +466,7 @@ def auto_layout(
         diagnostics.append(LayoutDiagnostic(code, "warning", path or ("placements", key), None, key, message))
 
     explicit = explicit_values.explicit_data.get("placements", {})
+    facing = []  # the facilities the rule of §6.3 places at their node, in id order
     for key, target in ordered.items():
         defaults = placement_defaults(target.kind, explicitly_placed=target.explicitly_placed)
         if not defaults.placeable or (not defaults.auto_position and target.kind not in ("agv", "node")):
@@ -464,12 +476,19 @@ def auto_layout(
         default_footprint = {"width": footprint.width, "depth": footprint.depth, "height": footprint.height}
         if target.size is not None:  # layered-v2: the vehicle's own size (the placement's x axis is its heading)
             default_footprint["width"], default_footprint["depth"] = target.size
+        placement = explicit.get(key, {})
         if target.node_ids is not None:
-            # layered-v2: placed from its node, which the network must hold (studio map spec §6.3)
+            # layered-v2: placed from its node, which the network must hold (studio map spec §6.3), unless its
+            # position is explicit or explicitly unset; only a station the rule places gets the 3 m by 3 m default
             if network is None or any(node not in network.positions for node in target.node_ids):
                 raise LayoutError(f"node_ids of {key} name a node that is not in the network")
-            if target.kind in _CENTRED:
-                default_footprint["width"] = default_footprint["depth"] = 3.0
+            if (
+                "position" not in placement
+                and explicit_values.at(("placements", key, "position"), explicit=True).state != "unset"
+            ):
+                facing.append(key)
+                if target.kind in _CENTRED:
+                    default_footprint["width"] = default_footprint["depth"] = 3.0
         placements[key] = {
             "kind": target.kind,
             "rotation": 0.0,
@@ -478,7 +497,6 @@ def auto_layout(
             "obstacle": False,
             "visual": {},
         }
-        placement = explicit.get(key, {})
         sizes[key] = _size(placement, default_footprint)
         if target.kind == "agv":
             node = ordered.get(target.node_id) if target.node_id is not None else None
@@ -495,8 +513,15 @@ def auto_layout(
             continue
         if "position" in placement:
             pinned[key] = _bounds(Point(*placement["position"]), sizes[key])
-    pinned_index = _BoundsIndex(pinned)
     unpadded = {key: (box[0] + 1, box[1] + 1, box[2] - 1, box[3] - 1) for key, box in pinned.items()}
+    occupancy = dict(pinned)
+    if facing:
+        # Placed before the grid, which then avoids them as it avoids explicit placements. Without such
+        # facilities (every layered-v1 bundle) the occupancy is the explicit placements alone, as before.
+        assert network is not None
+        _place_facilities(facing, ordered, network, placements, explicit, sizes, unpadded)
+        occupancy.update((key, _bounds(Point(*placements[key]["position"]), sizes[key])) for key in facing)
+    pinned_index = _BoundsIndex(occupancy)
     overlap_index = _BoundsIndex(unpadded)
     for key, bounds in unpadded.items():
         if any(other != key for other, _ in overlap_index.collisions(bounds)):
@@ -522,12 +547,7 @@ def auto_layout(
         if ordered[key].kind != "node"
         and explicit_values.at(("placements", key, "position"), explicit=True).state != "unset"
     }
-    # A facility bound to a node is placed there instead of in the grid (studio map spec §6.3).
-    facing = [key for key in ordered if key in auto_ids and ordered[key].node_ids is not None]
-    if facing:
-        assert network is not None
-        _place_facilities(facing, ordered, network, placements, explicit, sizes, unpadded)
-        auto_ids.difference_update(facing)
+    auto_ids.difference_update(facing)  # placed at their node, not in the grid
     if auto_ids:
         cell_width = number(max(sizes[key][0] for key in auto_ids) + 2, "auto cell width", positive=True)
         cell_depth = number(max(sizes[key][1] for key in auto_ids) + 2, "auto cell depth", positive=True)
