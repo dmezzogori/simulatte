@@ -2626,7 +2626,9 @@ fingerprint. On 4200000..4202999 the 12 changed runs are exactly those the audit
 has the prototype's fingerprint (4200169, 4200377, 4200385, 4200455, 4200509, 4200862, 4200980, 4201507, 4201841,
 4202075, 4202601, 4202667, all `congestion`); in the other 8,988 runs head, base and prototype agree.
 
-**Every changed fingerprint has one cause, the congestion router reading the state.** `CongestionAwareRouter` reads
+**On these two ranges every changed fingerprint has one cause, the congestion router reading the state.** (Not in
+general: the review found 4412263 `fastest`, changed by an admission the state refused; see fix round 1.)
+`CongestionAwareRouter` reads
 `TrafficView.blockers` for its costs, and a holder in the state now counts there. With the state hidden from what that
 router reads while it computes a route, and kept everywhere else (`scripts/routerblind.py`), each of the 26 changed runs
 gives the base's fingerprint again; so no admission that the state refused changed the outcome of a run in these 18,000.
@@ -2652,8 +2654,8 @@ end time equal at base and head in every run.
 | Timers added per run, runs with an unchanged fingerprint | +2.56 (+2.38 .. +2.74) | +2.42 (+2.26 .. +2.57) |
 
 The 1,118 blocking ends in 343 runs match the audit's count for `exact3`. A timer added is a `simpy` timeout of a clear
-point inside an arc that no release of the arc shares; none is cut. End (c) occurs in no random run; the hand-built
-`roomy_stop` covers it.
+point inside an arc that no release of the arc shares; none is cut. End (c) occurs in no run of these two ranges (the
+review found one, 4411251 `fastest`, see fix round 1); the hand-built `roomy_stop` covers it.
 
 **The two recorded safety ranges** (`benchmarks/layout_safety.py --worlds 1000`, six runs per world), base and head
 alike: 100000..100999, 6,000 runs, 6,570,200 events, exit status 1 with two violating runs, 100281 `shortest` and
@@ -2663,7 +2665,9 @@ of this task.
 
 **Other checks.** `PYTHONHASHSEED` 0, 1 and 2 give the same events in every hand-built scenario
 (`scripts/scen_hash.py`); 600 runs of seeds 4400000..4400099 (both controllers) under `PYTHONHASHSEED` 1 and 2 have the
-fingerprints and whole records of the head run. No pinned digest, fingerprint or fixture moves. Cost:
+fingerprints and whole records of the head run. No pinned digest, fingerprint or fixture moves. The measured tree
+(`scratch-a3-T3/head1`) is not exactly the commit `adfdd30`: one sentence of the docstring of `TrafficController.cleared`
+was added after the measurement; no code differs. Cost:
 `benchmarks/layout_safety.py --first 100000 --worlds 200 --jobs 10`, base and head alternating in one session, three
 times, one-minute load 8.9 to 10.1 before each (the runner's own workers; `out/cost/`): 38.74 s and 40.29 s, 40.11 s and
 40.19 s, 39.35 s and 39.50 s (means 39.40 s and 39.99 s, +1.5 %, the monitor's new checks included);
@@ -2693,15 +2697,17 @@ in the state is reported stuck).
   that its vehicle holds is recorded in the direction the body lies in, unless the vehicle is in the state there; once
   per stretch.
 - `LEDGER both directions with another holder` (M2'): a holder in the state is the only holder of its segment.
-- `LEDGER both directions outlived the body`: a state seen with its holder's body off the segment, or lying in the
-  recorded direction, is a violation from the next instant on, and for a vehicle without kinematic limits seen so during
-  an arc, from the instant after that arc's arrival; once per stretch.
+- `LEDGER both directions outlived the body`: a state seen with its holder's body no longer on the segment as it
+  arrived is a violation from the next instant on, and for a vehicle without kinematic limits seen so during an arc,
+  from the instant after that arc's arrival; once per stretch. (As committed in `3e7e781`, "as it arrived" was read from
+  the direction alone; fix round 1 reads it from the body's entry at the re-claim.)
 - The monitor's own admission test (used for the deadlock and stuck checks) takes the rule in its own terms, from its
   body model and not from the ledger: on a single-lane segment, a holder whose body surely lies on the segment against
-  its recorded direction blocks every other claimant. Validated as T2 did (`scripts/val3.py`, a copy of the T2
-  reviewer's, seeds 4400000..4400999, 3,000 reservation runs): 0 differences in 5,792,304 item tests (625 of them on a
-  segment in the state, each blocked by its holder in both computations), 247,527 reductions at wait events, 103,076
-  detections and 51,829 resolutions.
+  its recorded direction blocks every other claimant (since fix round 1: a holder that claimed the segment again while
+  its body lay on it, as long as the body surely lies on it by the entry it had then). Validated as T2 did
+  (`scripts/val3.py`, a copy of the T2 reviewer's, seeds 4400000..4400999, 3,000 reservation runs): 0 differences in
+  5,792,304 item tests (625 of them on a segment in the state, each blocked by its holder in both computations), 247,527
+  reductions at wait events, 103,076 detections and 51,829 resolutions.
 - `ADMITTED against a body on a segment` stays as it was. Seed 8101904 `fastest` with the rule undone (the state never
   begins) shows it at agv-g's grant, 471.171, before `PHYSICAL opposite directions on a segment`, with no older kind
   before it; the new check of recorded directions fires earlier, from the first re-claim of the run (30.619).
@@ -2728,3 +2734,61 @@ stays.
   of the run before, so it re-claims farther segments before a turn; the rule closes the scenario without changing that.
 - A holder that serves for a long time with a state left from an interrupted travel blocks without a report until it
   moves (the body is there).
+
+**Fix round 1.** The review (seeds 4410000..4415999, a body model of its own) found the library sound and one gap of the
+monitor, with five smaller points; the controller ruled on the gap (Ruling A3-n) and amended the spec (`1ebec11`).
+
+- *A segment claimed again twice.* A holder in the state that is granted the segment again in the direction its body
+  lies in (back, a stop, then forward again round a cycle) stays in the state until one of its ends: the ledger keeps
+  it, and spec §7.2 now says so. The monitor read "the body as it arrived" from the direction, so it reported that state
+  as outliving the body and its own admission test called a follower admissible. The monitor now takes it from the
+  events: a `traffic.reserved` whose deltas move the AGV from one list of a single-lane segment to the other is a
+  re-claim, remembered with the body's entry for the segment at that instant (its clear point and direction); while that
+  entry stands, the holder blocks every other claimant in the monitor's admission test (if its body surely lies on the
+  segment) and its state is not outliving the body (if its body lies on the segment, surely or within the band); the
+  entry ends when the holder's own leg replaces it or the body clears it. `src/` does not change. The scenario is a test
+  of the library (`test_travel.py`,
+  `test_a_holder_granted_the_segment_again_in_the_direction_of_its_body_stays_in_the_state`: the second grant at 20.0
+  leaves A in the state with the record forward, B waits from 20.5 with blocker A and is granted at 21.118, A's
+  odometer at the old clear point) and of the monitor
+  (`test_the_monitor_takes_the_body_as_it_arrived_from_its_entry_at_the_re_claim`: the monitor's state checks and its
+  admission test for B, run on that world's events, give no violation and B's blockers equal the ledger's at every
+  event; with the monitor of `1ebec11` it reports `LEDGER both directions outlived the body` at 20.5).
+- *A state on a `passing` segment* is a violation now (`LEDGER both directions on a passing segment`, Ruling A3-f). The
+  monitor watches every segment granted and still held (before, a segment left the watch at its grant if it had no
+  state at that event, so a state begun after the event went unseen). Mutant test: a ledger that puts passing segments
+  in the state, 4400003 `shortest`.
+- *Two statements of this section were general and true only of my ranges* (corrected above): 4412263 `fastest` changes
+  by an admission the state refused (agv-g waits behind agv-d on `g1_1~g2_2`; at the base that grant is `ADMITTED
+  against a body on a segment` at 314.707, with no physical conflict after it), and 4411251 `fastest` has an end by (c).
+  Both are tests: 4412263 `fastest` ends with no violation, and with the rule undone gives the check of recorded
+  directions and `ADMITTED` (at 314.707 on `g1_1~g2_2`) and nothing else; 4411251 `fastest` with end (c) dropped gives
+  `LEDGER both directions outlived the body`.
+- The guide's end "it has travelled far enough for its tail to clear the segment" counts, for a profile without
+  kinematic limits, at the arrival that ends that arc (tested at 51.25); the docstring of `TrafficController.cleared`
+  follows the amended §7.1 (the call may name segments without the state).
+
+Mutants with the monitor of the round (`scratch-a3-T3/scripts/mutants.py`, `out/r1-mutants.txt`), on 8101904 and
+4411251 `fastest`: state never begins, the check of recorded directions on both (then `ADMITTED` and the physical
+conflict on 8101904); ends at once, the same; no end (b), `cleared` ignored and no end (a), `LEDGER both directions
+outlived the body` on both; no end (c), the same on 4411251 (8101904 has no such end); not read, `ADMITTED` and `LEDGER
+both directions with another holder` on 8101904. No mutant, no violation.
+
+Reruns with the monitor of the round: seeds 4400000..4401999, both controllers, 12,000 runs, every one returned, two
+violating runs, 4400263 and 4401673 `congestion`, `open wait with no report`, the same as with the monitor of
+`1ebec11`; fingerprints and whole records of all 12,000 identical to those of the measured head of T3. Seeds
+4410000..4410999, reservation, 3,000 runs, 4,141,309 events, every one returned, three violating runs, 4410006
+`shortest`, 4410659 `fastest` and `shortest`, `open wait with no report`, the same with the monitor of `1ebec11`, and
+the same fingerprints. The monitor's reduction against the controller's (`scripts/val3.py`, seeds 4400000..4400999,
+3,000 reservation runs): 0 differences in 5,792,304 item tests (625 on a segment in the state), 247,527 reductions,
+103,076 detections and 51,829 resolutions. Summed wall of the 3,000 runs of 4410000..4410999: 1,537.0 s against 1,508.2
+s with the monitor of `1ebec11` (+1.9 %, run one after the other).
+
+**What the monitor still does not check (T3).**
+
+- A state that outlasts the body by less than the gap between two events of distinct later instants: the exactness check
+  sees a state only at domain events and reports it at an event of an instant later than the first event that saw it
+  (the review counted 31 of 163 runs under the mutant without end (b) where this hides the outlast).
+- The test with the rule undone clears the state after the grant's event, so the monitor sees the state at that event:
+  the check of recorded directions reports 19 of the 20 re-claims of single-lane segments of 8101904 `fastest`.
+- `passing` segments beyond the check above: the extents of a re-claim against the bodies in their lanes.
