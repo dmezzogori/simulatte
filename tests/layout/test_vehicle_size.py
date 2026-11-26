@@ -269,6 +269,22 @@ def test_a_sized_model_gets_layered_v2_and_new_hashes_and_reresolves_to_layered_
     assert replay.bundle.physical_hash == bundle.physical_hash
 
 
+def test_an_integral_size_keeps_its_hashes_after_a_javascript_number_round_trip():
+    bundle = simple(2.0, 1.0)
+    data = json.loads(json.dumps(bundle.to_dict()))
+    for section in (data["targets"], data["auto"]["targets"]):
+        for target in section.values():
+            if "size" in target:  # JSON.stringify writes 2.0 as 2, which reads back as an int
+                target["size"] = [int(value) for value in target["size"]]
+    assert data["targets"]["vehicle-0"]["size"] == [2, 1]
+    assert hashes(data) == {
+        "physical_hash": bundle.physical_hash,
+        "full_hash": bundle.full_hash,
+        "layers_hash": bundle.layers_hash,
+    }
+    LayoutBundle.from_dict(data).check()
+
+
 # --- the reader -----------------------------------------------------------------------------------------------------
 
 

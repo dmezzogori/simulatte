@@ -354,13 +354,6 @@ def _extent(placement: Mapping[str, Any], default: Mapping[str, Any], ux: float,
     return abs(Fraction(along)) * Fraction(footprint["width"]) + abs(Fraction(across)) * Fraction(footprint["depth"])
 
 
-def _raw(point: Point, size: tuple[float, float]) -> Bounds:
-    """The footprint's bounds without the padding of :func:`_bounds`."""
-    x, y = Fraction(point.x), Fraction(point.y)
-    dx, dy = Fraction(size[0]) / 2, Fraction(size[1]) / 2
-    return x - dx, y - dy, x + dx, y + dy
-
-
 def _clearing_step(
     obstacle: Bounds,
     half: tuple[Fraction, Fraction],
@@ -402,7 +395,8 @@ def _place_facilities(
     A parking area or a charging station is centred on its node. A warehouse is moved from its node along the
     direction away from the network by half its extent along it plus 1 m, then further by its own extent while its raw
     footprint overlaps an obstacle (the raw footprint of an explicit placement other than a node, a parking area or a
-    charging station) or a warehouse placed before it. Positions are exact until a single conversion to float.
+    charging station) or a warehouse placed before it. Positions are exact until a single conversion to float; the
+    overlap test uses the exact centre and the exact boxes of the warehouses placed before, never their rounding.
     """
     index = _BoundsIndex({key: box for key, box in obstacles.items() if targets[key].kind not in _NOT_OBSTACLES})
     placed: list[Bounds] = []
@@ -420,11 +414,13 @@ def _place_facilities(
         start, k = extent / 2 + 1, 0
         while True:
             distance = start + k * extent
+            # the overlap test uses the exact centre: its rounding may lie a fraction of an ulp inside an obstacle
+            x, y = origin[0] + direction[0] * distance, origin[1] + direction[1] * distance
             try:
-                point = Point(float(origin[0] + direction[0] * distance), float(origin[1] + direction[1] * distance))
+                point = Point(float(x), float(y))
             except OverflowError as exc:
                 raise LayoutError("auto position exceeds finite float64 range") from exc
-            box = _raw(point, sizes[key])
+            box = (x - half[0], y - half[1], x + half[0], y + half[1])
             hits = [hit for _, hit in index.collisions(box)] + [other for other in placed if _overlap(box, other)]
             if not hits:
                 break
@@ -433,7 +429,7 @@ def _place_facilities(
                 raise LayoutError("auto placement exceeds float64 precision for its extent")
             k = max(k + 1, *(_clearing_step(other, half, origin, direction, start, extent) for other in hits))
         placements[key]["position"] = (point.x, point.y, 0.0)
-        placed.append(box)
+        placed.append(box)  # exact: a later warehouse is tested against this box, not against its rounding
 
 
 def auto_layout(

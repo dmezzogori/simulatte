@@ -11,6 +11,7 @@ import runpy
 import subprocess
 import sys
 from contextlib import redirect_stdout
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -143,6 +144,88 @@ def test_two_warehouses_on_one_node_are_placed_in_id_order():
     result = place(*LANE, {"b": bound("warehouse", "B"), "a": bound("warehouse", "B")})
     assert position(result, "a") == (11.5, 0.0, 0.0)
     assert position(result, "b") == (12.5, 0.0, 0.0)
+
+
+# Coordinates such as -0.45 are not exact in binary: the overlap test must use the exact centre, not its rounding,
+# or a rounding a fraction of an ulp too far makes the next warehouse overlap the earlier one and skip a step.
+_INEXACT = (-37.45, -0.45, 0.1, 0.3, 2.7, 12.7, 1000.1)
+
+
+@pytest.mark.parametrize("c", _INEXACT)
+def test_warehouses_stacked_on_a_node_at_an_inexact_coordinate_take_consecutive_steps_along_y(c):
+    nodes = {"A": (-37.0, c), "B": (-37.0, c - 10.0)}  # B is below A: the direction is +y
+    stacked = {key: bound("warehouse", "A") for key in ("a", "b", "c")}
+    result = place(nodes, [("A", "B")], stacked)
+    # a 1 m square: 1.5 m, 2.5 m and 3.5 m from A, each a single rounding of the exact sum
+    assert [position(result, key) for key in "abc"] == [(-37.0, c + step, 0.0) for step in (1.5, 2.5, 3.5)]
+
+
+@pytest.mark.parametrize("c", _INEXACT)
+def test_warehouses_stacked_on_a_node_at_an_inexact_coordinate_take_consecutive_steps_along_x(c):
+    nodes = {"A": (c, 4.0), "B": (c - 10.0, 4.0)}  # B is west of A: the direction is +x
+    stacked = {key: bound("warehouse", "A") for key in ("a", "b", "c")}
+    result = place(nodes, [("A", "B")], stacked)
+    assert [position(result, key) for key in "abc"] == [(c + step, 4.0, 0.0) for step in (1.5, 2.5, 3.5)]
+
+
+@pytest.mark.parametrize("c", _INEXACT)
+def test_a_warehouse_beside_an_explicit_placement_at_an_inexact_coordinate_moves_only_on_an_exact_overlap(c):
+    # s is a 1 m square centred at the float nearest to c + 2.5: the warehouse's exact box at its first step,
+    # [c + 1, c + 2], touches s, or overlaps it by the rounding of s's centre. It moves (two steps, past s) only then.
+    centre = c + 2.5
+    explicit = {"s": {"kind": "server", "position": [centre, 4.0, 0]}}
+    nodes = {"A": (c, 4.0), "B": (c - 10.0, 4.0)}
+    result = place(nodes, [("A", "B")], {"w": bound("warehouse", "A"), "s": TargetMetadata("server")}, explicit)
+    touches = Fraction(c) + 2 <= Fraction(centre) - Fraction(1, 2)
+    assert position(result, "w") == (c + 1.5 if touches else c + 3.5, 4.0, 0.0)
+
+
+def test_warehouses_stacked_on_a_diagonal_take_consecutive_steps_when_their_separation_clears_them():
+    # From A, B is at (-3, -4): the direction is (0.6, 0.8) up to rounding, and the extent of a 1 m square along it is
+    # 1.4 m. Two consecutive warehouses are 0.84 m apart in x and 1.12 m in y: clear on y with 0.12 m to spare, so
+    # they take consecutive steps whatever the last bit of the rounded direction. What the rule guarantees on any
+    # diagonal is weaker: each centre is the single rounding of an exact point of the line for the rounded direction,
+    # and no exact box overlaps an earlier one. At 45 degrees consecutive boxes touch in real arithmetic, so whether a
+    # step is skipped there depends on the rounding of the direction.
+    ax, ay = 0.3, -0.45
+    nodes = {"A": (ax, ay), "B": (ax - 3.0, ay - 4.0)}
+    result = place(nodes, [("A", "B")], {key: bound("warehouse", "A") for key in ("a", "b", "c")})
+    for k, key in enumerate("abc"):
+        x, y, _ = position(result, key)
+        reach = 0.7 + 1 + k * 1.4
+        assert math.isclose(x, ax + 0.6 * reach, abs_tol=1e-12), (key, x)
+        assert math.isclose(y, ay + 0.8 * reach, abs_tol=1e-12), (key, y)
+
+
+def test_a_gridded_item_beside_facilities_placed_at_inexact_coordinates_reresolves_to_the_live_placements():
+    env = Environment(seed=1)
+    layout = env.layout
+    a, b = Node("A", 0.3, -0.45), Node("B", 0.3, -10.45)
+    layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, bidirectional=False)])))
+    sku = SKU("s", 1.0, 1.0)
+    for name in ("Store", "Annex", "Depot"):
+        Warehouse(
+            env=env,
+            name=name,
+            input_bays=[layout.node("A")],
+            output_bays=[],
+            n_slots=1,
+            products=[sku],
+            pick_time=1.0,
+            put_time=1.0,
+        )
+    Warehouse(env=env, name="Loose", input_bays=[], output_bays=[], n_slots=1, products=[sku], pick_time=1, put_time=1)
+    bundle = layout.prepare().bundle
+    # Annex, Depot, Store in id order: consecutive steps of 1 m above A
+    assert [placed(bundle, key) for key in ("Annex", "Depot", "Store")] == [
+        (0.3, -0.45 + step) for step in (1.5, 2.5, 3.5)
+    ]
+    assert "node_ids" not in bundle["targets"]["Loose"] and placed(bundle, "Loose") is not None
+    saved = LayoutBundle.from_dict(json.loads(json.dumps(bundle.to_dict())))
+    replay = reresolve_presentation(saved, {"schema_version": "1.0"})
+    assert replay.bundle is not None
+    assert replay.bundle["resolved"]["placements"] == bundle["resolved"]["placements"]
+    assert replay.bundle.physical_hash == bundle.physical_hash
 
 
 def test_parking_areas_and_charging_stations_are_centred_on_their_node_with_3_by_3():
