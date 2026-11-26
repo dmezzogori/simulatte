@@ -657,19 +657,29 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   no wait. Nor does it start a make-way move from a node it already made way from in the chain: a move that is cut
   short before it leaves (a deadlock resolved by giving up, which a travel without an order always accepts)
   would otherwise be started again at every review, each attempt being itself the traffic change that keeps
-  the reviews coming.
+  the reviews coming. A make-way move that charged on its way and ended elsewhere than its target first goes once
+  through the decision of T12 (not while an order is pending), and the nodes it made way from stay remembered
+  until the chain ends.
 - **Service nodes (T12).** A service node is a bay of one of the fleet's warehouses or the node of one of its
   charging stations. `FleetCoordinator(clear_service_nodes=True)`: when the controller controls occupancy, an AGV
   that would become idle on a service node, and for which the repositioning policy returned no target, first
   travels to the standard-search target. If there is none it stays. An AGV does not clear while the pending
-  queue holds an order: it becomes `IDLE` where it stands and the pending-queue check runs.
+  queue holds an order: it becomes `IDLE` where it stands and the pending-queue check runs. An AGV whose
+  repositioning, clearance or make-way move charged on its way and ended elsewhere than its target does not resume
+  that move. Where it stands after the charge, if the pending queue is empty, it goes once through the decision of
+  an AGV that ends a mission there (the battery check; the repositioning policy; then this clearance). If the queue
+  holds an order it becomes `IDLE` there and the pending-queue check runs, also when that order is not given to
+  it. A trip of that decision that charges on its way again is followed by no further decision: the AGV becomes
+  `IDLE` where it charged. Without this an AGV that charged on its way to rest stayed on the charger's node,
+  outside the rules for idle AGVs.
 - **Parking (T13).** When the target of a repositioning, a service-node clearance or a make-way move is the node
   of a parking area with a free slot, the coordinator calls `area.enter(agv)` at the decision, which is granted
   at once, and `area.leave(agv)` when the AGV next departs from that node or when the travel does not arrive. A
   travel that turns to charge on the way does not arrive: its slot is given back at the turn, also when the charge
   never starts (the AGV strands on the way to the charger) and when the charger is on the node where the AGV
   stands, unless the charger is on the area's own node, where the AGV keeps the slot (it is given back if the AGV
-  does not get there) and, after the charge, rests parked. A full area is not a valid target. This applies with both controllers. AGVs placed on a parking node at
+  does not get there) and, after the charge, rests parked; elsewhere a parking node that the decision of T12
+  names after the charge takes a slot at that decision. A full area is not a valid target. This applies with both controllers. AGVs placed on a parking node at
   activation take no slot.
 - **Stranded and serving blockers** are left to `on_blocked`. When an AGV strands, the coordinator calls `idle(agv)`
   (§7.1) and each open wait the AGV blocks gets one review at that instant, as after a release: the policy can reroute
@@ -770,6 +780,10 @@ are bounded (§7.9, §8.2). The one remaining poller is `FleetCoordinator._pendi
 for as long as any order is pending. With the built-in dispatch strategies it must tick only while a pending
 order is unserviceable (so that such orders still exhaust their retries); otherwise it stops, and the existing
 pending-queue check on every transition to `IDLE` restarts dispatch. Custom strategies keep the polling loop.
+A move without an order is followed by at most one decision of where to rest after a charge on its way, and a
+trip of that decision by none (§7.10), so the charges of such a move are bounded (two on the way, with a charge
+that fills the battery). An order's travel has no such bound: an order whose destination lies beyond what a full
+charge reaches goes between the charger and the node before the arc without end (known limit).
 
 ## 9. Motion
 
@@ -955,6 +969,7 @@ only with `ReservationController`.
 | `traffic.deadlock` (new) | `agvs` (sorted ids), `victim` (id or null), `action` in `reroute`, `step_aside`, `give_up`, `unresolved`; no deltas |
 | `agv.routed` (new) | `agv`, `origin`, `destination`, `nodes`, `cost`, `reason` in `travel`, `blocked`, `deadlock`, `step_aside`, `make_way`, `clear_node`; no deltas |
 | `agv.move_started` | unchanged payload; `motion` may be `piecewise` |
+| `agv.stranded` | `node` is the node the AGV stands on; `reason` in `no_reachable_charger`, `insufficient_after_charging` (a diversion charged and the level still does not cover the arc it turned at), `charger_not_reached` (new: a diversion ended before the charger, its level critical or without a route); no deltas |
 | `agv.move_interrupted` | emitted at the node where an interrupted AGV came to rest; `agv`, `node`, `reason`; no deltas |
 | `agv.battery_changed` | also emitted for idle-power accrual outside a move |
 | `order.status_changed` | new reason `traffic_requeued`; `travel_failed` now means no route |
