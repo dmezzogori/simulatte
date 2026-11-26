@@ -926,22 +926,12 @@ BEHIND_A_REPORTED_WAIT = [
 """The runs that end with a wait behind a reported wait, stuck and unreported (hole R of audit (i))."""
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="a gate waiver leaves a sleeping wait stuck, unreported (hole A); T4 fixes it",
-)
 @pytest.mark.parametrize(("seed", "router"), GATE_WAIVER)
 def test_a_run_with_a_gate_waiver_ends_with_every_open_wait_reported(seed, router):
     record = run_world(world_spec(seed), controller="reservation", router=router)
     assert record.quiescent and not record.violations
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="the stuck chain stops at a wait already reported (hole R, audit (i)); T4 fixes it",
-)
 @pytest.mark.parametrize(("seed", "router"), BEHIND_A_REPORTED_WAIT)
 def test_a_run_with_a_wait_behind_a_reported_wait_ends_with_every_open_wait_reported(seed, router):
     record = run_world(world_spec(seed), controller="reservation", router=router)

@@ -260,8 +260,13 @@ class ReservationController:
         Emits ``traffic.wait_started``, asks idle blockers to make way (spec §7.10), runs deadlock detection (§7.8)
         and, when the wait is still open and the AGV is not left in an unresolved deadlock, asks the policy how it
         reacts (§7.9). A wait left in an unresolved deadlock gets its ``on_blocked`` call when no remembered set holds
-        it any longer (:meth:`_review_orphans`).
+        it any longer (:meth:`_review_orphans`). Then the waits with no review left are checked (:meth:`_check_asleep`).
         """
+        self._stop(request)
+        self._check_asleep()
+
+    def _stop(self, request: ClaimRequest) -> None:
+        """:meth:`stopped` without the check of the waits with no review left."""
         agv = request.agv
         waiting = self._pending.get(agv)
         if waiting is None or waiting.request is not request or waiting.stopped:
@@ -297,19 +302,26 @@ class ReservationController:
             self._schedule(waiting, kept.review_after)
 
     def idle(self, agv: AGV) -> None:
-        """`agv` has just come to rest without a travel where it stands, ``IDLE`` or ``STRANDED`` (spec §7.10): ask it
-        to make way for the open waits it blocks, or, when it is stranded, review those waits now.
+        """`agv` has just come to rest without a travel where it stands, ``IDLE`` or ``STRANDED``, or its run stalled
+        (spec §7.1, §7.10): ask it to make way for the open waits it blocks when it is idle, or, when it is stranded,
+        review those waits now.
 
-        The waits are taken in request order. If there are none, nothing happens. A stranded AGV is not asked to move:
-        each of those waits that is still open gets one review at once, as after a release, so that the policy can
-        reroute around the stranded blocker and a wait that stays is reported stuck (spec §7.9). A review timer the
-        wait had is dropped; the review schedules the next one by the usual rule (T23). Otherwise the AGV's fleet is
-        asked once, with the policy's ``make_way_target`` for the first wait and the AGVs of all of them as the
-        concerned ones. When the AGV does not move (it has no fleet, or the fleet refused) each of those waits is
+        The waits are taken in request order. A stranded AGV is not asked to move: each of those waits that is still
+        open gets one review at once, as after a release, so that the policy can reroute around the stranded blocker
+        and a wait that stays is reported stuck (spec §7.9). A review timer the wait had is dropped; the review
+        schedules the next one by the usual rule (T23). An idle AGV's fleet is asked once, with the policy's
+        ``make_way_target`` for the first wait and the AGVs of all of them as the concerned ones; a stalled AGV is not
+        asked. When the AGV does not move (it has no fleet, the fleet refused, or it is stalled) each of those waits is
         checked for the stuck condition (spec §7.9) now, with its blockers recomputed, since a sleeping wait has no
         review left to report it. This is not a review: ``on_blocked`` is not called, no review is counted and no timer
-        is scheduled.
+        is scheduled. Then the waits with no review left are checked (:meth:`_check_asleep`), whether or not the AGV
+        blocks a wait.
         """
+        self._idle(agv)
+        self._check_asleep()
+
+    def _idle(self, agv: AGV) -> None:
+        """:meth:`idle` without the check of the waits with no review left."""
         waits = self._waits_blocked_by(agv)
         if not waits:
             return
@@ -322,7 +334,7 @@ class ReservationController:
             return
         fleet = agv.fleet
         first = waits[0]
-        if fleet is not None:
+        if fleet is not None and self.view.disposition(agv) is Disposition.IDLE:
             target = self._policy.make_way_target(agv, self._wait(first, self._blocking(first)), self.view)
             if fleet.make_way(agv, target, concerned=tuple(waiting.agv for waiting in waits)):
                 return
@@ -344,8 +356,14 @@ class ReservationController:
         """Cancel `request` if it is still pending; an open wait ends with ``interrupted``.
 
         When the AGV was a member of a deadlocked set left unresolved, the set is forgotten with its wait; after the
-        scan that the withdrawal allows, the members left are looked at again (:meth:`_forgotten`).
+        scan that the withdrawal allows, the members left are looked at again (:meth:`_forgotten`). Then the waits with
+        no review left are checked (:meth:`_check_asleep`): a withdrawn claim may have gated one.
         """
+        self._withdraw(request)
+        self._check_asleep()
+
+    def _withdraw(self, request: ClaimRequest) -> None:
+        """:meth:`withdraw` without the check of the waits with no review left."""
         waiting = self._pending.get(request.agv)
         if waiting is None or waiting.request is not request:
             return
@@ -415,11 +433,10 @@ class ReservationController:
 
         A claim is gated on a segment or corridor ``r`` it names, and that its AGV does not hold, when an earlier,
         non-yielding claim names ``r``, is inadmissible on ``r``, and each of its other resources is admissible or
-        blocked only by holders of ``r``. With `among`, only the holdings of those AGVs exist.
+        blocked only by holders of ``r``. With `among`, only the holdings of those AGVs exist. The earlier claims are
+        read at the first such ``r``, before anything is yielded: a claim without one costs nothing per earlier claim.
         """
-        others = [
-            (claim, self.ledger.needed(claim.agv, claim.request.claim)) for claim in earlier if not claim.yielding
-        ]
+        others: list[tuple[_Pending, tuple[ClaimItem, ...]]] | None = None
         for item in items:
             resource = item.resource
             if not isinstance(resource, (Segment, Corridor)):
@@ -427,6 +444,12 @@ class ReservationController:
             holders = self.ledger.holders(resource)
             if agv in holders:
                 continue
+            if others is None:
+                others = [
+                    (claim, self.ledger.needed(claim.agv, claim.request.claim))
+                    for claim in earlier
+                    if not claim.yielding
+                ]
             for other, needed in others:
                 mine = next((own for own in needed if own.resource == resource), None)
                 if mine is None or not self.ledger.blockers(other.agv, mine, among):
@@ -563,8 +586,14 @@ class ReservationController:
     def _schedule(self, waiting: _Pending, delay: float) -> None:
         """Schedule the next review of the wait `delay` from now."""
         timer = self._env.timeout(delay)
-        timer.callbacks.append(lambda _: self._review(waiting))
+        timer.callbacks.append(lambda _: self._timed_review(waiting))
         waiting.timer = timer
+
+    def _timed_review(self, waiting: _Pending) -> None:
+        """The review of a timer, then the check of the waits with no review left (:meth:`_check_asleep`): the review
+        may have staged a reaction that ended a gating claim, or have left a wait behind its own asleep."""
+        self._review(waiting)
+        self._check_asleep()
 
     def _review(self, waiting: _Pending) -> None:
         """A review: make way and ``on_blocked`` again, with the blockers recomputed before and after the make-way step
@@ -631,19 +660,91 @@ class ReservationController:
         env.warning(f"wait of {agv.id} is stuck: blockers {named}", component="ReservationController")
         return True
 
+    def _check_asleep(self) -> None:
+        """Report the waits with no review left that are stuck (spec §7.9, "Waits with no review left").
+
+        Called once at the end of each controller entry that is not a plain grant or release (:meth:`stopped`,
+        :meth:`withdraw`, :meth:`idle` and a review on its timer), which covers a wait that opens, a pending claim that
+        ends without a grant (a withdrawal, a staged reaction), a gate that detection waives, an AGV that comes to rest
+        or stalls, and the end of each review. The waits checked are the open ones that carry no report, have no review
+        scheduled and are no member of a deadlocked set left unresolved, except a wait that a review already scheduled
+        will reach: a wait ahead of it, through waiting blockers whose waits carry no report and are no member, has a
+        review scheduled, and that review's report reaches it (:meth:`_report_stuck`). A wait checked and stuck is
+        reported as every report is, with the waits behind it; they are taken in queue order. This is not a review:
+        ``on_blocked`` is not called, no review is counted, no timer is scheduled and nothing changes but the report.
+
+        One pass: the blockers of the waits checked, and of every wait reached from them through waiting blockers, are
+        computed once. A wait with no blocker, or with a blocker that is none of stalled, idle, stranded or waiting, is
+        not stuck, and neither is a wait behind it; the waits left are stuck (:meth:`_stuck` agrees). Nothing is
+        computed when no wait sleeps.
+        """
+        members = {agv for ids in self._unresolved for agv in ids}
+        asleep = [
+            waiting
+            for waiting in self._queue
+            if waiting.stopped and waiting.timer is None and not waiting.stuck and waiting.agv.id not in members
+        ]
+        if not asleep:
+            return
+        blockers: dict[_Pending, tuple[Blocker, ...]] = {}
+        behind: dict[_Pending, list[_Pending]] = {}  # the waits that have the key's AGV as a waiting blocker
+        not_stuck: dict[_Pending, None] = {}  # a blocker that moves or serves, or no blocker; then the waits behind
+        todo = list(asleep)
+        while todo:
+            current = todo.pop()
+            if current in blockers:
+                continue
+            found = blockers[current] = self._blocking(current)
+            if not found:
+                not_stuck[current] = None
+            for blocker in found:
+                motion = blocker.agv.motion
+                if motion is not None and motion.get("stalled"):
+                    continue
+                if blocker.disposition is Disposition.WAITING:
+                    ahead = self._pending[blocker.agv]
+                    behind.setdefault(ahead, []).append(current)
+                    todo.append(ahead)
+                elif blocker.disposition not in (Disposition.IDLE, Disposition.STRANDED):
+                    not_stuck[current] = None
+        self._behind_all(not_stuck, behind, lambda waiting: True)
+        # The waits a scheduled review reaches: those with a timer, then the waits behind them, through waits that
+        # carry no report and are no member (the report chain does not pass those).
+        open_to_chain = {waiting: None for waiting in blockers if not waiting.stuck and waiting.agv.id not in members}
+        reached = {waiting: None for waiting in open_to_chain if waiting.timer is not None}
+        self._behind_all(reached, behind, open_to_chain.__contains__)
+        for waiting in asleep:
+            if not (waiting.stuck or waiting in not_stuck or waiting in reached):
+                self._report_stuck(waiting, blockers[waiting])
+
+    @staticmethod
+    def _behind_all(
+        marked: dict[_Pending, None], behind: dict[_Pending, list[_Pending]], admits: Callable[[_Pending], bool]
+    ) -> None:
+        """Add to `marked`, in place, every wait behind a marked one that `admits` accepts, and so on."""
+        todo = list(marked)
+        while todo:
+            for waiting in behind.get(todo.pop(), ()):
+                if waiting not in marked and admits(waiting):
+                    marked[waiting] = None
+                    todo.append(waiting)
+
     def _stuck(self, waiting: _Pending, blockers: tuple[Blocker, ...]) -> dict[str, str] | None:
         """The disposition of each of the given blockers of `waiting` by AGV id when the wait is stuck, otherwise None.
 
         A wait is stuck when every blocker is stalled, idle or stranded, or is waiting in a wait that is stuck by the
         same rule; a cycle of such waits is stuck. The waits reached through waiting blockers are taken as they stand
         now, with their blockers recomputed: one blocker among them that is none of these (moving, serving, charging)
-        makes every wait that reaches it not stuck, so the wait is stuck exactly when no wait it reaches has one.
+        makes every wait that reaches it not stuck, so the wait is stuck exactly when no wait it reaches has one. A wait
+        with no blocker is not stuck (the next scan grants it), and neither is a wait that reaches one.
         """
         found: dict[str, str] = {}
         reached = {waiting}
         todo = [(waiting, blockers)]
         while todo:
             current, current_blockers = todo.pop()
+            if not current_blockers:
+                return None
             for blocker in current_blockers:
                 motion = blocker.agv.motion
                 if motion is not None and motion.get("stalled"):

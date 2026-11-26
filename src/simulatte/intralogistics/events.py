@@ -304,9 +304,11 @@ class TrafficWaitStuck(DomainEvent):
     stuck by the same rule.
 
     `blockers` maps each blocker's id to its disposition name (``IDLE``, ``STRANDED``, ``WAITING``), or ``STALLED``
-    for an AGV whose motion is stalled. It is emitted at a review that keeps the wait waiting, when an idle blocker
-    does not move, and for the waits behind a wait just reported, at the instant their chain becomes stuck. Emitted
-    once per wait; it is a report, not a deadlock, and changes no state.
+    for an AGV whose motion is stalled. It is emitted at a review that keeps the wait waiting, when a blocker comes to
+    rest or stalls and does not move (``idle``), for the waits behind a wait just reported, and for a wait with no
+    review scheduled when the controller is entered for something other than a grant or a release (a wait opens, a
+    pending claim is withdrawn, a review ends, an AGV comes to rest or stalls), unless a review already scheduled will
+    reach it. Emitted once per wait; it is a report, not a deadlock, and changes no state.
     """
 
     agv: str
