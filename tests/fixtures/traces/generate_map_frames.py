@@ -13,7 +13,9 @@ algorithms, stages, topology, diagnostics, required_paths, the other ``network``
 With ``--patch`` (the default until the Python side records them) the fixtures also carry what the map needs and the
 simulation does not record yet (spec §6): the ``wait`` and ``route`` of a vehicle, the capacities, the fleet counters,
 the vehicle size and ``node_ids`` of the facilities, and the facility positions of the placement rule of §6.3. Each is
-computed from the events up to the cursor or written as a literal below. ``bare-layout`` is never patched.
+computed from the events up to the cursor or written as a literal below. ``bare-layout`` is never patched, and the
+vehicle size the corridor example records is taken out of it (:func:`unsized`): it stands for a trace recorded
+before Stage 2.
 """
 
 from __future__ import annotations
@@ -206,6 +208,17 @@ def patch_layout(layout: Plain, example: str) -> None:
         placements[name]["position"] = list(position)
         if targets[name]["kind"] in CENTRED:
             placements[name]["footprint"].update(width=3.0, depth=3.0)
+
+
+def unsized(layout: Plain) -> Plain:
+    """`layout` as a trace recorded before the vehicle size: no ``size`` in the targets, vehicles 1 x 1 m (§6.1).
+
+    ``bare-layout`` stands for such a trace; the corridor example records its vehicles' size since Task 11."""
+    layout = json.loads(json.dumps(layout))
+    for name, target in layout["targets"].items():
+        if target.pop("size", None) is not None:
+            layout["resolved"]["placements"][name]["footprint"].update(width=1.0, depth=1.0)
+    return layout
 
 
 def patch_state(
@@ -708,6 +721,7 @@ def main(argv: list[str] | None = None) -> int:
         frames["two-fleets"] = two_fleets
 
         frames["bare-layout"] = frame_of(c, 128.0, None, patch=False, layout_patched=None)
+        frames["bare-layout"]["layout"] = unsized(frames["bare-layout"]["layout"])
         no_layout = json.loads(json.dumps(corridor_wait))
         no_layout["layout"] = None
         frames["no-layout"] = no_layout

@@ -11,6 +11,10 @@ from simulatte._wire import canonical_pack, escape_key, freeze
 from .errors import LayoutError
 
 ALGORITHMS = {"auto": "layered-v1", "network": "network-v1", "hash": "layout-hash-v1"}
+"""The algorithms of a bundle; ``auto`` is ``layered-v2`` instead when a target carries a ``layered-v2`` input."""
+AUTO_ALGORITHMS = ("layered-v1", "layered-v2")
+"""The names of the automatic placement: ``layered-v2`` exactly when a target carries ``size`` or ``node_ids``
+(studio map spec §6.5), so every other bundle keeps ``layered-v1`` and its hashes."""
 _GEOMETRY = frozenset(
     {
         "position",

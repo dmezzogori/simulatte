@@ -494,7 +494,10 @@ class Layout:
                     required.append(ref.address)
                     if entity.kind == "agv":
                         node_id = self._resolve_node(ref).id
-            metadata[entity.id] = TargetMetadata(entity.kind, entity.id in self._placed, node_id=node_id)
+            # A vehicle's size comes from its type (studio map spec §6.1); the layout reads it without importing
+            # the intralogistics package.
+            size = getattr(getattr(entity, "agv_type", None), "size", None) if entity.kind == "agv" else None
+            metadata[entity.id] = TargetMetadata(entity.kind, entity.id in self._placed, node_id=node_id, size=size)
         for definition in coordinator.network.definitions.nodes.values():
             metadata[definition.id] = TargetMetadata("node", definition.id in self._placed, definition.position)
         self._required_paths = coordinator.network.validate(

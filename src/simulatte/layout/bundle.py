@@ -13,11 +13,11 @@ from threading import Lock
 from typing import Any
 
 from simulatte._wire import freeze
-from .auto import TargetMetadata, auto_layout
+from .auto import TargetMetadata, auto_algorithm, auto_layout
 from .dependencies import DependencyClosure, evaluate_query
 from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
 from .schema import layout_version, traffic_fields, validate_definition
-from .identity import ALGORITHMS, hashes, normalize, normalized_query
+from .identity import ALGORITHMS, AUTO_ALGORITHMS, hashes, normalize, normalized_query
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .topology import StaticTopology
 
@@ -52,7 +52,12 @@ def _validate(data: Mapping[str, Any]) -> None:
     """Validate known layout-v1 shape without instantiating runtime model objects."""
     if set(data) != _FIELDS:
         raise LayoutError("layout-v1 bundle has missing or unknown fields")
-    if dict(data["algorithms"]) != ALGORITHMS:
+    algorithms = data["algorithms"]
+    if (
+        not isinstance(algorithms, Mapping)
+        or algorithms.get("auto") not in AUTO_ALGORITHMS
+        or dict(algorithms) != {**ALGORITHMS, "auto": algorithms["auto"]}
+    ):
         raise LayoutError("unsupported layout algorithm; upgrade the reader")
     for name in ("full_hash", "physical_hash", "layers_hash"):
         if not isinstance(data[name], str) or not re.fullmatch("[0-9a-f]{64}", data[name]):
@@ -179,12 +184,19 @@ def _validate_details(data: Mapping[str, Any]) -> None:
                     _strings(read["path"])
                 validate_definition(_thaw(read), "address")
     _keys(data["auto"], "algorithm data targets topology derived_positions")
-    if data["auto"]["algorithm"] != "layered-v1":
+    name = data["auto"]["algorithm"]
+    if name not in AUTO_ALGORITHMS:
         raise LayoutError("unsupported auto algorithm")
     FileLayer(data["auto"]["data"])
     StaticTopology.from_dict(_thaw(data["auto"]["topology"]))
-    for target in data["auto"]["targets"].values():
-        TargetMetadata.from_dict(target)
+    auto_targets = [TargetMetadata.from_dict(target) for target in data["auto"]["targets"].values()]
+    saved_targets = [
+        TargetMetadata.from_dict({k: v for k, v in target.items() if k != "explicitly_named"})
+        for target in data["targets"].values()
+    ]
+    # layered-v2 exactly when a target carries one of its inputs (studio map spec §6.5)
+    if not name == data["algorithms"]["auto"] == auto_algorithm(auto_targets) == auto_algorithm(saved_targets):
+        raise LayoutError("auto algorithm disagrees with the bundle's algorithms or its targets")
     for point in data["auto"]["derived_positions"].values():
         validate_definition(_thaw(point), "point")
     _keys(data["dependencies"], "queries bindings sealed")
@@ -579,7 +591,7 @@ def _build_bundle(prepared: Any) -> LayoutBundle:
     version = _version(values)
     data = {
         "schema_version": version,
-        "algorithms": ALGORITHMS,
+        "algorithms": {**ALGORITHMS, "auto": auto.algorithm},
         "stages": _thaw(prepared.stage_records),
         "topology": auto.topology.to_dict(),
         "targets": {

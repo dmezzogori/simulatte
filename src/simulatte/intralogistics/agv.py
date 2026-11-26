@@ -51,7 +51,7 @@ _UTILIZED_STATES = frozenset(
 @dataclass(frozen=True)
 class AGVType:
     """The settings shared by the AGVs of one kind: speed profile, battery, capacities, load and unload times, the
-    vehicle's size (``length``, ``min_gap``) and its turning and idle-power models."""
+    vehicle's size (``length``, ``width``, ``min_gap``) and its turning and idle-power models."""
 
     name: str
     speed_profile: SpeedProfile
@@ -75,7 +75,13 @@ class AGVType:
     unload_time: SamplerDescription[float] | float | Callable[[], float] = 0.0
     """Unload duration, like :attr:`load_time`, bound to the stream ``<agv id>/unload``."""
     length: float | None = None
-    """Length of the vehicle; ``ReservationController`` requires it (spec §6.6)."""
+    """Length of the vehicle; ``ReservationController`` requires it (spec §6.6). It is also the vehicle's size along
+    its heading in the layout (:attr:`size`): ``None`` and ``0`` count as not declared there, and the vehicle keeps
+    the default 1 x 1 m placement footprint."""
+    width: float | None = None
+    """Width of the vehicle, finite and >= 0; descriptive, no component reads it. With a positive :attr:`length` it is
+    the depth of the vehicle's placement footprint (:attr:`size`); ``None`` and ``0`` count as not declared, and the
+    depth is then half the length. Without a length it is not used."""
     min_gap: float = 0.0
     """Distance kept to the vehicle ahead; the extent of the vehicle is ``length + min_gap``."""
     corner_speed: Callable[[float], float] | None = None
@@ -96,10 +102,23 @@ class AGVType:
     def __post_init__(self) -> None:
         if self.length is not None and not (math.isfinite(self.length) and self.length >= 0):
             raise ValueError(f"AGVType {self.name!r}: length must be finite and >= 0, got {self.length}")
+        if self.width is not None and not (math.isfinite(self.width) and self.width >= 0):
+            raise ValueError(f"AGVType {self.name!r}: width must be finite and >= 0, got {self.width}")
         if not (math.isfinite(self.min_gap) and self.min_gap >= 0):
             raise ValueError(f"AGVType {self.name!r}: min_gap must be finite and >= 0, got {self.min_gap}")
         if not (math.isfinite(self.idle_power) and self.idle_power >= 0):
             raise ValueError(f"AGVType {self.name!r}: idle_power must be finite and >= 0, got {self.idle_power}")
+
+    @property
+    def size(self) -> tuple[float, float] | None:
+        """``(length, width)`` of the vehicle's placement footprint, or None when the type declares no length.
+
+        A length of ``None`` or ``0`` is not declared (no size: the footprint stays 1 x 1 m); a width of ``None`` or
+        ``0`` with a positive length gives half the length (studio map spec §6.1). The layout writes it to the
+        vehicle's target in the bundle."""
+        if not self.length:
+            return None
+        return (float(self.length), float(self.width) if self.width else self.length / 2)
 
 
 class AGV(Entity, kind="agv"):

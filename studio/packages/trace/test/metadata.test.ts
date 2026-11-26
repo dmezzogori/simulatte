@@ -172,3 +172,64 @@ it.each([
   parent[(path as (string | number)[]).at(-1)!] = value;
   await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
 });
+
+// The corridor example: its vehicle type has length 1.2 and no width, so its bundle is layered-v2 (studio map spec §6.5).
+const exampleExpected = JSON.parse(readFileSync(new URL("../../../../tests/fixtures/traces/generated/example_traffic.expected.json", import.meta.url), "utf8")) as { layout: Record<string, any> };
+
+it("opens a layered-v2 bundle whose vehicles carry their size, and keeps layered-v1 for the others", async () => {
+  const layout = exampleExpected.layout;
+  expect(layout["algorithms"].auto).toBe("layered-v2");
+  expect(layout["auto"].algorithm).toBe("layered-v2");
+  expect(layout["targets"]["AGV-1"].size).toEqual([1.2, 0.6]);
+  expect(layout["auto"].targets["AGV-1"].size).toEqual([1.2, 0.6]);
+  expect(layout["resolved"].placements["AGV-1"].footprint).toEqual({ depth: 0.6, height: 0.0, width: 1.2 });
+  expect(layout["targets"]["West"].size).toBeUndefined();
+  expect((await openTrace(buildTrace({ ...INITIAL, layout }))).layout).toEqual(layout);
+  expect(layoutExpected.layout["algorithms"]).toEqual({ auto: "layered-v1", network: "network-v1", hash: "layout-hash-v1" });
+});
+
+it("opens a layered-v2 bundle whose facility targets carry node_ids", async () => {
+  const layout = structuredClone(layoutExpected.layout) as Record<string, any>;
+  const facility = { kind: "warehouse", explicitly_placed: false };
+  layout["targets"]["store"] = { ...facility, explicitly_named: true, node_ids: ["a", "b"] };
+  layout["auto"].targets["store"] = { ...facility, node_ids: ["a", "b"] };
+  layout["algorithms"].auto = layout["auto"].algorithm = "layered-v2";
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout }));
+  expect((trace.layout?.["targets"] as any).store.node_ids).toEqual(["a", "b"]);
+});
+
+it.each([
+  [["algorithms", "auto"], "layered-v3"],
+  [["auto", "algorithm"], "layered-v3"],
+  [["algorithms", "auto"], "layered-v1"],
+  [["auto", "algorithm"], "layered-v1"],
+  [["targets", "AGV-1", "size"], [1.2]],
+  [["targets", "AGV-1", "size"], [1.2, 0]],
+  [["targets", "AGV-1", "size"], [1.2, "wide"]],
+  [["auto", "targets", "AGV-1", "size"], "big"],
+  [["targets", "West", "size"], [1, 1]],
+  [["targets", "AGV-1", "node_ids"], ["W"]],
+  [["targets", "West", "node_ids"], []],
+  [["auto", "targets", "West", "node_ids"], [7]],
+  [["auto", "targets", "West", "node_ids"], "W"],
+  [["targets", "West", "extent"], 1],
+  [["auto", "targets", "AGV-1", "extent"], 1],
+])("rejects other algorithm names and malformed target fields %j", async (path, value) => {
+  const layout = structuredClone(exampleExpected.layout);
+  let parent: any = layout;
+  for (const key of (path as string[]).slice(0, -1)) parent = parent[key];
+  parent[(path as string[]).at(-1)!] = value;
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+});
+
+it("rejects the layered-v2 name without its fields, and the fields under layered-v1", async () => {
+  const unsized = structuredClone(layoutExpected.layout) as Record<string, any>;
+  unsized["algorithms"].auto = unsized["auto"].algorithm = "layered-v2";
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: unsized }))).rejects.toThrow(TraceCorrupted);
+  const renamed = structuredClone(exampleExpected.layout);
+  renamed["algorithms"].auto = renamed["auto"].algorithm = "layered-v1";
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: renamed }))).rejects.toThrow(TraceCorrupted);
+  const halved = structuredClone(exampleExpected.layout);
+  for (const t of Object.values(halved["auto"].targets) as Record<string, unknown>[]) delete t["size"];
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: halved }))).rejects.toThrow(TraceCorrupted);
+});

@@ -170,7 +170,9 @@ PINNED_BUNDLES = {
     "valid-traffic-lattice": "1139feed0e7341f15bf2b1ecd7e2892ca93a9246f76538f36cb0eed1bb0ac36e",
     "valid-unset": "859fddbbb411ce36a75f8901f3cf37f524838c0cffa454fd544d4d4708efce9a",
     "code:line": "e9e85da59f7f582af9224c471407951165270e269511124e8b65c85478d3903f",
-    "code:system": "f88b12dc44d37b8f2e4f032e731f4b4ebca2f000be76c2c25e4762485aa91331",
+    # Re-pinned when the vehicle size entered the bundle (studio map Task 11): its cart has length 0.5, so its target
+    # carries size [0.5, 0.25] and the bundle is layered-v2. With the size withheld it is f88b12dc...aa91331, as before.
+    "code:system": "b4f0e40f668c7e49b8a34775fd69943c4def5b275ea2f721eae5f45da140cc21",
     "code:chord_only_square": "4978578e56733e34f5a86c9835bdb237715ce8979742b1f9f1c8ccbcbbf5a5bc",
     "code:shop10": "40c22e1a7d45de449c7270538333991b672075cacf2100fa53a62014f713aace",
 }

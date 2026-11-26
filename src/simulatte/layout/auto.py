@@ -1,4 +1,8 @@
-"""Pure layered-v1 presentation defaults and deterministic cell packing.
+"""Pure layered-v1/layered-v2 presentation defaults and deterministic cell packing.
+
+``layered-v2`` is ``layered-v1`` plus two inputs a target may carry (studio map spec §6.5): a vehicle's ``size`` and
+a facility's ``node_ids``. One implementation serves both names; a bundle is named ``layered-v2`` exactly when a target
+carries one of them, so every other bundle keeps its name, its output and its hashes.
 
 Graph positions and node-bound AGV locations are returned separately from auto
 leaves: neither may accidentally acquire auto-origin physical provenance.
@@ -8,16 +12,21 @@ from __future__ import annotations
 
 import heapq
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 from functools import lru_cache
 from typing import Any
 
 from .errors import LayoutDiagnostic, LayoutError
+from .identity import AUTO_ALGORITHMS
 from .layers import ResolvedValues, _thaw
 from .topology import StaticTopology, id_key
 from .types import LayoutLimits, Point, _freeze, normalize_rotation, number, placement_defaults
+
+_BOUND_KINDS = frozenset({"warehouse", "parking_area", "charging_station"})
+"""The kinds whose target may carry ``node_ids``."""
+_TARGET_FIELDS = frozenset({"kind", "explicitly_placed", "graph_position", "node_id", "size", "node_ids"})
 
 
 @dataclass(frozen=True)
@@ -27,12 +36,18 @@ class TargetMetadata:
     explicitly_placed is author intent (never inferred from a previous auto layer).
     graph_position is authoritative for node kinds; node_id identifies an AGV's
     canonical bound node. An unbound AGV has no derived world position.
+    size is an AGV's ``(length, width)``, its default footprint, present when its
+    type declares a length; node_ids are the nodes a warehouse, parking area or
+    charging station is bound to, in binding order. Either names the algorithm
+    ``layered-v2`` (studio map spec §6.5).
     """
 
     kind: str
     explicitly_placed: bool = False
     graph_position: Point | None = None
     node_id: str | None = None
+    size: tuple[float, float] | None = None
+    node_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         id_key(self.kind)
@@ -44,6 +59,20 @@ class TargetMetadata:
             id_key(self.node_id)
             if self.kind != "agv":
                 raise LayoutError("node_id requires an agv target")
+        if self.size is not None:
+            if self.kind != "agv" or not isinstance(self.size, tuple) or len(self.size) != 2:
+                raise LayoutError("size requires an agv target and a (length, width) pair")
+            object.__setattr__(self, "size", tuple(number(value, "size", positive=True) for value in self.size))
+        if self.node_ids is not None:
+            if self.kind not in _BOUND_KINDS or not isinstance(self.node_ids, tuple) or not self.node_ids:
+                raise LayoutError("node_ids requires a warehouse, parking_area or charging_station target and ids")
+            for node in self.node_ids:
+                id_key(node)
+
+    @property
+    def versioned(self) -> bool:
+        """Whether the target carries an input of ``layered-v2``."""
+        return self.size is not None or self.node_ids is not None
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"kind": self.kind, "explicitly_placed": self.explicitly_placed}
@@ -51,14 +80,28 @@ class TargetMetadata:
             result["graph_position"] = [self.graph_position.x, self.graph_position.y, 0.0]
         if self.node_id is not None:
             result["node_id"] = self.node_id
+        if self.size is not None:
+            result["size"] = list(self.size)
+        if self.node_ids is not None:
+            result["node_ids"] = list(self.node_ids)
         return result
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> TargetMetadata:
         copied = dict(data)
+        if not {"kind", "explicitly_placed"} <= copied.keys() <= _TARGET_FIELDS:
+            raise LayoutError("invalid layout target fields")
         if "graph_position" in copied:
             copied["graph_position"] = Point(*copied["graph_position"])
+        for name in ("size", "node_ids"):
+            if isinstance(copied.get(name), (list, tuple)):
+                copied[name] = tuple(copied[name])
         return cls(**copied)
+
+
+def auto_algorithm(targets: Iterable[TargetMetadata]) -> str:
+    """``layered-v2`` exactly when a target carries ``size`` or ``node_ids``, else ``layered-v1``."""
+    return AUTO_ALGORITHMS[any(target.versioned for target in targets)]
 
 
 @dataclass(frozen=True)
@@ -257,6 +300,8 @@ def auto_layout(
         footprint = defaults.footprint
         assert footprint is not None
         default_footprint = {"width": footprint.width, "depth": footprint.depth, "height": footprint.height}
+        if target.size is not None:  # layered-v2: the vehicle's own size (the placement's x axis is its heading)
+            default_footprint["width"], default_footprint["depth"] = target.size
         placements[key] = {
             "kind": target.kind,
             "rotation": 0.0,
@@ -365,4 +410,11 @@ def auto_layout(
     order.extend(key for key in placements if key not in eligible)
     data = {"schema_version": "1.0", "placements": {key: placements[key] for key in order}}
     unique = {(item.code, item.path, item.target): item for item in diagnostics}
-    return AutoLayer(data, ordered, topology, derived, tuple(unique[key] for key in sorted(unique)))
+    return AutoLayer(
+        data,
+        ordered,
+        topology,
+        derived,
+        tuple(unique[key] for key in sorted(unique)),
+        algorithm=auto_algorithm(ordered.values()),
+    )
