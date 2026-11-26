@@ -580,17 +580,24 @@ because a resting one holds a slot between them are not a deadlock, and without 
 them.
 
 **Waits with no review left.** The stuck condition is also evaluated without a review, with the blockers
-recomputed, for every open wait that carries no report and has no review scheduled, whenever the controller is
-entered for something other than a grant or a release: when a wait opens, when a pending claim ends without a
-grant (a withdrawal, a staged reaction), when detection waives a gate (§7.8), when an AGV comes to rest or stalls
-(`idle`, §7.10), and after each review. A wait that a scheduled review will reach (a wait ahead of it, through
-waiting blockers whose waits carry no report, has a review scheduled) is left to that review. This is not a
-review: `on_blocked` is not called, no review is counted, no timer is scheduled and nothing moves. A wait with no
-blocker is never reported. Without this rule a wait that becomes stuck while it sleeps is never reported: a
+recomputed, for every open wait that carries no report, has no review scheduled and is no member of a deadlocked
+set left unresolved (§7.8), at the end of each call of `stopped`, `withdraw` and `idle` and after each review on
+its timer. Those are the entries at which a wait can become stuck without a grant or a release: a wait opens, a
+pending claim ends without a grant (a withdrawal, or a reaction staged at a stop or at a review), detection
+waives a gate (§7.8, inside a stop), an AGV comes to rest or stalls (§7.10). A request that pends needs none: it
+only adds a blocker that is not at rest. Nor does the end of a both-directions state (§7.2): one that changes a
+claimant's blockers counts as a release and wakes the sleeping waits. A wait that a scheduled review will reach
+(a wait ahead of it, through waiting blockers whose waits carry no report and are no member of such a set, has a
+review scheduled) is left to that review. This is not a review: `on_blocked` is not called, no review is counted,
+no timer is scheduled and nothing moves. A wait with no blocker is not stuck, and neither is a wait that reaches
+one: it is never reported. Without this rule a wait that becomes stuck while it sleeps is never reported: a
 sleeping wait is woken only by a grant or a release, and a wait can become stuck by an event that is neither (a
 blocker of a wait ahead of it, already reported, comes to rest; a gate is waived; a gating claim is withdrawn; a
-blocker stalls). A policy that asks for no review (`KeepWaiting()` with no delay) does not give up the report: its
-waits are checked in the same way.
+blocker stalls). The waits of a policy that asks for no review (`KeepWaiting()` with no delay) are checked in the
+same way, with one limit: such a wait has no review for a grant or a release to wake, so when it becomes stuck
+through a grant, a release or the end of a both-directions state, it is reported at the next of those entries (the
+next stop, withdrawal or rest of any AGV), not at that instant. A run cut by `until` in between ends without the
+report.
 
 **Standard search.** From a node, search outwards by router cost over legs, the first claim admissible now, for
 the cheapest node that has free capacity and does not lie ahead on the remaining route of an AGV in the waits
@@ -639,7 +646,8 @@ reported as unresolved and stands (§7.8). This bounds the work a tight layout c
   target exists the blocker stays and the waiter's `on_blocked` reviews continue. The idle case comes through
   `idle(agv)` (§7.1): the controller asks the AGV to make way once, for the waits it blocks taken in request
   order, and when the AGV does not move it checks those waits for the stuck condition (§7.9) at once, since a
-  sleeping wait has no review left to report it. `make_way` refuses a target the fleet's router cannot
+  sleeping wait has no review left to report it. A stalled AGV (§7.1) is not asked to make way: the waits it blocks
+  are checked for the stuck condition at once. `make_way` refuses a target the fleet's router cannot
   reach, and an AGV whose make-way move ended on the node it started from is not asked again at the same
   instant, so a move that fails at once cannot repeat without time passing. An AGV does not make way to a node
   it has already made way from in the same chain of moves, which bounds a chain by the number of nodes. The
@@ -743,7 +751,10 @@ reacts.
 An arc whose travel time is not finite (a stalled vehicle, §9.1) is never left. Nothing is released at its
 departure, the AGV counts as at rest at the departure node, and a stop request takes effect at once: the
 executor emits `agv.move_ended` at the departure node, which clears the motion with no change of position or
-battery, and then proceeds as above.
+battery, and then proceeds as above. When the run stalls, the executor withdraws a request of the trip that is
+still pending (a look-ahead claim asked for before the stall, which can never be used; it is no wait and emits
+nothing) and calls `idle` (§7.1); the queue is scanned as after any withdrawal, so a claim it gated may be granted
+at that instant.
 
 ### 8.4 Failure semantics
 
@@ -1054,8 +1065,12 @@ architecture section of `CLAUDE.md`.
   reaction; its reduction is quadratic in waiting AGVs and its gate pass cubic at worst. Measured on a line of
   80 waiters, the last `stopped` call takes about 11 ms and a scan 0.1 ms. A stuck report propagates along the chain
   of waits behind it and recomputes the blockers of every wait it reports, which is cubic in the length of the chain,
-  once per chain. The check of the waits with no review left (§7.9) is one pass over the blocker edges of the open
-  waits at each of its controller entries, and costs nothing when no wait sleeps.
+  once per chain. The check of the waits with no review left (§7.9) computes the blockers of the sleeping waits,
+  and of the waits they reach, once per entry, and then makes one pass over their blocker edges; nothing is
+  computed when no wait sleeps. The gate of a claim that names a segment or corridor reads every earlier pending
+  claim, as the scan does, so for the claims a travel makes the check is quadratic in the sleeping waits. Measured
+  on a line of waiters that each claim a leg: 2.9 ms per entry with 80 sleeping waits and 11.3 ms with 160,
+  against 0.10 and 0.20 ms without the check.
 - With `FreeFlowController` the executor makes no controller calls per arc beyond the first claim.
 - `benchmarks/intralogistics.py` is run before and after each part and reported; it stays ungated.
 
