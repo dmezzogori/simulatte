@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from simulatte.environment import Environment
-from simulatte.events import Deltas
+from simulatte.events import Deltas, apply_deltas
 from simulatte.intralogistics import events as logistics_events
 from simulatte.intralogistics import travel
 from simulatte.intralogistics.fleet import FleetCoordinator
@@ -24,6 +24,7 @@ from simulatte.intralogistics.traffic import Disposition
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger
 from simulatte.intralogistics.travel import TravelOutcome
 from tests.intralogistics import random_worlds
+from tests.intralogistics.test_travel import claimed_again_twice
 from tests.intralogistics.random_worlds import (
     FEATURES,
     exercised,
@@ -706,7 +707,10 @@ and agv-g asks for the segment the other way at the same instant (471.171): befo
 
 
 def _undone(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The rule undone: a grant never leaves a holder in the both-directions state."""
+    """The rule undone: a grant never leaves a holder in the both-directions state. The state is cleared after the
+    grant's ``traffic.reserved``, so the monitor sees it at that event: a re-claim whose body leaves the segment before
+    the next event is not seen by the check of recorded directions (19 of the 20 re-claims of single-lane segments of
+    8101904 `fastest` are reported)."""
     take = HoldingsLedger.take
 
     def never(self, agv, items):
@@ -718,8 +722,8 @@ def _undone(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_with_the_rule_undone_the_monitor_reports_the_admission_before_the_physical_conflict(monkeypatch):
     """The admission is reported at agv-g's grant (its `traffic.reserved`), three events before agv-g's move starts and
-    the bodies meet; no older kind comes before it. The check of recorded directions against bodies fires earlier, at
-    every re-claim of the run (the first at 30.6)."""
+    the bodies meet; no older kind comes before it. The check of recorded directions against bodies fires earlier,
+    from the first re-claim of the run (30.6)."""
     _undone(monkeypatch)
     record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
     kinds = [violation[1] for violation in record.violations]
@@ -733,9 +737,74 @@ def test_with_the_rule_undone_the_monitor_reports_the_admission_before_the_physi
     assert record.violations[0][0] == pytest.approx(30.619, abs=1e-3)
 
 
-def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body():
-    record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
+REFUSED = (4412263, "fastest")
+"""A run whose fingerprint the rule changes by an admission it refuses: agv-g waits 1.558 s behind agv-d's state on
+``g1_1~g2_2``. Before the rule that grant was an admission against agv-d's body (at 314.707) with no physical conflict
+after it."""
+
+
+@pytest.mark.parametrize(("seed", "router"), [REVERSAL, REFUSED])
+def test_a_run_where_a_vehicle_reverses_on_a_segment_admits_no_vehicle_against_its_body(seed, router):
+    record = run_world(world_spec(seed), controller="reservation", router=router)
     assert record.quiescent and not record.violations
+
+
+def test_with_the_rule_undone_an_admission_against_a_body_is_reported_without_a_physical_conflict(monkeypatch):
+    """The admission check is the one that sees an admission against a body that no physical conflict follows."""
+    _undone(monkeypatch)
+    record = run_world(world_spec(REFUSED[0]), controller="reservation", router=REFUSED[1])
+    kinds = list(dict.fromkeys(violation[1] for violation in record.violations))
+    assert kinds == ["LEDGER recorded direction against the body", "ADMITTED against a body on a segment"]
+    (admitted,) = [v for v in record.violations if v[1] == "ADMITTED against a body on a segment"]
+    assert admitted[0] == pytest.approx(314.707, abs=1e-3) and admitted[2] == "g1_1~g2_2"
+
+
+def test_the_monitor_takes_the_body_as_it_arrived_from_its_entry_at_the_re_claim():
+    """The scenario of a segment claimed again twice (`test_travel`): A, in the state on ``U~V`` since its re-claim
+    backward at 10.0, is granted the segment forward at 20.0, the direction its body lies in, and stays in the state
+    until 21.118 (Ruling A3-n). The monitor's checks of the state, and its own admission test for B on ``U~V``, run here
+    on the events of that world: no violation, and B's blockers are the ledger's at every event."""
+    w, _ = claimed_again_twice()
+    controller = w.controller
+    network = controller.network
+    monitor = object.__new__(random_worlds.Monitor)
+    graph = network.graph
+    segments = {segment.id: segment for segment in network.segments}
+    vars(monitor).update(
+        env=w.env, controller=controller, graph=graph, nodes={n.id: n for n in graph.nodes}, _ready=True,
+        cap={n.id: network.capacity(n) for n in graph.nodes}, segments=segments, plain=set(), violations=[],
+        bodies={agv.id: random_worlds.Body(agv, 3.0) for agv in w.agvs.values()}, _reversing=set(), _sole=set(),
+        _outlived={}, _passing_state=set(), _reclaimed={}, passing={s: seg.passing for s, seg in segments.items()},
+        events=0, _instant=0.0, _sure=((-1, 0.0), {}), extents=dict.fromkeys(w.agvs, 3.0),
+        lengths={s: seg.length for s, seg in segments.items()},
+        state={entity: dict(fields) for entity, fields in w.env.entities.snapshot().items()},
+    )  # fmt: skip
+    item = next(item for item in network.leg(w.nodes["U"], w.nodes["V"]) if isinstance(item.resource, Segment))
+    differ = []
+
+    def on(event):
+        t = float(w.env.now)
+        monitor.events += 1
+        monitor._instant = t
+        apply_deltas(monitor.state, event.deltas)
+        if isinstance(event, logistics_events.AgvMoveStarted):
+            monitor._move_started(event, t)
+        elif isinstance(event, logistics_events.AgvMoveEnded):
+            monitor._move_ended(event, t)
+        elif isinstance(event, logistics_events.TrafficReserved | logistics_events.TrafficReleased):
+            monitor._track_reclaims(event)
+            if isinstance(event, logistics_events.TrafficReserved):
+                monitor._reversing.update(r for r in event.resources if r in segments)
+        monitor._check_both_directions({a: body.occupancy(t) for a, body in monitor.bodies.items()}, t)
+        mine = monitor._blockers("B", ("segment", "U~V", "forward"))
+        theirs = [holder.id for holder in controller.ledger.blockers(w.agvs["B"], item)]
+        if mine != theirs:
+            differ.append((t, mine, theirs))
+
+    w.env.bus.subscribe(on, "*")
+    w.env.run()
+    assert monitor.violations == [] and differ == []
+    assert [e.t for e in w.of(logistics_events.TrafficWaitEnded, agv="B")] == [pytest.approx(21.118, abs=1e-3)]
 
 
 def _state_ends_at_once(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -784,21 +853,50 @@ def _state_unread(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(HoldingsLedger, "blockers", unread)
 
 
+def _no_end_at_a_rest_with_room(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The controller ignores the report of a rest on a node of capacity above 1 (end (c)): the travel executor makes
+    it from its arrival, when the AGV has no motion."""
+    cleared = ReservationController.cleared
+
+    def no_c(self, agv, resources):
+        if agv.motion is not None or sys._getframe(1).f_code.co_name != "_move":
+            cleared(self, agv, resources)
+
+    monkeypatch.setattr(ReservationController, "cleared", no_c)
+
+
+def _state_on_passing_segments(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A segment with ``passing`` claimed again in a new direction is put in the state too (against Ruling A3-f)."""
+    take = HoldingsLedger.take
+
+    def passing(self, agv, items):
+        held = [item.resource for item in items if item.resource in self.held(agv)]
+        take(self, agv, items)
+        for resource in held:
+            if isinstance(resource, Segment) and resource.passing:
+                self._both.setdefault(resource, {})[agv] = None
+
+    monkeypatch.setattr(HoldingsLedger, "take", passing)
+
+
 @pytest.mark.parametrize(
-    ("mutant", "first"),
+    ("mutant", "run", "first"),
     [
-        (_state_ends_at_once, "LEDGER recorded direction against the body"),
-        (_no_end_at_the_old_clear_point, "LEDGER both directions outlived the body"),
-        (_cleared_ignored, "LEDGER both directions outlived the body"),
-        (_state_unread, "ADMITTED against a body on a segment"),
+        (_state_ends_at_once, REVERSAL, "LEDGER recorded direction against the body"),
+        (_no_end_at_the_old_clear_point, REVERSAL, "LEDGER both directions outlived the body"),
+        (_cleared_ignored, REVERSAL, "LEDGER both directions outlived the body"),
+        (_state_unread, REVERSAL, "ADMITTED against a body on a segment"),
+        (_no_end_at_a_rest_with_room, (4411251, "fastest"), "LEDGER both directions outlived the body"),
+        (_state_on_passing_segments, (4400003, "shortest"), "LEDGER both directions on a passing segment"),
     ],
 )
-def test_a_both_directions_state_that_is_wrong_is_a_violation(monkeypatch, mutant, first):
+def test_a_both_directions_state_that_is_wrong_is_a_violation(monkeypatch, mutant, run, first):
     """A state that ends at once fails the check of recorded directions against bodies; one that never ends at the old
-    clear point, or that the controller never ends, outlives the body; one that admission does not read lets agv-g in
-    against agv-c's body, a second holder of a segment in the state."""
+    clear point, that the controller never ends, or that does not end at a rest on a node with room (4411251 `fastest`
+    has such an end), outlives the body; one that admission does not read lets agv-g in against agv-c's body, a second
+    holder of a segment in the state; and a state on a segment with ``passing`` is reported as such."""
     mutant(monkeypatch)
-    record = run_world(world_spec(REVERSAL[0]), controller="reservation", router=REVERSAL[1])
+    record = run_world(world_spec(run[0]), controller="reservation", router=run[1])
     kinds = [violation[1] for violation in record.violations]
     assert kinds and kinds[0] == first
     if mutant is _state_unread:

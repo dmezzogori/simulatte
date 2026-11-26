@@ -1379,3 +1379,78 @@ def test_no_timer_of_the_state_outlives_the_arc_or_the_travel() -> None:
     segment = w.controller.network.segment(w.nodes["N1"], w.nodes["N2"])
     assert w.controller.ledger.both_directions(segment) == (a,)
     assert w.controller.ledger.direction(segment, a) == "backward"
+
+
+class AroundOnRequest(ShortestDistanceRouter):
+    """Routes from W to V round the cycle ``W, K, U, V`` once `around` is set, otherwise by shortest distance."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.nodes: dict[str, Node] = {}
+        self.around = False
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        n = self.nodes
+        if self.around and request.origin == n["W"] and request.destination == n["V"]:
+            return Route((n["W"], n["K"], n["U"], n["V"]), 30.0)
+        return super().route(request, view)
+
+
+def claimed_again_twice() -> tuple[World, AroundOnRequest]:
+    """The world of :func:`test_a_holder_granted_the_segment_again_in_the_direction_of_its_body_stays_in_the_state`,
+    activated, with its travels scheduled; the router is told to go round at 19.9."""
+    router = AroundOnRequest()
+    w = world(
+        lambda env: build(
+            env,
+            [("U", 0, 0), ("V", 10, 0), ("W", 12.5, 0), ("Q", 22.5, 0), ("K", 6, -8)],
+            [("U", "V"), ("V", "W"), ("W", "Q"), ("W", "K"), ("K", "U")],
+            capacities={"U": 2, "V": 2},
+        ),
+        {"A": "U", "B": "U", "C": "Q"},
+        agv_type=reverser(turn=turn_back),
+        hold_back_dead_ends=False,
+        policy=AsideOnce(),
+        router=router,
+        lookahead_margin=100.0,
+    )
+    router.nodes = w.nodes
+
+    def around() -> Any:
+        yield w.env.timeout(19.9)
+        router.around = True
+
+    w.interrupt(w.go("A", "Q"), 12.0)
+    w.env.process(around())
+    w.go("A", "V", at=20.0)
+    w.go("B", "V", at=20.5)
+    return w, router
+
+
+def test_a_holder_granted_the_segment_again_in_the_direction_of_its_body_stays_in_the_state() -> None:
+    """A segment claimed again twice (spec §7.2, Ruling A3-n). A, blocked on W by C, is sent aside to U: at 10.0 it
+    claims ``U~V`` again, backward, with 0.5 m of its body on it, and is interrupted in its turn at 12.0, keeping the
+    segment in the state. At 20.0 it travels to V round the cycle ``W, K, U, V`` and, through look-ahead, is granted
+    ``U~V`` forward, the direction its body lies in: it stays in the state, with the record equal to the body, until its
+    odometer reaches the old clear point 0.5 m into ``W -> K``. B, on U, asks for ``U -> V`` at 20.5: it waits behind
+    A, named as its blocker, and is granted at that end."""
+    w, _ = claimed_again_twice()
+    ledger, a = w.controller.ledger, w.agvs["A"]
+    segment = w.controller.network.segment(w.nodes["U"], w.nodes["V"])
+    ended = ends(w)
+    w.env.run(until=19.0)
+    assert w.caught == {"A": "cancelled"} and w.agvs["A"].current_node == w.nodes["W"]
+    assert (ledger.both_directions(segment), ledger.direction(segment, a)) == ((a,), "backward")
+    w.env.run(until=20.2)
+    granted = [e.t for e in w.of(TrafficReserved, agv="A") if e.resources == ("U~V",)]
+    assert granted == [20.0]
+    assert (ledger.both_directions(segment), ledger.direction(segment, a)) == ((a,), "forward")
+    w.env.run()
+    end = 20.0 + math.sqrt(1.25)  # 0.5 m from rest at 0.8 m/s²
+    assert ended == [(pytest.approx(end, rel=1e-12), "A", ("U~V",))]
+    (started,) = w.of(TrafficWaitStarted, agv="B")
+    assert (started.t, started.resources, started.blockers) == (20.5, ("U~V", "V"), ("A",))
+    (granted_b,) = w.of(TrafficWaitEnded, agv="B")
+    assert (granted_b.t, granted_b.reason) == (ended[0][0], "granted")
+    assert traffic_at(w, granted_b.t) == [("traffic.wait_ended", "B"), ("traffic.reserved", "B")]
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED, "B": TravelOutcome.ARRIVED}
