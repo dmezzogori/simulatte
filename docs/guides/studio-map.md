@@ -2,14 +2,14 @@
 
 Studio draws the scene of an intralogistics recording as a map: the floor to scale, one sprite for each kind of element, and three levels of detail. Everything it shows is read from the state recorded at the cursor, so a seek into the middle of a wait shows that wait without playing through its start. This page says how to read the map and how to give a model the sizes and positions that make the map accurate. For opening a recording, exporting and the other panels, see [Studio](../development/studio.md).
 
-The map needs a recording written by this version of a model that declares a transport network. Recordings of production-only models and of earlier versions are still drawn as before (see [Older recordings and production models](#older-recordings-and-production-models)).
+The map needs a recording that carries a layout with a transport network. The fields this version records add the waits, routes, vehicle sizes, counts and facility placements; a recording with a network but without them still draws the map, with less on it. Recordings without a layout or without a network are drawn as before (see [Older recordings and production models](#older-recordings-and-production-models)).
 
 ## The floor
 
 The floor is drawn to scale, in metres.
 
 - **Lanes** are strips along the arcs of the network, centred on the straight line between the two nodes. The two directions between the same pair of nodes make one strip. A one-way strip carries chevrons along its direction; a strip travelled both ways carries none when zoomed out and one pair at its ends when zoomed in. A disabled arc is not drawn.
-- **Lane width is nominal.** The layout does not declare a lane width. The map draws a lane as wide as the widest vehicle of the recording plus a margin of 20 % of that width on each side, and twice as wide where the arc allows passing. It is a drawing aid, not a clearance: a real aisle may be much wider than its vehicles, and the simulation does not read it. The scene legend says so. A recording without sized vehicles draws lanes 1 m wide.
+- **Lane width is nominal.** The layout does not declare a lane width. The map draws a lane as wide as the widest vehicle of the recording plus a margin of 20 % of that width on each side, and twice as wide where the arc allows passing. It is a drawing aid, not a clearance: a real aisle may be much wider than its vehicles, and the simulation does not read it. The scene legend says so. A vehicle without a declared size has the default footprint of 1 m by 1 m, so a recording whose vehicles have no size draws lanes 1.4 m wide; a recording with no vehicle draws them 1 m wide.
 - **Zoomed out**, vehicles and facilities are symbols of a fixed size in pixels, so a lane would be thinner than them. A strip is therefore never drawn thinner than 10 pixels while the map is at symbol level. Zoomed in, it has its metric width.
 - **The scale bar** at the bottom left shows a round length in metres (1, 2 or 5 times a power of ten, at most 150 pixels long) for the current zoom. It is part of the scene, so PNG and video exports include it.
 
@@ -19,7 +19,7 @@ Nodes of the network are hidden while zoomed out, except the selected one, and a
 
 ![The sprites of the map at symbol level, in one row: vehicles in each state, a parking area, two charging stations, a warehouse with a badge, and a second warehouse](../assets/studio-map-sprites.png)
 
-The picture is a hand-built row of elements, not the output of a simulation. From the left: vehicle A5 idle, A1 stranded, A2 waiting (amber, with its dashed ring and wait line), A3 moving with a load, A8 in a state the map does not know, A7 moving; the parking area `Lot` holding three idle vehicles, fanned out; the charging stations `Charger-A` and `Charger-B` with A6 charging; A4 working at a bay; the warehouses `Store`, with the badge of two waiting orders and a line to its bay, and `Dock`. Three vehicles at the right have labels too long for the map, so it shows the trailing digits of their ids (1, 2 and 3). The scale bar is at the bottom left.
+The picture is a hand-built row of elements, not the output of a simulation. From the left: vehicle A5 idle, A1 stranded, A2 waiting (amber, with its dashed ring and wait line), A3 moving with a load, A8 in a state the map does not know, A7 moving; the parking area `Lot` holding three idle vehicles, fanned out; the charging stations `Charger-A` and `Charger-B` with A6 charging; A4 working at a bay; the warehouses `Store`, with the badge of two waiting orders and a line to its bay, and `Dock`. Three vehicles have labels too long for the map, so it shows the trailing digits of their ids: 2 between the parking area and the charging stations, 3 and 1 between `Store` and `Dock`. The scale bar is at the bottom left.
 
 **Vehicle.** A rounded body with a pointed nose toward its heading: the direction of the arc under way, else the recorded heading, else east. At true size the body is the vehicle's footprint. A vehicle is drawn in the first of these states that applies, and each state has a mark as well as a colour:
 
@@ -28,7 +28,7 @@ The picture is a hand-built row of elements, not the output of a simulation. Fro
 | stranded | `STRANDED` | red | cross |
 | waiting for traffic | the `wait` field is set | amber | pause bars and a dashed ring |
 | moving | `motion` is set | blue | none |
-| working | `WAITING_LOAD` or `WAITING_UNLOAD` | blue | a small square on the bay side |
+| working | `WAITING_LOAD` or `WAITING_UNLOAD` | blue | a small square at the nose |
 | idle | `IDLE` | grey | none |
 | charging | `CHARGING` | green | bolt |
 | at rest | any other `TRAVELING_*` | blue | none |
@@ -51,7 +51,7 @@ A state the map does not know is drawn grey, and the click detail names it. A ve
 2. **The Overview panel** says a little more, one line for each element.
 3. **The click detail** says everything about one element.
 
-Whether vehicles and facilities are symbols or true-size shapes depends on one number, the zoom in pixels per metre. True size begins at the zoom where the longest vehicle is as long as its symbol (22 pixels), so a symbol never changes size at the switch. For the corridor example, whose vehicles are 1.2 m long, that is about 18 pixels per metre. At true size a vehicle also has a one-line label, `<label> · <what>`, where `<what>` is the first of: `waiting <n> s for <first blocker>`, `charging`, `stranded`, `to <destination>` (a vehicle at rest with a route), `idle`.
+Whether vehicles and facilities are symbols or true-size shapes depends on one number, the zoom in pixels per metre. True size begins at the zoom where the longest vehicle is as long as its symbol (22 pixels), so a symbol never changes size at the switch. For the corridor example, whose vehicles are 1.2 m long, that is about 18 pixels per metre. At true size a vehicle also has a one-line label, `<label> · <what>`. For a vehicle that is moving, or at rest with a route whose destination is known, `<what>` is `to <destination>`: the facility bound to the route's last node, else that node's id. Otherwise it is what the vehicle is doing: `stranded`, `waiting <n> s for <first blocker>` (without the parts that are not recorded), `charging`, `loading`, `unloading`, `moving`, `stopped` (at rest on a travel), `idle`, or the recorded state in lower case for a state the map does not know.
 
 Symbols of vehicles at the same position, in a parking area or on a node with capacity above one, are spread sideways by a fixed number of pixels at symbol level. At true size they are drawn where they are, and two vehicles at the same position overlap.
 
@@ -86,7 +86,7 @@ With `ReservationController` the map shows what is held and who waits.
 
 ## Selection
 
-Selecting a vehicle tints the floor it holds in a stronger blue, draws its route from its position to its destination (the part already travelled is left out), makes its wait line thicker, and draws the line of its order from origin to destination. These are drawn below the vehicles, so that a route never hides the vehicle ahead. The line of an order is a curved arrow, so that it does not lie on the corridor it follows.
+Selecting a vehicle tints the floor it holds in a stronger blue, draws its route from its position to its destination (the part already travelled is left out), makes its wait line thicker, and draws the line of its order from origin to destination. The route and the stronger tint are drawn below the vehicles, so that a route never hides the vehicle ahead; the thicker wait line and the order's line are drawn above them. The line of an order is a curved arrow, so that it does not lie on the corridor it follows.
 
 Selecting an order draws that arrow and highlights the vehicle assigned to it. Selecting a facility highlights its bays and the vehicles bound for it. Selecting a lane, a node or a corridor tints it.
 
@@ -94,7 +94,7 @@ Selecting an order draws that arrow and highlights the vehicle assigned to it. S
 
 - A recording with no layout, written by a version before 0.18, has no map. Its entities keep the labelled fallback grid and the drawing they had.
 - A recording with a layout and no network, which is a production-only model, is drawn as before, with the scale bar added.
-- A recording with a network that lacks the fields this version records (`wait`, `route`, the capacities, the fleets' counters, vehicle sizes) still draws the map. Facilities sit in the layout's grid, joined to their bays by a line, vehicles are 1 m by 1 m, no vehicle is shown as waiting and the Traffic section shows only what it has.
+- A recording with a network that lacks the fields this version records (`wait`, `route`, the capacities, the fleets' counters, vehicle sizes) still draws the map. Facilities sit in the layout's grid, joined to their bays by a line, vehicles are 1 m by 1 m and lanes 1.4 m wide, no vehicle is shown as waiting and the Traffic section shows only what it has.
 - The layout editor keeps its own glyphs.
 - HTML export and the offline player draw the same map and show the readable detail of a selection. They have no Overview panel. Video and PNG export have no camera: the export fits the scene, and whether it draws symbols or true size follows the fitted zoom.
 

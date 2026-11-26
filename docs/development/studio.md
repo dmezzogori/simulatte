@@ -188,10 +188,11 @@ unless a renderer is registered for their kind.
 
 `draw/` has one drawing function per kind (`floor.ts`, `node.ts`, `vehicle.ts`, `facility.ts`, `traffic.ts`,
 `overlay.ts`, `scale-bar.ts`), the picking in `pick.ts` and every colour and pixel size in `palette.ts` and
-`map/model.ts` (`SYMBOL_PX`). Layers, bottom to top: grid, floor strips, held tint, facilities and their bay
-lines, ports, nodes, the selected vehicle's route and stronger holds, other glyphs and vehicles, wait lines,
-the selection overlay, labels, the scale bar and the decorative trails. The route and the stronger tint are
-below the vehicles so that a route does not hide the vehicle ahead. The grid and the floor strips are drawn
+`map/model.ts` (`SYMBOL_PX`). Layers, bottom to top: grid, floor strips, held tint with the stronger tint of a
+selection, facilities and their bay lines, ports, nodes, the selected vehicle's route, other glyphs and vehicles,
+wait lines, the selection overlay (the selected vehicle's thicker wait line, the order's arrow), labels, the scale
+bar and the decorative trails. The route and the stronger tint are below the vehicles so that a route does not
+hide the vehicle ahead. The grid and the floor strips are drawn
 into one graphics object that is redrawn only when its signature changes (the camera, the canvas size, the level
 of detail or the strips); everything above is redrawn each frame. `registerRenderer` still overrides the drawing
 of a kind, and `Scene.labels = false` hides all text, which the screenshot comparison uses.
@@ -218,8 +219,10 @@ JSON files in `studio/fixtures/map`, each the parts of a prepared frame that com
 (`time`, `cursor`, `state`, `initialState`, `layout`). They are produced by
 `tests/fixtures/traces/generate_map_frames.py`, which records the intralogistics examples and fails if an example no
 longer gives the facts the tests rely on; `tests/core/test_map_frame_fixtures.py` regenerates them and compares them
-with the stored files, floats within 1e-12. Two fixtures are built by hand: `sprites` (one of every sprite,
-including hostile labels) and `two-fleets`.
+with the stored files, floats within 1e-12. Only `sprites` is built by hand (one of every sprite, including
+hostile labels). `two-fleets` is the recorded corridor frame with one field edited (AGV-3 moved to a second fleet),
+and `bare-layout` is a recorded corridor frame with the fields of this version stripped, standing for an older
+recording.
 
 `node studio/harness/render.mjs <out-dir>` builds the harness, serves it and writes one PNG for each shot, at
 device scale 2 and with labels, plus `mockup.png`. The output directory must be outside `studio/`; the script

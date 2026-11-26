@@ -367,7 +367,7 @@ Studio draws the floor from state recorded at each instant. These fields were ad
 | `charging_station` | `slots` | its number of charging slots, written once |
 | `fleet` | `waits`, `stuck_waits`, `deadlocks` | counters from the start of the run, described under [Traffic KPIs](#traffic-kpis) |
 
-Three limits of the route: when a fleet's `on_low_battery` callback replaces the charge without a state transition, the route stays recorded until the vehicle's next state change; a retry on a critical battery, the turn to a charger, a give-up and a one-node route clear it at the next `agv.state_changed`; and the position along the route is not recorded, so a reader finds the vehicle's node or arc in `nodes`. The digest of a run with a traffic controller that reports waits, or with routed travels, includes these fields, so it differs from a digest of the same model before 0.18.0.
+Three limits of the route: when a fleet's `on_low_battery` callback replaces the charge without a state transition, the route stays recorded until the vehicle's next state change; a retry on a critical battery, the turn to a charger, a give-up and a one-node route clear it at the next `agv.state_changed`; and the position along the route is not recorded, so a reader finds the vehicle's node or arc in `nodes`. These fields are in the initial state of every run with AGVs, and the waits, routes and counters also in its deltas, so the digest of every run with AGVs differs from a digest of the same model before 0.18.0.
 
 ## Examples
 

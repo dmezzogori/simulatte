@@ -202,7 +202,7 @@ def _pinned_model(name):
 @pytest.mark.parametrize("name", sorted(PINNED_BUNDLES))
 def test_whole_bundles_are_those_of_the_commit_before_the_bundle_became_lazy(name):
     """The digests were read at 2946ebb, where preparation built and validated the bundle (spec §9), except
-    ``code:system``, re-pinned at 0ccf5bb when the vehicle size entered the bundle and again when facilities were
-    placed at their node (see the comment at the pin)."""
+    ``code:system``, re-pinned by the studio map work (vehicle size) and again when facilities were placed at their
+    node (see the comment at the pin)."""
     bundle = _pinned_model(name).prepare().bundle
     assert hashlib.sha256(json.dumps(bundle.to_dict(), sort_keys=True).encode()).hexdigest() == PINNED_BUNDLES[name]

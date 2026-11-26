@@ -366,8 +366,9 @@ These are the additions on the Python side. All are implemented after Assignment
   placement's x axis). When the type has no `length`, the footprint stays 1 x 1; when it has a length and no
   width, the depth is half the length. An explicit placement footprint for the vehicle wins.
 - The scene uses the footprint for the true size and rotates it by the heading, not by the placement's rotation.
-- The footprint of a vehicle enters the layout's hashes as any placement field does. The fingerprints and the
-  layout hashes of models with vehicles that declare a length change; they are re-pinned once (§8.5).
+- The footprint of a vehicle enters the layout's hashes as any placement field does. The layout hashes of models
+  with vehicles that declare a length change; they are re-pinned once (§8.5). Run fingerprints do not change with
+  the size, because the fingerprint does not include the layout.
 
 ### 6.2 Waits and routes (M6)
 
@@ -602,7 +603,8 @@ drawn below the vehicles, not above them, because above them the route hid the v
 a curved arrow, because a straight one lay on the corridor, over the route and the wait line. Davide saw the renders
 and said the look is fine.
 
-**§5.4.** A vehicle at rest with a route is labelled `to <destination>` on the map, and the Overview's count for
+**§5.4.** A vehicle that is moving, or at rest with a route whose destination is known, is labelled
+`to <destination>` on the map, and the Overview's count for
 vehicles at rest is named "stopped". A registered renderer still draws a kind that the map otherwise hides, orders
 and fleets (M24).
 
