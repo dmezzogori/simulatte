@@ -326,9 +326,10 @@ class TrafficController(Protocol):
 - `stopped` tells the controller that the AGV is now at rest and waiting on the request. The wait, its events,
   deadlock detection and policy calls start here. The executor calls it at once when a request made at rest is
   not granted immediately.
-- `idle` tells the controller that the AGV has just come to rest without a travel where it stands: it became `IDLE`
-  or `STRANDED`. The coordinator calls it on every transition to `IDLE` and to `STRANDED`. `ReservationController`
-  uses it for the waits the AGV blocks (§7.10); `FreeFlowController` does nothing.
+- `idle` tells the controller that the AGV has just come to rest without a travel where it stands, or that it
+  cannot move: it became `IDLE` or `STRANDED`, or its run stalled (§9.1). The coordinator calls it on every
+  transition to `IDLE` and to `STRANDED`, and the executor when a run stalls. `ReservationController` uses it for
+  the waits the AGV blocks (§7.10): only an idle AGV is asked to make way. `FreeFlowController` does nothing.
 - `withdraw` cancels a pending request. When the AGV is a member of a deadlocked set left unresolved (§7.8),
   `ReservationController` forgets the set and, after the scan the withdrawal allows, looks at the waits left
   again: detection may call `on_deadlock` and stage reactions of other travels, and a former member in no deadlock
@@ -339,8 +340,9 @@ class TrafficController(Protocol):
 - `cleared` tells the controller that the body of the AGV, as it arrived, no longer lies on resources it still
   holds: segments it claimed again while its body lay on them (§6.6). Nothing is released. The executor cannot
   tell which of them have the both-directions state (§7.2), so the call may name segments without it (a segment
-  with `passing`, or one whose state has ended): `ReservationController` ends the state of those that have it,
-  and `FreeFlowController` does nothing. Within an instant the call comes after `agv.move_started` when the leg
+  with `passing`, or a single-lane segment that the claim names in the direction in which it is already held,
+  which begins no state): `ReservationController` ends the state of those that have it, and `FreeFlowController`
+  does nothing. Within an instant the call comes after `agv.move_started` when the leg
   over the segment starts, and after the releases at a clear point or at an arrival. The executor makes it only
   for a controller that controls occupancy, and such a controller must have it.
 - `WaitHooks` carries what the controller and the policy may ask of the waiting travel: `route` (remaining
@@ -391,8 +393,8 @@ The first three release nothing: the segment stays held in the new direction, an
 on the segment leaves it held in the new direction with the body as it arrived, for as long as the vehicle rests
 there. The segment is then a trail entry again with its old clear point: a later travel that reaches that point
 releases it, a rest on a node of capacity above 1 releases it with the rest of the trail, and a later travel
-whose granted claim names it again, in either direction, ends the state by its own leg or at the old clear point,
-as above. A holder in the state that is granted the segment again in the direction its body lies in stays in the
+whose granted claim names it again, in either direction, ends the state by its own leg, at the old clear point
+or at a rest on a node of capacity above 1, as above. A holder in the state that is granted the segment again in the direction its body lies in stays in the
 state until one of those ends: the record then equals the body, and the state keeps a follower out for longer
 than the body requires, never for less. Without this state the record shows one direction while the body lies in the other, and a second vehicle
 is admitted head-on into the lane the body still occupies. The state is kept by the controller's ledger, which
@@ -570,12 +572,25 @@ another only if something changed after the wake-up, so one change gives one rev
 moves therefore schedules at most one review per wait. A wait that ends takes its review timer with it: the
 timer is removed from the event queue (`Environment.unschedule`), so it neither fires nor advances the clock.
 
-**Stuck waits.** When a review ends in `KeepWaiting` and every blocker of the wait is idle, stranded or stalled,
-or is itself waiting in a wait that is stuck by the same rule (a cycle of such waits counts), the controller
+**Stuck waits.** When a review ends in `KeepWaiting`, or a wait with no review left is checked (below), and
+every blocker of the wait is idle, stranded or stalled, or is itself waiting in a wait that is stuck by the same rule (a cycle of such waits counts), the controller
 emits `traffic.wait_stuck` and logs a warning, once per wait. It is a report, not a deadlock: deadlock detection
 (§7.8) ignores the holdings of AGVs that are not waiting, so two waiting vehicles that block each other only
 because a resting one holds a slot between them are not a deadlock, and without this rule nothing would report
 them.
+
+**Waits with no review left.** The stuck condition is also evaluated without a review, with the blockers
+recomputed, for every open wait that carries no report and has no review scheduled, whenever the controller is
+entered for something other than a grant or a release: when a wait opens, when a pending claim ends without a
+grant (a withdrawal, a staged reaction), when detection waives a gate (§7.8), when an AGV comes to rest or stalls
+(`idle`, §7.10), and after each review. A wait that a scheduled review will reach (a wait ahead of it, through
+waiting blockers whose waits carry no report, has a review scheduled) is left to that review. This is not a
+review: `on_blocked` is not called, no review is counted, no timer is scheduled and nothing moves. A wait with no
+blocker is never reported. Without this rule a wait that becomes stuck while it sleeps is never reported: a
+sleeping wait is woken only by a grant or a release, and a wait can become stuck by an event that is neither (a
+blocker of a wait ahead of it, already reported, comes to rest; a gate is waived; a gating claim is withdrawn; a
+blocker stalls). A policy that asks for no review (`KeepWaiting()` with no delay) does not give up the report: its
+waits are checked in the same way.
 
 **Standard search.** From a node, search outwards by router cost over legs, the first claim admissible now, for
 the cheapest node that has free capacity and does not lie ahead on the remaining route of an AGV in the waits
@@ -1039,7 +1054,8 @@ architecture section of `CLAUDE.md`.
   reaction; its reduction is quadratic in waiting AGVs and its gate pass cubic at worst. Measured on a line of
   80 waiters, the last `stopped` call takes about 11 ms and a scan 0.1 ms. A stuck report propagates along the chain
   of waits behind it and recomputes the blockers of every wait it reports, which is cubic in the length of the chain,
-  once per chain.
+  once per chain. The check of the waits with no review left (§7.9) is one pass over the blocker edges of the open
+  waits at each of its controller entries, and costs nothing when no wait sleeps.
 - With `FreeFlowController` the executor makes no controller calls per arc beyond the first claim.
 - `benchmarks/intralogistics.py` is run before and after each part and reported; it stays ungated.
 
