@@ -23,7 +23,8 @@ of the stuck report, as far as the holdings decide it), that a reported deadlock
 admission test over the replayed holdings and that every deadlock is reported, and, at the end, that every open wait
 carries a report. It follows the parking slots from the parking events: a slot is held by an
 AGV at rest on the area's node or travelling there, and given back as the AGV departs from the node or when its travel
-there does not arrive. It records violations instead of raising, so a run always ends.
+there does not arrive; and an AGV that travels without an order to a parking node holds a slot there. It records
+violations instead of raising, so a run always ends.
 """
 
 from __future__ import annotations
@@ -84,6 +85,8 @@ CONTROLLERS = ("reservation", "free")
 EXCLUDED_FIELDS = frozenset({"seq", "ordinal"})
 """Envelope fields left out of a recorded event, as the parity tests of ``tests/layout`` leave them out."""
 TRAVELING = ("TRAVELING_EMPTY", "TRAVELING_LOADED")
+TERMINAL = ("COMPLETED", "CANCELLED", "FAILED")
+"""The order statuses at which an order retires."""
 ENDED_BY = {"reroute": "rerouted", "step_aside": "stepped_aside", "give_up": "gave_up"}
 """The reason of the victim's ``traffic.wait_ended`` for each action of a resolved ``traffic.deadlock``."""
 
@@ -1094,6 +1097,7 @@ class Monitor:
         self._slot_bad: dict[tuple[str, str], str] = {}
         self._left: dict[tuple[str, str], bool] = {}  # slots given back in this instant: whether a travel ended since
         self._departed: set[tuple[str, str]] = set()  # (agv, node) of the moves started in this instant
+        self._trips: dict[str, str] = {}  # AGVs routed in this instant to start a travel: the node each goes to
         fleet_of = {agv_id: fleet.vehicle for fleet in world.spec.fleets for agv_id, _ in fleet.agvs}
         self.extents = {agv_id: vehicle.length + vehicle.min_gap for agv_id, vehicle in fleet_of.items()}
         # Vehicles without kinematic limits: their clear points inside an arc are released at the arrival (spec §6.6).
@@ -1150,6 +1154,14 @@ class Monitor:
             for u, v in zip(forward, forward[1:]):
                 steps[u, v], steps[v, u] = "forward", "backward"
         self.areas = {name: (node, capacity) for name, node, capacity in world.spec.parking}
+        chargers = {node for _, node, _ in world.spec.chargers}
+        # The AGVs that take parking slots (of a fleet that uses the parking areas), with the nodes they charge on.
+        self.parkers = {
+            agv_id: chargers if fleet.chargers else set()
+            for fleet in world.spec.fleets
+            if fleet.parking
+            for agv_id, _ in fleet.agvs
+        }
         if self.reservation:
             self.segments = {segment.id: segment for segment in self.controller.network.segments}
             self._compare_traffic()
@@ -1310,6 +1322,9 @@ class Monitor:
             self.routes[event.agv] = event.nodes
             if event.reason != "step_aside":  # a step aside is an excursion: the travel's goal stays
                 self.goals[event.agv] = event.destination
+            # A travel's first route (or its route again after a step aside), not a reroute in traffic.
+            if event.reason in ("travel", "make_way", "clear_node"):
+                self._trips[event.agv] = event.destination
         elif isinstance(event, ParkingEntered | ParkingLeft):
             self._track_slot(event)
         elif isinstance(event, AgvStateChanged) and event.state not in TRAVELING:
@@ -1410,7 +1425,8 @@ class Monitor:
             self.violation("parking over capacity", event.area)
 
     def _check_slots(self) -> None:
-        """At the end of an instant every slot is held by an AGV at rest on the area's node or travelling to it.
+        """At the end of an instant every slot is held by an AGV at rest on the area's node or travelling to it, and an
+        AGV whose trip to park started in the instant holds one.
 
         A slot is taken at the decision of a move to the area's node and given back when the AGV next departs from that
         node or the travel does not arrive; a travel that turns to charge elsewhere gives it back at the turn. So a slot
@@ -1454,6 +1470,28 @@ class Monitor:
                 )
         self._left.clear()
         self._departed.clear()
+        # A trip to park holds a slot: the coordinator takes it at the decision of a repositioning, a clearance or a
+        # make-way move, and a full area is not a target. An AGV of a fleet that uses the parking areas, routed in this
+        # instant to a parking node that has none of its chargers (a charge on such a node takes no slot) and, at the
+        # end of the instant, travelling empty there with no live order (a mission's travel takes none), holds a slot
+        # of an area on that node. An AGV keeps a completed order until its mission's cleanup, which comes after the
+        # trip to park, so an order is live while it is not terminal and names the AGV.
+        for agv_id, goal in self._trips.items():
+            chargers = self.parkers.get(agv_id)
+            if chargers is None or goal in chargers or self.bodies[agv_id].at == goal:
+                continue
+            areas = [area for area, (node, _) in self.areas.items() if node == goal]
+            if not areas or self.state[agv_id]["state"] != "TRAVELING_EMPTY" or self._on_order(agv_id):
+                continue
+            if not any((area, agv_id) in self.slots for area in areas):
+                self.violation("trip to park without a slot", goal, agv_id, at=self._instant)
+        self._trips.clear()
+
+    def _on_order(self, agv_id: str) -> bool:
+        """Whether the AGV carries a live order: one that is not terminal and names the AGV."""
+        order = self.state[agv_id].get("order")
+        fields = None if order is None else self.state.get(order)
+        return fields is not None and fields["status"] not in TERMINAL and fields.get("agv") == agv_id
 
     # Waits and their reports (spec §7.8, §7.9), from the traffic events
 

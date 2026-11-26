@@ -685,6 +685,55 @@ def test_a_slot_given_back_while_its_agv_rests_parked_is_a_violation(monkeypatch
     assert found[0] == pytest.approx(at, abs=1e-3) and found[2:] == ("P1", "agv-b")
 
 
+def _no_slot_ever_taken(monkeypatch):
+    """A trip to park takes no slot: the area is asked for room and nothing is entered, so the AGV travels to the
+    area's node and rests there without a slot, and no parking event is emitted."""
+
+    def room_only(self, agv, target):
+        areas = [area for area in self.parking_areas if area.node == target]
+        return not areas or any(area.available_capacity > 0 for area in areas)
+
+    monkeypatch.setattr(FleetCoordinator, "_take_slot", room_only)
+
+
+@pytest.mark.parametrize(
+    ("seed", "controller", "at", "node", "agv"),
+    [(619, "free", 86.385, "g0_0", "agv-e"), (88, "reservation", 137.397, "c03", "agv-e")],
+)
+def test_a_trip_to_park_without_a_slot_is_a_violation_as_it_starts(monkeypatch, seed, controller, at, node, agv):
+    """Trips to park that take no slot: the first is reported at the instant the AGV is sent to the parking node (spec
+    §7.10: the slot is taken at the decision). With the slots taken, neither run has a violation (above)."""
+    _no_slot_ever_taken(monkeypatch)
+    record = run_world(world_spec(seed), controller=controller, router="shortest")
+    (found, *_) = [v for v in record.violations if v[1] == "trip to park without a slot"]
+    assert found[0] == pytest.approx(at, abs=1e-3) and found[2:] == (node, agv)
+
+
+def test_a_trip_to_park_without_a_slot_after_a_slot_given_back_in_the_same_instant_is_a_violation(monkeypatch):
+    """What the exception of the give-back check lets through: a trip that did not arrive gives its slot back, the AGV
+    becomes idle, and a new trip to park on the same node in the same instant takes no slot. Seed 4316044
+    (`ReservationController`, shortest): agv-c is sent to g0_2 so at 305.5, which the give-back check excuses and the
+    check of a trip to park reports."""
+    release, take = FleetCoordinator._release_slots, FleetCoordinator._take_slot
+    given: dict[tuple[object, object], float] = {}
+
+    def release_slots(self, agv, node):
+        if any(area.node == node for area in self._slots.get(agv, ())):
+            given[agv, node] = self.env.now
+        release(self, agv, node)
+
+    def take_slot(self, agv, target):
+        if given.get((agv, target)) == self.env.now and any(area.node == target for area in self.parking_areas):
+            return True  # as if the slot were taken
+        return take(self, agv, target)
+
+    monkeypatch.setattr(FleetCoordinator, "_release_slots", release_slots)
+    monkeypatch.setattr(FleetCoordinator, "_take_slot", take_slot)
+    record = run_world(world_spec(4316044), controller="reservation", router="shortest")
+    assert [v[1:] for v in record.violations] == [("trip to park without a slot", "g0_2", "agv-c")]
+    assert record.violations[0][0] == pytest.approx(305.459, abs=1e-3)
+
+
 def test_a_segment_granted_against_a_body_is_a_violation(monkeypatch):
     """Seed 58: a ledger that ignores agv-a's holdings of single-lane segments admits a vehicle head-on against its
     body."""
