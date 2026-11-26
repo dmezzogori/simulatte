@@ -14,16 +14,18 @@ from simulatte.intralogistics.battery import Battery
 from simulatte.intralogistics.events import AgvBatteryChanged, AgvPlaced, AgvStateChanged
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from simulatte.environment import Environment
     from simulatte.intralogistics.fleet import FleetCoordinator
     from simulatte._wire import FrozenMap
     from simulatte.events import DeltaBuilder
     from simulatte.intralogistics.graph import Node, NodeBinding
+    from simulatte.intralogistics.network import ClaimItem
     from simulatte.intralogistics.order import TransferOrder
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.speed import SpeedProfile
+    from simulatte.intralogistics.traffic import Blocker
     from simulatte.rng import SamplerDescription
     from simulatte.layout.refs import NodeRef, PortRef
 
@@ -141,6 +143,8 @@ class AGV(Entity, kind="agv"):
             "motion": FieldSpec("map", nullable=True),
             "fleet": FieldSpec("str", nullable=True),
             "heading": FieldSpec("float", nullable=True),
+            "wait": FieldSpec("map", nullable=True),
+            "route": FieldSpec("map", nullable=True),
         }
     )
 
@@ -169,6 +173,12 @@ class AGV(Entity, kind="agv"):
         self.heading: float | None = None
         """The direction of the last arc traversed, in radians (``atan2`` of its chord, spec §9.4); None after
         placement."""
+        # The open traffic wait and the route of the travel under way (studio map spec §6.2), as the objects the
+        # controller and the travel executor already hold: :attr:`wait` and :attr:`route` turn them into wire values
+        # only when read, so a run that nothing observes keeps them at no cost beyond the assignment.
+        self._wait: tuple[float, str, Sequence[ClaimItem], Sequence[Blocker]] | None = None
+        self._route: tuple[Sequence[Node], str] | None = None
+        self._route_over = False  # the travel ended without an event to clear the route: the next state change does
 
         self.battery = Battery(
             capacity=agv_type.battery_capacity,
@@ -306,15 +316,78 @@ class AGV(Entity, kind="agv"):
             "motion": self.motion,
             "fleet": None if fleet is None else fleet.id,
             "heading": None if self.heading is None else wire_float(self.heading),
+            "wait": self.wait,
+            "route": self.route,
             "label": self.label,
         }
+
+    @property
+    def wait(self) -> dict[str, Any] | None:
+        """The open traffic wait, ``{since, node, resources, blockers}`` with the values of the ``traffic.wait_started``
+        that announced it (``since`` its time; resource and AGV ids), or None (studio map spec §6.2).
+
+        Set by that event and cleared by ``traffic.wait_ended``; nothing else writes it. The blockers are those known
+        when the wait was announced (decision M7)."""
+        wait = self._wait
+        if wait is None:
+            return None
+        since, node, items, blockers = wait
+        return {
+            "since": since,
+            "node": node,
+            "resources": [item.resource.id for item in items],
+            "blockers": [blocker.agv.id for blocker in blockers],
+        }
+
+    @property
+    def route(self) -> dict[str, Any] | None:
+        """The route of the travel under way, ``{nodes, destination, reason}`` with the values of its last
+        ``agv.routed`` (node ids), or None (studio map spec §6.2).
+
+        Set by ``agv.routed`` and cleared by the event that ends the travel: ``agv.move_ended`` at the route's last
+        node, ``agv.move_interrupted``, or else the AGV's next ``agv.state_changed``."""
+        route = self._route
+        if route is None:
+            return None
+        nodes, reason = route
+        return {"nodes": [node.id for node in nodes], "destination": nodes[-1].id, "reason": reason}
+
+    def _open_wait(self, since: float, node: str, items: Sequence[ClaimItem], blockers: Sequence[Blocker]) -> None:
+        """The traffic controller announces a wait at `since` before `node`, for the claim items `items`, blocked by
+        `blockers`; the caller emits ``traffic.wait_started`` with :attr:`wait` in its deltas."""
+        self._wait = (since, node, items, blockers)
+
+    def _close_wait(self) -> None:
+        """The announced wait ended; the caller emits ``traffic.wait_ended`` with ``wait`` set to null."""
+        self._wait = None
+
+    def _set_route(self, nodes: Sequence[Node], reason: str) -> None:
+        """The travel follows `nodes` for `reason`; the caller emits ``agv.routed`` with :attr:`route` in its deltas."""
+        self._route = (nodes, reason)
+        self._route_over = False
+
+    def _clear_route(self) -> bool:
+        """Clear the route now and return whether there was one: the caller's event sets ``route`` to null."""
+        had = self._route is not None
+        self._route = None
+        self._route_over = False
+        return had
+
+    def _end_route(self) -> None:
+        """The travel ended at an instant that emits no event of its own for the route: the next
+        :meth:`transition_to` clears it (studio map spec §6.2)."""
+        if self._route is not None:
+            self._route_over = True
 
     @property
     def state(self) -> AGVState:
         return self._state
 
     def transition_to(self, new_state: AGVState) -> None:
-        """Enter `new_state` (the only writer of the state) and emit ``agv.state_changed``."""
+        """Enter `new_state` (the only writer of the state) and emit ``agv.state_changed``.
+
+        The route of a travel that ended without an event of its own to clear it (:meth:`_end_route`) is cleared here,
+        in the same event."""
         env = self.env
         old_state = self._state
         if self.agv_type.idle_power:  # time spent charging does not drain: account up to the charge, resume after it
@@ -326,15 +399,12 @@ class AGV(Entity, kind="agv"):
         self.state_durations[old_state] += elapsed
         self._state = new_state
         self._state_entered_at = env.now
+        route_over = self._route_over and self._clear_route()  # after accrue_idle_power, which may emit before this
         if env.wants(AgvStateChanged):
-            env.emit(
-                AgvStateChanged(
-                    agv=self.id,
-                    state=new_state.name,
-                    previous=old_state.name,
-                    deltas=Deltas.build().set(self.id, "state", new_state.name).done(),
-                )
-            )
+            build = Deltas.build().set(self.id, "state", new_state.name)
+            if route_over:
+                build.set(self.id, "route", None)
+            env.emit(AgvStateChanged(agv=self.id, state=new_state.name, previous=old_state.name, deltas=build.done()))
 
     def accrue_idle_power(self) -> None:
         """Bring the battery level up to date with the idle power drained since it was last accounted (spec §9.5).

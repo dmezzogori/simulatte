@@ -384,7 +384,8 @@ def test_builder_passes_traffic_controller_router_and_length_through(env: Enviro
 
 
 def test_builder_digest():
-    """The digest of a run of the builder's model on the environment's layout, its AGVs named ``vehicle-<i>``."""
+    """The digest of a run of the builder's model on the environment's layout, its AGVs named ``vehicle-<i>``; pinned
+    again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), the only change to the run's projection."""
     from simulatte.intralogistics import build_simple_system
 
     with Environment(seed=17) as env:
@@ -398,4 +399,4 @@ def test_builder_digest():
                 )
             )
         env.run(until=120)
-        assert env.fingerprint().digest == "d66e5cd5c9e737ec83143ebb36153ed2fc08e4db9955f0f0e90b444af8e31f89"
+        assert env.fingerprint().digest == "d1b297149075bbbae3d524f8f3a86c7d94f54e52d52f043b0475a1a4cb24bed4"

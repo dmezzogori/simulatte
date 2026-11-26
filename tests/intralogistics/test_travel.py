@@ -288,7 +288,8 @@ def test_an_interrupt_during_an_arc_takes_effect_where_the_run_comes_to_rest() -
     tail = [(e.type_name, e.t) for e in w.events if e.type_name != "agv.state_changed"][-3:]
     assert tail == [("agv.move_ended", rest), ("traffic.released", rest), ("agv.move_interrupted", rest)]
     (interrupted,) = w.of(AgvMoveInterrupted)
-    assert (interrupted.node, interrupted.reason, len(interrupted.deltas)) == ("N2", "cancelled", 0)
+    assert (interrupted.node, interrupted.reason) == ("N2", "cancelled")
+    assert interrupted.deltas.ops == (("set", "A", "route", None),)  # the interrupted travel's route ends with it
 
 
 @pytest.mark.parametrize(("cause", "reason"), [("cancelled", "cancelled"), (None, "interrupted")])

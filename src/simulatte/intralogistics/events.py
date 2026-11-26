@@ -115,9 +115,14 @@ class OrderUnassigned(DomainEvent):
 # --- AGVs --------------------------------------------------------------------------------------------------
 
 
-@event_type("agv.state_changed", touches={"agv": ("state",)})
+@event_type("agv.state_changed", touches={"agv": ("state", "route")})
 class AgvStateChanged(DomainEvent):
-    """``AGV.transition_to`` ran; `previous` equals `state` when a mission re-enters its state (after charging)."""
+    """``AGV.transition_to`` ran; `previous` equals `state` when a mission re-enters its state (after charging).
+
+    Its deltas also clear the AGV's ``route`` when a travel ended without an event of its own to clear it: a retry
+    from the current position, a stranding, a give-up, the turn to a charger, a route of one node (studio map spec
+    §6.2).
+    """
 
     agv: str
     state: str
@@ -138,13 +143,14 @@ class AgvPlaced(DomainEvent):
     previous: str | None
 
 
-@event_type("agv.routed")
+@event_type("agv.routed", touches={"agv": ("route",)})
 class AgvRouted(DomainEvent):
     """The AGV took the route `nodes` (node ids) from `origin` to `destination`, of router cost `cost` (spec §11.2).
 
     `reason` is ``"travel"`` for a new travel, or for the route back to the goal after a step aside,
     ``"blocked"`` or ``"deadlock"`` for a reroute the traffic controller staged, ``"step_aside"`` for a step aside,
-    and ``"make_way"`` or ``"clear_node"`` for the coordinator's moves of those purposes. It changes no state.
+    and ``"make_way"`` or ``"clear_node"`` for the coordinator's moves of those purposes. Its deltas set the AGV's
+    ``route`` to ``{nodes, destination, reason}`` (studio map spec §6.2).
     """
 
     agv: str
@@ -171,13 +177,13 @@ class AgvMoveStarted(DomainEvent):
     loaded: bool
 
 
-@event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion", "heading"), "node": ("agvs",)})
+@event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion", "heading", "route"), "node": ("agvs",)})
 class AgvMoveEnded(DomainEvent):
     """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion and the
     idle power of its duration.
 
-    Its deltas also set the AGV's ``heading`` to the direction of the segment. An AGV that passes `node` at speed
-    starts its next segment at the same instant.
+    Its deltas also set the AGV's ``heading`` to the direction of the segment, and clear its ``route`` when `node` is
+    the route's last node. An AGV that passes `node` at speed starts its next segment at the same instant.
 
     A stalled segment (``t_end`` infinite) that is interrupted ends with this event at its departure node: `node` is the
     node the AGV never left and the deltas only clear the motion. A consumer that counts arrivals must check that the
@@ -189,7 +195,7 @@ class AgvMoveEnded(DomainEvent):
     battery: float
 
 
-@event_type("agv.move_interrupted")
+@event_type("agv.move_interrupted", touches={"agv": ("route",)})
 class AgvMoveInterrupted(DomainEvent):
     """The travel was interrupted and the AGV came to rest at `node` (spec §8.3).
 
@@ -197,8 +203,8 @@ class AgvMoveInterrupted(DomainEvent):
     received while it moves takes effect where it comes to rest, after ``agv.move_ended``: the end node of the
     segment for a rest-to-rest profile, the node it held last when the interrupt arrived for a run, and the departure
     node for a stalled segment, which is never left. `reason` is the
-    interrupt cause when it is a string, otherwise ``"interrupted"``. It changes no state: ``agv.move_ended`` already
-    cleared the motion.
+    interrupt cause when it is a string, otherwise ``"interrupted"``. It ends the travel: its deltas clear the AGV's
+    ``route`` (studio map spec §6.2); ``agv.move_ended`` already cleared the motion.
     """
 
     agv: str
@@ -271,12 +277,13 @@ class TrafficReleased(DomainEvent):
     resources: tuple[str, ...]
 
 
-@event_type("traffic.wait_started")
+@event_type("traffic.wait_started", touches={"agv": ("wait",)})
 class TrafficWaitStarted(DomainEvent):
     """The AGV stopped to wait before entering `node`, the next node it means to enter (spec §11.2).
 
     `resources` are the ids of the resources the waiting claim still needs, `blockers` the ids of the AGVs that hold
-    them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. It changes no state.
+    them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. Its deltas set the AGV's ``wait``
+    to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2).
     """
 
     agv: str
@@ -286,13 +293,13 @@ class TrafficWaitStarted(DomainEvent):
     reason: str
 
 
-@event_type("traffic.wait_ended")
+@event_type("traffic.wait_ended", touches={"agv": ("wait",)})
 class TrafficWaitEnded(DomainEvent):
     """A wait announced by ``traffic.wait_started`` ended; `node` is the same node.
 
     `reason` is the outcome: ``"granted"`` (``traffic.reserved`` follows), ``"rerouted"``, ``"stepped_aside"`` or
     ``"gave_up"`` (the controller staged that reaction) or ``"interrupted"`` (the request was withdrawn, for example
-    because the waiting travel was interrupted). It changes no state.
+    because the waiting travel was interrupted). Its deltas set the AGV's ``wait`` to null.
     """
 
     agv: str

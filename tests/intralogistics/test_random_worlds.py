@@ -44,44 +44,47 @@ EXERCISED = {
 }
 """Five worlds and some of what their run under ``ReservationController`` and the default router exercises."""
 FINGERPRINTS = {
-    26: "f1de1cc861081516b04b41647fee919ab85822bf8d603fb4de349fd0351592ec",
-    88: "c539208e1d5b79e8530e657f637adc1eefad87a39ff7f949b749f10e1c076f99",
-    182: "e36b053f438b2090df7cb1fe932b0d9dd2ed678619929b5c234804deabfa9024",
-    236: "761629ac3bcb4ab91b8c6835cf4ef40de65ce15312eb1ad879a88a6001aa0bca",
-    272: "b4f29be8b9f03f51449ca4b261f5e90c4b3f324ad0fbc6833096ec3227df05bf",
-    619: "d48e693d3dc0de65a73b199c1939765d11f3e5b5607e77294f6aaf3d49b00284",
+    26: "80bed5c21df4c8f6e02f1203b638902cea67a02d65b96793bfdf2e4f18b7fade",
+    88: "30ed3d1667d062a038099fd0ebe09d59da7a37eac9f0fc72d48bceb6a5b8695f",
+    182: "9f01df816c383e2309592a150feb2b32d7aba9cc7d8444a6085b00c4459f6cea",
+    236: "926163270587bcdfd9601339d82a2c4cea5ec31a223c6811235d6b43a2c44aff",
+    272: "9e3f0d7d37a78f5abaf5b7d36ca9e3219e25605b8fae5661e93dc0ba4f09113e",
+    619: "0c03bc61985a7626cbb598ffa422a1e810a200da03b475e41083a3f94508ae23",
 }
 """``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
 router), pinned at the last commit with explicit mode (e4afae4), where the run built with concrete objects and the run
 built through the layout gave equal run records. 619 is pinned again since a parking slot is given back when the trip to
-park turns to charge: its ``parking.left`` comes at 122.0 instead of 220.1, and no other event changes."""
+park turns to charge: its ``parking.left`` comes at 122.0 instead of 220.1, and no other event changes. All six are
+pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2): with those two fields projected out of
+the digest (as presentation fields), each run gives its previous pin."""
 
 
 SAFETY = {
     (100017, "reservation", "shortest"): (
         {"a passing segment held by two", "a deadlock", "charging", "stranding"},
-        "cc03562cc25fb8139d0f6c496065a1fad6a5a022730f66f4558205ae2f53236d",
+        "9e8e4ab44b0c60717c638be5d3b15de6e7977c61c92c725d82c820af8768d8e5",
     ),
     (100039, "reservation", "congestion"): (
         {"a zone held by two", "a deadlock", "charging", "stranding"},
-        "c262325e549be79d37b1c951a42d1b7cbd6360eba1178fd3fe78f571d4326799",
+        "2f61521b2ee089cc593f48d681032b117cb0991b368b3c6612b6d53c4cd9aa9d",
     ),
     (100083, "reservation", "fastest"): (
         {"a zone held by two", "a deadlock", "charging", "stranding"},
-        "7b2fc028d750341b43d6ef410c9a466f6794c884cbb7cc7f136be4369c59f565",
+        "9eb454963021c977df6169697ea5af379c9b409f23aa566f2039d1e0bcd45cc4",
     ),
     (100040, "reservation", "fastest"): (
         {"a zone held by two", "a deadlock", "charging", "stranding"},
-        "e223bd9582c603d3de521da0324212f95d095945f9adb26353041b902af96f5a",
+        "d416f70724e5987987a0405c86b609e154079ffe1939fa607744991d974776bd",
     ),
     (100045, "free", "fastest"): (
         {"a passing segment traversed", "parking entered", "charging", "stranding", "the second fleet moves"},
-        "4f54418663b6befcdd38c2c145726151bf6564b04c3ed0d2473bdf9695531841",
+        "82af6e6962e70b005b677bfeb7c1346baf59463576e84f28681f0272f521d52e",
     ),
 }
 """Five runs of the safety check (`benchmarks/layout_safety.py`, spec §8.4), by (seed, controller, router): what each
-exercises and its ``env.fingerprint()`` at the commit of the check. Together they exercise charging, stranding, a zone
-and a passing segment held by two, and a deadlock."""
+exercises and its ``env.fingerprint()`` at the commit of the check, pinned again for the vehicle's ``wait`` and
+``route`` (as :data:`FINGERPRINTS`). Together they exercise charging, stranding, a zone and a passing segment held by
+two, and a deadlock."""
 
 
 def test_world_spec_is_deterministic_per_seed():

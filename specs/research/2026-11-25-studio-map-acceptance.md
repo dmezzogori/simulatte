@@ -56,3 +56,14 @@ Headless Chromium without a GPU runs WebGL on SwiftShader, which rasterizes on t
 With a GPU (headless with ANGLE on Metal, or headed) there is no readback on the main thread, and `prepare` after a map render equals `prepare` with nothing drawn: on `lanes1000` 31.0 ms p50 against 28.6 to 32.1 ms with no render at all in the first measurement, and with `settle=1` the wait past the paint was 0.2 / 0.3 ms p50 / p95. The figures above are therefore what a user with a GPU-accelerated browser sees. A browser without GPU acceleration (a blocklisted GPU, a virtual machine, a remote desktop) that falls back to SwiftShader WebGL would show the same wait as frame-to-frame stalls; this follows from the mechanism and was not measured. Safari and Firefox were not measured.
 
 `studio/bench/run.mjs` now launches Chromium on macOS with those flags (`--headed` runs a visible window on any platform), and every result reports `webglRenderer` and `softwareRendered`. The bench page options are `seeks=N`, `nomap=1`, `norender=1`, `settle=1` and `gc=1`; the page and runner are in `studio/bench/`.
+
+## Stage 2: recording cost
+
+Task 13 makes a vehicle's traffic wait and route entity state (spec §6.2). Both are kept whether or not anything subscribes; the attributes hold the objects the controller and the travel executor already have and are turned into ids only when a snapshot or a delta is built. The bare run was timed on an Apple M4 Pro (macOS, CPython 3.14.3), at commit 055f442 (before) and on the working tree of the Task 13 commit (after), from the same process setup: before ran a copy of `src/simulatte` exported from 055f442 first on `PYTHONPATH`. Each workload ran 10 times after one warm-up, interleaved with the other, and the figure is the median of the 10; three such rounds alternated before and after.
+
+| Workload | Before, medians of three rounds (ms) | After (ms) | Change of the mean of the medians |
+|---|---|---|---|
+| Corridor example (`examples/intralogistics_traffic.py`, `main()`, output discarded) | 24.5, 24.8, 24.5 | 24.8, 24.9, 25.0 | +1.2 % |
+| Random world 272 (`world_spec(272)`, `ReservationController`, default router, no monitor, no digest) | 45.7, 45.7, 45.9 | 45.6, 45.9, 45.5 | -0.2 % |
+
+The corridor example attaches `TrafficKPIs` and the coordinator's default `OrderEMACollector`, so its traffic and AGV events are wanted and their deltas are built; the random world has no subscriber at all. Both changes are below the 2 % limit of §8.5. The bench job's intralogistics benchmark (`benchmarks/intralogistics.py --shifts 10`, the advanced example scaled up, mode `none`, three runs) gave 2.484 s before and 2.508 s after (+1.0 %, reported only), and its gate (mode `none` on `jobshop10-u90-5k` and `jobshop10-u95-5k` against released 0.12.0 and its stripped copy) passed locally.

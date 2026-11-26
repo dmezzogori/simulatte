@@ -162,12 +162,12 @@ Classes in `simulatte.intralogistics.events`. The coordinator keeps its warnings
 | `order.status_changed` | `OrderStatusChanged` | `order`, `status`, `previous`, `reason` (for example `dispatched`, `picked`, `delivered`, `cancelled`, `travel_failed` when the router found no route, `traffic_requeued` when the AGV gave up its travel in traffic before pickup) |
 | `order.assigned` | `OrderAssigned` | `order`, `agv` |
 | `order.unassigned` | `OrderUnassigned` | `order`, `agv` (re-queue after an interruption, mission cleanup) |
-| `agv.state_changed` | `AgvStateChanged` | `agv`, `state`, `previous` (every `AGV.transition_to`) |
+| `agv.state_changed` | `AgvStateChanged` | `agv`, `state`, `previous` (every `AGV.transition_to`; also clears the AGV's `route` when the travel ended without an event of its own to clear it: a retry from the current position, a stranding, a give-up, the turn to a charger) |
 | `agv.placed` | `AgvPlaced` | `agv`, `node`, `previous` (created at a bound node, or `current_node` assigned directly; the heading becomes unknown) |
-| `agv.routed` | `AgvRouted` | `agv`, `origin`, `destination`, `nodes`, `cost` (in the router's unit), `reason` (`travel`, `blocked`, `deadlock`, `step_aside`, `make_way` or `clear_node`); no state change |
+| `agv.routed` | `AgvRouted` | `agv`, `origin`, `destination`, `nodes`, `cost` (in the router's unit), `reason` (`travel`, `blocked`, `deadlock`, `step_aside`, `make_way` or `clear_node`); sets the AGV's `route` to `{nodes, destination, reason}` |
 | `agv.move_started` | `AgvMoveStarted` | `agv`, `from_node`, `to_node`, `t_end`, `motion` (the motion description; `piecewise` for a vehicle with kinematic limits), `loaded` |
-| `agv.move_ended` | `AgvMoveEnded` | `agv`, `node`, `battery` (also sets the AGV's `heading`; an interrupted stalled segment ends at its departure node) |
-| `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node where the interrupted AGV came to rest), `reason`; no state change |
+| `agv.move_ended` | `AgvMoveEnded` | `agv`, `node`, `battery` (also sets the AGV's `heading`, and clears its `route` at the route's last node; an interrupted stalled segment ends at its departure node) |
+| `agv.move_interrupted` | `AgvMoveInterrupted` | `agv`, `node` (the node where the interrupted AGV came to rest), `reason`; clears the AGV's `route` |
 | `agv.load_changed` | `AgvLoadChanged` | `agv`, `load` (SKU id to quantity, or null) |
 | `agv.battery_changed` | `AgvBatteryChanged` | `agv`, `battery` (recharge, battery swap, or idle power accounted outside a move) |
 | `agv.stranded` | `AgvStranded` | `agv`, `node` (where it stands), `reason` (`no_reachable_charger`, `insufficient_after_charging` or `charger_not_reached`) |
@@ -182,8 +182,8 @@ Classes in `simulatte.intralogistics.events`:
 | --- | --- | --- |
 | `traffic.reserved` | `TrafficReserved` | `agv`, `resources` (entity ids); one event per grant or placement, with the deltas of every resource |
 | `traffic.released` | `TrafficReleased` | `agv`, `resources` (entity ids); one event per release |
-| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `resources` (still needed), `blockers` (AGV ids), `reason` (`occupied`); no state change |
-| `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `rerouted`, `stepped_aside`, `gave_up` or `interrupted`); no state change |
+| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `resources` (still needed), `blockers` (AGV ids), `reason` (`occupied`); sets the AGV's `wait` to `{since, node, resources, blockers}` |
+| `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `rerouted`, `stepped_aside`, `gave_up` or `interrupted`); sets the AGV's `wait` to null |
 | `traffic.wait_stuck` | `TrafficWaitStuck` | `agv`, `blockers` (AGV id to disposition: `IDLE`, `STRANDED`, `WAITING` or `STALLED`); once per wait; no state change |
 | `traffic.deadlock` | `TrafficDeadlock` | `agvs` (sorted ids), `victim` (id or null), `action` (`reroute`, `step_aside`, `give_up` or `unresolved`); no state change |
 | `warehouse.inventory_changed` | `WarehouseInventoryChanged` | `warehouse`, `sku`, `level`, `delta` (positive for a put, negative for a pick) |

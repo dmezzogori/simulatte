@@ -298,6 +298,9 @@ class TravelExecutor:
             # The hooks' bound methods hold the trip: without this the finished trip, its plans and its profiles are
             # cyclic garbage that only a full collection frees.
             del trip.hooks
+            # Every travel ends here. A route still set was not cleared by an event of the trip (``agv.move_ended`` at
+            # its last node, ``agv.move_interrupted``): the AGV's next ``agv.state_changed`` clears it (map spec §6.2).
+            agv._end_route()
 
     def _trail(self, agv: AGV) -> _Trail:
         trail = self._trails.get(agv)
@@ -346,12 +349,15 @@ class TravelExecutor:
                 )
             )
 
-    def _end_segment(self, agv: AGV, node: Node, *, moved: bool = True, source: Node | None = None) -> None:
+    def _end_segment(
+        self, agv: AGV, node: Node, *, moved: bool = True, source: Node | None = None, last: bool = False
+    ) -> None:
         """Move the AGV to `node` at the end of a segment, clear its motion and emit ``agv.move_ended``.
 
         With `source`, the node the segment started from, the AGV's heading becomes the direction of the chord from
         `source` to `node`. With `moved` false (a stalled segment stopped at its
         departure node `node`, spec §8.3) only the motion is cleared: no relocation, and the battery is unchanged.
+        With `last`, `node` is the last node of the route: the route is done and cleared with the same event.
         """
         if moved:
             relocated = agv._relocate(node)  # validates the node before changing anything
@@ -361,6 +367,7 @@ class TravelExecutor:
         agv.motion = None
         if relocated is not None and source is not None:
             agv.heading = math.atan2(node.y - source.y, node.x - source.x)
+        cleared = last and agv._clear_route()
         env = self.fleet.env
         if env.wants(AgvMoveEnded):
             battery = wire_float(agv.battery.level)
@@ -370,10 +377,14 @@ class TravelExecutor:
                 build = agv._node_deltas(node, *relocated).set(agv.id, "battery", battery).set(agv.id, "motion", None)
                 heading = agv.heading
                 build.set(agv.id, "heading", None if heading is None else wire_float(heading))
+            if cleared:
+                build.set(agv.id, "route", None)
             env.emit(AgvMoveEnded(agv=agv.id, node=node.id, battery=battery, deltas=build.done()))
 
     def _interrupted(self, agv: AGV, cause: object) -> None:
-        """Emit ``agv.move_interrupted`` at the node where the interrupted AGV is at rest."""
+        """Emit ``agv.move_interrupted`` at the node where the interrupted AGV is at rest; the travel ends, and the
+        event's deltas clear its route (studio map spec §6.2)."""
+        cleared = agv._clear_route()
         env = self.fleet.env
         if env.wants(AgvMoveInterrupted):
             node = agv.current_node
@@ -382,6 +393,7 @@ class TravelExecutor:
                     agv=agv.id,
                     node=None if node is None else node.id,
                     reason=cause if isinstance(cause, str) else "interrupted",
+                    deltas=Deltas.build().set(agv.id, "route", None).done() if cleared else Deltas.EMPTY,
                 )
             )
 
@@ -807,6 +819,7 @@ class _Trip:
         """
         fleet, agv, env = self.fleet, self.agv, self.env
         self._settle()
+        agv._end_route()  # the trip is not resumed after this branch (ruling A3-m): its route goes at the turn
         diverting = self.executor._diverting
         charger = None if diverting.get(agv) is current else fleet._find_reachable_charger(agv)
         if charger is not None:
@@ -899,16 +912,18 @@ class _Trip:
         self.turned = -1
         self.corner_caps, self.turn_waits = {}, {}
         env = self.env
+        agv = self.agv
+        agv._set_route(nodes, reason)
         if env.wants(AgvRouted):
-            nodes = route.nodes
             env.emit(
                 AgvRouted(
-                    agv=self.agv.id,
+                    agv=agv.id,
                     origin=nodes[0].id,
                     destination=nodes[-1].id,
                     nodes=tuple(node.id for node in nodes),
                     cost=wire_float(route.cost),
                     reason=reason,
+                    deltas=Deltas.build().set(agv.id, "route", agv.route).done(),
                 )
             )
 
@@ -1147,7 +1162,7 @@ class _Trip:
         avg_speed = distance / travel_time if travel_time > 0 else 0.0
         agv.battery.deplete(distance, plan.load_weight, avg_speed)
         agv.fold_idle_power(travel_time)  # the move's idle drain is part of the level ``agv.move_ended`` reports
-        executor._end_segment(agv, next_node, source=current)
+        executor._end_segment(agv, next_node, source=current, last=self.index + 1 == len(self.route) - 1)
         self.index += 1
         self.speed = plan.exit_speed
         if trail is not None:

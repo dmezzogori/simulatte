@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from simulatte._wire import FrozenMap, freeze
+from simulatte.events import Deltas
 from simulatte.layout.binding import graph_input, pending
 from simulatte.intralogistics.events import (
     TrafficDeadlock,
@@ -279,15 +280,18 @@ class ReservationController:
         assert node is not None
         waiting.node = node.id
         blockers = self._blocking(waiting)
+        needed = self.ledger.needed(agv, request.claim)
+        agv._open_wait(waiting.since, waiting.node, needed, blockers)  # vehicle state, observed or not (map §6.2)
         env = self._env
         if env.wants(TrafficWaitStarted):
             env.emit(
                 TrafficWaitStarted(
                     agv=agv.id,
                     node=waiting.node,
-                    resources=tuple(item.resource.id for item in self.ledger.needed(agv, request.claim)),
+                    resources=tuple(item.resource.id for item in needed),
                     blockers=tuple(blocker.agv.id for blocker in blockers),
                     reason="occupied",
+                    deltas=Deltas.build().set(agv.id, "wait", agv.wait).done(),
                 )
             )
         self._make_way(self._wait(waiting, blockers))
@@ -772,9 +776,11 @@ class ReservationController:
             self._env.unschedule(timer)
         agv = waiting.agv
         self._unresolved = [ids for ids in self._unresolved if agv.id not in ids]
+        agv._close_wait()
         env = self._env
         if env.wants(TrafficWaitEnded):
-            env.emit(TrafficWaitEnded(agv=agv.id, node=waiting.node, reason=reason))
+            deltas = Deltas.build().set(agv.id, "wait", None).done()
+            env.emit(TrafficWaitEnded(agv=agv.id, node=waiting.node, reason=reason, deltas=deltas))
 
     def _reduce(self, waiters: list[_Pending], *, gates: bool) -> list[_Pending]:
         """The waiters that cannot proceed even if every AGV outside them released everything (spec §7.8).

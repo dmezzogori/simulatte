@@ -147,6 +147,7 @@ def test_move_events_carry_the_segment() -> None:
         ("set", agv.id, "battery", 995.0),
         ("set", agv.id, "motion", None),
         ("set", agv.id, "heading", agv_heading(world.canonical_graph().nodes, "C1", "OUT")),
+        ("set", agv.id, "route", None),  # OUT is the route's last node: the travel's route ends with it
     )
     assert [e.loaded for e in seen if isinstance(e, AgvMoveStarted)] == [False, True, True, True]
     assert agv.motion is None and replay.events > 10

@@ -963,14 +963,14 @@ only with `ReservationController`.
 |---|---|
 | `traffic.reserved` | payload `agv`, `resources` (ids); one event per grant or placement, with the deltas of every resource |
 | `traffic.released` | payload `agv`, `resources`; one event per release call |
-| `traffic.wait_started` | emitted by `stopped`; payload `agv`, `node` (next node), `resources`, `blockers` (agv ids), `reason` = `occupied` |
-| `traffic.wait_ended` | `reason` in `granted`, `rerouted`, `stepped_aside`, `gave_up`, `interrupted` |
+| `traffic.wait_started` | emitted by `stopped`; payload `agv`, `node` (next node), `resources`, `blockers` (agv ids), `reason` = `occupied`; its deltas set the AGV's `wait` (studio map spec §6.2) |
+| `traffic.wait_ended` | `reason` in `granted`, `rerouted`, `stepped_aside`, `gave_up`, `interrupted`; its deltas set the AGV's `wait` to null (studio map spec §6.2) |
 | `traffic.wait_stuck` (new) | `agv`, `blockers` (agv ids with their dispositions); once per wait (§7.9); no deltas |
 | `traffic.deadlock` (new) | `agvs` (sorted ids), `victim` (id or null), `action` in `reroute`, `step_aside`, `give_up`, `unresolved`; no deltas |
-| `agv.routed` (new) | `agv`, `origin`, `destination`, `nodes`, `cost`, `reason` in `travel`, `blocked`, `deadlock`, `step_aside`, `make_way`, `clear_node`; no deltas |
+| `agv.routed` (new) | `agv`, `origin`, `destination`, `nodes`, `cost`, `reason` in `travel`, `blocked`, `deadlock`, `step_aside`, `make_way`, `clear_node`; its deltas set the AGV's `route` (amended by studio map spec §6.2; no deltas before) |
 | `agv.move_started` | unchanged payload; `motion` may be `piecewise` |
 | `agv.stranded` | `node` is the node the AGV stands on; `reason` in `no_reachable_charger`, `insufficient_after_charging` (a diversion charged and the level still does not cover the arc it turned at), `charger_not_reached` (new: a diversion ended before the charger, its level critical or without a route); no deltas |
-| `agv.move_interrupted` | emitted at the node where an interrupted AGV came to rest; `agv`, `node`, `reason`; no deltas |
+| `agv.move_interrupted` | emitted at the node where an interrupted AGV came to rest; `agv`, `node`, `reason`; its deltas clear the AGV's `route` (amended by studio map spec §6.2; no deltas before) |
 | `agv.battery_changed` | also emitted for idle-power accrual outside a move |
 | `order.status_changed` | new reason `traffic_requeued`; `travel_failed` now means no route |
 | `parking.entered`, `parking.left` | now emitted in normal operation (§7.10) |

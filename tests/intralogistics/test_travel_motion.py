@@ -642,7 +642,9 @@ def test_heading_is_the_direction_of_the_last_arc_and_unknown_after_placement() 
     w.go("A", "STORE_OUT", at=200.0)
     w.env.run()
     assert agv.heading == pytest.approx(math.pi)
-    assert [e.deltas.ops[-1] for e in w.of(AgvMoveEnded)][-1] == ("set", "A", "heading", agv.heading)
+    assert [op for op in w.of(AgvMoveEnded)[-1].deltas.ops if op[2] == "heading"] == [
+        ("set", "A", "heading", agv.heading)
+    ]
     agv.current_node = w.nodes["C1"]
     assert agv.heading is None and w.env.entities.snapshot()["A"]["heading"] is None
 

@@ -96,7 +96,7 @@ def test_an_interrupt_on_a_cruising_arc_passes_its_end_at_speed_and_stops_at_the
     assert w.agvs["A"].current_node == w.nodes["N3"] and w.agvs["A"].motion is None
     (interrupted,) = w.of(AgvMoveInterrupted)
     assert (interrupted.node, interrupted.reason, interrupted.t) == ("N3", "cancelled", arrivals(w)[-1][1])
-    assert not interrupted.deltas
+    assert interrupted.deltas.ops == (("set", "A", "route", None),)  # the interrupted travel's route ends with it
     assert w.agvs["A"].battery.level == 970.0  # the three arcs covered, nothing more
 
 
