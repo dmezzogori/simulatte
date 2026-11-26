@@ -160,7 +160,6 @@ export function buildVehicles(input: VehicleInput): VehicleItem[] {
       width: size(footprint["depth"]),
       // the type's size, from the target: an explicit placement footprint may differ from it
       size: typeSize,
-      sized: typeSize !== null,
       headingKnown,
       shown,
       state,

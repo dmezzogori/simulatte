@@ -60,13 +60,12 @@ def test_map_frame_fixtures_up_to_date(tmp_path: Path) -> None:
     subprocess.run(
         [sys.executable, str(GENERATOR), "--out", str(tmp_path)], check=True, timeout=120, capture_output=True
     )
-    generated = tmp_path
     committed = sorted(p.name for p in COMMITTED.glob("*.json"))
     assert committed, "no map frame fixtures are committed"
-    assert sorted(p.name for p in generated.glob("*.json")) == committed
+    assert sorted(p.name for p in tmp_path.glob("*.json")) == committed
     for name in committed:
         found = differences(
-            json.loads((generated / name).read_text(encoding="utf-8")),
+            json.loads((tmp_path / name).read_text(encoding="utf-8")),
             json.loads((COMMITTED / name).read_text(encoding="utf-8")),
         )
         assert not found, (name, found[:10])

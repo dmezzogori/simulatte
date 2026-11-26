@@ -245,7 +245,9 @@ test("a seek into a recorded wait shows it in the detail and the Overview withou
   // the corridor example recorded with seed 19: AGV-1 waits for AGV-2 from 121.54 s; the seek lands inside that wait
   await page.locator("input[type=range]").fill("128");
   await expect(page.locator("output")).toContainText("t = 128");
+  expect((await page.locator(".status").textContent())?.trim()).toBe("paused"); // a seek, not playback
   await page.locator(".entities").getByRole("button", { name: "AGV-1", exact: true }).click();
+  // the wait is recorded state: AGV-1's `wait` at the cursor, read without the event that opened it
   await expect(page.locator(".detail .detail-line").filter({ hasText: /^Blocked by/ })).toHaveText(/^Blocked by AGV-2/);
   await page.getByRole("tab", { name: "Overview", exact: true }).click();
   const trafficLine = page
@@ -253,6 +255,7 @@ test("a seek into a recorded wait shows it in the detail and the Overview withou
     .filter({ has: page.getByRole("heading", { name: "Traffic", exact: true }) })
     .locator("p");
   await expect(trafficLine).toHaveText(/^1 waiting/);
+  expect((await page.locator(".status").textContent())?.trim()).toBe("paused"); // still paused: nothing played since the seek
   expect(errors).toEqual([]);
 });
 

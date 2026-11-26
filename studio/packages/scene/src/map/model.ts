@@ -56,11 +56,10 @@ export interface VehicleItem extends Point {
   /** Metres across it. */
   width: number;
   /**
-   * The vehicle's type declares its size: the layout target carries `size` (spec section 6.1). `length` and `width`
-   * are the placement's footprint, which is the type's size unless an explicit placement footprint wins.
+   * The type's size from the layout target's `size` (spec section 6.1): length along the heading, width across; null
+   * when unknown. `length` and `width` are the placement's footprint, which is this size unless an explicit placement
+   * footprint wins.
    */
-  sized: boolean;
-  /** The type's size from the layout target's `size`: length along the heading, width across; null when unknown. */
   size: { length: number; width: number } | null;
   /** The heading is known: an arc under way fixes it, else a recorded finite `heading` (else `heading` is 0). */
   headingKnown: boolean;

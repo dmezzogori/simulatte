@@ -229,7 +229,7 @@ describe("a size and a heading only when known", () => {
   });
   it("prints the type's size from the target, whatever footprint the placement has", () => {
     const frame = loadFrame("corridor-wait");
-    expect(mapOf(frame).vehicles.every((v) => v.sized)).toBe(true);
+    expect(mapOf(frame).vehicles.every((v) => v.size !== null)).toBe(true);
     type Layout = {
       targets: Record<string, Record<string, unknown>>;
       resolved: { placements: Record<string, { footprint: Record<string, unknown> }> };
@@ -240,7 +240,7 @@ describe("a size and a heading only when known", () => {
     delete explicit.resolved.placements["AGV-2"]!.footprint["depth"];
     let model = mapOf({ ...frame, layout: explicit as never });
     const agv1 = model.vehicles.find((v) => v.id === "AGV-1")!;
-    expect([agv1.length, agv1.width, agv1.sized, agv1.size]).toEqual([2, 1, true, { length: 1.2, width: 0.6 }]);
+    expect([agv1.length, agv1.width, agv1.size]).toEqual([2, 1, { length: 1.2, width: 0.6 }]);
     expect(line(describeEntity(model, frame.state, "AGV-1"), "Size").text).toBe("Size 1.2 × 0.6 m");
     expect(line(describeEntity(model, frame.state, "AGV-2"), "Size").text).toBe("Size 1.2 × 0.6 m");
     // without the target's size the type's size is not known, whatever the footprint
@@ -252,7 +252,7 @@ describe("a size and a heading only when known", () => {
       expect(model.vehicles.find((v) => v.id === id)!.size).toBeNull();
       expect(texts(describeEntity(model, frame.state, id)).some((t) => t.startsWith("Size"))).toBe(false);
     }
-    expect(model.vehicles.find((v) => v.id === "AGV-3")!.sized).toBe(true);
+    expect(model.vehicles.find((v) => v.id === "AGV-3")!.size).toEqual({ length: 1.2, width: 0.6 });
   });
 });
 
