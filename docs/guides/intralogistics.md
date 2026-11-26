@@ -337,6 +337,8 @@ env.run()
 print(kpis.scalars())
 ```
 
+The state of each fleet also counts its traffic from the start of the run, with or without observers: `waits` (one per `traffic.wait_started` of its AGVs), `stuck_waits` (one per `traffic.wait_stuck`) and `deadlocks` (one per `traffic.deadlock` with at least one of its AGVs, however many). A trace therefore shows them at any instant. They differ from the KPIs, which count from the end of the warm-up. An AGV that no fleet took counts nowhere. The state also records three constants once, in the initial state: a parking area's `capacity`, a charging station's `slots` and an AGV's `battery_capacity` (that of its type).
+
 ## Examples
 
 Four runnable examples in the [`examples/`](https://github.com/dmezzogori/simulatte/tree/main/examples) folder provide a progressive learning path:

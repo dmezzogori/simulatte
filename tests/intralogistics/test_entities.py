@@ -157,6 +157,7 @@ def test_kinds_ids_and_initial_state() -> None:
         "heading": None,
         "wait": None,
         "route": None,
+        "battery_capacity": 1000.0,
         "label": "agv-0",
     }
     assert state["order-0"] == {
@@ -174,10 +175,17 @@ def test_kinds_ids_and_initial_state() -> None:
         "fleet": "fleet-0",
         "label": "order-0",
     }
-    assert state["fleet-0"] == {"$kind": "fleet", "pending": (), "label": "fleet-0"}
+    assert state["fleet-0"] == {
+        "$kind": "fleet",
+        "pending": (),
+        "waits": 0,
+        "stuck_waits": 0,
+        "deadlocks": 0,
+        "label": "fleet-0",
+    }
     assert state["WH-A"] == {"$kind": "warehouse", "inventory": {"SKU-A": 100.0}, "slots_in_use": 0, "label": "WH-A"}
-    assert state["CS"] == {"$kind": "charging_station", "slots_in_use": 0, "swap_pool": 2.0, "label": "CS"}
-    assert state["PARK"] == {"$kind": "parking_area", "parked": (), "label": "PARK"}
+    assert state["CS"] == {"$kind": "charging_station", "slots_in_use": 0, "swap_pool": 2.0, "slots": 1, "label": "CS"}
+    assert state["PARK"] == {"$kind": "parking_area", "parked": (), "capacity": 2, "label": "PARK"}
     assert state["C1"] == {"$kind": "node", "x": 5.0, "y": 0.0, "agvs": ("agv-0",), "reserved_by": (), "label": "C1"}
 
     agv.current_load = {SKU_A: 2}
@@ -197,7 +205,7 @@ def test_facility_snapshots_follow_their_resources() -> None:
 
     env.process(park())
     env.run()
-    assert station.snapshot() == {"slots_in_use": 0, "swap_pool": None, "label": "Charger"}
+    assert station.snapshot() == {"slots_in_use": 0, "swap_pool": None, "slots": 1, "label": "Charger"}
     assert area.snapshot()["parked"] == ["B", "A"]  # arrival order
     area.leave(agvs[0])
     assert area.snapshot()["parked"] == ["A"]

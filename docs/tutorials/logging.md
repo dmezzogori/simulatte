@@ -182,10 +182,10 @@ Classes in `simulatte.intralogistics.events`:
 | --- | --- | --- |
 | `traffic.reserved` | `TrafficReserved` | `agv`, `resources` (entity ids); one event per grant or placement, with the deltas of every resource |
 | `traffic.released` | `TrafficReleased` | `agv`, `resources` (entity ids); one event per release |
-| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `resources` (still needed), `blockers` (AGV ids), `reason` (`occupied`); sets the AGV's `wait` to `{since, node, resources, blockers}` |
+| `traffic.wait_started` | `TrafficWaitStarted` | `agv`, `node` (the next node the AGV means to enter), `resources` (still needed), `blockers` (AGV ids), `reason` (`occupied`); sets the AGV's `wait` to `{since, node, resources, blockers}` and adds one to `waits` of its fleet |
 | `traffic.wait_ended` | `TrafficWaitEnded` | `agv`, `node`, `reason` (`granted`, `rerouted`, `stepped_aside`, `gave_up` or `interrupted`); sets the AGV's `wait` to null |
-| `traffic.wait_stuck` | `TrafficWaitStuck` | `agv`, `blockers` (AGV id to disposition: `IDLE`, `STRANDED`, `WAITING` or `STALLED`); once per wait; no state change |
-| `traffic.deadlock` | `TrafficDeadlock` | `agvs` (sorted ids), `victim` (id or null), `action` (`reroute`, `step_aside`, `give_up` or `unresolved`); no state change |
+| `traffic.wait_stuck` | `TrafficWaitStuck` | `agv`, `blockers` (AGV id to disposition: `IDLE`, `STRANDED`, `WAITING` or `STALLED`); once per wait; adds one to `stuck_waits` of the AGV's fleet |
+| `traffic.deadlock` | `TrafficDeadlock` | `agvs` (sorted ids), `victim` (id or null), `action` (`reroute`, `step_aside`, `give_up` or `unresolved`); adds one to `deadlocks` of each fleet with an AGV in the set, once per fleet |
 | `warehouse.inventory_changed` | `WarehouseInventoryChanged` | `warehouse`, `sku`, `level`, `delta` (positive for a put, negative for a pick) |
 | `warehouse.slot_changed` | `WarehouseSlotChanged` | `warehouse`, `in_use` (a pick or put slot acquired or released) |
 | `charging.started` | `ChargingStarted` | `station`, `agv`, `mode` (`recharge` or `swap`; the AGV was granted a slot) |

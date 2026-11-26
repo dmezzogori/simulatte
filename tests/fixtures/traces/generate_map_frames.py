@@ -10,16 +10,17 @@ the trace's bundle, cut down to what the scene reads: ``schema_version``, ``reso
 ``bindings`` and ``targets``. Every other key of the bundle (hashes, layers, leaves, dependencies, auto, aliases,
 algorithms, stages, topology, diagnostics, required_paths, the other ``network`` keys) is dropped.
 
-With ``--patch`` (the default until the Python side records them) the fixtures also carry what the map needs and the
-simulation does not record yet (spec §6): the capacities and the fleet counters. Each is computed from the events up to
-the cursor or written as a literal below. The ``wait`` and ``route`` of a vehicle are recorded since Task 13: the patch
-no longer writes them, it computes them from the events as before and checks that the recording holds the same. The
+With ``--patch`` (the default) the generator checks what the map needs (spec §6) against values it computes on its
+own, and writes what the simulation does not record. The ``wait`` and ``route`` of a vehicle are recorded since Task 13,
+the capacities and the fleet counters since Task 14: the patch no longer writes them, it computes them from the events
+up to the cursor or takes them from the literals below, as before, and checks that the recording holds the same. The
 vehicle size is recorded since Task 11; the patch still writes it, with the values the recording already has. The
 facilities' ``node_ids`` and their positions by the placement rule of §6.3 are recorded since Task 12: the patch no
 longer writes them, it checks them against the bindings and the literals below. ``bare-layout`` is never patched: it
 stands for a trace recorded before Stage 2, so the corridor example is recorded for it once more with the facilities'
-``node_ids`` withheld (:func:`without_node_ids`, which leaves them in the grid), and the vehicle size, ``wait`` and
-``route`` it records are taken out of it (:func:`unsized`, :func:`unrouted`).
+``node_ids`` withheld (:func:`without_node_ids`, which leaves them in the grid), and the vehicle size, ``wait``,
+``route``, capacities and counters it records are taken out of it (:func:`unsized`, :func:`unrouted`,
+:func:`uncounted`).
 """
 
 from __future__ import annotations
@@ -237,6 +238,24 @@ def unrouted(frame: Plain) -> Plain:
     return frame
 
 
+RECORDED_SINCE_TASK_14 = {
+    "agv": ("battery_capacity",),
+    "parking_area": ("capacity",),
+    "charging_station": ("slots",),
+    "fleet": ("waits", "stuck_waits", "deadlocks"),
+}
+"""The capacities and the fleet counters (spec §6.4, §6.6), by entity kind."""
+
+
+def uncounted(frame: Plain) -> Plain:
+    """`frame` as a trace recorded before Task 14: no capacity and no fleet counter (spec §6.4, §6.6)."""
+    for state in (frame["state"], frame["initialState"]):
+        for fields in state.values():
+            for name in RECORDED_SINCE_TASK_14.get(fields["$kind"], ()):
+                del fields[name]
+    return frame
+
+
 @contextmanager
 def without_node_ids() -> Iterator[None]:
     """Record as before Task 12: no facility target carries ``node_ids``, so the placement packs them in the grid."""
@@ -251,8 +270,8 @@ def without_node_ids() -> Iterator[None]:
 def patch_state(
     state: Plain, events: list[tuple[float, int, str, Plain]], cursor: tuple[float, int], example: str
 ) -> None:
-    """Add the capacities and the fleet counters to `state`, from the events up to `cursor`, and check that the
-    ``wait`` and ``route`` the recording holds are those the events give."""
+    """Check that the ``wait`` and ``route``, the capacities and the fleet counters the recording holds in `state` are
+    those the events up to `cursor` and the literals of :data:`CAPACITIES` give."""
     waits: dict[str, Plain] = {}
     routes: dict[str, Plain] = {}
     counted: dict[str, Counter[str]] = {"waits": Counter(), "stuck_waits": Counter(), "deadlocks": Counter()}
@@ -288,17 +307,17 @@ def patch_state(
                 route = routes.get(name)
                 if route is not None and fields["node"] == route["destination"] and fields["motion"] is None:
                     route = None  # arrived and not moving
-                # Recorded since Task 13: the recording must hold what this patch used to write.
+                # Recorded since Task 13 and Task 14: the recording must hold what this patch used to write.
                 assert fields["wait"] == waits.get(name), (name, cursor, fields["wait"], waits.get(name))
                 assert fields["route"] == route, (name, cursor, fields["route"], route)
-                fields["battery_capacity"] = facts["battery_capacity"]
+                assert fields["battery_capacity"] == facts["battery_capacity"], (name, fields["battery_capacity"])
             case "parking_area":
-                fields["capacity"] = facts["capacity"][name]
+                assert fields["capacity"] == facts["capacity"][name], (name, fields["capacity"])
             case "charging_station":
-                fields["slots"] = facts["slots"][name]
+                assert fields["slots"] == facts["slots"][name], (name, fields["slots"])
             case "fleet":
                 for counter, values in counted.items():
-                    fields[counter] = values[name]
+                    assert fields[counter] == values[name], (name, cursor, counter, fields[counter], values[name])
 
 
 def frame_of(
@@ -752,7 +771,9 @@ def main(argv: list[str] | None = None) -> int:
         two_fleets["state"]["AGV-3"]["fleet"] = "shuttles"
         frames["two-fleets"] = two_fleets
 
-        frames["bare-layout"] = unrouted(frame_of(Recording(bare), 128.0, None, patch=False, layout_patched=None))
+        frames["bare-layout"] = uncounted(
+            unrouted(frame_of(Recording(bare), 128.0, None, patch=False, layout_patched=None))
+        )
         frames["bare-layout"]["layout"] = unsized(frames["bare-layout"]["layout"])
         no_layout = json.loads(json.dumps(corridor_wait))
         no_layout["layout"] = None

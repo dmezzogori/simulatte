@@ -65,7 +65,7 @@ if TYPE_CHECKING:
     )
     from simulatte.intralogistics.routing import Router
     from simulatte.intralogistics.sku import SKU
-    from simulatte.intralogistics.traffic import TrafficController
+    from simulatte.intralogistics.traffic import TrafficController, TrafficCounter
     from simulatte.intralogistics.warehouse import Warehouse
 
 
@@ -138,9 +138,21 @@ class FleetCoordinator(Entity, kind="fleet"):
     ``order.unassigned`` for the order-AGV link, and the AGV events of movement (``agv.move_started``,
     ``agv.move_ended``, ``agv.move_interrupted``, ``agv.routed``, emitted by the travel executor), cargo
     (``agv.load_changed``) and stranding (``agv.stranded``).
+
+    Its state also counts, from the start of the run, the traffic waits, stuck waits and deadlocks of its AGVs
+    (``waits``, ``stuck_waits``, ``deadlocks``, studio map spec §6.6): the traffic controller sets them with the
+    deltas of ``traffic.wait_started``, ``traffic.wait_stuck`` and ``traffic.deadlock``
+    (:func:`~simulatte.intralogistics.traffic.count_traffic`).
     """
 
-    state_schema: ClassVar[StateSchema] = StateSchema({"pending": FieldSpec("str", collection="list")})
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "pending": FieldSpec("str", collection="list"),
+            "waits": FieldSpec("int"),
+            "stuck_waits": FieldSpec("int"),
+            "deadlocks": FieldSpec("int"),
+        }
+    )
 
     def __init__(
         self,
@@ -241,6 +253,9 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
+        # The traffic counters of the state (studio map spec §6.6), changed by the controller through _count_traffic.
+        self._traffic_counts: dict[TrafficCounter, int] = {"waits": 0, "stuck_waits": 0, "deadlocks": 0}
+
         env.entities.attach(self, name=name, label=label)
         self.metrics: OrderEMACollector | None = (
             OrderEMACollector(self, alpha=ema_alpha).attach(env) if default_metrics else None
@@ -269,8 +284,21 @@ class FleetCoordinator(Entity, kind="fleet"):
         readonly("graph")
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state: the ids of the pending orders, in queue order."""
-        return {"pending": [order.id for order in self._pending_queue], "label": self.label}
+        """Current entity state: the ids of the pending orders, in queue order, and the traffic counters."""
+        counts = self._traffic_counts
+        return {
+            "pending": [order.id for order in self._pending_queue],
+            "waits": counts["waits"],
+            "stuck_waits": counts["stuck_waits"],
+            "deadlocks": counts["deadlocks"],
+            "label": self.label,
+        }
+
+    def _count_traffic(self, counter: TrafficCounter) -> int:
+        """Add one to the traffic counter `counter` and return its new value, the value the counted event's delta sets
+        (studio map spec §6.6); see :func:`~simulatte.intralogistics.traffic.count_traffic`."""
+        value = self._traffic_counts[counter] = self._traffic_counts[counter] + 1
+        return value
 
     # ------------------------------------------------------------------
     # Public API

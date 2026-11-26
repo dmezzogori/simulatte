@@ -44,47 +44,49 @@ EXERCISED = {
 }
 """Five worlds and some of what their run under ``ReservationController`` and the default router exercises."""
 FINGERPRINTS = {
-    26: "80bed5c21df4c8f6e02f1203b638902cea67a02d65b96793bfdf2e4f18b7fade",
-    88: "30ed3d1667d062a038099fd0ebe09d59da7a37eac9f0fc72d48bceb6a5b8695f",
-    182: "9f01df816c383e2309592a150feb2b32d7aba9cc7d8444a6085b00c4459f6cea",
-    236: "926163270587bcdfd9601339d82a2c4cea5ec31a223c6811235d6b43a2c44aff",
-    272: "9e3f0d7d37a78f5abaf5b7d36ca9e3219e25605b8fae5661e93dc0ba4f09113e",
-    619: "0c03bc61985a7626cbb598ffa422a1e810a200da03b475e41083a3f94508ae23",
+    26: "cc938939357179c17fc8f0c87c98f1902f90e905609b8af62e30cd120ea57e9d",
+    88: "82658ff5f54e644540079687d460a3856e83c580213a0fd1304dd1d19948c044",
+    182: "4b12c6479cd8370e237c4630bf4d9d122f49748544cc823ff94271e36413b637",
+    236: "e1f9c6b69ff8843da0af6676b12fee543abed37e561e885549a82bf79ac6e0cc",
+    272: "38c7e11e45a6c6d2ef8a17343137d5988998ac84c2311169ac472e79af8a9511",
+    619: "db4316f69a5700db09c5e2854706f16c39a33d106e89fb7cb5988dc03358ce23",
 }
 """``env.fingerprint()`` of the runs of the tests below (619 under ``FreeFlowController`` and the shortest-distance
 router), pinned at the last commit with explicit mode (e4afae4), where the run built with concrete objects and the run
 built through the layout gave equal run records. 619 is pinned again since a parking slot is given back when the trip to
 park turns to charge: its ``parking.left`` comes at 122.0 instead of 220.1, and no other event changes. All six are
 pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2): with those two fields projected out of
-the digest (as presentation fields), each run gives its previous pin."""
+the digest (as presentation fields), each run gives its previous pin. All six are pinned again for the capacities and
+the traffic counters (§6.4, §6.6: ``agv.battery_capacity``, ``parking_area.capacity``, ``charging_station.slots``,
+the ``fleet`` counters ``waits``, ``stuck_waits``, ``deadlocks``), in the same way."""
 
 
 SAFETY = {
     (100017, "reservation", "shortest"): (
         {"a passing segment held by two", "a deadlock", "charging", "stranding"},
-        "9e8e4ab44b0c60717c638be5d3b15de6e7977c61c92c725d82c820af8768d8e5",
+        "ca88b2ef48726e3f7a7a062bc9752e331f28da5d3c46731d985786fd4a451cb1",
     ),
     (100039, "reservation", "congestion"): (
         {"a zone held by two", "a deadlock", "charging", "stranding"},
-        "2f61521b2ee089cc593f48d681032b117cb0991b368b3c6612b6d53c4cd9aa9d",
+        "d84cca0b1df1e5855939b3feb57c13d1c85a698129eb1513b4e471cb65a86879",
     ),
     (100083, "reservation", "fastest"): (
         {"a zone held by two", "a deadlock", "charging", "stranding"},
-        "9eb454963021c977df6169697ea5af379c9b409f23aa566f2039d1e0bcd45cc4",
+        "c2c867346a70c66a7804184b978ec9a1399041f93ca0a4ccb27d861de39719c8",
     ),
     (100040, "reservation", "fastest"): (
         {"a zone held by two", "a deadlock", "charging", "stranding"},
-        "d416f70724e5987987a0405c86b609e154079ffe1939fa607744991d974776bd",
+        "510212fb50536e59211affe833c05e47a75afc9b9075dd7a32618b5d83cd3ee9",
     ),
     (100045, "free", "fastest"): (
         {"a passing segment traversed", "parking entered", "charging", "stranding", "the second fleet moves"},
-        "82af6e6962e70b005b677bfeb7c1346baf59463576e84f28681f0272f521d52e",
+        "941a4f4a01d38d9ec32e17aef37e02e8c6487671f87fd9082a80f25b87853311",
     ),
 }
 """Five runs of the safety check (`benchmarks/layout_safety.py`, spec §8.4), by (seed, controller, router): what each
 exercises and its ``env.fingerprint()`` at the commit of the check, pinned again for the vehicle's ``wait`` and
-``route`` (as :data:`FINGERPRINTS`). Together they exercise charging, stranding, a zone and a passing segment held by
-two, and a deadlock."""
+``route``, then for the capacities and the traffic counters (as :data:`FINGERPRINTS`). Together they exercise charging,
+stranding, a zone and a passing segment held by two, and a deadlock."""
 
 
 def test_world_spec_is_deterministic_per_seed():

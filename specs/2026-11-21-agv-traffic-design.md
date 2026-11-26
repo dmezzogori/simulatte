@@ -963,10 +963,10 @@ only with `ReservationController`.
 |---|---|
 | `traffic.reserved` | payload `agv`, `resources` (ids); one event per grant or placement, with the deltas of every resource |
 | `traffic.released` | payload `agv`, `resources`; one event per release call |
-| `traffic.wait_started` | emitted by `stopped`; payload `agv`, `node` (next node), `resources`, `blockers` (agv ids), `reason` = `occupied`; its deltas set the AGV's `wait` (studio map spec §6.2) |
+| `traffic.wait_started` | emitted by `stopped`; payload `agv`, `node` (next node), `resources`, `blockers` (agv ids), `reason` = `occupied`; its deltas set the AGV's `wait` (studio map spec §6.2) and add one to `waits` of its fleet (§6.6) |
 | `traffic.wait_ended` | `reason` in `granted`, `rerouted`, `stepped_aside`, `gave_up`, `interrupted`; its deltas set the AGV's `wait` to null (studio map spec §6.2) |
-| `traffic.wait_stuck` (new) | `agv`, `blockers` (agv ids with their dispositions); once per wait (§7.9); no deltas |
-| `traffic.deadlock` (new) | `agvs` (sorted ids), `victim` (id or null), `action` in `reroute`, `step_aside`, `give_up`, `unresolved`; no deltas |
+| `traffic.wait_stuck` (new) | `agv`, `blockers` (agv ids with their dispositions); once per wait (§7.9); its deltas add one to `stuck_waits` of the AGV's fleet (amended by studio map spec §6.6; no deltas before) |
+| `traffic.deadlock` (new) | `agvs` (sorted ids), `victim` (id or null), `action` in `reroute`, `step_aside`, `give_up`, `unresolved`; its deltas add one to `deadlocks` of each distinct fleet with an AGV in the set (amended by studio map spec §6.6; no deltas before) |
 | `agv.routed` (new) | `agv`, `origin`, `destination`, `nodes`, `cost`, `reason` in `travel`, `blocked`, `deadlock`, `step_aside`, `make_way`, `clear_node`; its deltas set the AGV's `route` (amended by studio map spec §6.2; no deltas before) |
 | `agv.move_started` | unchanged payload; `motion` may be `piecewise` |
 | `agv.stranded` | `node` is the node the AGV stands on; `reason` in `no_reachable_charger`, `insufficient_after_charging` (a diversion charged and the level still does not cover the arc it turned at), `charger_not_reached` (new: a diversion ended before the charger, its level critical or without a route); no deltas |

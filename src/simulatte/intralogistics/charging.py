@@ -55,7 +55,7 @@ class ChargingStation(Entity, kind="charging_station"):
     """
 
     state_schema: ClassVar[StateSchema] = StateSchema(
-        {"slots_in_use": FieldSpec("int"), "swap_pool": FieldSpec("float", nullable=True)}
+        {"slots_in_use": FieldSpec("int"), "swap_pool": FieldSpec("float", nullable=True), "slots": FieldSpec("int")}
     )
 
     def __init__(
@@ -115,11 +115,13 @@ class ChargingStation(Entity, kind="charging_station"):
         return int(self._slots.capacity)
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state: slots in use and the swap-pool level (None without battery swapping)."""
+        """Current entity state: slots in use, the swap-pool level (None without battery swapping) and the number of
+        slots, a constant written once in the initial state (studio map spec §6.4)."""
         pool = self._swap_pool
         return {
             "slots_in_use": self._slots.count,
             "swap_pool": None if pool is None else wire_float(pool.level),
+            "slots": self.n_slots,
             "label": self.label,
         }
 

@@ -68,3 +68,13 @@ Task 13 makes a vehicle's traffic wait and route entity state (spec §6.2). Both
 | Random world 182 (the same, the wait-heavy world: 64 waits, 67 routes) | 68.1, 69.0, 69.7 | 69.0, 69.4, 70.3 | +0.9 % |
 
 The two random worlds are bare runs: nothing subscribes to any event. The corridor example is not: it attaches `TrafficKPIs` and the coordinator's default `OrderEMACollector`, so its traffic and AGV events are wanted and their deltas are built. World 182 was timed after the review of Task 13, with the same method, against the same 055f442 copy (the working tree then also copied a route returned as a list). All changes are below the 2 % limit of §8.5. The bench job's intralogistics benchmark (`benchmarks/intralogistics.py --shifts 10`, the advanced example scaled up, mode `none`, three runs) gave 2.484 s before and 2.508 s after (+1.0 %, reported only), and its gate (mode `none` on `jobshop10-u90-5k` and `jobshop10-u95-5k` against released 0.12.0 and its stripped copy) passed locally.
+
+Task 14 adds the capacities (spec §6.4: `parking_area.capacity`, `charging_station.slots`, `agv.battery_capacity`, constants written once in the initial state) and the fleet's traffic counters (§6.6: `waits`, `stuck_waits`, `deadlocks`). In a bare run a counted event costs one call that adds one to the counter of each distinct fleet of its vehicles; the delta is built only behind `env.wants`. Timed with the same method on the same machine, at commit 0986991 (before, a copy of its `src/simulatte` first on `PYTHONPATH`) and on the working tree of the Task 14 commit (after); the three workloads ran interleaved in each round.
+
+| Workload | Before, medians of three rounds (ms) | After (ms) | Change of the mean of the medians |
+|---|---|---|---|
+| Corridor example (not bare: `TrafficKPIs` and `OrderEMACollector` subscribe) | 26.1, 26.1, 25.7 | 25.8, 25.8, 25.9 | -0.5 % |
+| Random world 272 (bare; 22 waits, 4 stuck waits, 5 deadlocks) | 47.1, 47.5, 46.9 | 46.6, 47.2, 47.2 | -0.4 % |
+| Random world 182 (bare; two fleets, 64 waits, 11 stuck waits, 25 deadlocks counted per fleet) | 70.7, 72.5, 70.6 | 71.1, 71.3, 71.3 | -0.1 % |
+
+The changes are within run-to-run noise and below the 2 % limit. The bench job's intralogistics benchmark (`--shifts 10`, mode `none`, three runs) gave 2.548 s before and 2.542 s after (-0.3 %, reported only), and its gate passed locally (against released 0.12.0: -24.9 % and -23.7 %; against the stripped copy: +8.6 % and +6.7 %, limit +12.5 %).

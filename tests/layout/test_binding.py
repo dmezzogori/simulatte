@@ -349,8 +349,8 @@ def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
 def test_speed_limited_transport_reproduces_the_fingerprint_both_modes_agreed_on(mode, tmp_path):
     """The run reproduces the fingerprint pinned at the last commit with explicit mode (e4afae4), where the same model
     built with concrete objects gave the same initial and final states and fingerprint; and it is deterministic. The
-    fingerprint is pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), the only change to the
-    run's projection."""
+    fingerprint is pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), then for the capacities
+    and the traffic counters (§6.4, §6.6), each time the only change to the run's projection."""
     outcomes = []
     for run in range(2):
         env = Environment(seed=17, debug=mode == "debug")
@@ -385,7 +385,7 @@ def test_speed_limited_transport_reproduces_the_fingerprint_both_modes_agreed_on
         outcomes.append((env.initial_state, env.entities.snapshot(), env.fingerprint()))
         env.close()
     assert outcomes[0] == outcomes[1]
-    assert outcomes[1][2].digest == "daaf4fc0bb05ab0e8bde5bf0257e402576d93cd913f49982fa27e6dc0cf47e3f"
+    assert outcomes[1][2].digest == "76f74dfd9137635d914680c00dcec9b0c755f1a532ded09cbe40addea9c18897"
 
 
 def test_a_controller_without_occupancy_needs_no_registration():

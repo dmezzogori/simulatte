@@ -11,12 +11,13 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import pytest
 from simpy.events import Timeout
 
 from simulatte._wire import FrozenMap, freeze
+from simulatte.entities import Entity, StateSchema
 from simulatte.environment import Environment
 from simulatte.events import Deltas
 from simulatte.intralogistics.agv import AGV, AGVState
@@ -30,6 +31,7 @@ from simulatte.intralogistics.events import (
     TrafficWaitStarted,
     TrafficWaitStuck,
 )
+from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.network import Claim, ClaimItem, Segment
 from simulatte.intralogistics.reservation import ReservationController
@@ -89,17 +91,26 @@ def hooks(
     return made
 
 
-@dataclass
-class StubFleet:
-    """What the controller reads of a fleet, with a recording ``make_way`` that starts a move when it accepts."""
+@dataclass(eq=False)
+class StubFleet(Entity, kind="fleet"):
+    """What the controller reads of a fleet, with a recording ``make_way`` that starts a move when it accepts.
 
-    id: str
+    :func:`world` attaches a stub that has AGVs as a ``fleet`` entity named `name`: the controller counts the traffic
+    events of a vehicle on its fleet (studio map spec §6.6), with the coordinator's own counting and snapshot."""
+
+    state_schema: ClassVar[StateSchema] = FleetCoordinator.state_schema
+    name: str
     graph: LayoutGraph
     fleet: tuple[AGV, ...] = ()
     parking_areas: tuple[Any, ...] = ()
     charging_stations: tuple[Any, ...] = ()
     accept: bool = True
     moves: list[tuple[str, Node | None, tuple[str, ...]]] = field(default_factory=list)
+    _pending_queue: tuple[()] = ()
+    _traffic_counts: dict[str, int] = field(default_factory=lambda: {"waits": 0, "stuck_waits": 0, "deadlocks": 0})
+
+    snapshot = FleetCoordinator.snapshot
+    _count_traffic = FleetCoordinator._count_traffic
 
     def make_way(self, agv: AGV, target: Node | None, *, concerned: Sequence[AGV] = ()) -> bool:
         self.moves.append((agv.id, target, tuple(other.id for other in concerned)))
@@ -255,6 +266,7 @@ def world(
         fleet = StubFleet(fleet_id or "F", graph, tuple(group), accept=fleet_id not in refuse)
         controller.register_fleet(fleet)  # type: ignore[arg-type]
         if fleet_id:
+            env.entities.attach(fleet, name=fleet_id)
             fleets[fleet_id] = fleet
             for agv in group:
                 agv.fleet = fleet  # type: ignore[assignment]

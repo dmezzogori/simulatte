@@ -277,16 +277,18 @@ class TrafficReleased(DomainEvent):
     resources: tuple[str, ...]
 
 
-@event_type("traffic.wait_started", touches={"agv": ("wait",)})
+@event_type("traffic.wait_started", touches={"agv": ("wait",), "fleet": ("waits",)})
 class TrafficWaitStarted(DomainEvent):
     """The AGV stopped to wait before entering `node`, the next node it means to enter (spec §11.2).
 
     `resources` are the ids of the resources the waiting claim still needs, `blockers` the ids of the AGVs that hold
     them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. Its deltas set the AGV's ``wait``
-    to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2). That is what
-    ``ReservationController`` does; a custom controller that emits this event must carry the same delta (and set
-    ``wait`` to null with its ``traffic.wait_ended``), and change the AGV's attribute with them, whether or not the
-    events are wanted (``AGV._open_wait`` and ``AGV._close_wait``), so that a replay of the deltas equals the snapshot.
+    to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2), and add one to ``waits``
+    of the AGV's fleet, if it has one (§6.6). That is what ``ReservationController`` does; a custom controller that
+    emits this event must carry the same deltas (and set ``wait`` to null with its ``traffic.wait_ended``), and change
+    the AGV's attribute and the fleet's counter with them, whether or not the events are wanted (``AGV._open_wait``,
+    ``AGV._close_wait`` and :func:`~simulatte.intralogistics.traffic.count_traffic`), so that a replay of the deltas
+    equals the snapshot.
     """
 
     agv: str
@@ -310,7 +312,7 @@ class TrafficWaitEnded(DomainEvent):
     reason: str
 
 
-@event_type("traffic.wait_stuck")
+@event_type("traffic.wait_stuck", touches={"fleet": ("stuck_waits",)})
 class TrafficWaitStuck(DomainEvent):
     """The AGV's wait is stuck (spec §7.9): every blocker is idle, stranded or stalled, or waits in a wait that is
     stuck by the same rule.
@@ -320,20 +322,24 @@ class TrafficWaitStuck(DomainEvent):
     rest or stalls and does not move (``idle``), for the waits behind a wait just reported, and for a wait with no
     review scheduled when the controller is entered for something other than a grant or a release (a wait opens, a
     pending claim is withdrawn, a review ends, an AGV comes to rest or stalls), unless a review already scheduled will
-    reach it. Emitted once per wait; it is a report, not a deadlock, and changes no state.
+    reach it. Emitted once per wait; it is a report, not a deadlock. Its deltas add one to ``stuck_waits`` of the AGV's
+    fleet, if it has one (studio map spec §6.6); a custom controller that emits it must carry the same delta and count
+    with :func:`~simulatte.intralogistics.traffic.count_traffic` whether or not the event is wanted.
     """
 
     agv: str
     blockers: FrozenMap
 
 
-@event_type("traffic.deadlock")
+@event_type("traffic.deadlock", touches={"fleet": ("deadlocks",)})
 class TrafficDeadlock(DomainEvent):
     """The waiting AGVs `agvs` (sorted ids) are deadlocked (spec §7.8).
 
     `victim` is the AGV whose reaction was staged and `action` that reaction (``"reroute"``, ``"step_aside"`` or
     ``"give_up"``); when no attempt succeeded `victim` is null and `action` is ``"unresolved"``, emitted once while
-    the same set stands. It changes no state.
+    the same set stands. Its deltas add one to ``deadlocks`` of each distinct fleet that has an AGV in the set, once
+    however many of its AGVs are in it (studio map spec §6.6); a custom controller that emits it must carry the same
+    deltas and count with :func:`~simulatte.intralogistics.traffic.count_traffic` whether or not the event is wanted.
     """
 
     agvs: tuple[str, ...]

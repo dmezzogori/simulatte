@@ -43,6 +43,8 @@ from simulatte.intralogistics.traffic import (
     Rerouted,
     SteppedAside,
     Wait,
+    count_traffic,
+    counter_deltas,
 )
 from simulatte.intralogistics.traffic_entities import SegmentBinding, ZoneBinding
 from simulatte.intralogistics.traffic_holdings import HoldingsLedger, extent, no_length
@@ -282,6 +284,7 @@ class ReservationController:
         blockers = self._blocking(waiting)
         needed = self.ledger.needed(agv, request.claim)
         agv._open_wait(waiting.since, waiting.node, needed, blockers)  # vehicle state, observed or not (map §6.2)
+        counted = count_traffic("waits", (agv,))  # the fleet's counter, observed or not (map §6.6)
         env = self._env
         if env.wants(TrafficWaitStarted):
             env.emit(
@@ -291,7 +294,7 @@ class ReservationController:
                     resources=tuple(item.resource.id for item in needed),
                     blockers=tuple(blocker.agv.id for blocker in blockers),
                     reason="occupied",
-                    deltas=Deltas.build().set(agv.id, "wait", agv.wait).done(),
+                    deltas=counter_deltas(Deltas.build().set(agv.id, "wait", agv.wait), "waits", counted).done(),
                 )
             )
         self._make_way(self._wait(waiting, blockers))
@@ -652,9 +655,16 @@ class ReservationController:
             return False
         waiting.stuck = True
         agv = waiting.agv
+        counted = count_traffic("stuck_waits", (agv,))  # the fleet's counter, observed or not (map §6.6)
         env = self._env
         if env.wants(TrafficWaitStuck):
-            env.emit(TrafficWaitStuck(agv=agv.id, blockers=cast("FrozenMap", freeze(found))))
+            env.emit(
+                TrafficWaitStuck(
+                    agv=agv.id,
+                    blockers=cast("FrozenMap", freeze(found)),
+                    deltas=counter_deltas(Deltas.build(), "stuck_waits", counted).done(),
+                )
+            )
         named = ", ".join(f"{blocker} ({state})" for blocker, state in found.items())
         env.warning(f"wait of {agv.id} is stuck: blockers {named}", component="ReservationController")
         return True
@@ -880,15 +890,21 @@ class ReservationController:
                 continue
             action = self._attempt(waiting, reaction, "deadlock")
             if action is not None:
+                # each fleet's counter, observed or not (map §6.6), in the order of `ids`
+                counted = count_traffic("deadlocks", sorted(members, key=lambda member: member.id))
                 if env.wants(TrafficDeadlock):
-                    env.emit(TrafficDeadlock(agvs=ids, victim=agv.id, action=action))
+                    deltas = counter_deltas(Deltas.build(), "deadlocks", counted).done()
+                    env.emit(TrafficDeadlock(agvs=ids, victim=agv.id, action=action, deltas=deltas))
                 self._scan()
                 return True
         if ids in self._unresolved:
             return False
         self._unresolved.append(ids)
+        # each fleet's counter, observed or not (map §6.6), in the order of `ids`
+        counted = count_traffic("deadlocks", sorted(members, key=lambda member: member.id))
         if env.wants(TrafficDeadlock):
-            env.emit(TrafficDeadlock(agvs=ids, victim=None, action="unresolved"))
+            deltas = counter_deltas(Deltas.build(), "deadlocks", counted).done()
+            env.emit(TrafficDeadlock(agvs=ids, victim=None, action="unresolved", deltas=deltas))
         env.error(f"deadlock among {', '.join(ids)}: no resolution succeeded", component="ReservationController")
         return False
 

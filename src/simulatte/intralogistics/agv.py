@@ -145,6 +145,7 @@ class AGV(Entity, kind="agv"):
             "heading": FieldSpec("float", nullable=True),
             "wait": FieldSpec("map", nullable=True),
             "route": FieldSpec("map", nullable=True),
+            "battery_capacity": FieldSpec("float"),
         }
     )
 
@@ -179,6 +180,8 @@ class AGV(Entity, kind="agv"):
         self._wait: tuple[float, str, Sequence[ClaimItem], Sequence[Blocker]] | None = None
         self._route: tuple[Sequence[Node], str] | None = None
         self._route_over = False  # the travel ended without an event to clear the route: the next state change does
+        self._battery_capacity = wire_float(agv_type.battery_capacity)
+        """The type's battery capacity, a constant of the state written once in the initial state (studio map §6.4)."""
 
         self.battery = Battery(
             capacity=agv_type.battery_capacity,
@@ -305,7 +308,8 @@ class AGV(Entity, kind="agv"):
         return build
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state; nodes, SKUs, the order and the fleet are referenced by id."""
+        """Current entity state; nodes, SKUs, the order and the fleet are referenced by id. ``battery_capacity`` is the
+        type's, read at construction: a constant, written once in the initial state."""
         node, load, order, fleet = self._current_node, self.current_load, self.order, self.fleet
         return {
             "node": None if node is None else node.id,
@@ -318,6 +322,7 @@ class AGV(Entity, kind="agv"):
             "heading": None if self.heading is None else wire_float(self.heading),
             "wait": self.wait,
             "route": self.route,
+            "battery_capacity": self._battery_capacity,
             "label": self.label,
         }
 

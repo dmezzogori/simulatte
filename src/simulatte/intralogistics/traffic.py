@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 import simpy
 
@@ -10,8 +10,9 @@ from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.network import Claim
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Sequence
+    from collections.abc import Callable, Collection, Iterable, Sequence
 
+    from simulatte.events import DeltaBuilder
     from simulatte.intralogistics.agv import AGV
     from simulatte.intralogistics.fleet import FleetCoordinator
     from simulatte.intralogistics.graph import LayoutGraph, Node
@@ -285,6 +286,30 @@ def disposition_of(agv: AGV) -> Disposition:
     if disposition is Disposition.MOVING and agv.motion is None:
         return Disposition.SERVING
     return disposition
+
+
+TrafficCounter = Literal["waits", "stuck_waits", "deadlocks"]
+"""The traffic counters of the ``fleet`` state (studio map spec §6.6)."""
+
+
+def count_traffic(counter: TrafficCounter, agvs: Iterable[AGV]) -> tuple[tuple[str, int], ...]:
+    """Add one to the traffic counter `counter` of each distinct fleet that has a vehicle among `agvs` and return the
+    ``(fleet id, new value)`` pairs, in the order of the vehicles (studio map spec §6.6).
+
+    A controller calls it where it emits the counted event (``waits`` for ``traffic.wait_started``, ``stuck_waits``
+    for ``traffic.wait_stuck``, ``deadlocks`` for ``traffic.deadlock``), whether or not the event is wanted, and adds
+    :func:`counter_deltas` of the result to the event's deltas, so that a replay of the deltas equals the snapshot. A
+    vehicle that no fleet took (``agv.fleet`` is None) counts nowhere.
+    """
+    fleets = dict.fromkeys(agv.fleet for agv in agvs if agv.fleet is not None)
+    return tuple((fleet.id, fleet._count_traffic(counter)) for fleet in fleets)
+
+
+def counter_deltas(build: DeltaBuilder, counter: TrafficCounter, counted: Iterable[tuple[str, int]]) -> DeltaBuilder:
+    """`build` with a ``set`` of `counter` to its new value for each pair :func:`count_traffic` returned."""
+    for fleet, value in counted:
+        build.set(fleet, counter, value)
+    return build
 
 
 class _FreeFlowView:

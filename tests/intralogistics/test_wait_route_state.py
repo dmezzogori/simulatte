@@ -132,7 +132,7 @@ def test_a_wait_holds_its_announcement_until_it_is_granted() -> None:
     w.env.run()
     ((started, wait, _),) = watch.of("F", TrafficWaitStarted)
     assert wait == WAITED
-    assert [op[:3] for op in started.deltas.ops] == [("set", "F", "wait")]
+    assert [op[:3] for op in started.deltas.ops] == [("set", "F", "wait"), ("set", w.fleet.id, "waits")]
     ((ended, wait, _),) = watch.of("F", TrafficWaitEnded)
     assert ended.reason == "granted" and wait is None
     assert ended.deltas.ops == (("set", "F", "wait", None),)

@@ -247,10 +247,10 @@ def transport():
 def test_prefixed_trajectories_and_kpis_reproduce_the_run_both_modes_agreed_on():
     """The fingerprint and KPIs pinned at the last commit with explicit mode (e4afae4), where the same prefixed system
     built with concrete objects gave the same fingerprint, KPIs, trajectory and states; and the run is deterministic.
-    The fingerprint is pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), the only change to
-    the run's projection."""
+    The fingerprint is pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), then for the
+    capacities and the traffic counters (§6.4, §6.6), each time the only change to the run's projection."""
     fingerprint, kpis, *_ = outcome = transport()
-    assert fingerprint.digest == "fa34a24e6436f5e9e859a5f04737c8729cde6534f03bc1f0fe3b87a36bf667a6"
+    assert fingerprint.digest == "344a89efe685f1e1beb9146e7a1f8aa2136f83b212f2250ddc680a96198b7a1e"
     assert kpis == {
         "line.fleet/dispatch_delay": 10.488157894736842,
         "line.fleet/fulfillment_time": 40.383891547049444,

@@ -40,7 +40,9 @@ class ParkingArea(Entity, kind="parking_area"):
     back if the AGV does not get there) and rests parked after the charge (spec §7.10).
     """
 
-    state_schema: ClassVar[StateSchema] = StateSchema({"parked": FieldSpec("str", collection="list")})
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"parked": FieldSpec("str", collection="list"), "capacity": FieldSpec("int")}
+    )
 
     def __init__(
         self,
@@ -71,8 +73,9 @@ class ParkingArea(Entity, kind="parking_area"):
         readonly("node")
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state: the ids of the parked AGVs, in order of arrival."""
-        return {"parked": [agv.id for agv in self._agv_requests], "label": self.label}
+        """Current entity state: the ids of the parked AGVs, in order of arrival, and the capacity, a constant written
+        once in the initial state (studio map spec §6.4)."""
+        return {"parked": [agv.id for agv in self._agv_requests], "capacity": self.capacity, "label": self.label}
 
     @property
     def capacity(self) -> int:
