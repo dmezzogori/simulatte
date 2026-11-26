@@ -247,12 +247,14 @@ class TrafficController(Protocol):
     def cleared(self, agv: AGV, resources: Collection[Resource]) -> None:
         """The body of `agv`, as it arrived, no longer lies on `resources`, segments it still holds and claimed again
         while its body lay on them (spec §7.1, §6.6). Nothing is released. The travel executor calls it, for a
-        controller that controls occupancy, when the odometer reaches the clear point such a segment had in the trail,
-        when the AGV starts its own leg over it, or when the AGV comes to rest on a node of capacity above 1.
+        controller that controls occupancy, when the odometer reaches the clear point such a segment had in the trail
+        (for a profile without kinematic limits, at the arrival that ends that arc), when the AGV starts its own leg
+        over it, or when the AGV comes to rest on a node of capacity above 1.
 
-        ``ReservationController`` ends the both-directions state of those segments (spec §7.2); ``FreeFlowController``
-        does nothing. A controller that controls occupancy must have it: without it the travel raises
-        `AttributeError` at the first such report.
+        The executor cannot tell which of them have the both-directions state (spec §7.2), so the call may name
+        segments without it, one with ``passing`` or one whose state has ended. ``ReservationController`` ends the state
+        of those that have it; ``FreeFlowController`` does nothing. A controller that controls occupancy must have it:
+        without it the travel raises `AttributeError` at the first such report.
         """
         ...
 
