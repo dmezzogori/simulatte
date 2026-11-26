@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** written on 2026-11-25 from the approved design and revised the same day after two independent reviews (one against the design, one against the code; the facts below marked "measured" come from the second). No task is implemented yet.
+**Status:** written on 2026-11-25 from the approved design and revised the same day after two independent reviews (one against the design, one against the code; the facts below marked "measured" come from the second). Tasks 1 to 16 are implemented on `feature/studio-map`. The acceptance record, with the evidence and the commit for each of the seven points of the design, is [the acceptance file](../specs/research/2026-11-25-studio-map-acceptance.md); its point 4 (Davide's review of the Stage 2 frames) is open. The text below is the plan as written, before execution: the decisions and deviations made while executing it are in section 14 of [the design](../specs/2026-11-25-studio-map-design.md).
 
 **Goal:** Studio draws an intralogistics run as a map to scale with a sprite per kind of element, an Overview panel and a readable click detail, all read from the recorded state at the cursor; the simulation records what that needs.
 

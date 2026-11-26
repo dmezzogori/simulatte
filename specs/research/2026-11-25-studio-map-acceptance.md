@@ -1,8 +1,60 @@
 # Studio map acceptance
 
-Branch `feature/studio-map`, measured on `a67c5ce` with the bench changes of the commit `test(studio): the map workloads of the bench`; "after" also has the commit `perf(studio): the static part of the map model is computed once per layout`. The figures on the GPU-backed renderer (below) were measured again on `def9c3f`, the fix wave of Stage 1, with the bench changes of the commit `test(studio): the bench runs on a GPU-backed renderer and reports it`.
+Branch `feature/studio-map`, measured on `ea0148b` with the bench changes of the commit `05fb053` (`test(studio): the map workloads of the bench`); "after" also has `ace19b6` (`perf(studio): the static part of the map model is computed once per layout`). The figures on the GPU-backed renderer (below) were measured again on `b2c9e2c`, the last commit of the fix wave of Stage 1, with the bench changes of `c5195ab` (`test(studio): the bench runs on a GPU-backed renderer and reports it`). These are the hashes after the branch was rebased onto `432ac64` (Assignment 3 of the layout branch); the measurements were made before the rebase, on commits with the same subjects.
 
 Machine: bigboss, macOS 27.2.1, Apple M4 Pro (12 cores), 48 GB. CPython 3.14.3, Node 24.13.0, Playwright Chromium 156.0.8078.4, headless, viewport 1440 x 1000, scene 1280 x 720.
+
+## The seven acceptance points of the design (§10)
+
+Each point of §10 of [the design](../2026-11-25-studio-map-design.md), with the evidence and the commit that holds it. The branch has not been pushed, so no CI run exists; "passes" below means a local run on bigboss (CPython 3.14.3, Node 24.13.0, Playwright 1.64.0) unless it says otherwise. Evidence that is an implementer's or a reviewer's report, and not something in the repository, is marked **report**; those reports are in `.superpowers/sdd/2026-11-25-studio-map/`, which is not part of the repository, and the renders are in `.superpowers/sdd/2026-11-24-studio-map/renders/` (`renders/task-15/` for the last set).
+
+| # | Point | State |
+|---|-------|-------|
+| 1 | Four examples open with facilities at their nodes, lanes as strips, vehicles with heading, state and load, nothing a bare box | Met on the renders and the fixtures; the look is a visual judgement |
+| 2 | A seek into a wait in the corridor example shows the waiting vehicle, its blocker and the held corridor; panel and detail say the same | Met |
+| 3 | The three levels hold what §5 says and nothing depends on crossed events | Met |
+| 4 | The screenshot frames are stored and were reviewed by Davide | Open: Stage 1 reviewed, Stage 2 not yet shown |
+| 5 | The frame budget holds on both bench workloads | Met on `fleet100`; not met on `lanes1000`, accepted by Davide as a known limit |
+| 6 | The existing Studio specs, the Python suite and the CI gates pass after the re-pins | Passes locally at `7395d5f`; CI not run, x86_64 baselines unverified |
+| 7 | The documentation and the amendment notes are written | Written in `c1c63a1` |
+
+### 1. The four examples
+
+- **Evidence.** `tests/fixtures/traces/generate_map_frames.py` records the four examples (corridor seed 19 at t = 128, advanced seed 42 at t = 22960, simple seed 0 at t = 12, intermediate seed 0 at t = 78), asserts the facts the tests rely on (`check_corridor`, `check_advanced`, `check_moving`), and writes `studio/fixtures/map/*.json`; `tests/core/test_map_frame_fixtures.py` regenerates them and compares. The placement of each facility at its node is pinned by `tests/layout/test_facility_placement.py` (positions on the corridor and advanced examples and on hand cases). The vehicle size is pinned by `tests/layout/test_vehicle_size.py`. The renders `corridor-symbol`, `corridor-true`, `advanced-symbol`, `advanced-true`, `simple-fit` and `intermediate-fit` show every facility beside its node, strips with chevrons, and vehicles with heading, state mark and load; the Task 15 report records that nothing is drawn as a bare box or away from its node (**report**; the controller also looked at `corridor-symbol`, `corridor-select-agv`, `intermediate-fit` and `bench-fleet100`).
+- **Commits.** `0ccf5bb` and `a0914cc` (vehicle size and `layered-v2` in the bundle), `f06c377` and `055f442` (facilities placed at their nodes), `d68c2ab`, `0986991`, `d929f65` and `487a81d` (the recorded fields), `7395d5f` (recorded fixtures and the renders of the four examples).
+- **What the renders show that is not a defect of the test.** In the simple example the two vehicles always occupy the same position, so at true size one hides the other; a warehouse whose output bay is far from its first input bay is joined to it by a long line (`advanced-symbol`: Bulk Storage crosses the charging station); in the 100-vehicle bench the warehouses placed at interior lattice nodes cover part of a lane and some of their labels overlap. These follow from §5.2 and §6.3 and are listed in the guide as limits.
+- **Screenshot comparison.** Only the corridor and advanced examples are compared against stored images (point 4). The simple and intermediate shots are renders, which no test compares.
+
+### 2. A seek into a wait
+
+- **Evidence.** `studio/browser/viewer.spec.ts`, "a seek into a recorded wait shows it in the detail and the Overview without playing through its start": it opens `tests/fixtures/traces/generated/example_traffic.simtrace`, seeks to t = 128, selects AGV-1, and requires the detail to say `Blocked by AGV-2` and the Overview's Traffic section to say `1 waiting`; it passes on Chromium, Firefox and WebKit (Task 15). The Python reader gives the same state: `tests/intralogistics/test_wait_route_state.py` reads `wait` from `Trace.state_at` inside a wait and null after it. The map model is asserted as data in `studio/packages/scene/test/map-items.test.ts` (a waiting vehicle and its wait line) and `map-floor.test.ts` (the "held resources" cases: held nodes, segments and zones). The render `corridor-symbol` shows AGV-1 amber with its ring and a dashed line to AGV-2, and the held tint on J1-M1-C and D-M2-J2 and none on C-D. That the map alone lets a reader name the three is a visual judgement on that render, made by the controller and the implementer (**report**).
+- **Commits.** `d68c2ab` (the `wait` and `route` state), `0986991`, `44fdfcb` and `e7865be` (held floor, wait lines), `399a901` and `a4afa8e` (panel and detail), `ea0148b` (browser specs), `7395d5f` (the seek spec on a recorded trace).
+
+### 3. The three levels and crossed events
+
+- **Evidence.** The level of detail is a function of the zoom (`detailAt`, threshold and symbol sizes), tested in `map-floor.test.ts` and `map-items.test.ts`, and picking at each level in `pick.test.ts`; the map's text, the panel and the detail are asserted as data in `map-items.test.ts` (labels, `doing`, short labels), `overview.test.ts` and `apps/viewer/test/overview-panel.test.ts` (lines, order, filter, caps, hostile labels) and `describe.test.ts` (the readable detail). The browser specs in `map.spec.ts` check the panel and the detail with hostile labels, refs, and in-place updates without a rebuild. Nothing the map shows reads crossed events: the model is built from the frame's `state`, `initialState` and `layout` only, and the harness and every fixture test give the frame no crossed events (`crossedEvents: []`); the only reader of `crossedEvents` in the scene is the decorative job trails of `project.ts`, which the map does not draw. The seek test of point 2 is the test of goal 6.
+- **Commits.** `c1e9e7d`, `f90e92a` and `440cc59` (the map model), `41214e9` (floor, scale bar), `c30c58f` and `9d8edb5` (sprites), `44fdfcb` and `e7865be` (traffic), `399a901` (panel), `a4afa8e` and `cac20ea` (detail), `526a552` (one source for names, waits and stock), `b2c9e2c` (in-place update tests).
+
+### 4. The screenshot frames
+
+- **Stored.** Seven Linux Chromium baselines in `studio/browser/map.spec.ts-snapshots/` (`corridor-symbol`, `corridor-true`, `corridor-select-agv`, `advanced-symbol`, `no-layout`, `production`, `sprites-symbol`), compared with `maxDiffPixels: 300`, made in the Playwright 1.64.0 container on linux/arm64. Commits `4e2b2ad` (the first four) and `7671694` (the seven, after the fix wave). Task 15 compared them again without `--update-snapshots`: 13 passed, the seven shots compared and did not skip (**report**). CI on x86_64 is unverified.
+- **Reviewed by Davide.** Open, for the controller to complete. Stage 1 renders were reviewed by Davide on 2026-11-25 ("the look is fine"). The Stage 2 renders (the recorded fixtures, the simple and intermediate examples, the 100-vehicle bench) have not yet been shown to him.
+
+### 5. The frame budget
+
+- **Evidence.** The sections "Bench (Stage 1)", "On the GPU-backed renderer" and "Bench (Stage 2, recorded fields)" below. On `fleet100` the scene p95 is 4.7 ms with the recorded fields (budget 16.7 ms): met. On `lanes1000` it is 21.9 ms: not met. Davide accepted the 1,000-vehicle frame time as a known limit for 0.18.0 on 2026-11-25 (option A), so the point holds for the 50 to 100 vehicle target and does not hold, and is not claimed to, for 1,000 vehicles. The recording cost of the Python additions is in "Stage 2: recording cost": at most +1.2 % on the corridor example (with subscribers), +0.9 % on a bare wait-heavy random world, below the 2 % limit of §8.5.
+- **Commits.** `05fb053` (the workloads), `ace19b6` (the caching), `c5195ab` (the bench on a GPU-backed renderer), `7395d5f` (the Stage 2 figures); `d68c2ab`, `0986991`, `d929f65` and `487a81d` for the recording cost. The seek investigation is `.superpowers/sdd/2026-11-25-studio-map/task-10b-seeks-report.md` (**report**).
+
+### 6. The existing specs, the Python suite and the CI gates
+
+- **Evidence at `7395d5f`** (Task 15 report, **report**; the commands are the repository's): `uv run --all-extras pytest` 5309 passed, 1 skipped, 0 failed, coverage 99.21 % (the gate is 99 %); `ruff check` and `ruff format --check` clean; in `studio/`, `pnpm typecheck`, `pnpm test` (trace 351, playback 24, scene 207, export 15, viewer 86), `pnpm build` and `pnpm test:browser` (93 passed on Chromium, Firefox and WebKit). The bench job's overhead gate against `simulatte==0.12.0` was run locally at the Task 13 and Task 14 commits and passed (at Task 14: -24.9 % and -23.7 % against 0.12.0, +8.6 % and +6.7 % against the stripped copy, limit +12.5 %); "Stage 2: recording cost" has the numbers.
+- **Re-pins**, each shown to be caused by its task only: `0ccf5bb` three (the `code:system` bundle digest, the `example_traffic` fixture and the map generator's bare-layout strip); `f06c377` one digest (`code:system`), three hashes of `simple()` and one regenerated trace fixture and one TypeScript test; `d68c2ab` fourteen run fingerprints and the `example_traffic` fixture (shown by recomputing the pins with the new fields stripped from the digest); `d929f65` the same fourteen again. No run fingerprint moved for the size or the placement, because the fingerprint does not include the layout.
+- **Not covered.** No CI run: the branch is not pushed. The PyPy lane, the Windows and macOS `execution-native` lanes and actual Safari were not run for these changes. The screenshot baselines were made on arm64 and CI is x86_64.
+- **Commits.** `0ccf5bb`, `a0914cc`, `f06c377`, `055f442`, `d68c2ab`, `0986991`, `d929f65`, `487a81d` and `7395d5f`.
+
+### 7. The documentation and the amendment notes
+
+- **Evidence.** `c1c63a1`: the guide `docs/guides/studio-map.md` with the legend image `docs/assets/studio-map-sprites.png`, `docs/development/studio.md`, `docs/guides/intralogistics.md`, `docs/guides/layout.md`, `docs/api/intralogistics.md`, `docs/api/layout.md`, the 0.18.0 entries of `CHANGELOG.md`, `CLAUDE.md`, `CONTRIBUTING.md`; section 14 and the corrected sentences of the design; one "Studio map amendment" note appended to each of the AGV traffic, SP3 viewer and layout-only designs. `uv run --all-extras zensical build` reports "No issues found".
 
 ## Bench (Stage 1)
 
@@ -45,7 +97,7 @@ Headless Chromium 156.0.8078.4 launched by `studio/bench/run.mjs` with `--use-an
 
 The gate result is unchanged: met on `fleet100` and not met on `lanes1000`, whose scene p95 is CPU time on the main thread (projection about 9.5 ms and drawing about 14.4 ms). The seeks are inside the viewer's 200 ms target on both workloads.
 
-The gate is met on `fleet100` and is not met on `lanes1000`, before and after the caching. The caching halved the projection of `lanes1000` (19.1 to 8.6 ms; `boundNodes` scanned the binding table once per facility, 100 facilities against about 1,100 bindings) and left the rest of the render, the drawing of the map and the glyphs, at about 14 ms: drawing alone is still below 16.7 ms and drawing plus projection is not. Nothing else was optimised. The seek figures of the runs vary a great deal between runs (see below).
+The gate is met on `fleet100` and is not met on `lanes1000`, before and after the caching. The caching halved the projection of `lanes1000` (19.1 to 8.6 ms; `boundNodes` scanned the binding table once per facility, 100 facilities against about 1,100 bindings) and left the rest of the render, the drawing of the map and the glyphs, at about 14 ms: drawing alone is still below 16.7 ms and drawing plus projection is not. Nothing else was optimised.
 
 ### Where the seek time goes
 
