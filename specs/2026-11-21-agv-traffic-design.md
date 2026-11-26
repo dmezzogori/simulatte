@@ -583,8 +583,8 @@ them.
 recomputed, for every open wait that carries no report, has no review scheduled and is no member of a deadlocked
 set left unresolved (§7.8), at the end of each call of `stopped`, `withdraw` and `idle` and after each review on
 its timer. Those are the entries at which a wait can become stuck without a grant or a release: a wait opens, a
-pending claim ends without a grant (a withdrawal, or a reaction staged at a stop or at a review), detection
-waives a gate (§7.8, inside a stop), an AGV comes to rest or stalls (§7.10). A request that pends needs none: it
+pending claim ends without a grant (a withdrawal, or a reaction staged inside any of those calls), detection
+waives a gate (§7.8: inside a stop, or where the end of a member's wait runs detection again), an AGV comes to rest or stalls (§7.10). A request that pends needs none: it
 only adds a blocker that is not at rest. Nor does the end of a both-directions state (§7.2): one that changes a
 claimant's blockers counts as a release and wakes the sleeping waits. A wait that a scheduled review will reach
 (a wait ahead of it, through waiting blockers whose waits carry no report and are no member of such a set, has a
@@ -597,7 +597,9 @@ blocker stalls). The waits of a policy that asks for no review (`KeepWaiting()` 
 same way, with one limit: such a wait has no review for a grant or a release to wake, so when it becomes stuck
 through a grant, a release or the end of a both-directions state, it is reported at the next of those entries (the
 next stop, withdrawal or rest of any AGV), not at that instant. A run cut by `until` in between ends without the
-report.
+report, and so does a run in which no such entry follows: at natural quiescence that needs every vehicle still
+moving at that instant to end serving for ever (a pick waiting for stock), since every other way of coming to rest
+is one of those entries.
 
 **Standard search.** From a node, search outwards by router cost over legs, the first claim admissible now, for
 the cheapest node that has free capacity and does not lie ahead on the remaining route of an AGV in the waits
@@ -1069,7 +1071,7 @@ architecture section of `CLAUDE.md`.
   and of the waits they reach, once per entry, and then makes one pass over their blocker edges; nothing is
   computed when no wait sleeps. The gate of a claim that names a segment or corridor reads every earlier pending
   claim, as the scan does, so for the claims a travel makes the check is quadratic in the sleeping waits. Measured
-  on a line of waiters that each claim a leg: 2.9 ms per entry with 80 sleeping waits and 11.3 ms with 160,
+  on a line of waiters that each claim a leg: about 3 ms per entry with 80 sleeping waits and 11.5 ms with 160,
   against 0.10 and 0.20 ms without the check.
 - With `FreeFlowController` the executor makes no controller calls per arc beyond the first claim.
 - `benchmarks/intralogistics.py` is run before and after each part and reported; it stays ungated.
