@@ -1957,7 +1957,10 @@ evidence; the counts below are quoted from there unless the line says that it wa
 run of the random worlds with a violation (the first two); the others leave no violation. Nothing here changes the gates
 at the final head: the recorded ranges are clean.
 
-**(a) A stuck wait not reported after a gate waiver (seed 7702388).** `ReservationController`, `ShortestDistanceRouter`.
+**(a) A stuck wait not reported after a gate waiver (seed 7702388).** **Fixed** (Assignment 3, T4): a wait with no
+review left is checked for the stuck condition at every controller entry that is not a grant or a release, the stop
+that waives a gate included; see "T4. Every stuck wait is reported". The run now ends without a violation.
+`ReservationController`, `ShortestDistanceRouter`.
 Reproduction, run for this list at `229ea61`: `uv run --all-extras python benchmarks/layout_safety.py --worlds 1 --first
 7702388` gives 6 runs, 5,475 events, one violation, `seed 7702388 reservation shortest: (586.206, 'open wait with no
 report', ['agv-e'])`, exit status 1. The mechanism and the evidence are under B1, "Found beyond this task" (Ruling
@@ -2014,7 +2017,9 @@ list is said as such.
 - Whether 0.18.0 ships with it is the maintainer's decision: it is a physical overlap of two bodies, in a world that
   needs the combination above, at about 1 run in 21,000 reservation runs of these random worlds.
 
-**(c) Waits that sleep behind a reported wait and get no report of their own.** At the end of a run the monitor explains
+**(c) Waits that sleep behind a reported wait and get no report of their own.** **Fixed** (Assignment 3, T4, by the
+same check; the strict monitor of T2 no longer explains such a wait): see "T4. Every stuck wait is reported"; the eight
+runs end without a violation. At the end of a run the monitor explains
 an open wait that is blocked by a wait reported stuck or unresolved, without asking that the wait itself was reported;
 §7.9's stuck chain reaches a wait behind a reported one only at the instant of that report. Eight runs at `5b00d9f` end
 with such a wait, asleep and with no report: 8102359 `congestion`, 8103231 `shortest`, 100281 `shortest` and `fastest`,
@@ -2792,3 +2797,201 @@ s with the monitor of `1ebec11` (+1.9 %, run one after the other).
 - The test with the rule undone clears the state after the grant's event, so the monitor sees the state at that event:
   the check of recorded directions reports 19 of the 20 re-claims of single-lane segments of 8101904 `fastest`.
 - `passing` segments beyond the check above: the extents of a re-claim against the bodies in their lanes.
+
+### T4. Every stuck wait is reported
+
+Decided by the maintainer on 2026-11-25: before 0.18.0 is tagged, every wait under `ReservationController` is granted,
+resolved by the policy, or reported (`traffic.wait_stuck`, or an unresolved `traffic.deadlock` that lists it). Base
+`6f57185` (the traffic spec amended for this task: §7.1 `idle`, §7.9 "Waits with no review left", §15). Scratch:
+`.superpowers/sdd/2026-11-23-layout-only-models/scratch-a3-T4/`.
+
+**The cause** (audit (i), `a3-T1-i-audit.md`). The stuck rule of §7.9 was evaluated on four occasions only: the end of a
+timed review, a stranding (which reviews at once), `idle()` for the waits an AGV blocks by what it holds, and the chain
+of a new report. A wait can become stuck through events that reach none of them, and a sleeping wait is woken only by a
+grant or a release.
+
+**The six holes**, each now a test of `tests/intralogistics/test_deadlock.py` (`TestWaitsWithNoReviewLeft`) or of
+`test_travel.py`, built from the audit's scenarios; each test failed at the base (below) and asserts the report, its
+instant and its blockers, the number of `on_blocked` calls and the review timers, which are those of the base:
+
+| Hole | Mechanism | Scenario as a test | Reported now |
+|---|---|---|---|
+| R | the report chain stops at a wait that is already reported, so a wait behind it that sleeps is never examined; three entries: an idle AGV that does not move, a stranding, a blocker that starts to wait | `test_behind_a_reported_wait_when_its_blocker_comes_to_rest`, `..._whose_blocker_starts_to_wait`, `..._when_its_blocker_strands` | Y at 70 (`idle`), at 65 (the stop of I), at 70 (the stranding) |
+| C | the same stop at a member of an unresolved set, for a wait behind the member through a gate that detection does not waive | `test_behind_a_member_of_an_unresolved_deadlock_through_its_gate` | Y at 40, `idle(H)` |
+| A | a gate waiver removes a blocker with no grant or release (seed 7702388) | `test_when_detection_waives_a_gate` | C at the stop that waives (40), and the chain reaches X and E |
+| B | a gating claim ends without a grant: a withdrawal, a staged reaction | `test_when_a_gating_claim_is_withdrawn`, `test_when_a_gating_claim_ends_with_a_staged_reaction` | C at the withdrawal (40); C after the review that gives up (60) |
+| E | a wait with no review (`StandardTrafficPolicy(reroute_after=None)`) that opens stuck | `test_a_wait_under_a_policy_without_reviews_that_opens_stuck` | Y at its stop (0) |
+| G | a blocker stalls and no call reaches the controller | `test_a_wait_behind_a_vehicle_that_stalls_is_reported_at_the_stall` (through the executor) | B at the stall (140.208), A `STALLED` |
+
+**The rule and why it was preferred** (Ruling A3-i; traffic spec §7.9). The audit prototyped four fixes and paired each
+with the base on 6,000 reservation runs (seeds 4100000..4101999): the smallest patch for hole R alone (`p_min`, the
+chain passes through reported waits) changed 1,120 fingerprints and added 566 stuck reports, because it reports waits
+that have just stopped and would be granted before their first review; counting waivers, withdrawals and staged
+reactions as changes (`p_wake`) moved vehicles and end times in 59 runs; a check of every sleeping wait at every entry
+(`p_sweep`) brought 30 reports forward in 17 runs, 29 of them by the 30 s of a review delay; `p_sweep2`, the same check
+that leaves to a scheduled review the waits it will reach, changed 1 fingerprint (the run with a hole) and nothing else.
+The rule: at every controller entry that is not a plain grant or release, every open wait that carries no report, has no
+review scheduled and is no member of a remembered unresolved set is checked for the stuck condition, with its blockers
+recomputed, unless a wait ahead of it, through waiting blockers whose waits carry no report and are no member, has a
+review scheduled. A wait found stuck is reported as every report is, with the chain of the waits behind it. It is not a
+review: no policy call, no review counted, no timer, no holding changed.
+
+**What changed in the code.**
+
+- `ReservationController._check_asleep` (`reservation.py`) runs once at the end of `stopped`, `withdraw`, `idle` and a
+  review on its timer (`_timed_review`); the staged reactions and gate waivers happen inside those entries. One pass:
+  the blockers of the sleeping waits and of every wait they reach through waiting blockers are computed once; a wait
+  with no blocker, or with a blocker that is none of stalled, idle, stranded or waiting, is not stuck, and the mark goes
+  to the waits behind it; a second mark goes from the waits that have a review timer to the unreported waits behind
+  them; the sleeping waits left are reported in queue order through `_report_stuck`, unchanged. Nothing is computed when
+  no wait sleeps. Every collection is a list or an insertion-ordered dict: the order does not depend on hashing.
+- `_stuck` returns None for a wait with no blocker and for a wait that reaches one (before, an empty mapping: a wait
+  admissible but not granted would have been reported; no caller could pass one before this task).
+- `idle` asks only an idle AGV to make way: a stalled AGV is not asked (the policy's `make_way_target` is not called for
+  it) and the waits it blocks are checked at once, as for an idle AGV that does not move.
+- The travel executor's `_stall` withdraws a request of the trip that is still pending and calls `controller.idle(agv)`
+  (`FreeFlowController` does nothing for either). The withdrawal settles the variant of hole G that audit (i) 3.7 read
+  from the code: a look-ahead claim asked for before the run stalled (here while moving towards a node where the AGV
+  rests to turn) stayed pending for ever, was never a wait, and after an interrupt of the stalled AGV its next travel
+  raised `RuntimeError: ... already has a pending traffic request`
+  (`test_a_stalled_vehicle_withdraws_the_claim_it_had_asked_for_ahead`; reproduced at the base with
+  `scripts/stall_pending.py`).
+- The fairness gate (`_gating`) reads the earlier pending claims at the first segment or corridor of the claim that its
+  AGV does not hold, instead of before its loop. Nothing is yielded before that point, so the gates found are the same;
+  a claim of nodes only no longer reads every earlier claim, which is what keeps the check linear (cost, below).
+- The docstrings of `TrafficController.idle`, `TrafficController.cleared` (the second kind of segment named without a
+  state, T3's review) and `TrafficWaitStuck` (the hole-R runs contradicted "at the instant their chain becomes stuck").
+- `cleared` (T3) needs no check: an end of the state changes the blockers of a pending claim only when the state made
+  that claim inadmissible, and exactly then it counts as a change and scans, which wakes every sleeping review, as a
+  release does.
+
+**Before and after**, base `6f57185` against the head, `ReservationController`, the three routers, paired by seed and
+router; the interval is the 95 % interval of the sum of the paired differences; each tree with its own monitor (the
+head's has the one line of T3's review, below). CPython 3.14.3, 10 worker processes (`scripts/measure.py`,
+`scripts/pair.py`, `out/pair-*.txt`).
+
+| | 4100000..4101999 (audit, 6,000 runs) | 2,887 filtered worlds of 4110000..4118999 (8,661) | 4500000..4502999 (fresh, 9,000) |
+|---|---|---|---|
+| Runs returned, base / head | 6,000 / 6,000 | 8,661 / 8,661 | 9,000 / 9,000 |
+| Runs with a violation, base / head | 1 / 0, `open wait with no report` | 11 / 0, the same kind | 6 / 0, the same kind |
+| Open waits with no report at the end | 1 / 0 | 15 / 0 | 7 / 0 |
+| `traffic.wait_stuck` | 13,425 / 13,426, +1 [-1.0, +3.0] | 35,560 / 35,581, +21 [+9.7, +32.3], up in 17 runs | 19,253 / 19,262, +9 [+2.5, +15.5], up in 8 |
+| Orders completed | 76,271 both | 104,190 both | 114,464 both |
+| Waits ended by a reroute | 21,399 both | 53,613 both | 30,893 both |
+| Deadlocks give up / reroute / step aside / unresolved | 8,966 / 18,396 / 47,635 / 5,628 both | 23,967 / 45,300 / 107,535 / 17,043 both | 13,611 / 26,488 / 70,285 / 7,470 both |
+| Make-way moves | 34,495 both | 73,293 both | 48,995 both |
+| Strandings | 5,743 both | 8,375 both | 8,740 both |
+| End times | equal in every pair | equal in every pair | equal in every pair |
+| Fingerprints changed | 1 | 21 | 10 |
+| Records that differ otherwise than by stuck reports and their log lines | 0 | 0 | 0 |
+
+Every interval not shown is +0 [+0, +0]. On the audit's 6,000 runs the one changed run is the audit's: 4100399
+`congestion`, one more `traffic.wait_stuck` (agv-d at 531.795, behind agv-e), as with `p_sweep2`. On the filtered sample
+the 21 changed runs are exactly the 21 runs in which the audit's detector found an episode at the base (the 11 that end
+with one and 10 whose episodes ended earlier); in each, the stuck reports added are the waits of the episode, at the
+instant it began, and in five of them a report the base made later at a review comes earlier (4111173 `shortest` agv-d
+30 s earlier, through the chain of agv-b's report; 4111267 `congestion` agv-a at 424.305 instead of 611.923; 4117253
+under the three routers, agv-a at 220.748 instead of 501.899) (`out/stuckdiff-filtered.txt`). On the fresh sample the 6
+violating runs at the base are 4502016 `fastest` (agv-b, agv-d), 4502163 `congestion`, 4502216 `fastest`, 4502454
+`shortest`, 4502619 `fastest`, 4502628 `shortest`, all hole R by the audit's detector and `classify.py` (the `idle()`
+form in the first, third and fifth, the stranding form in the others; `out/classify-freshchanged.txt`); of the 10
+changed runs, 9 have an episode at the base (`out/lat-freshchanged-base.log`; in 4500084 `congestion` and 4500695
+`fastest` the report comes 77 s and 98 s earlier) and one, 4500073 `shortest`, does not: there agv-g gives up every 2 s
+in a loop, and at 560.174 it is idle for the instant between its give-up and its next order; `idle(agv-g)` finds agv-e's
+sleeping wait stuck by the rule (agv-a and agv-d wait behind agv-g) and reports it, as the base's `idle` reports the
+waits an idle AGV blocks directly at that instant. The detector looks at the end of each instant, when agv-g travels
+again, so it saw no episode; the strict monitor checks the report at its event and accepts it.
+
+**Free flow is byte-identical**: the 3,000 free-flow runs of seeds 4500000..4500999: records, initial and final state,
+end time and fingerprint equal in every pair (`out/pair-free.txt`).
+
+**The detector** of audit (i) (`latent2.py`: an open wait stuck by the rule, unreported, with nothing scheduled that
+would report it, at the end of any instant), on the head: 0 episodes in the 6,000 runs of 4100000..4101999, the 8,661
+runs of the filtered sample and the 9,000 runs of 4500000..4502999 (the audit counted, at `0ffc5b6`, 1 episode in 1 run
+in the first and 34 episodes in 21 runs in the second; at the base, 19 episodes in 9 runs among the 30 runs of the ten
+fresh worlds that changed). Every run of the three samples returned and none ended with an open wait without a report.
+
+**The recorded safety ranges** (`benchmarks/layout_safety.py --worlds 1000 --jobs 10`, six runs per world), at the head:
+100000..100999, 6,000 runs, 6,570,204 events (four more than at `229ea61`: the stuck report and its log line in 100281
+`shortest` and `fastest`), 0 raised, 0 cut, 0 queue not empty, 0 violations, exit status 0 (184 s); 2000000..2000999,
+6,000 runs, 6,720,030 events (equal), 0 of each, exit status 0 (185 s).
+
+**The seeds of the ledger**, each `benchmarks/layout_safety.py --worlds 1 --first <seed>` (both controllers, three
+routers), at the head, every one exit status 0 with no violation, no run raised and none cut: 2000228, 52118, 8103801,
+9202320, 9202736, 7702388, 8101904, 4412263, 4411251; the worlds of the hole-R runs 8102359, 8103231, 100281, 7700058,
+7701490, 4100399, 4102230, 4103675, 4106591, 4106711, 4109344, 4109857, 4105806, 4109073, 4111428, 4114572, 4115147,
+4115267, 4117095, 4117325, 4118296, 4118695, 4300647, 4301217, 500064, 500198, 4310551, 4312795, 4315085, 4316274,
+4320963, 4317874, 4410006, 4410659, 4411303, 4411325, 4411943, 4412497, 4414205, 4414470; and the violating worlds of
+T3's ranges 4400263, 4401673, 4402051, 4402618, 4402902, 4200171, 4201442 (`out/seed-*.out`).
+
+**The pins.** The marks `xfail(strict=True, raises=AssertionError)` of the gate waiver (7702388 `shortest`) and of the
+sixteen runs of hole R are removed: they are ordinary tests that assert a run with no violation. Nineteen runs found
+since are added to the second test (`FOUND_SINCE`): 4300647 `fastest`, 4301217 `shortest`, 500064 `congestion`, 500198
+`fastest`, 4310551 `congestion`, 4312795 `shortest`, 4315085 `fastest`, 4316274 `shortest`, 4320963 `congestion`,
+4317874 under the three routers, and the seven of T3's review on 4410000..4412999 (4410006 `shortest`, 4410659 `fastest`
+and `shortest`, 4411303 `shortest`, 4411325 `congestion`, 4411943 `congestion`, 4412497 `fastest`); each ends with `open
+wait with no report` at the base. T2's test of the eager mutant (the stuck rule on direct blockers only) now runs on all
+36 runs, and the monitor flags every one (`stuck report of a wait that reaches a blocker not at rest`). No pinned
+digest, fingerprint or fixture moves: the audit had found none moving under `p_sweep2`, and `SAFETY` and `EXERCISED`
+pass unchanged.
+
+**Mutants** (`scripts/mutants.py`, `out/mutants.out`): the check dropped at one entry at a time, against the scenario
+tests and the 36 pinned runs. At `stopped`: the scenarios of the blocker that starts to wait (R), the waiver (A) and the
+policy without reviews (E) fail. At `withdraw`: the withdrawal (B). At `idle`: the three `idle()` and stranding forms
+(R, C) and 22 of the 36 pinned runs end with `open wait with no report` (in the other 14 a later entry reports the wait
+before the run ends). At the timed review: the staged reaction (B). The stall scenario is caught by `idle`'s own check
+of the waits the stalled AGV holds; without the executor's call it fails (the RED run).
+
+**Cost** (`scripts/bench2.py`, the audit's bench: n AGVs waiting one behind the other behind a head that serves, all
+asleep, unreported, not stuck; the median over five fresh worlds of the median of 20 calls of `idle()` of an AGV that
+blocks nobody, and of the `stopped()` of one more waiter; base and head alternating, three rounds):
+
+| n (sleeping waits = blocker edges) | `idle()`: base, head, ratio | `stopped()`: base, head, ratio |
+|---|---|---|
+| 10 | 0.0077 ms, 0.0266 ms, 3.5 | 0.117 ms, 0.132 ms, 1.12 |
+| 20 | 0.0151 ms, 0.0523 ms, 3.5 | 0.191 ms, 0.221 ms, 1.16 |
+| 40 | 0.0296 ms, 0.1064 ms, 3.6 | 0.347 ms, 0.403 ms, 1.16 |
+| 80 | 0.0606 ms, 0.2279 ms, 3.8 | 0.718 ms, 0.839 ms, 1.17 |
+
+The medians of the three rounds; the rounds agree within 3 %. The head's `idle()` doubles with n (x1.97, x2.03, x2.14
+per doubling): the check grows linearly in the blocker edges, and so does what it adds to `stopped()` (0.015, 0.031,
+0.056, 0.121 ms). The prototype `p_sweep2` took 92 to 102 ms for either call at n = 80 (audit, loaded machine); a check
+that read every earlier claim for each wait's gate, as the gate did before this task, took 1.35 ms for `idle()` at n =
+80 in a first trial of this task (machine loaded), and grew by x2.6 to x3.5 per doubling. The one-minute load average
+was 10.0 to 11.6 when the rounds started (the decay of the hash-seed runs just before; nothing else of this task ran
+during them).
+
+On the random worlds: `benchmarks/layout_safety.py --first 100000 --worlds 200 --jobs 10` (1,200 runs, 1,361,246 events
+in every round, no violation), base and head alternating in one session, three rounds: 41.33 s and 42.46 s, 42.03 s and
+41.75 s, 41.13 s and 40.17 s (means 41.50 s and 41.46 s; the one-minute load 10.0 to 19.8 before each, mostly the
+workers of the round before). `benchmarks/intralogistics.py --mode none --shifts 2 --warmup 1 --repeat 3` (free flow),
+alternating twice: medians 0.483 s and 0.482 s, 0.477 s and 0.477 s.
+
+**`PYTHONHASHSEED`**: the scenario tests pass under `PYTHONHASHSEED` 1 and 2, and the 300 runs of seeds 4500000..4500099
+under each have the fingerprints of the measured head run (whose worker processes had random hash seeds). The check
+takes the waits in queue order and keeps its marks in lists and insertion-ordered dicts.
+
+**What remains outside the rule.**
+
+- A wait behind an AGV that serves for ever (a pick waiting for stock) is not stuck by §7.9 and is not reported; no
+  random world ends that way.
+- A wait whose policy asks for no review and that becomes stuck by a grant or a release (a blocker that moves on and
+  releases, leaving only blockers at rest) is reported at the next controller entry that is not a grant or a release,
+  not at the release; a run in which no such entry follows (the vehicle that released then serves for ever) would end
+  with it unreported. The default policy reviews every wait: a release wakes its review.
+- Requirement 7 of the brief (a former member whose own review sleeps after its set is forgotten): built as
+  `test_a_former_member_asleep_when_its_set_is_forgotten`. When the set is forgotten by the withdrawal of a member that
+  still travels, the waits left are not stuck; when that member rests idle, `idle` reports the former member, by the
+  existing check of the waits an idle AGV blocks. It passes at the base too: covered by an existing path, no seventh
+  hole. The new check covers the same wait if the member is already at rest when the set is forgotten.
+
+**What the monitor still does not check** (T2's list, brought up to date). Checked now: the both-directions state stays
+for a segment claimed again twice (T3's review): in the check of recorded directions, a holder whose body lies on the
+segment as it arrived before a re-claim must be in the state (one condition in `_check`; test
+`test_a_state_that_ends_when_the_segment_is_granted_again_is_a_violation`, which the monitor of `6f57185` passes with no
+violation; the whole monitor now runs on that world, built by its own constructor from a spec of the world). Still not
+checked: the spacing of followers on the bodies; the gate part of a stuck report; what the parking exception lets
+through; `passing` segments during a reversal; the review timer and the pending claim at quiescence from events; a wait
+stuck and unreported for a while and reported later (the monitor sees the end of a run and each report; the episode
+detector, which reads the controller, is the check, run for this task's samples); and a `STALLED` blocker in a random
+run (no vehicle of the generator stalls; the controller and executor tests cover it).
