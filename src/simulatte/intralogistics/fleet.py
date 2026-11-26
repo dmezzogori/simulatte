@@ -106,8 +106,9 @@ class FleetCoordinator(Entity, kind="fleet"):
     the AGV next departs from that node or when the move ends without arriving, which for a move that turns to charge
     is when it turns, unless the charger is on the area's own node: there the AGV keeps the slot (it is given back if
     the AGV does not get there) and rests parked after the charge. A repositioning, a clearance or a make-way move that
-    charges on its way and ends elsewhere than its target is not resumed: the AGV is asked where to rest as an AGV that
-    ends a mission on the charger's node (the repositioning policy, then the clearance of a service node).
+    charges on its way and ends elsewhere than its target is not resumed: unless an order is pending, the AGV is asked
+    once where to rest, as an AGV that ends a mission on the charger's node is (the repositioning policy, then the
+    clearance of a service node); a trip of that decision that charges again ends where the AGV charged.
 
     Its id is ``name`` when given, otherwise ``fleet-<n>``. ``graph`` is ``layout.graph()`` of the environment's
     layout, whose preparation binds the network's nodes (sorted by id). Construction registers the fleet with its
@@ -203,6 +204,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._made_way_from: dict[AGV, set[Node]] = {}  # nodes each AGV made way from in its current chain of moves
         self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
         self._charges: dict[AGV, int] = {}  # charges each AGV completed: tells a trip that charged on its way
+        self._after_charge: set[AGV] = set()  # AGVs in the decision of where to rest that follows a charge on the way
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
         self._load_recovery_strategy: LoadRecoveryStrategy = load_recovery_strategy or ReturnToOrigin()
@@ -941,8 +943,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         the AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
         when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
         ``on_agv_idle`` hooks and the pending-queue check run as after any mission. A move that charges on its way and
-        ends elsewhere than its target is first followed by the decision of where to rest of an AGV that ends a mission
-        there.
+        ends elsewhere than its target, with no order pending, is first followed once by the decision of where to rest
+        of an AGV that ends a mission there.
         """
         origin = agv.current_node
         if agv.state is not AGVState.IDLE or origin is None:
@@ -1006,7 +1008,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         makes the AGV ``IDLE``. Returns ``BATTERY_STRANDED`` when the AGV stranded, else None.
 
         A trip of this decision, or of a make-way move, that charges on its way and ends away from its target is
-        followed by this decision again, from the charger's node (:meth:`_idle_travel`)."""
+        followed by this decision once, from the charger's node, unless an order is pending (:meth:`_idle_travel`)."""
         # Battery check after mission
         target = None
         gave_up = False
@@ -1026,7 +1028,8 @@ class FleetCoordinator(Entity, kind="fleet"):
             target = self._repositioning_policy.reposition(agv, repo_ctx)
             if target is not None and target != agv.current_node:
                 if self._take_slot(agv, target):
-                    self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+                    if agv.state is not AGVState.TRAVELING_EMPTY:  # after a charge on the way it travels already
+                        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
                     outcome = yield from self._idle_travel(agv, target)
                     if outcome is TravelOutcome.BATTERY_STRANDED:
                         return outcome
@@ -1070,9 +1073,12 @@ class FleetCoordinator(Entity, kind="fleet"):
         turns to charge gave it back already, as it turned (:meth:`_charge_agv`), unless the charger is on `target`
         itself, where the slot is kept and given back here only if the AGV does not stand there.
 
-        A travel that turns to charge and charges is not resumed: when it ends away from `target`, the AGV is asked
-        where to rest as an AGV that ends a mission on the charger's node (:meth:`_rest`, Ruling A3-m), and the outcome
-        is that decision's ``BATTERY_STRANDED``, or else the travel's."""
+        A travel that turns to charge and charges is not resumed. When it ends away from `target`, the pending queue is
+        empty and the travel is not itself a trip of such a decision, the AGV is asked where to rest as an AGV that
+        ends a mission on the charger's node (:meth:`_rest`), and the outcome is that decision's ``BATTERY_STRANDED``,
+        or else the travel's. Otherwise the caller makes the AGV ``IDLE`` where it charged: with an order pending, the
+        pending-queue check that follows offers it work; after the one decision, a trip of it that charges again
+        ends there, so the decision is made once per charge on the way."""
         charges = self._charges.get(agv, 0)
         try:
             outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
@@ -1085,9 +1091,15 @@ class FleetCoordinator(Entity, kind="fleet"):
             outcome is TravelOutcome.RETRY_FROM_CURRENT_POSITION
             and self._charges.get(agv, 0) != charges
             and agv.current_node != target
+            and not self._pending_queue
+            and agv not in self._after_charge
         ):
-            if (yield from self._rest(agv)) is TravelOutcome.BATTERY_STRANDED:
-                return TravelOutcome.BATTERY_STRANDED
+            self._after_charge.add(agv)
+            try:
+                if (yield from self._rest(agv)) is TravelOutcome.BATTERY_STRANDED:
+                    return TravelOutcome.BATTERY_STRANDED
+            finally:
+                self._after_charge.discard(agv)
         return outcome
 
     # Parking slots (spec §7.10)

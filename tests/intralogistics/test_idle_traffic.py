@@ -2408,33 +2408,96 @@ def test_a_stranding_before_the_first_review_takes_its_timer() -> None:
 
 
 def out_of_reach(env: Environment) -> Declared:
-    """``D - C - N - T`` along a row (10, 10 and 25 m)."""
-    return build(env, [("D", 0, 0), ("C", 10, 0), ("N", 20, 0), ("T", 45, 0)], [("D", "C"), ("C", "N"), ("N", "T")])
+    """``S - D - C - N - T`` along a row (2, 4, 10 and 25 m)."""
+    return build(
+        env,
+        [("S", -6, 0), ("D", -4, 0), ("C", 0, 0), ("N", 10, 0), ("T", 35, 0)],
+        [("S", "D"), ("D", "C"), ("C", "N"), ("N", "T")],
+    )
 
 
-def test_a_target_beyond_the_reach_of_a_full_charge_repeats_the_trip_and_the_charge_without_end() -> None:
-    """The limit the rule shares with an order's travel (the guide's known limit "Charging"): the policy always names T,
-    and the arc N to T (25) is more than the 20 a full battery of 30 keeps on arrival at N from the charger on C. A,
-    making way from D, turns at N to charge on C; asked again, it sets off to T again, turns at N again, and so on: time
-    passes in every round (two arcs and a charge of 20), and the run does not end on its own."""
+@pytest.mark.parametrize(
+    ("kind", "reserve"),
+    [("policy", True), ("policy", False), ("parking", True), ("parking", False), ("clearance", True)],
+    ids=[
+        "the policy names T-reservation",
+        "the policy names T-free",
+        "an area on T-reservation",
+        "an area on T-free",
+        "the clearance goes to T",
+    ],
+)
+def test_after_a_charge_on_the_way_the_decision_is_made_once(kind: str, reserve: bool) -> None:
+    """T lies beyond the reach of a full charge: the arc N to T (25) is more than the 20 a battery of 30 keeps on
+    arrival at N from the charger on C. After its delivery on D, A is sent to T (by the policy, to the parking area
+    there, or by the clearance, T being the only node that is no service node), turns at N to charge on C and is asked
+    once where to rest: sent to T again, it turns at N again and, after the second charge, rests idle on C. The run
+    returns on its own."""
+    bays = {"WH-S": "S", "WH-D": "D"} | ({"WH-N": "N"} if kind == "clearance" else {})
     m = mission_world(
         out_of_reach,
-        {"A": "D"},
+        {"A": "S"},
+        bays=bays,
         chargers={"CS": ("C", 1)},
-        reserve=False,
+        parking={"P": ("T", 1)} if kind == "parking" else None,
+        reserve=reserve,
         agv_type=vehicle(battery=30.0),
+        repositioning_policy=NearestParkingPolicy() if kind == "parking" else None,
     )
-    m.fleet._repositioning_policy = Always(m.nodes["T"])
-    assert m.fleet.make_way(m.agvs["A"], m.nodes["T"]) is True
-    m.env.run(until=400.0)
-    starts = [e.t for e in m.events(ChargingStarted)]
-    assert len(starts) >= 5 and all(later - earlier > 0 for earlier, later in zip(starts, starts[1:]))
-    assert m.routed("A")[:4] == [
-        ("make_way", "D", "T"),
+    if kind == "policy":
+        m.fleet._repositioning_policy = Always(m.nodes["T"])
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    a = m.agvs["A"]
+    reason = "clear_node" if kind == "clearance" else "travel"
+    assert m.routed("A") == [
+        ("travel", "S", "D"),
+        (reason, "D", "T"),
         ("travel", "N", "C"),
-        ("travel", "C", "T"),
+        (reason, "C", "T"),
         ("travel", "N", "C"),
     ]
+    assert len(m.events(ChargingStarted)) == 2
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["C"])
+
+
+class ByNode:
+    """A repositioning policy that names T2 when asked on B and T1 anywhere else."""
+
+    def reposition(self, agv: AGV, context: RepositioningContext) -> Node | None:
+        assert agv.current_node is not None
+        name = "T2" if agv.current_node.id == "B" else "T1"
+        return next(node for node in context.graph.nodes if node.id == name)
+
+
+def two_charger_ring(env: Environment) -> Declared:
+    """A ring ``A - X1 - B - X2 - A`` (10, 4, 10 and 4 m) with T1 25 m off X1, T2 25 m off X2 and S 3 m off A."""
+    return build(
+        env,
+        [("A", 0, 0), ("X1", 10, 0), ("B", 10, 4), ("X2", 0, 4), ("T1", 35, 0), ("T2", -25, 4), ("S", 0, -3)],
+        [("A", "X1"), ("X1", "B"), ("B", "X2"), ("X2", "A"), ("X1", "T1"), ("X2", "T2"), ("S", "A")],
+    )
+
+
+@pytest.mark.parametrize("reserve", [True, False], ids=["reservation", "free"])
+def test_after_a_charge_on_the_way_the_decision_is_made_once_also_through_two_chargers(reserve: bool) -> None:
+    """V delivers on A, a charger's node, and is sent to T1, out of the reach of a full charge from A: it turns at X1
+    and charges on B, the nearer charger. Asked once on B, it is sent to T2, out of reach from B as well: it turns at X2
+    and charges on A. Then it rests idle on A: a second decision would send it to T1 again, and so on round the ring."""
+    m = mission_world(
+        two_charger_ring,
+        {"V": "S"},
+        bays={"WH-S": "S", "WH-A": "A"},
+        chargers={"CA": ("A", 1), "CB": ("B", 1)},
+        reserve=reserve,
+        agv_type=vehicle(battery=30.0),
+        repositioning_policy=ByNode(),
+    )
+    m.order("WH-S", "WH-A")
+    m.env.run()
+    v = m.agvs["V"]
+    assert [e.station for e in m.events(ChargingStarted)] == ["CB", "CA"]
+    assert (v.state, v.current_node) == (AGVState.IDLE, m.nodes["A"])
 
 
 def test_a_trip_after_a_charge_on_the_way_that_strands_leaves_the_agv_stranded() -> None:
@@ -2459,3 +2522,101 @@ def test_a_trip_after_a_charge_on_the_way_that_strands_leaves_the_agv_stranded()
     assert len(m.events(ChargingStarted)) == 1
     assert [(e.node, e.reason) for e in m.events(AgvStranded)] == [("N", "no_reachable_charger")]
     assert (a.state, a.current_node) == (AGVState.STRANDED, m.nodes["N"])
+
+
+def test_after_a_charge_on_the_way_with_an_order_pending_the_agv_takes_the_order() -> None:
+    """A, alone, turns to charge at CH on its way to park on FAR, as in the trip to park above; an order is submitted
+    while it charges. At the end of the charge the pending queue holds the order, so A is not asked where to rest: it
+    becomes idle on CH and the pending-queue check gives it the order at once, as before the decision existed."""
+    m = mission_world(
+        park_and_charge,
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": ("CH", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=NearestParkingPolicy(),
+    )
+    m.order("WH-S", "WH-D")
+    later = m.fleet.create_order(sku=SKU_A, quantity=1, origin=m.warehouses["WH-S"], destination=m.warehouses["WH-D"])
+
+    def during_the_charge() -> Any:
+        while not m.events(ChargingStarted):
+            yield m.env.timeout(0.5)
+        m.fleet.submit(later)
+
+    m.env.process(during_the_charge())
+    m.env.run()
+    (ended,) = [e for e in m.events(ChargingEnded) if e.agv == "A"]
+    assert m.routed("A")[1:4] == [("travel", "D", "FAR"), ("travel", "X", "CH"), ("travel", "CH", "S")]
+    assert later.status is OrderStatus.COMPLETED and later.dispatched_at == ended.t
+
+
+def test_a_retry_without_a_charge_is_not_followed_by_the_decision() -> None:
+    """A make-way move that arrives at D with a critical battery ends with a retry, without a charge (there is no
+    charger): A is idle where it stopped, though the parking policy would send it to the area on SIDE."""
+    m = mission_world(
+        lane,
+        {"A": "M"},
+        parking={"P": ("SIDE", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 12.0},
+        repositioning_policy=NearestParkingPolicy(),
+    )
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["END"]) is True
+    m.env.run()
+    assert m.routed("A") == [("make_way", "M", "END")]
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["D"]) and m.events(ParkingEntered) == []
+
+
+def test_a_charge_by_the_low_battery_callback_on_the_way_is_followed_by_the_decision() -> None:
+    """The trip to park of the tests above with an ``on_low_battery`` callback that takes A to CH and charges it there
+    in place of the coordinator's charge: that counts as the charge, and A is asked where to rest and parks on FAR."""
+    holder: dict[str, Mission] = {}
+
+    def charge_on_ch(agv: AGV) -> Any:
+        m = holder["m"]
+        yield from m.fleet._executor.travel(agv, m.nodes["CH"], loaded=False)
+        yield from m.stations["CS"].recharge(agv)
+
+    m = mission_world(
+        park_and_charge,
+        {"A": "S"},
+        bays={"WH-S": "S", "WH-D": "D"},
+        parking={"P": ("FAR", 1)},
+        chargers={"CS": ("CH", 1)},
+        agv_type=vehicle(battery=100.0),
+        battery={"A": 37.0},
+        repositioning_policy=NearestParkingPolicy(),
+        on_low_battery=charge_on_ch,
+    )
+    holder["m"] = m
+    m.order("WH-S", "WH-D")
+    m.env.run()
+    a = m.agvs["A"]
+    assert m.routed("A")[1:] == [("travel", "D", "FAR"), ("travel", "X", "CH"), ("travel", "CH", "FAR")]
+    assert (a.state, a.current_node) == (AGVState.IDLE, m.nodes["FAR"]) and parked(m, "P") == ["A"]
+
+
+def test_a_stranding_after_a_charge_on_the_way_is_not_followed_by_the_decision() -> None:
+    """A makes way from N1 to G but cannot afford the arc (30) with its full battery of 12: it charges on C and still
+    cannot, so it strands on C. The move ended with the AGV stranded, not with a retry: it is not asked where to rest,
+    though the parking policy would send it to the area on N0."""
+    m = mission_world(
+        lambda env: build(
+            env, [("C", 0, 0), ("N0", 5, 0), ("N1", 10, 0), ("G", 40, 0)], [("C", "N0"), ("N0", "N1"), ("N1", "G")]
+        ),
+        {"A": "N1"},
+        parking={"P": ("N0", 1)},
+        chargers={"CS": ("C", 1)},
+        agv_type=vehicle(battery=12.0),
+        repositioning_policy=NearestParkingPolicy(),
+    )
+    a = m.agvs["A"]
+    assert m.fleet.make_way(a, m.nodes["G"]) is True
+    m.env.run()
+    assert m.routed("A") == [("make_way", "N1", "G"), ("travel", "N1", "C")]
+    assert [(e.node, e.reason) for e in m.events(AgvStranded)] == [("C", "insufficient_after_charging")]
+    assert (a.state, a.current_node) == (AGVState.STRANDED, m.nodes["C"]) and m.events(ParkingEntered) == []
