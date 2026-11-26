@@ -18,6 +18,7 @@ import pytest
 from simulatte.environment import Environment
 from simulatte.events import DomainEvent
 from simulatte.intralogistics.agv import AGV, AGVState
+from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.events import (
     AgvMoveEnded,
     AgvMoveInterrupted,
@@ -28,12 +29,13 @@ from simulatte.intralogistics.events import (
 )
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.reservation import ReservationController
-from simulatte.intralogistics.traffic import GiveUp, Reroute, StepAside
+from simulatte.intralogistics.routing import Route, RouteRequest, ShortestDistanceRouter
+from simulatte.intralogistics.traffic import GiveUp, Reroute, StepAside, TrafficView
 from simulatte.intralogistics.travel import TravelOutcome
 from simulatte.trace import ChunkLimits, Trace, TraceRecorder
 from tests.intralogistics.test_stop_requests import charger_world, detour_world, weak
-from tests.intralogistics.test_travel import Scripted, diamond, stalls_after_its_turn
-from tests.intralogistics.traffic_support import StillFleet, build, declare, line, t_layout, vehicle, world
+from tests.intralogistics.test_travel import Scripted, ThroughTheGoal, diamond, stalls_after_its_turn
+from tests.intralogistics.traffic_support import FullReplay, StillFleet, build, declare, line, t_layout, vehicle, world
 from tests.intralogistics.traffic_support import TravelWorld as World
 
 WAITED = {"blockers": ["L"], "node": "N1", "resources": ["N0~N1", "N1"], "since": 0.0}
@@ -437,3 +439,171 @@ def test_free_flow_announces_no_wait_and_records_routes() -> None:
     assert {route["destination"] for _, _, route in watch.seen if route is not None} == {"N0", "N2"}
     assert w.agvs["A"].route is None and w.agvs["B"].route is None
     watch.check()
+
+
+# --- kept whether or not anything subscribes (M19) -----------------------------------------------------------------
+
+
+def corridor_run(
+    *, observed: bool, until: float | None = None
+) -> tuple[Environment, dict[str, AGV], list[DomainEvent]]:
+    """F, on N0, travels to N3 behind L, 2 m long, resting on N1 until it leaves for N4 at 50: F waits from 0 until L's
+    tail clears N1, then travels. With `observed`, a ``"*"`` subscriber records every event; otherwise nothing
+    subscribes. The run stops at `until`."""
+    env = Environment()
+    events: list[DomainEvent] = []
+    if observed:
+        env.bus.subscribe(events.append, "*")
+    declared = line(env, 5)
+    agvs = {
+        name: AGV(env=env, agv_type=vehicle(length=2.0), agv_id=name, initial_node=declared.ref(start))
+        for name, start in (("L", "N1"), ("F", "N0"))
+    }
+    fleet = StillFleet(
+        env=env,
+        graph=declared.graph,
+        fleet=list(agvs.values()),
+        warehouses=[],
+        charging_stations=[],
+        traffic_controller=ReservationController(env=env, graph=declared.graph),
+        default_metrics=False,
+    )
+    env.activate()
+    assert env.wants(TrafficWaitStarted) is observed and env.wants(AgvRouted) is observed
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
+
+    def go(name: str, goal: str, at: float) -> Any:
+        yield env.timeout(at)
+        agvs[name].transition_to(AGVState.TRAVELING_EMPTY)
+        yield from fleet._executor.travel(agvs[name], nodes[goal], loaded=False)
+        agvs[name].transition_to(AGVState.IDLE)
+
+    env.process(go("F", "N3", 0.0))
+    env.process(go("L", "N4", 50.0))
+    env.run(until=until)
+    return env, agvs, events
+
+
+def test_the_wait_and_the_route_are_kept_without_subscribers() -> None:
+    """A run with no subscriber and a run with a ``"*"`` subscriber, stopped inside F's wait and inside F's travel after
+    it, hold the same snapshot of every vehicle, with a wait and routes that are not null."""
+    _, _, events = corridor_run(observed=True)
+    (started,) = [e for e in events if isinstance(e, TrafficWaitStarted)]
+    (ended,) = [e for e in events if isinstance(e, TrafficWaitEnded)]
+    moves = [e for e in events if isinstance(e, AgvMoveEnded) and e.agv == "F"]
+    inside_wait, inside_travel = (started.t + ended.t) / 2, (ended.t + moves[-1].t) / 2
+    for t in (inside_wait, inside_travel):
+        _, bare, _ = corridor_run(observed=False, until=t)
+        _, observed, _ = corridor_run(observed=True, until=t)
+        snapshots = {name: agv.snapshot() for name, agv in bare.items()}
+        assert snapshots == {name: agv.snapshot() for name, agv in observed.items()}
+        assert snapshots["F"]["route"] is not None
+        assert (snapshots["F"]["wait"] is not None) is (t == inside_wait)
+    _, bare, _ = corridor_run(observed=False, until=inside_wait)
+    assert plain(bare["F"].wait) == {"blockers": ["L"], "node": "N1", "resources": ["N0~N1", "N1"], "since": 0.0}
+
+
+# --- the fallback cases ---------------------------------------------------------------------------------------------
+
+
+def test_a_route_of_one_node_is_cleared_at_the_next_state_change() -> None:
+    """A step aside from S to T passes through the goal G, where a reroute is asked: the travel ends with the
+    one-node route ``(G,)`` set by its ``agv.routed`` and no move, so the vehicle's next ``agv.state_changed`` clears
+    it."""
+    policy = Scripted()
+    router = ThroughTheGoal({})
+    w = world(
+        lambda env: build(
+            env,
+            [("S", 0, 0), ("X", 10, 8), ("Y", 10, -9), ("G", 20, 0), ("T", 30, 0)],
+            [("S", "X"), ("X", "G"), ("S", "Y"), ("Y", "G"), ("G", "T")],
+        ),
+        {"A": "S", "B": "X", "C": "T"},
+        derive_corridors=False,
+        hold_back_dead_ends=False,
+        policy=policy,
+        router=router,
+    )
+    n = router.nodes = w.nodes
+    policy.blocked = (StepAside(n["T"]), Reroute(frozenset({n["T"]}), 0.5))
+    watch = Watch(w)
+    w.go("A", "G")
+    w.env.run()
+    assert w.outcomes == {"A": TravelOutcome.ARRIVED}
+    *_, (last, _, route) = watch.of("A", AgvRouted)
+    assert route == {"destination": "G", "nodes": ["G"], "reason": "blocked"}
+    cleared_by_the_next_state_change(watch, "A", "IDLE")
+    watch.check()
+
+
+def test_a_charge_that_a_callback_replaces_keeps_the_route_until_the_next_state_change() -> None:
+    """The fleet's ``on_low_battery`` callback replaces the charge, here a wait of 30 s with no transition. The travel
+    turned to charge at N2 and its route goes at the vehicle's next ``agv.state_changed``, after the callback: during
+    those 30 s the route stays set, in the attribute and in the replayed state alike."""
+    env = Environment(debug=True)
+    replay = FullReplay(env)
+    declared = line(env, 5)
+    agv = AGV(env=env, agv_type=weak(capacity=25.0), agv_id="A", initial_node=declared.ref("N0"))
+    station = ChargingStation(env=env, name="CS", node=declared.ref("N2"), n_slots=1)
+
+    def callback(vehicle: AGV) -> Any:
+        yield env.timeout(30.0)
+
+    fleet = StillFleet(
+        env=env,
+        graph=declared.graph,
+        fleet=[agv],
+        warehouses=[],
+        charging_stations=[station],
+        traffic_controller=ReservationController(env=env, graph=declared.graph),
+        default_metrics=False,
+        on_low_battery=callback,
+    )
+    env.activate()
+    nodes = {node.id: node for node in declared.canonical_graph().nodes}
+    outcome: list[TravelOutcome] = []
+
+    def go() -> Any:
+        agv.transition_to(AGVState.TRAVELING_EMPTY)
+        outcome.append((yield from fleet._executor.travel(agv, nodes["N4"], loaded=False)))
+
+    env.process(go())
+    env.run(until=25.0)
+    turned = [e for e in replay.events if isinstance(e, AgvMoveEnded)][-1]
+    assert turned.node == "N2" and turned.t < 25.0 < turned.t + 30.0
+    expected = {"destination": "N4", "nodes": ["N0", "N1", "N2", "N3", "N4"], "reason": "travel"}
+    assert plain(agv.route) == plain(replay.state["A"]["route"]) == expected
+    env.run()
+    assert outcome == [TravelOutcome.BATTERY_STRANDED]  # the callback charged nothing
+    (clearing,) = [e for e in replay.events if ("set", "A", "route", None) in e.deltas.ops]
+    assert isinstance(clearing, AgvStateChanged) and clearing.t == turned.t + 30.0
+    assert agv.route is None and replay.state["A"]["route"] is None
+
+
+# --- a router's own sequence ----------------------------------------------------------------------------------------
+
+
+class ListRouter(ShortestDistanceRouter):
+    """Returns its routes as lists, and keeps the last one."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.last: list[Node] = []
+
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None:
+        found = super().route(request, view)
+        if found is None:
+            return None
+        self.last = list(found.nodes)
+        return Route(self.last, found.cost)  # ty: ignore[invalid-argument-type]
+
+
+def test_a_route_returned_as_a_list_and_changed_later_does_not_change_the_state() -> None:
+    router = ListRouter()
+    w = world(lambda env: line(env, 4), {"A": "N0"}, reserve=False, router=router)
+    w.go("A", "N3")
+    w.env.run(until=5.0)
+    router.last.reverse()
+    expected = {"destination": "N3", "nodes": ["N0", "N1", "N2", "N3"], "reason": "travel"}
+    assert plain(w.agvs["A"].route) == plain(w.env.entities.snapshot()["A"]["route"]) == expected
+    assert plain(w.replay.state["A"]["route"]) == expected

@@ -362,8 +362,11 @@ class AGV(Entity, kind="agv"):
         self._wait = None
 
     def _set_route(self, nodes: Sequence[Node], reason: str) -> None:
-        """The travel follows `nodes` for `reason`; the caller emits ``agv.routed`` with :attr:`route` in its deltas."""
-        self._route = (nodes, reason)
+        """The travel follows `nodes` for `reason`; the caller emits ``agv.routed`` with :attr:`route` in its deltas.
+
+        A sequence that is not a tuple (a router may return a list) is copied, so that the router changing it later
+        cannot change the state without a delta."""
+        self._route = (nodes if type(nodes) is tuple else tuple(nodes), reason)
         self._route_over = False
 
     def _clear_route(self) -> bool:

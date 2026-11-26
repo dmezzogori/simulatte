@@ -283,7 +283,10 @@ class TrafficWaitStarted(DomainEvent):
 
     `resources` are the ids of the resources the waiting claim still needs, `blockers` the ids of the AGVs that hold
     them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. Its deltas set the AGV's ``wait``
-    to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2).
+    to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2). That is what
+    ``ReservationController`` does; a custom controller that emits this event must carry the same delta (and set
+    ``wait`` to null with its ``traffic.wait_ended``), and change the AGV's attribute with them, whether or not the
+    events are wanted (``AGV._open_wait`` and ``AGV._close_wait``), so that a replay of the deltas equals the snapshot.
     """
 
     agv: str
