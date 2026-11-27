@@ -38,7 +38,7 @@ Each point of §10 of [the design](../2026-11-25-studio-map-design.md), with the
 ### 4. The screenshot frames
 
 - **Stored.** Seven Linux Chromium baselines in `studio/browser/map.spec.ts-snapshots/` (`corridor-symbol`, `corridor-true`, `corridor-select-agv`, `advanced-symbol`, `no-layout`, `production`, `sprites-symbol`), compared with `maxDiffPixels: 300`, made in the Playwright 1.64.0 container on linux/arm64. Commits "test(studio): Linux baselines for the map screenshots" (the first four) and "test(studio): Linux baselines after the fix wave" (the seven, after the fix wave). Task 15 compared them again without `--update-snapshots`: 13 passed, the seven shots compared and did not skip (**report**). CI on x86_64 is unverified.
-- **Reviewed by Davide.** Open, for the controller to complete. Stage 1 renders were reviewed by Davide on 2026-11-25 ("the look is fine"). The Stage 2 renders (the recorded fixtures, the simple and intermediate examples, the 100-vehicle bench) have not yet been shown to him.
+- **Reviewed by Davide.** Open, for the controller to complete. Stage 1 renders were reviewed by Davide on 2026-11-25 ("the look is fine"). The Stage 2 renders (the recorded fixtures, the simple and intermediate examples, the 100-vehicle bench) have not yet been shown to him. Davide looked at the Stage 2 pictures on 2026-11-27 and said "look is fine"; the three points he was shown (the thin line to a far bay, warehouses at inner lattice nodes covering a lane, vehicles on one node overlapping at true size) stay as they are. Closed.
 
 ### 5. The frame budget
 
@@ -129,7 +129,7 @@ Base is "test(studio): Linux baselines after the fix wave", the last commit befo
 
 An earlier session with the same method, without the preparation row, gave +1.9 % on the corridor with subscribers, +2.2 % on the bare corridor, -0.4 % and -0.2 % on worlds 272 and 182, and +0.6 % on the benchmark. The final review of the branch measured, interleaved, +2.5 % on the corridor with subscribers (of which it put about +0.9 % on the layout preparation of Tasks 11 and 12), +0.4 % and +0.9 % on the two bare worlds and +1.7 % on the intralogistics benchmark (**report**).
 
-What the numbers say. The bare random worlds are within 0.9 % in every measurement (within 0.4 % in the two sessions of the final fix wave) and the bare benchmark is 0.6 % to 1.7 % slower. The bare corridor, a run of 25 ms, was 0.0 % in one session and +2.2 % in the other, above the 2 % of §8.5 once; its layout preparation adds about 0.07 ms. The corridor with subscribers is 1.9 % to 2.5 % slower across the three measurements. These differences, the bare corridor's +2.2 % in particular, are for Davide to judge under §8.5; they are not claimed to be below the limit.
+What the numbers say. The bare random worlds are within 0.9 % in every measurement (within 0.4 % in the two sessions of the final fix wave) and the bare benchmark is 0.6 % to 1.7 % slower. The bare corridor, a run of 25 ms, was 0.0 % in one session and +2.2 % in the other, above the 2 % of §8.5 once; its layout preparation adds about 0.07 ms. The corridor with subscribers is 1.9 % to 2.5 % slower across the three measurements. These differences, the bare corridor's +2.2 % in particular, are for Davide to judge under §8.5; they are not claimed to be below the limit. Davide accepted the recording cost on 2026-11-27 ("i accept the recording cost").
 
 ### Per task (not additive)
 
