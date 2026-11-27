@@ -1,3 +1,4 @@
+import { layoutLabel } from "./layout-label";
 import { inspectValue, clearInspection } from "./value-inspector";
 import { createDockview, themeLight, type DockviewApi } from "dockview";
 import uPlot from "uplot";
@@ -11,7 +12,8 @@ import {
   type TraceEvent,
 } from "@simulatte/trace";
 import { Session, Playback, type PreparedFrame, type Position } from "@simulatte/playback";
-import { Scene } from "@simulatte/scene";
+import { Scene, describe, overview, renderDetail } from "@simulatte/scene";
+import { createOverviewPanel, renderOverview, throttled } from "./overview-panel";
 export const format = (v: unknown): string =>
   JSON.stringify(
     v,
@@ -42,6 +44,9 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   return node;
 };
 import {LiveSession} from "./live-session";
+const LEGEND = "Dashed trails: transfer decoration";
+/** While playing, the Overview panel is rewritten at most this often (spec section 5.6). */
+const OVERVIEW_INTERVAL_MS = 250;
 export class Controller {
   playback: Playback | LiveSession | null = null;
   recording: RecordingView | null = null;
@@ -57,6 +62,11 @@ export class Controller {
   #entityPage = 0;
   #entities: HTMLDivElement;
   #fields: HTMLDivElement;
+  /** The readable detail of the selection, and the collapsed raw fields below it (spec section 5.7). */
+  #detail: HTMLDivElement;
+  #recorded: HTMLDetailsElement;
+  #inspection: HTMLDivElement;
+  #detailOn = false;
   #schema: HTMLDivElement;
   #schemaKey = "";
   #entityTitle: HTMLHeadingElement;
@@ -82,6 +92,10 @@ export class Controller {
   #frame: PreparedFrame | null = null;
   #retiredGeneration = 0;
   #retiredKey: string | null = null;
+  #overview: ReturnType<typeof createOverviewPanel>;
+  #legend: HTMLElement;
+  #overviewAt = -Infinity;
+  #overviewStatus = "";
   onInfo: ((name: string, info: string) => void) | null = null;
   onError: ((message: string) => void) | null = null;
   constructor(
@@ -93,12 +107,11 @@ export class Controller {
   ) {
     const scene = el("div", undefined, "scene-host");
     this.#panels.set("scene", scene);
-    const legend = el(
-      "small",
-      "Dashed trails: transfer decoration",
-      "scene-legend",
-    );
+    const legend = el("small", LEGEND, "scene-legend");
+    this.#legend = legend;
     scene.append(legend);
+    this.#overview = createOverviewPanel(() => this.refreshOverview());
+    this.#panels.set("overview", this.#overview.element);
     const inspector = el("div", undefined, "inspector panel-padding");
     this.#panels.set("inspector", inspector);
     const search = el("input");
@@ -112,6 +125,11 @@ export class Controller {
     this.#entities = el("div", undefined, "entities");
     this.#entityTitle = el("h3", "Select an entity");
     this.#fields = el("div");
+    this.#detail = el("div", undefined, "detail");
+    this.#recorded = el("details", undefined, "recorded");
+    this.#recorded.append(el("summary", "Recorded fields"));
+    this.#inspection = el("div", undefined, "inspection");
+    this.#inspection.append(this.#fields);
     const schema = el("details");
     schema.hidden = true;
     schema.append(el("summary", "Entity schema"));
@@ -133,7 +151,7 @@ export class Controller {
       prev,
       next,
       this.#entityTitle,
-      this.#fields,
+      this.#inspection,
       schema,
     );
     const history = el("div", undefined, "history panel-padding");
@@ -215,6 +233,20 @@ export class Controller {
         init: () => {},
       }),
     });
+    // The Overview is not computed while its tab is hidden (refreshOverview); it is written when it is shown again.
+    // Every panel object the dock creates for it (reset, restored layout) is followed.
+    const added = this.dock.onDidAddPanel((panel) => {
+      if (panel.id !== "overview") return;
+      const shown = panel.api.onDidVisibilityChange(({ isVisible }) => {
+        if (isVisible) this.refreshOverview();
+      });
+      const removed = this.dock.onDidRemovePanel((gone) => {
+        if (gone !== panel) return;
+        shown.dispose();
+        removed.dispose();
+      });
+    });
+    this.#clean.push(() => added.dispose());
     this.resetLayout();
     try {
       const saved = localStorage.getItem("simulatte-panel-layout-v1");
@@ -227,6 +259,7 @@ export class Controller {
           throw new Error("Unknown saved panel");
         this.dock.fromJSON(layout);
         if (!this.dock.getPanel("scene")) this.resetLayout();
+        else this.#addOverview();
       }
     } catch {
       this.resetLayout();
@@ -278,6 +311,20 @@ export class Controller {
       title: "Events",
       position: { referencePanel: "kpis", direction: "within" },
     });
+    this.#addOverview();
+  }
+  /** The Overview panel always exists (spec decision M27): beside the Inspector, which stays the active tab. */
+  #addOverview(): void {
+    if (this.dock.getPanel("overview")) return;
+    this.dock.addPanel({
+      id: "overview",
+      component: "overview",
+      title: "Overview",
+      position: this.dock.getPanel("inspector")
+        ? { referencePanel: "inspector", direction: "within" }
+        : { referencePanel: "scene", direction: "right" },
+      inactive: true,
+    });
   }
   present(enabled: boolean): void {
     const panel = this.dock.getPanel("scene");
@@ -301,6 +348,7 @@ export class Controller {
     this.scene = null;
     this.#frame = null;
     this.#selected = null;
+    this.#clearOverview();
     this.source = source;
     this.name = name;
     this.status.textContent = "Opening trace…";
@@ -321,12 +369,7 @@ export class Controller {
         scene.dispose();
         return;
       }
-      scene.onSelect = (id) => {
-        this.#selected = id;
-        scene.select(id);
-        clearInspection(this.#fields);
-        this.updateInspector();
-      };
+      scene.onSelect = (id) => this.select(id);
       scene.onError = (message) => this.onError?.(message);
       playback.subscribe((frame, status, error) => {
         if (generation !== this.#generation) return;
@@ -339,7 +382,7 @@ export class Controller {
       this.timeline.step = "any";
       this.onInfo?.(
         name,
-        `${recording.trace.level} trace · ${recording.trace.outcome ?? "incomplete"} · ${recording.trace.layout?.schema_version === "1.0" ? "recorded layout" : "viewer fallback layout"}${recording.trace.level === "kpi" ? " · KPI-only: no entity animation or event stepping" : ""}`,
+        `${recording.trace.level} trace · ${recording.trace.outcome ?? "incomplete"} · ${layoutLabel(recording.trace.layout)}${recording.trace.level === "kpi" ? " · KPI-only: no entity animation or event stepping" : ""}`,
       );
       await this.charts();
       this.#after = undefined;
@@ -404,13 +447,13 @@ export class Controller {
     this.#historyGeneration++; this.#retiredGeneration++; this.#chartGeneration++;
     this.playback?.dispose(); this.scene?.dispose();
     this.playback = live; this.recording = null; this.source = null;
-    this.#frame = null; this.#selected = null; this.#retiredKey = null;
+    this.#frame = null; this.#selected = null; this.#retiredKey = null; this.#clearOverview();
     this.name = name; this.#schemaKey = "";
     clearInspection(this.#fields); clearInspection(this.#details);
     const scene = new Scene(); this.scene = scene;
     await scene.init(this.#panels.get("scene")!);
     if (generation !== this.#generation) {scene.dispose(); return;}
-    scene.onSelect = id => {this.#selected = id; scene.select(id); clearInspection(this.#fields); this.updateInspector();};
+    scene.onSelect = id => this.select(id);
     scene.onError = message => this.onError?.(message);
     const changed = () => {
       if (generation !== this.#generation) return;
@@ -419,7 +462,7 @@ export class Controller {
         this.status.textContent = state.status;
         if (state.status === 'invalidated') {
           this.recording = null; this.#frame = null; this.playButton.disabled = true;
-          this.timeline.disabled = true; scene.dispose(); this.scene = null;
+          this.timeline.disabled = true; scene.dispose(); this.scene = null; this.#clearOverview();
           clearInspection(this.#fields); clearInspection(this.#details);
           this.#tiles.replaceChildren(); this.#charts.replaceChildren(); this.#history.replaceChildren();
         }
@@ -476,13 +519,86 @@ export class Controller {
     // Preserve the pressed text node across frames so WebKit delivers the click.
     if (this.playButton.textContent !== playLabel) this.playButton.textContent = playLabel;
     if (error) this.onError?.(String(error));
-    if (frame && frame !== this.#frame) {
+    const changed = !!frame && frame !== this.#frame;
+    if (frame && changed) {
       this.#frame = frame;
       scene.render(frame);
       this.time.textContent = `t = ${number(frame.time)}${frame.mode === "exact" ? " · seq " + frame.cursor?.[1] : frame.mode === "activation" ? " · activation" : ""}`;
       this.timeline.value = String(frame.time);
       this.updateInspector();
       this.updateKpis(frame);
+    }
+    // The panel follows the frame at 4 Hz while the status stays and is not paused (playing, or a live session that
+    // follows and reports buffering); it is flushed at once for a new frame while paused and when the status changes
+    // (`Playback.pause()` re-emits the same frame, so the frame test cannot see it).
+    const statusChanged = status !== this.#overviewStatus;
+    this.#overviewStatus = status;
+    if (statusChanged || changed) this.refreshOverview(throttled(status, statusChanged));
+    const legend = scene.map ? `${LEGEND}. Lane width is nominal.` : LEGEND;
+    if (this.#legend.textContent !== legend) this.#legend.textContent = legend;
+  }
+  /** The one place that sets the selection: the scene, the entity list and the Overview panel come here. */
+  select(id: string | null): void {
+    this.#selected = id;
+    this.scene?.select(id);
+    clearInspection(this.#fields);
+    this.updateInspector();
+    this.refreshOverview();
+  }
+  /**
+   * Rewrites the Overview panel and the selection's detail from the scene's map; `throttle` skips both within
+   * 250 ms of the last write. The panel is not computed while its tab is hidden: it is written when shown again.
+   */
+  refreshOverview(throttle = false): void {
+    const now = performance.now();
+    if (throttle && now - this.#overviewAt < OVERVIEW_INTERVAL_MS) return;
+    this.#overviewAt = now;
+    this.#refreshDetail();
+    if (!this.dock.getPanel("overview")?.api.isVisible) return;
+    const scene = this.scene,
+      map = scene?.map ?? null;
+    renderOverview(
+      this.#overview.body,
+      scene && map ? overview(map, this.#overview.options()) : null,
+      (id) => {
+        this.select(id);
+        scene?.focus(id);
+      },
+      this.#selected,
+    );
+  }
+  #clearOverview(): void {
+    this.#overviewAt = -Infinity;
+    this.#overviewStatus = "";
+    renderOverview(this.#overview.body, null, () => {}, null);
+    this.#showDetail(false);
+    // "Lane width is nominal." belongs to the trace that had a map
+    this.#legend.textContent = LEGEND;
+  }
+  /**
+   * The Inspector's readable detail of the selection, with the raw fields below it in a collapsed section. An entity
+   * the detail does not cover (or a trace without a map) keeps today's Inspector.
+   */
+  #refreshDetail(): void {
+    const map = this.scene?.map ?? null,
+      frame = this.#frame;
+    const lines = map && frame && this.#selected !== null ? describe(map, frame.state, this.#selected) : null;
+    if (lines)
+      renderDetail(this.#detail, lines, (id) => {
+        this.select(id);
+        this.scene?.focus(id);
+      });
+    this.#showDetail(lines !== null);
+  }
+  #showDetail(on: boolean): void {
+    if (on === this.#detailOn) return;
+    this.#detailOn = on;
+    if (on) {
+      this.#recorded.append(this.#fields);
+      this.#inspection.replaceChildren(this.#detail, this.#recorded);
+    } else {
+      this.#detail.replaceChildren();
+      this.#inspection.replaceChildren(this.#fields);
     }
   }
   get presentation(): LayoutBundle | null {
@@ -516,12 +632,7 @@ export class Controller {
       this.#entities.replaceChildren(
         ...visible.map((id) => {
           const b = el("button", id, id === this.#selected ? "selected" : "");
-          b.onclick = () => {
-            this.#selected = id;
-            this.scene?.select(id);
-            clearInspection(this.#fields);
-            this.updateInspector();
-          };
+          b.onclick = () => this.select(id);
           return b;
         }),
       );

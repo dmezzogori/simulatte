@@ -56,7 +56,7 @@ The library provides ready-to-use components for common manufacturing scenarios 
 ### Time-Series Analysis
 - Built-in collectors for WIP, throughput, job count, lateness
 - Matplotlib integration: `plot_wip()`, `plot_throughput()`, `plot_lateness()`
-- Window-aware KPIs (`ShopFloorKPIs`, `FleetKPIs`) with a configurable warm-up
+- Window-aware KPIs (`ShopFloorKPIs`, `FleetKPIs`, `TrafficKPIs`) with a configurable warm-up
 
 ### Reinforcement Learning Integration *(experimental)*
 - **Gymnasium wrapper** ([`SimulatteEnv`](https://simulatte.dev/tutorials/gymnasium-wrapper/)): subclass a single ABC to turn any simulation into a Gymnasium environment (`from simulatte.experimental.gymnasium import SimulatteEnv`)
@@ -67,9 +67,11 @@ The library provides ready-to-use components for common manufacturing scenarios 
 - **Warehouse** with per-SKU inventory, finite pick/put slots, input/output bays
 - **AGV fleet** with trapezoidal speed profiles, battery lifecycle, and charging stations
 - **FleetCoordinator** orchestrating dispatch, travel, pick, transit, deliver, reposition, and charge
+- Traffic control: free flow by default, or `ReservationController` with claims on nodes, lane segments, zones and corridors, deadlock detection and resolution, and vehicles that pass nodes at speed
+- Routers by distance (default), by travel time (`FastestRouter`) or by congestion (`CongestionAwareRouter`, a heuristic)
 - Pluggable policies: dispatch (`NearestIdleStrategy`, `RoundRobinStrategy`), repositioning, replenishment (`ReorderPointPolicy`), load recovery
-- Time-series metrics with `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`
-- Three progressive [examples](https://github.com/dmezzogori/simulatte/tree/main/examples): simple setup, manufacturing plant floor, multi-warehouse distribution hub
+- Time-series metrics with `plot_fleet_utilization()`, `plot_throughput()`, `plot_pending_orders()`, `plot_inventory()`, and traffic KPIs (`TrafficKPIs`)
+- Four progressive [examples](https://github.com/dmezzogori/simulatte/tree/main/examples): simple setup, manufacturing plant floor, multi-warehouse distribution hub, traffic control on a two-way corridor
 
 ### Events, Traces and Logging
 - Typed events with state deltas for every component (Server, ShopFloor, Router, Warehouse, AGV, traffic, charging), delivered on a per-environment event bus

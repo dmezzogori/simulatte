@@ -6,6 +6,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
+from functools import lru_cache
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -37,7 +38,12 @@ def normalize_rotation(value: float) -> float:
     return number(value, "rotation") % 360
 
 
+_SCALARS = frozenset({str, int, float, bool, type(None)})
+
+
 def _freeze(value: Any) -> Any:
+    if type(value) in _SCALARS:  # most leaves; spares the slower check against the Mapping ABC
+        return value
     if isinstance(value, Mapping):
         return MappingProxyType({key: _freeze(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):
@@ -73,6 +79,91 @@ def _reject_unset(value: Any) -> None:
 def _capacity(value: int | None) -> None:
     if value is not None and (type(value) is not int or not 0 < value <= MAX_SAFE_INT):
         raise LayoutError("capacity must be a positive safe integer")
+
+
+def _node_capacities(capacities: Mapping[str, int] | None, known: set[str]) -> Mapping[str, int]:
+    """The per-node capacities of an explicit graph, by node id: each node must exist and its capacity be valid."""
+    if capacities is None:
+        return {}
+    if not isinstance(capacities, Mapping) or not all(type(node_id) is str for node_id in capacities):
+        raise LayoutError("capacities must be a mapping from node id to capacity")
+    for node_id, value in capacities.items():
+        if node_id not in known:
+            raise LayoutError(f"capacities names {node_id!r}, which is not a node of the explicit graph")
+        if type(value) is not int or not 0 < value <= MAX_SAFE_INT:
+            raise LayoutError(f"capacities of node {node_id!r}: capacity must be a positive safe integer")
+    return capacities
+
+
+def _zone_members(
+    zones: Mapping[str, Any] | None, ids: set[str], arcs: set[tuple[str, str]]
+) -> Mapping[str, Any] | None:
+    """The zones of an explicit graph with node ids and id pairs turned into the addresses the schema has.
+
+    A ``str`` member is the node of that id. A pair of ids (a 2-tuple or 2-list of ``str``) is the segment between the
+    two nodes, as the pair of a controller ``Zone`` is, whichever way the arc runs: the address of ``a -> b`` when the
+    graph has that arc, else of ``b -> a``. Address mappings pass through, so the forms may be mixed.
+    """
+    if zones is None:
+        return zones
+    if isinstance(zones, (list, tuple)) and not zones:
+        return {}  # an empty sequence declares no zones, as an empty mapping does
+    if not isinstance(zones, Mapping) or not all(isinstance(zone, Mapping) for zone in zones.values()):
+        raise LayoutError(
+            "Explicit(zones=...) takes a mapping of zone id to a zone declaration, not Zone objects: for example "
+            "zones={'z': {'members': ['A', ('A', 'B')], 'capacity': 1}}, with node ids and pairs of ids as members"
+        )
+    from simulatte.intralogistics.graph import Node
+
+    converted = {}
+    for zone_id, zone in zones.items():
+        members = zone.get("members")
+        if not isinstance(members, (list, tuple)):
+            converted[zone_id] = zone
+            continue
+        found: list[Any] = []
+        for member in members:
+            if isinstance(member, str):
+                if member not in ids:
+                    raise LayoutError(f"zones/{zone_id}: member {member!r} is not a node of the explicit graph")
+                found.append({"kind": "explicit", "id": member})
+            elif isinstance(member, (list, tuple)) and len(member) == 2 and all(type(end) is str for end in member):
+                a, b = member
+                if (a, b) not in arcs and (b, a) not in arcs:
+                    raise LayoutError(f"zones/{zone_id}: member {tuple(member)!r} is not an arc of the explicit graph")
+                source, target = (a, b) if (a, b) in arcs else (b, a)
+                found.append({"kind": "explicit_arc", "source": source, "target": target})
+            elif isinstance(member, Node):
+                raise LayoutError(f"zones/{zone_id}: member {member!r} is a Node: write its id {member.id!r}")
+            elif isinstance(member, (list, tuple)) and len(member) == 2 and all(isinstance(e, Node) for e in member):
+                raise LayoutError(
+                    f"zones/{zone_id}: member {tuple(member)!r} is a pair of Node objects: write the pair of ids "
+                    f"{(member[0].id, member[1].id)!r}"
+                )
+            else:
+                found.append(member)
+        converted[zone_id] = {**zone, "members": found}
+    return converted
+
+
+def _passing(value: bool | None) -> None:
+    if value is not None and type(value) is not bool:
+        raise LayoutError("passing must be a bool")
+
+
+def _block_length(value: float | None) -> float | None:
+    return None if value is None else number(value, "block_length", positive=True)
+
+
+def _zones(value: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+    """Validated, frozen authored zones; every zone of a code declaration is complete."""
+    if value is None:
+        return None
+    zones = _definition(dict(value), "zones")
+    for zone_id, zone in zones.items():
+        if "members" not in zone:
+            raise LayoutError(f"zones/{zone_id}: complete code definition requires ['members']")
+    return zones
 
 
 @dataclass(frozen=True)
@@ -135,10 +226,12 @@ class Connector:
     enabled: bool = field(default=True, kw_only=True)
     direction: Direction = field(default="both", kw_only=True)
     speed_limit: float | None = field(default=None, kw_only=True)
+    passing: bool | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         if self.target is not None and not isinstance(self.target, NodeRef):
             raise LayoutError("connector target must be a NodeRef")
+        _passing(self.passing)
         object.__setattr__(self, "approach_margin", number(self.approach_margin, "approach_margin", positive=True))
         for name in ("max_distance", "speed_limit"):
             value = getattr(self, name)
@@ -173,9 +266,13 @@ class Lattice:
     enabled: bool = True
     direction: Direction = "both"
     speed_limit: float | None = None
+    passing: bool | None = None
+    block_length: float | None = None
+    zones: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         _capacity(self.capacity)
+        _passing(self.passing)
         data = {
             "type": "lattice",
             "bounds": list(self.bounds),
@@ -189,12 +286,20 @@ class Lattice:
             data["capacity"] = self.capacity
         if self.speed_limit is not None:
             data["speed_limit"] = self.speed_limit
+        if self.passing is not None:
+            data["passing"] = self.passing
+        if self.block_length is not None:
+            data["block_length"] = self.block_length
+        if self.zones is not None:
+            data["zones"] = dict(self.zones)
         _definition(data, "network")
         if self.bounds[0] > self.bounds[2] or self.bounds[1] > self.bounds[3]:
             raise LayoutError("lattice bounds must be ordered")
         object.__setattr__(self, "bounds", tuple(number(x, "bounds") for x in self.bounds))
         object.__setattr__(self, "clearance", number(self.clearance, "clearance", nonnegative=True))
         object.__setattr__(self, "blocked", _definition(dict(self.blocked), "blocked"))
+        object.__setattr__(self, "block_length", _block_length(self.block_length))
+        object.__setattr__(self, "zones", _zones(self.zones))
 
 
 @dataclass(frozen=True)
@@ -203,18 +308,24 @@ class Lanes:
     clearance: float = 0
     blocked: Mapping[str, Any] = field(default_factory=dict)
     capacity: int | None = None
+    block_length: float | None = None
+    zones: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "lanes", _definition(dict(self.lanes), "lanes"))
         object.__setattr__(self, "blocked", _definition(dict(self.blocked), "blocked"))
         object.__setattr__(self, "clearance", number(self.clearance, "clearance", nonnegative=True))
         _capacity(self.capacity)
+        object.__setattr__(self, "block_length", _block_length(self.block_length))
+        object.__setattr__(self, "zones", _zones(self.zones))
 
 
 @dataclass(frozen=True)
 class ExplicitNode:
     id: str
     position: Point
+    capacity: int | None = None
+    """The node's own capacity, which wins over the network's ``capacity``; ``None`` leaves the default."""
 
 
 @dataclass(frozen=True)
@@ -223,6 +334,9 @@ class ExplicitArc:
     target: str
     speed_limit: float | None = None
     enabled: bool = True
+    passing: bool | None = None
+    length: float | None = None
+    """The travelled length when it is not the chord of the endpoints; ``None`` leaves the chord."""
 
 
 @dataclass(frozen=True, init=False)
@@ -232,6 +346,8 @@ class Explicit:
     clearance: float
     blocked: Mapping[str, Any]
     capacity: int | None
+    block_length: float | None
+    zones: Mapping[str, Any] | None
 
     def __init__(
         self,
@@ -240,13 +356,19 @@ class Explicit:
         clearance: float = 0,
         blocked: Mapping[str, Any] | None = None,
         capacity: int | None = None,
+        capacities: Mapping[str, int] | None = None,
+        block_length: float | None = None,
+        zones: Mapping[str, Any] | None = None,
     ) -> None:
+        from simulatte.intralogistics.graph import chord_length
+
         nodes = tuple(graph.nodes)
         node_set = set(nodes)
         ids = [node.id for node in nodes]
         if len(set(ids)) != len(ids):
             raise LayoutError("explicit graph contains duplicate node ids")
-        definitions = tuple(ExplicitNode(node.id, Point(node.x, node.y)) for node in nodes)
+        own = _node_capacities(capacities, set(ids))
+        definitions = tuple(ExplicitNode(node.id, Point(node.x, node.y), own.get(node.id)) for node in nodes)
         positions = {node.id: node.position for node in definitions}
         for node in definitions:
             _definition({"id": node.id, "position": [node.position.x, node.position.y, 0]}, "explicitNode")
@@ -260,7 +382,14 @@ class Explicit:
                         f"explicit arc {source.id!r} -> {target.id!r} is zero-length after float64 normalization"
                     )
                 speed = None if arc.speed_limit is None else number(arc.speed_limit, "speed_limit", positive=True)
-                arcs.append(ExplicitArc(source.id, target.id, speed))
+                # An arc cannot tell whether its length was given, so it is recorded when it is not the chord, which
+                # the resolver would otherwise use (an exact comparison: it computes the chord the same way).
+                length = number(arc.length, "length", positive=True)
+                if length == chord_length(source.x, source.y, target.x, target.y):
+                    length = None
+                arcs.append(
+                    ExplicitArc(source.id, target.id, speed, passing=True if arc.passing else None, length=length)
+                )
         # Observable adjacency can contain sources absent from graph.nodes as well.
         if any(source not in node_set for source, edges in graph._adjacency.items() if edges):
             raise LayoutError("explicit graph contains a foreign endpoint")
@@ -270,6 +399,8 @@ class Explicit:
         object.__setattr__(self, "clearance", number(clearance, "clearance", nonnegative=True))
         object.__setattr__(self, "blocked", _definition(dict(blocked or {}), "blocked"))
         object.__setattr__(self, "capacity", capacity)
+        object.__setattr__(self, "block_length", _block_length(block_length))
+        object.__setattr__(self, "zones", _zones(_zone_members(zones, set(ids), {(a.source, a.target) for a in arcs})))
 
 
 @dataclass(frozen=True)
@@ -318,6 +449,7 @@ class PlacementDefaults:
     visual: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
 
 
+@lru_cache(maxsize=256)  # a pure function of its arguments, called once per target and per placement
 def placement_defaults(kind: str, *, explicitly_placed: bool = False) -> PlacementDefaults:
     if kind in ("shopfloor", "router", "fleet", "job", "order"):
         return PlacementDefaults(False, False, None)

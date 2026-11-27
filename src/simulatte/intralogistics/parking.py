@@ -34,27 +34,32 @@ class ParkingArea(Entity, kind="parking_area"):
     correct slot. Its id is ``name``.
 
     Events (spec §6.4): ``parking.entered`` when ``enter`` obtained a slot and ``parking.left`` when ``leave``
-    released it. ``FleetCoordinator`` does not call either.
+    released it. ``FleetCoordinator`` takes a slot at the decision to move an idle AGV to the node of an area and gives
+    it back when the AGV next departs from that node or when the move ends without arriving, which for a move that turns
+    to charge is when it turns, unless the charger is on the area's own node: there the AGV keeps the slot (it is given
+    back if the AGV does not get there) and rests parked after the charge (spec §7.10).
     """
 
-    state_schema: ClassVar[StateSchema] = StateSchema({"parked": FieldSpec("str", collection="list")})
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {"parked": FieldSpec("str", collection="list"), "capacity": FieldSpec("int")}
+    )
 
     def __init__(
         self,
         *,
         env: Environment,
         name: str,
-        node: Node | NodeRef | PortRef,
+        node: NodeRef | PortRef,
         capacity: int,
         label: str | None = None,
     ) -> None:
         self.env = env
         self.name = name
-        self._node, self._pending_node = node_input(env, node)
+        self._node, self._pending_node = node_input(env, node, component="ParkingArea", parameter="node")
         self._resource = simpy.Resource(env, capacity=capacity)
+        self._capacity = int(self._resource.capacity)  # the state's constant, read once (studio map spec §6.4)
         self._agv_requests: dict[AGV, simpy.resources.resource.Request] = {}
         self._pending_entries: dict[AGV, _PendingEntry] = {}
-        self._uses_explicit_graph = env.layout is None and True
         env.entities.attach(self, name=name, label=label)
 
     @property
@@ -66,12 +71,17 @@ class ParkingArea(Entity, kind="parking_area"):
 
     @node.setter
     def node(self, value: Node) -> None:
-        readonly(self.env, "node")
-        self._node = value
+        readonly("node")
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state: the ids of the parked AGVs, in order of arrival."""
-        return {"parked": [agv.id for agv in self._agv_requests], "label": self.label}
+        """Current entity state: the ids of the parked AGVs, in order of arrival, and the capacity, a constant written
+        once in the initial state (studio map spec §6.4), as read at construction."""
+        return {"parked": [agv.id for agv in self._agv_requests], "capacity": self._capacity, "label": self.label}
+
+    @property
+    def capacity(self) -> int:
+        """The number of parking slots."""
+        return int(self._resource.capacity)
 
     @property
     def available_capacity(self) -> int:
@@ -134,4 +144,5 @@ class ParkingArea(Entity, kind="parking_area"):
             )
 
     def __repr__(self) -> str:
-        return f"ParkingArea(name={self.name!r}, node={self.node.id!r}, capacity={self._resource.capacity})"
+        node = "unbound" if self._node is None else repr(self._node.id)  # unbound until the layout is prepared
+        return f"ParkingArea(name={self.name!r}, node={node}, capacity={self._resource.capacity})"

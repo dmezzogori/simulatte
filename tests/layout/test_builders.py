@@ -8,7 +8,9 @@ import pytest
 from simulatte import Environment, Layout
 from simulatte.intralogistics import Arc, FleetKPIs, LayoutGraph, Node, OrderStatus, build_simple_system
 from simulatte.intralogistics.events import AgvMoveEnded, AgvMoveStarted, OrderStatusChanged
-from simulatte.intralogistics.traffic import FreeTrafficManager
+from simulatte.intralogistics.events import TrafficReserved
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.layout import Connector, Explicit, Footprint, GraphRef, LayoutError, LayoutNotReady, Point, Port
 
 ROLES = ("WH_A_OUT", "N1", "N2", "N3", "WH_B_IN")
@@ -46,7 +48,27 @@ def test_layout_builder_defers_binding_and_preserves_five_tuple(explicit):
     assert destination.input_bays == (resolved["WH_B_IN"],)
     assert agvs[0].current_node is fleet.parking_areas[0].node is resolved["N1"]
     assert fleet.charging_stations[0].node is resolved["N2"]
-    assert isinstance(fleet._traffic_manager, FreeTrafficManager)
+    assert isinstance(fleet.traffic_controller, FreeFlowController)
+
+
+def test_layout_builder_with_a_reservation_controller():
+    """``build_simple_system`` passes the controller and the vehicle length on; the controller binds the layout's
+    graph and the order completes through claims."""
+    env = Environment()
+    layout = Layout(env)
+    controller = ReservationController(env=env, graph=layout.graph())
+    fleet, agvs, origin, destination, _ = build_simple_system(
+        env, n_agvs=1, traffic_controller=controller, agv_length=1.0
+    )
+    reserved: list[TrafficReserved] = []
+    env.bus.subscribe(reserved.append, (TrafficReserved,))
+    order = fleet.create_order(sku=next(iter(origin.inventory)), quantity=1, origin=origin, destination=destination)
+    fleet.submit(order)
+    env.run()
+    assert fleet.traffic_controller is controller and controller.graph is fleet.graph
+    assert order.status is OrderStatus.COMPLETED
+    assert reserved and reserved[0].resources == ("N1",)
+    assert controller.view.holders(agvs[0].current_node) == (agvs[0],)
 
 
 @pytest.mark.parametrize("union", [False, True])
@@ -102,7 +124,7 @@ def test_mapping_without_network_and_foreign_layout_fail_before_attachment():
         build_simple_system(env, nodes=roles(layout))
     with pytest.raises(LayoutError, match="environment"):
         build_simple_system(Environment(), layout=layout)
-    with pytest.raises(LayoutError, match="layout"):
+    with pytest.raises(LayoutError, match="already declared network"):  # the fresh environment's own layout has none
         build_simple_system(Environment(), nodes=roles(layout))
     assert not list(env.entities.live())
 
@@ -191,11 +213,9 @@ def test_plain_bay_inside_warehouse_obstacle_has_no_owner_exemption():
     assert "connector" in (build_simple_system.__doc__ or "")
 
 
-def transport(layout_mode):
+def transport():
     with Environment(seed=17, debug=True) as env:
         env.enable_digest()
-        if layout_mode:
-            Layout(env)
         fleet, _, origin, destination, _ = build_simple_system(env, prefix="line.")
         kpis = FleetKPIs(fleet).attach(env)
         trajectory = []
@@ -209,8 +229,7 @@ def transport(layout_mode):
             orders.append(order)
         env.run(until=120)
         assert all(order.status is OrderStatus.COMPLETED for order in orders)
-        # Prelude attachment counts differ because node binding is deferred; event
-        # sequence numbers are envelopes, not transport trajectories.
+        # Event sequence numbers are envelopes, not transport trajectories.
         observed = [
             (
                 type(event),
@@ -225,8 +244,24 @@ def transport(layout_mode):
         return env.fingerprint(), kpis.scalars(), observed, env.entities.snapshot(), env.initial_state
 
 
-def test_prefixed_explicit_and_layout_trajectories_and_kpis_match():
-    assert transport(False) == transport(True)
+def test_prefixed_trajectories_and_kpis_reproduce_the_run_both_modes_agreed_on():
+    """The fingerprint and KPIs pinned at the last commit with explicit mode (e4afae4), where the same prefixed system
+    built with concrete objects gave the same fingerprint, KPIs, trajectory and states; and the run is deterministic.
+    The fingerprint is pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), then for the
+    capacities and the traffic counters (§6.4, §6.6), each time the only change to the run's projection."""
+    fingerprint, kpis, *_ = outcome = transport()
+    assert fingerprint.digest == "344a89efe685f1e1beb9146e7a1f8aa2136f83b212f2250ddc680a96198b7a1e"
+    assert kpis == {
+        "line.fleet/dispatch_delay": 10.488157894736842,
+        "line.fleet/fulfillment_time": 40.383891547049444,
+        "line.fleet/late_fraction": 0.0,
+        "line.fleet/pending_orders": 0.34960526315789475,
+        "line.fleet/throughput": 0.03333333333333333,
+        "line.fleet/travel_time_empty": 10.791666666666666,
+        "line.fleet/travel_time_loaded": 19.104066985645936,
+        "line.fleet/utilization": 0.4982622275385433,
+    }
+    assert transport() == outcome
 
 
 @pytest.mark.parametrize("path", ["type", "network"])

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 import simulatte
 from simulatte.environment import Environment
@@ -52,9 +53,29 @@ def test_component_classes_stay_in_their_modules() -> None:
 
 
 def test_importing_a_submodule_first_does_not_cycle() -> None:
-    for module in ("simulatte.server", "simulatte.intralogistics", "simulatte.trace", "simulatte.logsinks"):
+    import simulatte.intralogistics
+
+    # The intralogistics package imports its names on first use: each of its modules is imported first, then every
+    # name of the package is read, in a fresh interpreter.
+    folder = Path(simulatte.intralogistics.__file__).parent
+    intralogistics = [
+        f"simulatte.intralogistics.{path.stem}" for path in sorted(folder.glob("*.py")) if path.stem != "__init__"
+    ]
+    assert len(intralogistics) > 20
+    read = "import simulatte.intralogistics as p; [getattr(p, name) for name in p.__all__]"
+    for module in (
+        "simulatte.server",
+        "simulatte.intralogistics",
+        "simulatte.trace",
+        "simulatte.logsinks",
+        *intralogistics,
+    ):
         result = subprocess.run(
-            [sys.executable, "-c", f"import {module}"], capture_output=True, text=True, check=False, timeout=120
+            [sys.executable, "-c", f"import {module}; {read}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
         )
         assert result.returncode == 0, result.stderr
 
@@ -89,5 +110,58 @@ def test_layout_is_lazy_but_discoverable() -> None:
         capture_output=True,
         text=True,
         timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_layout_without_a_network_imports_no_fleet_traffic_or_agv_module() -> None:
+    """Spec §9: preparing, running and reading the layout of a production model leaves these modules unloaded."""
+    absent = (
+        "simulatte.intralogistics.fleet",
+        "simulatte.intralogistics.traffic",
+        "simulatte.intralogistics.reservation",
+        "simulatte.intralogistics.agv",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from simulatte import Environment, Layout; "
+            "from simulatte.builders import build_immediate_release_system; "
+            "env = Environment(seed=1); layout = Layout(env); build_immediate_release_system(env=env); "
+            "result = layout.prepare(); env.run(until=50); assert result.bundle['network'] is None; "
+            "assert env.manifest().requested['layout'] == result.bundle.manifest(); "
+            f"loaded = [name for name in {absent!r} if name in sys.modules]; "
+            "assert not loaded, loaded",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_intralogistics_names_are_imported_on_first_use() -> None:
+    import importlib
+
+    import simulatte.intralogistics as intralogistics
+
+    assert set(intralogistics.__all__) <= set(dir(intralogistics))
+    for name in intralogistics.__all__:
+        module = importlib.import_module(f"simulatte.intralogistics.{intralogistics._MODULES[name]}")
+        assert getattr(intralogistics, name) is getattr(module, name), name
+    assert not hasattr(intralogistics, "Missing")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from simulatte.intralogistics.graph import LayoutGraph; "
+            "assert 'simulatte.intralogistics.fleet' not in sys.modules; "
+            "from simulatte.intralogistics import FleetCoordinator; "
+            "from simulatte.intralogistics.fleet import FleetCoordinator as Fleet; assert FleetCoordinator is Fleet",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     assert result.returncode == 0, result.stderr

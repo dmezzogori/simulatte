@@ -52,13 +52,14 @@ Covers job-shop simulation with release control and dispatching:
 
 Covers the `simulatte.intralogistics` subpackage:
 
-- **Layout design** — constructing warehouse graphs with nodes, arcs, and pathfinding; avoiding common topology traps (one-way dead ends, placement deadlocks)
+- **Layout design** — constructing warehouse graphs with nodes and arcs (lengths, speed limits, passing lanes); avoiding common topology traps (one-way dead ends, placement deadlocks, single lanes without passing places)
+- **Traffic control and routing** — `FreeFlowController` versus `ReservationController`, vehicle length, zones, deadlocks and stuck waits, `TrafficKPIs`; `ShortestDistanceRouter`, `FastestRouter` and `CongestionAwareRouter`
 - **Fleet configuration** — AGV types, trapezoidal speed profiles, battery lifecycle, capacity constraints, managed time parameters (numbers and distributions) versus opaque callables
 - **FleetCoordinator wiring** — the 10-step manual composition sequence for custom systems
-- **Policies** — dispatch strategies (NearestIdle, RoundRobin), repositioning, replenishment (ReorderPointPolicy), and load recovery
+- **Policies** — dispatch strategies (NearestIdle, RoundRobin) and the `DispatchContext` they receive, repositioning, replenishment (ReorderPointPolicy), and load recovery
 - **Battery management** — depletion sanity checks, charging stations, automatic vs custom charging behavior
 - **Capacity checks** — weight AND volume validation for orders and replenishment quantities
-- **Metrics and plots** — `OrderEMACollector`, `FleetTimeSeries` and `FleetKPIs` collectors on the event bus, fleet utilization / throughput / inventory plots
+- **Metrics and plots** — `OrderEMACollector`, `FleetTimeSeries`, `FleetKPIs` and `TrafficKPIs` collectors on the event bus, fleet utilization / throughput / inventory plots
 - **Tracking and debugging** — order-to-AGV mapping, diagnosing silent dispatch failures
 - **Common pitfalls** — 7 specific failure modes discovered during development, with fixes
 

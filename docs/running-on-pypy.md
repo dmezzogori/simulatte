@@ -38,7 +38,7 @@ install `simulatte[rl]` (or `simulatte[all]` for both).
 | Capability | PyPy 3.11 |
 |---|---|
 | Simulation engine + all release/dispatching policies | ✅ fully supported |
-| Intralogistics (AGV fleet, warehouse, graph/pathfinding) | ✅ fully supported |
+| Intralogistics (AGV fleet, warehouse, graph, routing, traffic control) | ✅ fully supported |
 | Text / JSON logging | ✅ supported |
 | Trace recording and reading (`TraceRecorder`, `Trace`) | ✅ supported |
 | SQLite logging (`Environment(log_db_path=…)`) | ✅ supported |

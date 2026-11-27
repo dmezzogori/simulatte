@@ -15,10 +15,11 @@ the interpreter that runs them, so each version is installed in its own virtual 
 | `feeder.py` | Builds a 10-server LumsCor job shop with constructors present in both versions and replays a workload through `PreShopPool.add`, without the router and without any random draw. Checks the job and operation counts and fingerprints the trajectory. |
 | `run.py` | Times one mode (`none`, `default`, `default_logging`, `bare`, `kpi`, `digest`, `full`) on a workload: warm-up runs, timed runs, optionally in several fresh processes; peak memory in a separate process; in modes `kpi` and `full` the trace size, in mode `full` also the chunk count and cold-seek latency. Writes JSON. |
 | `intralogistics.py` | Branch-only workload: `examples/intralogistics_advanced.py` scaled up (20 AGVs, an outbound order every 30 to 60 time units, 20 shifts of 28,800 time units: about 22,000 orders). Same modes and JSON as `run.py`; every mode is reported as a ratio to the branch's own `none`. |
-| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise` (`--budget` has no default and is required for such a pair), 2 when the results are not comparable. The Limit column shows the sum and its parts. |
+| `compare.py` | Compares two results; exits 1 when both are mode `none` and the median overhead exceeds `--budget + --noise` (`--budget` has no default and is required for such a pair), 2 when the results are not comparable (`--allow-different-trajectory` accepts different counts and hashes, reported only). The Limit column shows the sum and its parts. |
 | `bench_sampling.py` | Router-only workload: a `Scenario.pure_job_shop` router generates a fixed number of jobs into a counting sink (no processing); reports jobs and sampler calls per second. |
 | `summarize.py` | Markdown tables of results (time, peak memory, trace, seeks, sampling) and of their provenance (commit, logging level, hardware). |
 | `strip_debug.py` | Writes a copy of an installed 0.12.0 without its `env.debug(...)` calls, to isolate what SP1 added on the unobserved path; the CI gate's second baseline (D55). |
+| `layout_safety.py` | The randomized safety check of layout-built traffic models (spec §8.4): worlds of `tests/intralogistics/random_worlds.py` by seed range, both traffic controllers and the three routers, `env.run()` without `until`, under the traffic monitor; exits 1 on a violation, an exception or a run that does not return within its wall-clock limit (POSIX only). Not part of CI. |
 | `workloads/` | The committed CI-size workloads. |
 
 ## Workloads
@@ -97,8 +98,8 @@ settle at speeds up to about 10 % apart, which is why the gate pools three proce
   finish time in completion order) must be equal, and `compare.py` refuses results that differ.
 - **Peak memory** is the peak RSS (`ru_maxrss`) of a separate process that loads the workload and runs it once;
   `rss_before_mb` is the peak before the run.
-- **Intralogistics** (`intralogistics.py`): the layout, SKUs, warehouses, AGV type and strategies of the advanced
-  example, with more AGVs, a shorter order interval and a longer horizon. The run is seeded, so every mode does the
+- **Intralogistics** (`intralogistics.py`): the layout (declared on `env.layout`), SKUs, warehouses, AGV type and
+  strategies of the advanced example, with more AGVs, a shorter order interval and a longer horizon. The run is seeded, so every mode does the
   same work (the order count, statuses and a fingerprint of the order trajectory are compared by `compare.py`).
   There is no 0.12.0 side: its intralogistics API differs, so no equivalent-work feeder exists. In `none` the
   coordinator has no `OrderEMACollector` (`default_metrics=False`); `default` keeps it; `kpi` adds a `FleetKPIs`
@@ -126,7 +127,7 @@ python strip_debug.py /tmp/base/lib/python3.14/site-packages/simulatte /tmp/stri
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python -c 'import simulatte; print(simulatte.__file__)'   # must be under /tmp/stripped
 PYTHONPATH=/tmp/stripped /tmp/base/bin/python run.py --mode none --workload $W --warmup 1 --repeat 5 --processes 3 \
     --label "0.12.0 without env.debug calls" --json /tmp/nolog.json
-python compare.py /tmp/nolog.json /tmp/head.json --budget 0.065 --noise 0.02   # PyPy: --budget 0.03 --noise 0.07
+python compare.py /tmp/nolog.json /tmp/head.json --budget 0.105 --noise 0.02   # PyPy: --budget 0.03 --noise 0.07
 ```
 
 ## CI
@@ -141,9 +142,9 @@ and are reported against each baseline without a budget. The budgets are job-lev
 | Baseline | Budget | Noise, CPython | Noise, PyPy | Limit, CPython | Limit, PyPy |
 |---|---|---|---|---|---|
 | Released 0.12.0 (the user-facing promise) | 3 % | 2 % | 7 % | 5 % | 10 % |
-| 0.12.0 without `env.debug` calls | 6.5 % on CPython, 3 % on PyPy (after tuning, G3 report §9) | 2 % | 7 % | 8.5 % | 10 % |
+| 0.12.0 without `env.debug` calls | 10.5 % on CPython (D106; 6.5 % after the tuning of G3 report §9 until 2026-11-24), 3 % on PyPy | 2 % | 7 % | 12.5 % | 10 % |
 
-These are the runner-calibrated bands already used by CI after #55; this table does not change the gate.
+The noise bands are the runner-calibrated ones used by CI after #55. The CPython budget against the stripped copy is the pooled worst-case overhead measured over ten interleaved rounds (8.45 %) plus 2.0 points of headroom, the rule of G3 report §9 (decision D106 in `specs/studio-decisions.md`).
 The [0.13 release-check report](../specs/research/2026-10-10-013-release-checks.md) records the main-run
 margins and the accepted PyPy 8.0.0 recording limitation tracked in
 [issue #59](https://github.com/dmezzogori/simulatte/issues/59).
@@ -185,7 +186,10 @@ calibration across multiple runner batches. The pre-0.13 results and limitations
 `intralogistics.py` now also runs the common `none`, `default`, and `default_logging` modes on 0.12.0 through
 an API/RNG compatibility shim. It verifies both the input request hash and a lifecycle trajectory hash with
 UUIDs normalized to submission order. Use `compare.py --report-only` for these comparisons; they have no
-accepted overhead budget. The legacy version's required no-op collector callback remains part of its timing.
+accepted overhead budget. Since the AGV traffic release the branch's trajectory differs from 0.12.0's (see
+[`intralogistics-baseline.md`](intralogistics-baseline.md)), so these pairs also need
+`--allow-different-trajectory`: the row is reported with the verdict `info, trajectories differ` instead of being
+rejected with status 2. The legacy version's required no-op collector callback remains part of its timing.
 
 ## Studio local execution (SP4)
 

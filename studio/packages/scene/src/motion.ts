@@ -99,6 +99,70 @@ export function motionProgress(value: unknown, time: number): MotionProgress {
     }
     return out(1);
   }
+  if (d["curve"] === "piecewise") {
+    const v0 = d["v0"],
+      phases = d["phases"],
+      distance = d["distance"];
+    if (
+      typeof v0 !== "number" ||
+      !Number.isFinite(v0) ||
+      v0 < -1e-9 ||
+      typeof distance !== "number" ||
+      !Number.isFinite(distance) ||
+      distance <= 0 ||
+      !Array.isArray(phases) ||
+      phases.length === 0
+    )
+      return fallback();
+    const parsed: [number, number][] = [];
+    for (const p of phases) {
+      if (
+        !Array.isArray(p) ||
+        p.length !== 2 ||
+        typeof p[0] !== "number" ||
+        typeof p[1] !== "number" ||
+        !Number.isFinite(p[0]) ||
+        !Number.isFinite(p[1]) ||
+        p[0] <= 0
+      )
+        return fallback();
+      parsed.push([p[0], p[1]]);
+    }
+    const tolerance = Math.max(
+      1e-12,
+      8 *
+        Math.pow(
+          2,
+          Math.floor(
+            Math.log2(
+              Math.max(Math.abs(start), Math.abs(end), Number.MIN_VALUE),
+            ),
+          ) - 52,
+        ),
+    );
+    if (
+      Math.abs(parsed.reduce((sum, p) => sum + p[0], 0) - (end - start)) >
+      tolerance
+    )
+      return fallback();
+    let covered = 0,
+      speed = v0,
+      remaining = elapsed,
+      position: number | null = null;
+    for (const [length, accel] of parsed) {
+      if (position === null && remaining <= length)
+        position =
+          covered + speed * remaining + (accel * remaining * remaining) / 2;
+      covered += speed * length + (accel * length * length) / 2;
+      speed += accel * length;
+      if (speed < -1e-9) return fallback();
+      speed = Math.max(0, speed);
+      remaining -= length;
+    }
+    if (Math.abs(covered - distance) > Math.max(1e-9, 1e-9 * distance))
+      return fallback();
+    return out(clamp((position ?? covered) / distance));
+  }
   if (d["curve"] === "trapezoidal") {
     const speed = d["v_max"],
       accel = d["accel"],
@@ -147,4 +211,57 @@ export function motionProgress(value: unknown, time: number): MotionProgress {
     return out(clamp(travelled / distance));
   }
   return fallback();
+}
+
+/**
+ * Speed in metres per second at `time`, evaluated from recorded data only. Null when the motion has no
+ * distance or phases to evaluate, and wherever `motionProgress` would fall back to an approximation.
+ */
+export function motionSpeed(value: unknown, time: number): number | null {
+  if (motionProgress(value, time).approximate || !Number.isFinite(time)) return null;
+  const m = map(value),
+    start = m["t_start"],
+    end = m["t_end"],
+    d = map(m["description"]);
+  if (
+    typeof start !== "number" ||
+    typeof end !== "number" ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    !(end > start)
+  )
+    return null;
+  const distance = d["distance"];
+  if (d["curve"] === "linear" || d["curve"] === "constant")
+    return typeof distance === "number" && Number.isFinite(distance) && distance > 0
+      ? distance / (end - start)
+      : null;
+  if (d["curve"] === "trapezoidal") {
+    // motionProgress accepted the description: the same quantities as there.
+    const top = d["v_max"] as number,
+      accel = d["accel"] as number,
+      decel = d["decel"] as number,
+      length = d["distance"] as number;
+    if (length === 0) return null;
+    const peak = Math.min(top, Math.sqrt((2 * length * accel * decel) / (accel + decel)));
+    const ta = peak / accel,
+      td = peak / decel,
+      tc = Math.max(0, (length - (peak * ta) / 2 - (peak * td) / 2) / peak),
+      elapsed = Math.max(0, Math.min(end - start, time - start));
+    return elapsed < ta
+      ? accel * elapsed
+      : elapsed < ta + tc
+        ? peak
+        : Math.max(0, decel * (ta + tc + td - elapsed));
+  }
+  if (d["curve"] !== "piecewise") return null;
+  // motionProgress accepted the description, so v0 and the phases are well formed.
+  let speed = d["v0"] as number,
+    remaining = Math.max(0, Math.min(end - start, time - start));
+  for (const [length, accel] of d["phases"] as [number, number][]) {
+    if (remaining <= length) return Math.max(0, speed + accel * remaining);
+    speed = Math.max(0, speed + accel * length);
+    remaining -= length;
+  }
+  return speed;
 }

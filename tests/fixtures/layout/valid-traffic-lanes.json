@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.1",
+  "network": {
+    "type": "lanes",
+    "capacity": 2,
+    "block_length": 4,
+    "lanes": {
+      "main": {
+        "vertices": [
+          {
+            "id": "a",
+            "position": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "b",
+            "position": [
+              10,
+              0,
+              0
+            ]
+          },
+          {
+            "id": "c",
+            "position": [
+              20,
+              0,
+              0
+            ]
+          }
+        ],
+        "passing": true,
+        "direction": "both"
+      }
+    },
+    "zones": {
+      "gate": {
+        "capacity": 1,
+        "hold_back": true,
+        "members": [
+          {
+            "kind": "lane_vertex",
+            "lane": "main",
+            "vertex": "b"
+          },
+          {
+            "kind": "lane_segment",
+            "lane": "main",
+            "source": "b",
+            "target": "c"
+          }
+        ]
+      },
+      "all": {
+        "members": [
+          {
+            "kind": "lane",
+            "id": "main"
+          }
+        ]
+      }
+    }
+  },
+  "overrides": [
+    {
+      "id": "slow",
+      "target": {
+        "kind": "lane",
+        "id": "main"
+      },
+      "properties": {
+        "passing": {
+          "$unset": true
+        },
+        "speed_limit": 1
+      }
+    }
+  ]
+}

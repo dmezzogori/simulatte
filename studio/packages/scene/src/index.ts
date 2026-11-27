@@ -10,8 +10,53 @@ import {
   type Projection,
   type Point,
 } from "./project";
+import { detailAt, type MapModel } from "./map/model";
+import { drawFloor, drawGrid } from "./draw/floor";
+import { drawNode, NODE_PX } from "./draw/node";
+import { PALETTE } from "./draw/palette";
+import { SCALE_BAR_TEXT, drawScaleBar } from "./draw/scale-bar";
+import { BADGE_PX, drawBayLines, drawFacility, facilityBox, facilityLabels } from "./draw/facility";
+import { LABEL, clipLabel, drawVehicle, ringPx, vehicleFrame, vehicleText } from "./draw/vehicle";
+import { onMap, pickMap } from "./draw/pick";
+import { drawHeld, drawWaitLine } from "./draw/traffic";
+import {
+  OUTLINE_REACH_PX,
+  drawOverlay,
+  drawRouteAhead,
+  outlineBays,
+  outlineFacility,
+  outlinedBox,
+  type OverlayContext,
+} from "./draw/overlay";
+import { focusPoint, overlayFor, strongHolds } from "./map/overlay";
 export { Projector, equipment, type Projection, type Glyph } from "./project";
-export { motionProgress } from "./motion";
+export { motionProgress, motionSpeed } from "./motion";
+export {
+  detailAt,
+  SYMBOL_PX,
+  type Detail,
+  type FacilityItem,
+  type MapModel,
+  type OrderItem,
+  type Route,
+  type Shown,
+  type TrafficSummary,
+  type VehicleItem,
+  type Wait,
+  type WaitLine,
+} from "./map/model";
+export { overlayFor, type Overlay } from "./map/overlay";
+export {
+  overview,
+  type Overview,
+  type OverviewGroup,
+  type OverviewLine,
+  type OverviewOptions,
+} from "./map/overview";
+export { describe, type DetailLine } from "./map/describe";
+export { renderDetail } from "./map/detail-view";
+export { scaleBar } from "./draw/scale-bar";
+export { PALETTE } from "./draw/palette";
 export interface Camera {
   x: number;
   y: number;
@@ -25,6 +70,9 @@ export type TrustedRenderer = (
 export interface EditorPointer {
   phase: 'start' | 'move' | 'end' | 'cancel'; point: Point; id: string | null; shift: boolean;
 }
+const FACILITIES = new Set(["warehouse", "parking_area", "charging_station"]);
+/** Pixels kept around the map when it is fitted: a facility symbol moved clear of its bay, with its name. */
+const FIT_MARGIN_PX = 64;
 // Viewer, editor and export scenes can coexist. Pixi's boolean destroy(true)
 // also clears global pools; only the last scene may release shared resources.
 let liveScenes = 0;
@@ -44,6 +92,16 @@ export class Scene {
   readonly #world = new Container();
   readonly #graphics = new Graphics();
   readonly #background = new Graphics();
+  /** Screen space, above the world: the scale bar. */
+  readonly #scaleBar = new Container();
+  readonly #scaleBarGraphics = new Graphics();
+  #scaleBarText: Text | null = null;
+  /** World space, above the scale bar: the decorative trails of a map. */
+  readonly #front = new Graphics();
+  /** The projection comes from a frame with a layout: the scale bar is drawn. */
+  #layout = false;
+  /** False hides every text: labels, node ids and the length of the scale bar. */
+  labels = true;
   readonly #transfers = new TransferTrails();
   #trails: readonly TransferTrail[] = [];
   #transferClock = 0;
@@ -76,6 +134,10 @@ export class Scene {
   #cleanup: (() => void)[] = [];
   onSelect: ((id: string | null) => void) | null = null;
   onEditorPointer: ((event: EditorPointer) => boolean) | null = null;
+  /** The map of the last projection; null without a layout or a network. */
+  get map(): MapModel | null {
+    return this.#projection?.map ?? null;
+  }
   screenToWorld(x: number, y: number): Point {
     return {x: (x - this.#camera.x) / this.#camera.scale, y: -(y - this.#camera.y) / this.#camera.scale};
   }
@@ -84,6 +146,7 @@ export class Scene {
     if (this.#disposed) return;
     const first = this.#projection === null;
     this.#projection = projection;
+    this.#layout = false;
     if (first) this.fit(); else this.draw();
   }
   onError: ((message: string) => void) | null = null;
@@ -110,7 +173,7 @@ export class Scene {
     await this.app.init({
       width: width ?? host.clientWidth,
       height: height ?? host.clientHeight,
-      background: 0xf4f5f0,
+      background: PALETTE.background,
       antialias: true,
       autoStart: false,
       sharedTicker: false,
@@ -122,7 +185,8 @@ export class Scene {
       this.app.destroy({removeView: true, releaseGlobalResources: liveScenes === 0}, { children: true, texture: true });
       return;
     }
-    this.app.stage.addChild(this.#world);
+    this.app.stage.addChild(this.#world, this.#scaleBar, this.#front);
+    this.#scaleBar.addChild(this.#scaleBarGraphics);
     this.#world.addChild(this.#background, this.#graphics, this.#labels);
     host.append(this.canvas);
     this.canvas.setAttribute(
@@ -238,6 +302,7 @@ export class Scene {
       this.#projector = new Projector(frame.initialState ?? frame.state);
     const first = !this.#projection;
     this.#projection = this.#projector.project(frame);
+    this.#layout = !this.#projection.fallback;
     if (options.transferClock === undefined) this.setPlaying(this.#playing);
     if (options.resetTransfers) this.resetTransfers();
     this.#transferClock = options.transferClock ?? this.#activeWall;
@@ -260,8 +325,9 @@ export class Scene {
     this.draw();
   }
   fit(): void {
-    const glyphs = this.#projection?.glyphs.filter((g) => !g.unplaced);
-    if (!glyphs?.length) return;
+    const map = this.#projection?.map ?? null;
+    const glyphs = this.#projection?.glyphs.filter((g) => !g.unplaced && (!map || this.#onMap(g)));
+    if (!glyphs || (!glyphs.length && !map?.strips.length)) return;
     let minX = Infinity,
       maxX = -Infinity,
       minY = Infinity,
@@ -273,11 +339,26 @@ export class Scene {
       minY = Math.min(minY, glyph.y - radius);
       maxY = Math.max(maxY, glyph.y + radius);
     }
-    const scale = Math.min(
-      this.app.screen.width / (maxX - minX + 4),
-      this.app.screen.height / (maxY - minY + 4),
-      120,
-    );
+    if (map)
+      for (const strip of map.strips)
+        for (const end of [strip.a, strip.b]) {
+          minX = Math.min(minX, end.x - strip.width / 2);
+          maxX = Math.max(maxX, end.x + strip.width / 2);
+          minY = Math.min(minY, end.y - strip.width / 2);
+          maxY = Math.max(maxY, end.y + strip.width / 2);
+        }
+    // On a map, symbols and their texts are a fixed number of pixels: the margin is in pixels.
+    const scale = map
+      ? Math.min(
+          Math.max(this.app.screen.width - 2 * FIT_MARGIN_PX, 1) / (maxX - minX + 1),
+          Math.max(this.app.screen.height - 2 * FIT_MARGIN_PX, 1) / (maxY - minY + 1),
+          120,
+        )
+      : Math.min(
+          this.app.screen.width / (maxX - minX + 4),
+          this.app.screen.height / (maxY - minY + 4),
+          120,
+        );
     this.#camera = {
       x: this.app.screen.width / 2 - ((minX + maxX) / 2) * scale,
       y: this.app.screen.height / 2 + ((minY + maxY) / 2) * scale,
@@ -285,12 +366,14 @@ export class Scene {
     };
     this.draw();
   }
+  /** Centres on an element; on a map, an order is centred on its vehicle, else on its origin facility. */
   focus(id: string): void {
-    const glyph = this.#projection?.glyphs.find((g) => g.id === id);
-    if (glyph) {
-      this.#camera.x = this.app.screen.width / 2 - glyph.x * this.#camera.scale;
+    const map = this.#projection?.map ?? null;
+    const point = (map && focusPoint(map, id, this.#camera.scale)) ?? this.#projection?.glyphs.find((g) => g.id === id);
+    if (point) {
+      this.#camera.x = this.app.screen.width / 2 - point.x * this.#camera.scale;
       this.#camera.y =
-        this.app.screen.height / 2 + glyph.y * this.#camera.scale;
+        this.app.screen.height / 2 + point.y * this.#camera.scale;
       this.draw();
     }
   }
@@ -315,6 +398,9 @@ export class Scene {
   }
   private pick(x: number, y: number): string | null {
     const point = this.screenToWorld(x, y);
+    const map = this.#projection?.map;
+    if (map)
+      return pickMap(map, this.#projection!.glyphs, this.#camera, x, y, (kind) => this.#renderers.has(kind));
     for (const g of [...(this.#projection?.glyphs ?? [])].reverse()) {
       const dx = point.x - g.x,
         dy = point.y - g.y,
@@ -334,6 +420,15 @@ export class Scene {
     const { x, y, scale } = this.#camera;
     this.#world.position.set(x, y);
     this.#world.scale.set(scale, -scale);
+    this.#labels.visible = this.labels;
+    this.#front.clear();
+    this.#drawScaleBar(scale);
+    const map = this.#projection.map;
+    if (map) {
+      this.#drawMap(map);
+      this.app.render();
+      return;
+    }
     const signature = JSON.stringify([
       this.#camera,
       this.app.screen.width,
@@ -456,6 +551,231 @@ export class Scene {
         this.#texts.delete(id);
       }
     this.app.render();
+  }
+  /** A glyph is drawn on a map unless its kind has no placement; a registered renderer still wins (`onMap`). */
+  #onMap(glyph: Glyph): boolean {
+    return onMap(glyph, (kind) => this.#renderers.has(kind));
+  }
+  #drawScaleBar(scale: number): void {
+    this.#scaleBar.visible = this.#layout;
+    if (!this.#layout) return;
+    if (!this.#scaleBarText) {
+      this.#scaleBarText = new Text({ text: "", style: SCALE_BAR_TEXT });
+      this.#scaleBarText.anchor.set(0.5, 1);
+      this.#scaleBar.addChild(this.#scaleBarText);
+    }
+    this.#scaleBarText.visible = this.labels;
+    drawScaleBar(this.#scaleBarGraphics, this.#scaleBarText, scale, this.app.screen.height);
+  }
+  /** The layers of spec section 5.1, bottom to top. */
+  #drawMap(map: MapModel): void {
+    const projection = this.#projection!;
+    const { x, y, scale } = this.#camera,
+      width = this.app.screen.width,
+      height = this.app.screen.height,
+      detail = detailAt(map, scale);
+    // Static: the grid and the floor. `held` changes with the frame and is not part of it.
+    const signature = JSON.stringify([
+      "map",
+      this.#camera,
+      width,
+      height,
+      detail,
+      map.strips.map((s) => [s.a.x, s.a.y, s.b.x, s.b.y, s.width, s.oneWay]),
+    ]);
+    if (signature !== this.#staticSignature) {
+      this.#staticSignature = signature;
+      this.#background.clear();
+      drawGrid(this.#background, scale, {
+        left: -x / scale,
+        right: (width - x) / scale,
+        bottom: (y - height) / scale,
+        top: y / scale,
+      });
+      drawFloor(this.#background, map.strips, scale, detail);
+    }
+    const onScreen = (p: { x: number; y: number }): boolean => {
+      const sx = x + p.x * scale,
+        sy = y - p.y * scale;
+      return sx >= -200 && sy >= -100 && sx <= width + 200 && sy <= height + 100;
+    };
+    // Vehicles and facilities of the map model are drawn as sprites unless a renderer is registered for their kind;
+    // the others (a vehicle without a position, in the unplaced row) keep their glyph.
+    const custom = (kind: string): boolean => this.#renderers.has(kind);
+    const spriteVehicles = custom("agv") ? [] : map.vehicles,
+      spriteFacilities = map.facilities.filter((f) => !custom(f.kind)),
+      sprites = new Set([...spriteVehicles.map((v) => v.id), ...spriteFacilities.map((f) => f.id)]),
+      nodesById = new Map(map.nodes.map((n) => [n.id, n])),
+      boundToSprite = new Set(spriteFacilities.flatMap((f) => f.nodes));
+    const glyphs = projection.glyphs.filter((g) => this.#onMap(g) && !sprites.has(g.id) && onScreen(g));
+    const facilities = glyphs.filter((g) => FACILITIES.has(g.kind)),
+      vehicles = glyphs.filter((g) => g.kind === "agv"),
+      nodes = glyphs.filter((g) => g.kind === "node"),
+      generic = glyphs.filter((g) => !FACILITIES.has(g.kind) && g.kind !== "agv" && g.kind !== "node");
+    const dynamic = this.#graphics;
+    dynamic.clear();
+    // The held tint, under everything but the floor; what the selected vehicle holds, or the selected segment, node
+    // or zone, in the stronger tint.
+    const overlay = overlayFor(map, this.#selected);
+    drawHeld(dynamic, map, scale, detail, strongHolds(map, this.#selected, overlay));
+    // the selected element and the related ones carry a selection outline, their labels outside it
+    const outlined = new Set(overlay ? [this.#selected!, ...overlay.related] : []);
+    const visible = new Set<string>();
+    const label = (item: Glyph): void => {
+      if (scale > 20 && item.kind !== "job" && (item.kind !== "node" || item.id === this.#selected))
+        this.#text(
+          visible,
+          item.id,
+          `${item.label.slice(0, 160)}${item.queue ? " · " + item.queue + " queued" : ""}${item.badge ? "\n" + item.badge : ""}${item.diagnostic ? "\n" + item.diagnostic : ""}`,
+          item.x,
+          item.y - item.depth / 2 - 0.12,
+          PALETTE.text,
+        );
+    };
+    for (const item of facilities) {
+      this.glyph(dynamic, item, scale);
+      label(item);
+    }
+    const px = 1 / scale;
+    const boxes = spriteFacilities.map((facility) => facilityBox(facility, map, nodesById, scale, detail));
+    // bay lines can be long (a warehouse beside its first bay, spec M28): they are not culled
+    spriteFacilities.forEach((facility, i) => drawBayLines(dynamic, facility, boxes[i]!, nodesById, scale));
+    for (const [i, facility] of spriteFacilities.entries()) {
+      const box = boxes[i]!;
+      if (!onScreen(box)) continue;
+      if (outlined.has(facility.id)) outlineFacility(dynamic, box, scale);
+      drawFacility(dynamic, facility, box, nodesById, scale);
+      if (outlined.has(facility.id)) outlineBays(dynamic, facility, nodesById, scale);
+      const places = facilityLabels(facility, box, map, nodesById, scale),
+        texts = outlined.has(facility.id) ? facilityLabels(facility, outlinedBox(box, scale), map, nodesById, scale) : places;
+      this.#text(visible, `${facility.id}\u0000name`, clipLabel(facility.label), texts.name.x, texts.name.y, PALETTE.text, {
+        anchorY: texts.name.anchorY,
+        bold: true,
+      });
+      if (facility.count)
+        this.#text(visible, `${facility.id}\u0000count`, facility.count, texts.count.x, texts.count.y, PALETTE.text, {
+          anchorY: texts.count.anchorY,
+        });
+      if (facility.kind === "warehouse" && facility.badge > 0)
+        this.#text(visible, `${facility.id}\u0000badge`, String(facility.badge), places.badge.x, places.badge.y, PALETTE.badgeText, {
+          anchorY: 0.5,
+          bold: true,
+          size: BADGE_PX + 3,
+        });
+    }
+    for (const port of projection.ports) dynamic.circle(port.x, port.y, 3 / scale).fill(PALETTE.port);
+    if (this.#renderers.has("node"))
+      for (const item of nodes) {
+        this.glyph(dynamic, item, scale);
+        label(item);
+      }
+    else
+      for (const node of map.nodes) {
+        const selected = node.id === this.#selected;
+        if ((detail !== "true" && !selected) || !onScreen(node)) continue;
+        // a node bound to a facility is drawn as its bay or inside it (spec section 5.4); its id stays
+        if (selected || !boundToSprite.has(node.id)) drawNode(dynamic, node, scale, selected);
+        this.#text(visible, node.id, clipLabel(node.id), node.x, node.y - (NODE_PX + 2) / scale, PALETTE.nodeText);
+      }
+    const context: OverlayContext = {
+      map,
+      scale,
+      detail,
+      boxes: new Map(spriteFacilities.map((facility, i) => [facility.id, boxes[i]!])),
+    };
+    if (overlay) drawRouteAhead(dynamic, overlay, this.#selected!, context);
+    for (const item of [...generic, ...vehicles]) {
+      this.glyph(dynamic, item, scale);
+      label(item);
+    }
+    for (const vehicle of spriteVehicles) {
+      const frame = vehicleFrame(vehicle, scale, detail);
+      if (!onScreen(frame)) continue;
+      drawVehicle(dynamic, vehicle, scale, detail);
+      const fill = LABEL[vehicle.shown],
+        reach =
+          (vehicle.shown === "waiting" ? ringPx(frame, scale) : (Math.hypot(frame.length, frame.width) / 2) * scale) +
+          (outlined.has(vehicle.id) ? OUTLINE_REACH_PX : 0);
+      if (detail === "true")
+        this.#text(visible, `${vehicle.id}\u0000line`, vehicleText(vehicle, detail), frame.x, frame.y + (reach + 2) * px, fill, {
+          anchorY: 1,
+          bold: true,
+        });
+      else if (vehicle.short)
+        this.#text(visible, `${vehicle.id}\u0000short`, vehicleText(vehicle, detail), frame.x, frame.y - (reach + 1) * px, fill, {
+          bold: true,
+        });
+    }
+    // Wait lines; the selected vehicle's is drawn thicker with the overlay.
+    for (const line of map.waitLines)
+      if (!overlay?.waitLine || line.agv !== overlay.waitLine.agv) drawWaitLine(dynamic, line, map, scale, detail);
+    if (overlay) drawOverlay(dynamic, overlay, this.#selected!, context);
+    for (const [id, text] of this.#texts)
+      if (!visible.has(id)) {
+        text.destroy();
+        this.#texts.delete(id);
+      }
+    this.#front.position.set(x, y);
+    this.#front.scale.set(scale, -scale);
+    if (this.decorativeTransfers) this.#drawTrails(this.#front, scale);
+  }
+  /**
+   * A label centred on a point of the world, of fixed pixel size: below it, or above it with `anchorY` 1. Keys not
+   * added to `visible` are removed.
+   */
+  #text(
+    visible: Set<string>,
+    id: string,
+    content: string,
+    x: number,
+    y: number,
+    fill: number,
+    options: { anchorY?: number; bold?: boolean; size?: number } = {},
+  ): void {
+    visible.add(id);
+    let text = this.#texts.get(id);
+    if (!text) {
+      text = new Text({
+        text: "",
+        style: {
+          fontFamily: "system-ui",
+          fontSize: options.size ?? 12,
+          fontWeight: options.bold ? "600" : "normal",
+          fill,
+        },
+      });
+      this.#texts.set(id, text);
+      this.#labels.addChild(text);
+    }
+    // the side of a facility's texts and the colour of a vehicle's label change with the level and the state;
+    // a style is changed only when it differs
+    text.anchor.set(0.5, options.anchorY ?? 0);
+    if (text.style.fill !== fill) text.style.fill = fill;
+    text.text = content;
+    text.position.set(x, y);
+    text.scale.set(1 / this.#camera.scale, -1 / this.#camera.scale);
+    text.visible = true;
+  }
+  /** The decorative trails of a map, as the scene draws them without one. */
+  #drawTrails(g: Graphics, scale: number): void {
+    for (const trail of this.#trails) {
+      const dx = trail.to.x - trail.from.x,
+        dy = trail.to.y - trail.from.y,
+        length = Math.hypot(dx, dy),
+        dash = 6 / scale;
+      for (let d = 0; d < length; d += dash * 2) {
+        const stop = Math.min(length, d + dash);
+        g.moveTo(trail.from.x + (dx * d) / length, trail.from.y + (dy * d) / length).lineTo(
+          trail.from.x + (dx * stop) / length,
+          trail.from.y + (dy * stop) / length,
+        );
+      }
+      g.stroke({
+        color: PALETTE.trail,
+        width: 2 / scale,
+        alpha: 0.35 * Math.max(0, 1 - (this.#transferClock - trail.born) / trail.lifetime),
+      });
+    }
   }
   private glyph(g: Graphics, item: Glyph, scale: number): void {
     const custom = this.#renderers.get(item.kind);

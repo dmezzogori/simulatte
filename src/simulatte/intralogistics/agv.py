@@ -9,20 +9,23 @@ from simulatte._wire import wire_float
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.events import Deltas
 from simulatte.layout.binding import node_input, pending
+from simulatte.layout.errors import LayoutNotReady
 from simulatte.intralogistics.battery import Battery
-from simulatte.intralogistics.events import AgvPlaced, AgvStateChanged
+from simulatte.intralogistics.events import AgvBatteryChanged, AgvPlaced, AgvStateChanged
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from simulatte.environment import Environment
     from simulatte.intralogistics.fleet import FleetCoordinator
     from simulatte._wire import FrozenMap
     from simulatte.events import DeltaBuilder
     from simulatte.intralogistics.graph import Node, NodeBinding
+    from simulatte.intralogistics.network import ClaimItem
     from simulatte.intralogistics.order import TransferOrder
     from simulatte.intralogistics.sku import SKU
     from simulatte.intralogistics.speed import SpeedProfile
+    from simulatte.intralogistics.traffic import Blocker
     from simulatte.rng import SamplerDescription
     from simulatte.layout.refs import NodeRef, PortRef
 
@@ -49,6 +52,9 @@ _UTILIZED_STATES = frozenset(
 
 @dataclass(frozen=True)
 class AGVType:
+    """The settings shared by the AGVs of one kind: speed profile, battery, capacities, load and unload times, the
+    vehicle's size (``length``, ``width``, ``min_gap``) and its turning and idle-power models."""
+
     name: str
     speed_profile: SpeedProfile
     battery_capacity: float
@@ -56,6 +62,10 @@ class AGVType:
     volume_capacity: float
     compatibility_fn: Callable[[Any], bool] = field(default=lambda sku: True)
     depletion_fn: Callable[[float, float, float], float] | None = None
+    """Energy for ``(distance, load_weight, speed)``; None for one unit per unit of distance. It must be pure (the same
+    arguments give the same energy, and nothing else changes): the travel executor may call it fewer times than once
+    per arc and reuse the result within a run, and the energy estimates of the planner and of the charger choice call
+    it for arcs that are not travelled."""
     recharge_fn: Callable[[float, float], float] | None = None
     low_battery_threshold: float = 0.2
     critical_battery_threshold: float = 0.05
@@ -66,6 +76,52 @@ class AGVType:
     """
     unload_time: SamplerDescription[float] | float | Callable[[], float] = 0.0
     """Unload duration, like :attr:`load_time`, bound to the stream ``<agv id>/unload``."""
+    length: float | None = None
+    """Length of the vehicle; ``ReservationController`` requires it (spec §6.6). It is also the vehicle's size along
+    its heading in the layout (:attr:`size`): ``None`` and ``0`` count as not declared there, and the vehicle keeps
+    the default 1 x 1 m placement footprint."""
+    width: float | None = field(default=None, kw_only=True)
+    """Width of the vehicle, finite and >= 0, keyword-only; descriptive, no component reads it. With a positive
+    :attr:`length` it is the depth of the vehicle's placement footprint (:attr:`size`); ``None`` and ``0`` count as not
+    declared, and the depth is then half the length. Without a length it is not used."""
+    min_gap: float = 0.0
+    """Distance kept to the vehicle ahead; the extent of the vehicle is ``length + min_gap``."""
+    corner_speed: Callable[[float], float] | None = None
+    """The speed cap through a node, from the heading change there in radians (``[0, pi]``, spec §9.4). 0 is a stop
+    at the node, infinity no cap; negative and NaN values raise ``ValueError``. It acts on profiles with limits. It must
+    be pure: the planner and :class:`~simulatte.intralogistics.routing.FastestRouter` call it for turns that are not
+    on the route finally travelled."""
+    turn_time: Callable[[float], float] | None = None
+    """The time the vehicle waits at rest on a node before it leaves, from the heading change there in radians
+    (``[0, pi]``, spec §9.4). A positive value stops the vehicle at the node; negative, NaN and infinite values raise
+    ``ValueError``. It must be pure: :class:`~simulatte.intralogistics.routing.FastestRouter` calls it for turns that
+    are not on the route finally travelled."""
+    idle_power: float = 0.0
+    """Energy drained per unit time in every state except ``CHARGING`` (spec §9.5); finite and >= 0, else
+    ``ValueError``. It accrues lazily (:meth:`AGV.accrue_idle_power`): no timer wakes an idle AGV. With the default 0
+    nothing is accounted, emitted or computed."""
+
+    def __post_init__(self) -> None:
+        if self.length is not None and not (math.isfinite(self.length) and self.length >= 0):
+            raise ValueError(f"AGVType {self.name!r}: length must be finite and >= 0, got {self.length}")
+        if self.width is not None and not (math.isfinite(self.width) and self.width >= 0):
+            raise ValueError(f"AGVType {self.name!r}: width must be finite and >= 0, got {self.width}")
+        if not (math.isfinite(self.min_gap) and self.min_gap >= 0):
+            raise ValueError(f"AGVType {self.name!r}: min_gap must be finite and >= 0, got {self.min_gap}")
+        if not (math.isfinite(self.idle_power) and self.idle_power >= 0):
+            raise ValueError(f"AGVType {self.name!r}: idle_power must be finite and >= 0, got {self.idle_power}")
+
+    @property
+    def size(self) -> tuple[float, float] | None:
+        """``(length, width)`` of the vehicle's placement footprint, or None when the type declares no length.
+
+        A length of ``None`` or ``0`` is not declared (no size: the footprint stays 1 x 1 m); a width of ``None`` or
+        ``0`` with a positive length gives half the length (studio map spec §6.1), or the length itself when half of
+        it rounds to 0. The layout writes it to the vehicle's target in the bundle."""
+        if not self.length:
+            return None
+        length = float(self.length)
+        return (length, float(self.width) if self.width else length / 2 or length)
 
 
 class AGV(Entity, kind="agv"):
@@ -86,6 +142,10 @@ class AGV(Entity, kind="agv"):
             "order": FieldSpec("str", nullable=True),
             "motion": FieldSpec("map", nullable=True),
             "fleet": FieldSpec("str", nullable=True),
+            "heading": FieldSpec("float", nullable=True),
+            "wait": FieldSpec("map", nullable=True),
+            "route": FieldSpec("map", nullable=True),
+            "battery_capacity": FieldSpec("float"),
         }
     )
 
@@ -95,13 +155,15 @@ class AGV(Entity, kind="agv"):
         env: Environment,
         agv_type: AGVType,
         agv_id: str | None = None,
-        initial_node: Node | NodeRef | PortRef | None = None,
+        initial_node: NodeRef | PortRef | None = None,
         label: str | None = None,
     ) -> None:
         self.env = env
         self.agv_type = agv_type
-        self._current_node, self._pending_node = node_input(env, initial_node, optional=True)
-        initial_node = self._current_node
+        self._current_node, self._pending_node = node_input(
+            env, initial_node, component="AGV", parameter="initial_node", optional=True
+        )
+        node = self._current_node
         self.current_load: dict[SKU, int] | None = None
         self.fleet: FleetCoordinator | None = None
         """The coordinator that took this AGV (owner field, spec §5.2)."""
@@ -109,6 +171,17 @@ class AGV(Entity, kind="agv"):
         """The order of the AGV's current mission."""
         self.motion: FrozenMap | None = None
         """The active movement segment ``{from, to, t_start, t_end, description}`` (spec §6.5), or None."""
+        self.heading: float | None = None
+        """The direction of the last arc traversed, in radians (``atan2`` of its chord, spec §9.4); None after
+        placement."""
+        # The open traffic wait and the route of the travel under way (studio map spec §6.2), as the objects the
+        # controller and the travel executor already hold: :attr:`wait` and :attr:`route` turn them into wire values
+        # only when read, so a run that nothing observes keeps them at no cost beyond the assignment.
+        self._wait: tuple[float, str, Sequence[ClaimItem], Sequence[Blocker]] | None = None
+        self._route: tuple[Sequence[Node], str] | None = None
+        self._route_over = False  # the travel ended without an event to clear the route: the next state change does
+        self._battery_capacity = wire_float(agv_type.battery_capacity)
+        """The type's battery capacity, a constant of the state written once in the initial state (studio map §6.4)."""
 
         self.battery = Battery(
             capacity=agv_type.battery_capacity,
@@ -120,28 +193,29 @@ class AGV(Entity, kind="agv"):
 
         self._state = AGVState.IDLE
         self._state_entered_at: float = env.now
+        self._accrued_at: float = env.now
+        """The time up to which idle power has been accounted (:meth:`accrue_idle_power`)."""
         self.state_durations: dict[AGVState, float] = {s: 0.0 for s in AGVState}
 
-        self._uses_explicit_graph = env.layout is None and initial_node is not None
         env.entities.attach(self, name=agv_id, label=label)
         self._load_time = env.bind(agv_type.load_time, kind="scalar", stream=f"{self.id}/load", owner=self.id)
         self._unload_time = env.bind(agv_type.unload_time, kind="scalar", stream=f"{self.id}/unload", owner=self.id)
-        if initial_node is not None:
-            binding = env.entities.node_binding(initial_node)
-            if binding is not None:  # bound before this AGV existed: its create delta did not list it
-                binding.agvs.append(self.id)
-                if env.wants(AgvPlaced):
-                    env.emit(
-                        AgvPlaced(
-                            agv=self.id,
-                            node=initial_node.id,
-                            previous=None,
-                            deltas=Deltas.build()
-                            .set(self.id, "node", initial_node.id)
-                            .insert(binding.id, "agvs", len(binding.agvs) - 1, self.id)
-                            .done(),
-                        )
+        if node is not None:  # resolved at once: the layout is prepared and bound its nodes before this AGV existed
+            binding = env.entities.node_binding(node)
+            assert binding is not None
+            binding.agvs.append(self.id)  # its create delta did not list it
+            if env.wants(AgvPlaced):
+                env.emit(
+                    AgvPlaced(
+                        agv=self.id,
+                        node=node.id,
+                        previous=None,
+                        deltas=Deltas.build()
+                        .set(self.id, "node", node.id)
+                        .insert(binding.id, "agvs", len(binding.agvs) - 1, self.id)
+                        .done(),
                     )
+                )
 
     def sample_load_time(self) -> float:
         """Draw the duration of the next load from the AGV's ``<id>/load`` binding."""
@@ -165,27 +239,33 @@ class AGV(Entity, kind="agv"):
 
     @current_node.setter
     def current_node(self, node: Node | None) -> None:
-        self._validate_node(node)
         previous = self._current_node
         if node == previous:
+            self._validate_node(node)  # a copy equal by value is refused too
             self._current_node = node
             return
-        left, entered = self._relocate(node)
+        left, entered = self._relocate(node)  # validates the node before changing anything
+        headed = self.heading is not None
+        self.heading = None  # placed, not moved: the direction is unknown
         env = self.env
         if env.wants(AgvPlaced):
+            build = self._node_deltas(node, left, entered)
+            if headed:
+                build.set(self.id, "heading", None)
             env.emit(
                 AgvPlaced(
                     agv=self.id,
                     node=None if node is None else node.id,
                     previous=None if previous is None else previous.id,
-                    deltas=self._node_deltas(node, left, entered).done(),
+                    deltas=build.done(),
                 )
             )
 
     def _relocate(self, node: Node | None) -> tuple[NodeBinding | None, NodeBinding | None]:
         """Set the current node and update the ``agvs`` lists of the bound nodes.
 
-        Returns the binding the AGV was removed from and the binding it was appended to (None when unchanged).
+        Returns the binding the AGV was removed from and the binding it was appended to (None when unchanged). Both
+        nodes are canonical nodes of the layout's network, which binds every one of them at preparation.
         """
         self._validate_node(node)
         previous = self._current_node
@@ -193,22 +273,30 @@ class AGV(Entity, kind="agv"):
         entities = self.env.entities
         left = entered = None
         if previous is not None:
-            binding = entities.node_binding(previous)
-            if binding is not None and self.id in binding.agvs:
-                binding.agvs.remove(self.id)
-                left = binding
+            left = entities.node_binding(previous)
+            assert left is not None
+            left.agvs.remove(self.id)
         if node is not None:
-            binding = entities.node_binding(node)
-            if binding is not None:
-                binding.agvs.append(self.id)
-                entered = binding
+            entered = entities.node_binding(node)
+            assert entered is not None
+            entered.agvs.append(self.id)
         return left, entered
 
     def _validate_node(self, node: Node | None) -> None:
-        if self.env.layout is not None:
-            if self._pending_node is not None:
-                pending(self, "current_node")
-            self.env.layout._validate_node(node)
+        if self._pending_node is not None:
+            pending(self, "current_node", "assigning")
+        if node is None:
+            return
+        layout = self.env._layout
+        # The canonical node of the network passes on one identity check, the common case of every move; anything else
+        # (a copy equal by value, a disabled node, a node of another network, a handle, which has no id) is the
+        # layout's to refuse.
+        try:
+            if layout is not None and layout._canonical_nodes.get(node.id) is node:
+                return
+        except LayoutNotReady:
+            pass
+        self.env.layout._validate_node(node)
 
     def _node_deltas(self, node: Node | None, left: NodeBinding | None, entered: NodeBinding | None) -> DeltaBuilder:
         """Deltas of a :meth:`_relocate` to `node`: the AGV's ``node`` and the ``agvs`` lists it changed."""
@@ -220,7 +308,8 @@ class AGV(Entity, kind="agv"):
         return build
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state; nodes, SKUs, the order and the fleet are referenced by id."""
+        """Current entity state; nodes, SKUs, the order and the fleet are referenced by id. ``battery_capacity`` is the
+        type's, read at construction: a constant, written once in the initial state."""
         node, load, order, fleet = self._current_node, self.current_load, self.order, self.fleet
         return {
             "node": None if node is None else node.id,
@@ -230,30 +319,155 @@ class AGV(Entity, kind="agv"):
             "order": None if order is None else order.id,
             "motion": self.motion,
             "fleet": None if fleet is None else fleet.id,
+            "heading": None if self.heading is None else wire_float(self.heading),
+            "wait": self.wait,
+            "route": self.route,
+            "battery_capacity": self._battery_capacity,
             "label": self.label,
         }
+
+    @property
+    def wait(self) -> dict[str, Any] | None:
+        """The open traffic wait, ``{since, node, resources, blockers}`` with the values of the ``traffic.wait_started``
+        that announced it (``since`` its time; resource and AGV ids), or None (studio map spec §6.2).
+
+        Set by that event and cleared by ``traffic.wait_ended``; nothing else writes it. The blockers are those known
+        when the wait was announced (decision M7)."""
+        wait = self._wait
+        if wait is None:
+            return None
+        since, node, items, blockers = wait
+        return {
+            "since": since,
+            "node": node,
+            "resources": [item.resource.id for item in items],
+            "blockers": [blocker.agv.id for blocker in blockers],
+        }
+
+    @property
+    def route(self) -> dict[str, Any] | None:
+        """The route of the travel under way, ``{nodes, destination, reason}`` with the values of its last
+        ``agv.routed`` (node ids), or None (studio map spec §6.2).
+
+        Set by ``agv.routed`` and cleared by the event that ends the travel: ``agv.move_ended`` at the route's last
+        node, ``agv.move_interrupted``, or else the AGV's next ``agv.state_changed``."""
+        route = self._route
+        if route is None:
+            return None
+        nodes, reason = route
+        return {"nodes": [node.id for node in nodes], "destination": nodes[-1].id, "reason": reason}
+
+    def _open_wait(self, since: float, node: str, items: Sequence[ClaimItem], blockers: Sequence[Blocker]) -> None:
+        """The traffic controller announces a wait at `since` before `node`, for the claim items `items`, blocked by
+        `blockers`; the caller emits ``traffic.wait_started`` with :attr:`wait` in its deltas."""
+        self._wait = (since, node, items, blockers)
+
+    def _close_wait(self) -> None:
+        """The announced wait ended; the caller emits ``traffic.wait_ended`` with ``wait`` set to null."""
+        self._wait = None
+
+    def _set_route(self, nodes: Sequence[Node], reason: str) -> None:
+        """The travel follows `nodes` for `reason`; the caller emits ``agv.routed`` with :attr:`route` in its deltas.
+
+        A sequence that is not a tuple (a router may return a list) is copied, so that the router changing it later
+        cannot change the state without a delta."""
+        self._route = (nodes if type(nodes) is tuple else tuple(nodes), reason)
+        self._route_over = False
+
+    def _clear_route(self) -> bool:
+        """Clear the route now and return whether there was one: the caller's event sets ``route`` to null."""
+        had = self._route is not None
+        self._route = None
+        self._route_over = False
+        return had
+
+    def _end_route(self) -> None:
+        """The travel ended at an instant that emits no event of its own for the route: the next
+        :meth:`transition_to` clears it (studio map spec §6.2)."""
+        if self._route is not None:
+            self._route_over = True
 
     @property
     def state(self) -> AGVState:
         return self._state
 
     def transition_to(self, new_state: AGVState) -> None:
-        """Enter `new_state` (the only writer of the state) and emit ``agv.state_changed``."""
+        """Enter `new_state` (the only writer of the state) and emit ``agv.state_changed``.
+
+        The route of a travel that ended without an event of its own to clear it (:meth:`_end_route`) is cleared here,
+        in the same event."""
         env = self.env
         old_state = self._state
+        if self.agv_type.idle_power:  # time spent charging does not drain: account up to the charge, resume after it
+            if new_state is AGVState.CHARGING:
+                self.accrue_idle_power()
+            elif old_state is AGVState.CHARGING:
+                self._accrued_at = env.now
         elapsed = env.now - self._state_entered_at
         self.state_durations[old_state] += elapsed
         self._state = new_state
         self._state_entered_at = env.now
+        route_over = self._route_over and self._clear_route()  # after accrue_idle_power, which may emit before this
         if env.wants(AgvStateChanged):
+            build = Deltas.build().set(self.id, "state", new_state.name)
+            if route_over:
+                build.set(self.id, "route", None)
+            env.emit(AgvStateChanged(agv=self.id, state=new_state.name, previous=old_state.name, deltas=build.done()))
+
+    def accrue_idle_power(self) -> None:
+        """Bring the battery level up to date with the idle power drained since it was last accounted (spec §9.5).
+
+        Called at each event of the AGV that reads or changes the level: the energy check of a travel, the start of a
+        charge, the check after a mission. It drains ``idle_power * (now - accounted)`` and emits
+        ``agv.battery_changed`` when the level changes; the level is updated whether or not anything observes it. Time
+        spent ``CHARGING`` does not drain: the accounting moves to now. During a move nothing happens: the move folds
+        its drain into ``agv.move_ended`` (:meth:`fold_idle_power`). Without idle power it does nothing.
+        """
+        power = self.agv_type.idle_power
+        if not power or self.motion is not None:
+            return
+        env = self.env
+        now = env.now
+        since, self._accrued_at = self._accrued_at, now
+        if self._state is AGVState.CHARGING or now == since:
+            return
+        battery = self.battery
+        before = battery.level
+        battery.drain(power * (now - since))
+        if battery.level != before and env.wants(AgvBatteryChanged):
+            level = wire_float(battery.level)
             env.emit(
-                AgvStateChanged(
-                    agv=self.id,
-                    state=new_state.name,
-                    previous=old_state.name,
-                    deltas=Deltas.build().set(self.id, "state", new_state.name).done(),
+                AgvBatteryChanged(
+                    agv=self.id, battery=level, deltas=Deltas.build().set(self.id, "battery", level).done()
                 )
             )
+
+    def battery_level_now(self) -> float:
+        """The battery level now: ``battery.level``, the level as last accounted, less the idle power drained since,
+        floored at 0, which :meth:`accrue_idle_power` would account now (spec §9.5).
+
+        A pure read: it changes no state and emits nothing, so reports, dispatch strategies and low-battery callbacks
+        may use it. While charging or moving it is ``battery.level`` (a move accounts its drain on arrival), and without
+        idle power it is ``battery.level`` exactly.
+        """
+        power, level = self.agv_type.idle_power, self.battery.level
+        if not power or self.motion is not None or self._state is AGVState.CHARGING:
+            return level
+        return max(0.0, level - power * (self.env.now - self._accrued_at))
+
+    def fold_idle_power(self, duration: float) -> None:
+        """Drain the idle power of a move of `duration`, which ends now, without an event: the caller emits
+        ``agv.move_ended`` with the level after the arc's depletion and this drain (spec §9.5). The accounting was up to
+        the start of the move; it moves to now. Without idle power it does nothing."""
+        power = self.agv_type.idle_power
+        if power:
+            self.battery.drain(power * duration)
+            self._accrued_at = self.env.now
+
+    def skip_idle_power(self) -> None:
+        """Declare the level up to date as of now without draining: the time since it was last accounted was spent
+        charging (a station's recharge or swap used outside the ``CHARGING`` state)."""
+        self._accrued_at = self.env.now
 
     def can_carry(self, sku: SKU, quantity: int) -> bool:
         if not self.agv_type.compatibility_fn(sku):

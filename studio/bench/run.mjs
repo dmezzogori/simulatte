@@ -1,12 +1,26 @@
-// Usage: node bench/run.mjs chromium http://127.0.0.1:4182/?mode=performance /tmp/result.json
+// Usage: node bench/run.mjs chromium http://127.0.0.1:4182/?mode=performance /tmp/result.json [--shot /tmp/scene.png] [--headed]
+// --shot: after the measurements, a screenshot of the scene (a frame late in the run, fitted).
+// --headed: a visible browser window, which uses the GPU on every platform.
+// Headless Chromium on macOS is launched with ANGLE on Metal and the GPU enabled; headless Chromium elsewhere keeps
+// its defaults, which may rasterize WebGL in software (SwiftShader). The result's `webglRenderer` says which one ran.
 import { chromium, firefox, webkit } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-const [engine = "chromium", url, output = "/tmp/sp3-bench.json"] =
-  process.argv.slice(2);
+const args = process.argv.slice(2);
+const headedAt = args.indexOf("--headed");
+const headed = headedAt >= 0;
+if (headed) args.splice(headedAt, 1);
+const shotAt = args.indexOf("--shot");
+const shot = shotAt < 0 ? null : args.splice(shotAt, 2)[1];
+if (shotAt >= 0 && !shot) throw new Error("--shot needs a png path");
+const [engine = "chromium", base, output = "/tmp/sp3-bench.json"] = args;
+const url = shot ? `${base}${base.includes("?") ? "&" : "?"}shot=1` : base;
+// Without a GPU, WebGL runs on SwiftShader and each frame is read back on the main thread at the next commit, which
+// the next seek's prepare then pays (.superpowers/sdd/2026-11-25-studio-map/task-10b-seeks-report.md).
+const gpu = engine === "chromium" && !headed && process.platform === "darwin" ? ["--use-angle=metal", "--enable-gpu", "--ignore-gpu-blocklist"] : [];
 const browser = await { chromium, firefox, webkit }[engine].launch({
-  headless: true,
-  ...(engine === "chromium" ? { args: ["--enable-precise-memory-info"] } : {}),
+  headless: !headed,
+  ...(engine === "chromium" ? { args: ["--enable-precise-memory-info", ...gpu] } : {}),
 });
 let sampler;
 try {
@@ -77,7 +91,10 @@ try {
     ...JSON.parse(document.querySelector("#status").textContent),
     longestTaskMs: Math.max(0, ...globalThis.__longTasks),
   }));
+  if (shot) await page.locator("#host").screenshot({ path: shot });
   result.wallSeconds = (Date.now() - start) / 1000;
+  result.headed = headed;
+  result.launchArgs = gpu;
   result.errors = errors;
   result.rss = rss;
   await writeFile(output, JSON.stringify(result, null, 2) + "\n");

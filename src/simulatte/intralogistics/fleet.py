@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import sys
 from collections import deque
-from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, ClassVar, TypedDict, cast
 
 import simpy
@@ -16,33 +15,38 @@ from simulatte.layout.binding import graph_input, pending, readonly
 from simulatte.intralogistics.agv import AGVState
 from simulatte.intralogistics.events import (
     AgvLoadChanged,
-    AgvMoveEnded,
-    AgvMoveInterrupted,
-    AgvMoveStarted,
     AgvStranded,
     FleetAgvAdded,
     FleetPendingChanged,
     OrderAssigned,
     OrderStatusChanged,
     OrderUnassigned,
-    TrafficWaitEnded,
-    TrafficWaitStarted,
 )
 from simulatte.intralogistics.metrics import OrderEMACollector
 from simulatte.intralogistics.order import TERMINAL_STATUSES, OrderStatus, TransferOrder
-from simulatte.intralogistics.pathfinding import DijkstraPlanner
 from simulatte.intralogistics.policies import (
+    DispatchContext,
     NearestIdleStrategy,
     RepositioningContext,
     ReturnToOrigin,
     RoundRobinStrategy,
     StayInPlace,
+    ranking_route,
 )
-from simulatte.intralogistics.speed import describe_motion
-from simulatte.intralogistics.traffic import FreeTrafficManager
+from simulatte.intralogistics.routing import RouteRequest, ShortestDistanceRouter
+from simulatte.intralogistics.traffic import FreeFlowController
+from simulatte.intralogistics.speed import KinematicProfile
+from simulatte.intralogistics.travel import (
+    TravelExecutor,
+    TravelOutcome,
+    _check_route,
+    _load_weight,
+    estimate_arc_energy,
+    standard_target,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from typing import Unpack
 
     from simpy.events import ProcessGenerator
@@ -53,16 +57,15 @@ if TYPE_CHECKING:
     from simulatte.intralogistics.charging import ChargingStation
     from simulatte.intralogistics.graph import LayoutGraph, Node
     from simulatte.intralogistics.parking import ParkingArea
-    from simulatte.intralogistics.pathfinding import PathPlanner
     from simulatte.intralogistics.policies import (
         DispatchStrategy,
         LoadRecoveryStrategy,
         ReplenishmentPolicy,
         RepositioningPolicy,
     )
+    from simulatte.intralogistics.routing import Router
     from simulatte.intralogistics.sku import SKU
-    from simulatte.intralogistics.speed import MotionDescription
-    from simulatte.intralogistics.traffic import TrafficManager
+    from simulatte.intralogistics.traffic import TrafficController, TrafficCounter
     from simulatte.intralogistics.warehouse import Warehouse
 
 
@@ -78,19 +81,6 @@ class _TransferOrderOptions(TypedDict, total=False):
     assigned_agv: AGV | None
 
 
-class _TravelOutcome(Enum):
-    ARRIVED = auto()
-    RETRY_FROM_CURRENT_POSITION = auto()
-    MISSION_FAILED = auto()
-    BATTERY_STRANDED = auto()
-
-
-class _EnterOutcome(Enum):
-    ENTERED = auto()
-    REROUTE = auto()
-    GAVE_UP = auto()
-
-
 _STATUS_TIMESTAMPS = {OrderStatus.DISPATCHED: "dispatched_at", OrderStatus.COMPLETED: "delivered_at"}
 """The order timestamp set together with each status (spec §6.4, ``order.status_changed``)."""
 
@@ -102,12 +92,41 @@ class FleetCoordinator(Entity, kind="fleet"):
     transit, deliver, and completion.  Analogous to ``ShopFloor`` for
     production simulations but focused on warehouse-to-warehouse AGV transport.
 
-    Its id is ``name`` when given, otherwise ``fleet-<n>``. Construction binds the graph's nodes (sorted by id)
-    in the environment and registers an activation initializer that places the AGVs on their starting nodes
-    with the traffic manager (``place_now``). Orders are attached by :meth:`create_order` (or by :meth:`submit`
-    for orders constructed directly) and retire at a terminal status, once the hooks of that transition ran and
-    the mission bookkeeping was cleaned up. :meth:`submit` and :meth:`cancel` are deferrable: before
+    An AGV whose traffic controller tells it to give up a travel (spec §8.2) stops where it stands and becomes ``IDLE``,
+    unless it carries cargo, which it never gives up; an order that was not picked up yet goes back to ``PENDING``
+    (reason ``traffic_requeued``), at most ``max_traffic_requeues`` times per order.
+
+    A vehicle whose speed profile reports kinematic limits moves in runs (spec §9.2, §9.3): its travels keep claims one
+    arc plus its braking distance and ``lookahead_margin`` (default 0) ahead and pass nodes at speed.
+
+    Idle AGVs are kept out of the way (spec §7.10): :meth:`make_way` moves an idle AGV that blocks a claim, and with
+    ``clear_service_nodes`` (default true) an AGV that would become idle on a service node (a bay of a warehouse or the
+    node of a charging station) first moves off it, when the traffic controller controls occupancy. A move to the node
+    of a parking area takes a slot of the area (``area.enter``) at the decision and gives it back (``area.leave``) when
+    the AGV next departs from that node or when the move ends without arriving, which for a move that turns to charge
+    is when it turns, unless the charger is on the area's own node: there the AGV keeps the slot (it is given back if
+    the AGV does not get there) and rests parked after the charge. A repositioning, a clearance or a make-way move that
+    charges on its way and ends elsewhere than its target is not resumed: unless an order is pending, the AGV is asked
+    once where to rest, as an AGV that ends a mission on the charger's node is (the repositioning policy, then the
+    clearance of a service node); a trip of that decision that charges again ends where the AGV charged.
+
+    Its id is ``name`` when given, otherwise ``fleet-<n>``. ``graph`` is ``layout.graph()`` of the environment's
+    layout, whose preparation binds the network's nodes (sorted by id). Construction registers the fleet with its
+    traffic controller (``traffic_controller``, default
+    :class:`~simulatte.intralogistics.traffic.FreeFlowController`) and registers an activation initializer that places
+    the AGVs on their starting nodes with it (``place``). Travels run through a
+    :class:`~simulatte.intralogistics.travel.TravelExecutor`, on routes of ``router`` (default
+    :class:`~simulatte.intralogistics.routing.ShortestDistanceRouter`), whose cost also ranks the AGVs of a dispatch
+    (through the strategy's :class:`~simulatte.intralogistics.policies.DispatchContext`), the bays (:meth:`best_bay`),
+    the chargers and the parking areas (spec §10.4). Orders are attached by :meth:`create_order`
+    (or by :meth:`submit` for orders constructed directly) and retire at a terminal status, once the hooks of that
+    transition ran and the mission bookkeeping was cleaned up. :meth:`submit` and :meth:`cancel` are deferrable: before
     activation they are queued and run at activation (spec §10).
+
+    ``on_low_battery``, when given, is called with an AGV sent to charge, after the :meth:`on_battery_low` hooks; a
+    generator it returns runs instead of the default travel to the charger and charge. In these callbacks, as in a
+    custom ``dispatch_strategy``, ``agv.battery.level`` is the level as last accounted; with idle power,
+    :meth:`AGV.battery_level_now` is the level now (spec §9.5).
 
     Unless built with ``default_metrics=False``, it attaches an :class:`~simulatte.intralogistics.OrderEMACollector`
     as ``metrics`` (with smoothing factor ``ema_alpha``, default 0.01); other collectors
@@ -117,27 +136,41 @@ class FleetCoordinator(Entity, kind="fleet"):
     Events (spec §6.4): ``fleet.agv_added`` per AGV at construction, ``fleet.pending_changed`` at every change of
     the pending queue, ``order.status_changed`` at every assignment of an order status, ``order.assigned`` /
     ``order.unassigned`` for the order-AGV link, and the AGV events of movement (``agv.move_started``,
-    ``agv.move_ended``, ``agv.move_interrupted``), cargo (``agv.load_changed``) and stranding (``agv.stranded``),
-    and ``traffic.wait_started`` / ``traffic.wait_ended`` around the delays a path check or a deadlock backoff
-    imposes.
+    ``agv.move_ended``, ``agv.move_interrupted``, ``agv.routed``, emitted by the travel executor), cargo
+    (``agv.load_changed``) and stranding (``agv.stranded``).
+
+    Its state also counts, from the start of the run, the traffic waits, stuck waits and deadlocks of its AGVs
+    (``waits``, ``stuck_waits``, ``deadlocks``, studio map spec §6.6): the traffic controller sets them with the
+    deltas of ``traffic.wait_started``, ``traffic.wait_stuck`` and ``traffic.deadlock``
+    (:func:`~simulatte.intralogistics.traffic.count_traffic`).
     """
 
-    state_schema: ClassVar[StateSchema] = StateSchema({"pending": FieldSpec("str", collection="list")})
+    state_schema: ClassVar[StateSchema] = StateSchema(
+        {
+            "pending": FieldSpec("str", collection="list"),
+            "waits": FieldSpec("int"),
+            "stuck_waits": FieldSpec("int"),
+            "deadlocks": FieldSpec("int"),
+        }
+    )
 
     def __init__(
         self,
         *,
         env: Environment,
-        graph: LayoutGraph | GraphRef,
+        graph: GraphRef,
         fleet: list[AGV],
         warehouses: list[Warehouse],
         charging_stations: list[ChargingStation],
         parking_areas: list[ParkingArea] | None = None,
-        traffic_manager: TrafficManager | None = None,
-        path_planner: PathPlanner | None = None,
+        traffic_controller: TrafficController | None = None,
+        router: Router | None = None,
         dispatch_strategy: DispatchStrategy | None = None,
         repositioning_policy: RepositioningPolicy | None = None,
         load_recovery_strategy: LoadRecoveryStrategy | None = None,
+        clear_service_nodes: bool = True,
+        max_traffic_requeues: int = 3,
+        lookahead_margin: float = 0.0,
         default_metrics: bool = True,
         ema_alpha: float = 0.01,
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
@@ -146,23 +179,44 @@ class FleetCoordinator(Entity, kind="fleet"):
         name: str | None = None,
         label: str | None = None,
     ) -> None:
+        if not (math.isfinite(lookahead_margin) and lookahead_margin >= 0):
+            raise ValueError(f"lookahead_margin must be finite and >= 0, got {lookahead_margin}")
         self.env = env
-        self._graph, self._pending_graph = graph_input(env, graph)
+        self._graph, self._pending_graph = graph_input(env, graph, component="FleetCoordinator")
         self.fleet = tuple(fleet)
         self.warehouses = tuple(warehouses)
         self.charging_stations = tuple(charging_stations)
         self.parking_areas = tuple(parking_areas or [])
 
-        self._traffic_manager: TrafficManager = traffic_manager or FreeTrafficManager()
-        if env.layout is not None:
-            env.layout._validate_fleet(
-                (*self.fleet, *self.warehouses, *self.charging_stations, *self.parking_areas), self._traffic_manager
-            )
-            if any(agv.fleet is not None for agv in self.fleet) or len(set(self.fleet)) != len(self.fleet):
-                from simulatte.layout.errors import LayoutError
+        self.traffic_controller: TrafficController = (
+            FreeFlowController() if traffic_controller is None else traffic_controller
+        )
+        """The traffic controller that grants the claims of this fleet's travels (spec §7)."""
+        self.router: Router = ShortestDistanceRouter() if router is None else router
+        """The router of this fleet's travels (spec §10)."""
+        env.layout._validate_fleet(
+            (*self.fleet, *self.warehouses, *self.charging_stations, *self.parking_areas), self.traffic_controller
+        )
+        if any(agv.fleet is not None for agv in self.fleet) or len(set(self.fleet)) != len(self.fleet):
+            from simulatte.layout.errors import LayoutError
 
-                raise LayoutError("AGV already belongs to a fleet or occurs twice")
-        self._path_planner: PathPlanner = path_planner or DijkstraPlanner()
+            raise LayoutError("AGV already belongs to a fleet or occurs twice")
+        self.traffic_controller.register_fleet(self)
+        self._executor = TravelExecutor(self)
+        self.clear_service_nodes = clear_service_nodes
+        """Whether an AGV that would become idle on a service node first moves off it (spec §7.10)."""
+        self.max_traffic_requeues = max_traffic_requeues
+        """How many times an order that has not been picked up goes back to the pending queue because its AGV gave up
+        a travel in traffic; the next give-up is refused (spec §8.2)."""
+        self.lookahead_margin = lookahead_margin
+        """Distance added to the braking distance of a kinematic vehicle when its travels claim ahead (spec §9.3)."""
+        self._requeues: dict[str, int] = {}  # by order id: how many times the order was requeued for traffic
+        self._withheld: tuple[TransferOrder, AGV] | None = None  # the order the pending-queue check does not offer
+        self._returned: dict[AGV, tuple[float, Node]] = {}  # make-way moves that ended where they started: time, node
+        self._made_way_from: dict[AGV, set[Node]] = {}  # nodes each AGV made way from in its current chain of moves
+        self._slots: dict[AGV, list[ParkingArea]] = {}  # the parking slots taken at a decision or held at rest
+        self._charges: dict[AGV, int] = {}  # charges each AGV completed: tells a trip that charged on its way
+        self._after_charge: set[AGV] = set()  # AGVs in the decision of where to rest that follows a charge on the way
         self._dispatch_strategy: DispatchStrategy = dispatch_strategy or NearestIdleStrategy()
         self._repositioning_policy: RepositioningPolicy = repositioning_policy or StayInPlace()
         self._load_recovery_strategy: LoadRecoveryStrategy = load_recovery_strategy or ReturnToOrigin()
@@ -199,16 +253,15 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_charging_complete: list[Callable[[AGV, ChargingStation], None]] = []
         self._hooks_on_agv_idle: list[Callable[[AGV], None]] = []
 
-        self._uses_explicit_graph = env.layout is None and True
+        # The traffic counters of the state (studio map spec §6.6), changed by the controller through _count_traffic.
+        self._traffic_counts: dict[TrafficCounter, int] = {"waits": 0, "stuck_waits": 0, "deadlocks": 0}
+
         env.entities.attach(self, name=name, label=label)
         self.metrics: OrderEMACollector | None = (
             OrderEMACollector(self, alpha=ema_alpha).attach(env) if default_metrics else None
         )
         """The default :class:`OrderEMACollector` (``ema_*`` averages of delivered orders), or None when built with
         ``default_metrics=False``."""
-        if env.layout is None:
-            for node in sorted(self.graph.nodes, key=lambda node: node.id):
-                env.entities.bind_node(node)
         for agv in self.fleet:
             agv.fleet = self
             if env.wants(FleetAgvAdded):
@@ -216,7 +269,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                     FleetAgvAdded(fleet=self.id, agv=agv.id, deltas=Deltas.build().set(agv.id, "fleet", self.id).done())
                 )
 
-        # S1: Initial AGV placement — register starting positions with the traffic manager at activation
+        # S1: Initial AGV placement — register starting positions with the traffic controller at activation
         env.on_activate(self._initial_placement)
 
     @property
@@ -228,12 +281,24 @@ class FleetCoordinator(Entity, kind="fleet"):
 
     @graph.setter
     def graph(self, value: LayoutGraph) -> None:
-        readonly(self.env, "graph")
-        self._graph = value
+        readonly("graph")
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state: the ids of the pending orders, in queue order."""
-        return {"pending": [order.id for order in self._pending_queue], "label": self.label}
+        """Current entity state: the ids of the pending orders, in queue order, and the traffic counters."""
+        counts = self._traffic_counts
+        return {
+            "pending": [order.id for order in self._pending_queue],
+            "waits": counts["waits"],
+            "stuck_waits": counts["stuck_waits"],
+            "deadlocks": counts["deadlocks"],
+            "label": self.label,
+        }
+
+    def _count_traffic(self, counter: TrafficCounter) -> int:
+        """Add one to the traffic counter `counter` and return its new value, the value the counted event's delta sets
+        (studio map spec §6.6); see :func:`~simulatte.intralogistics.traffic.count_traffic`."""
+        value = self._traffic_counts[counter] = self._traffic_counts[counter] + 1
+        return value
 
     # ------------------------------------------------------------------
     # Public API
@@ -289,7 +354,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         for cb in self._hooks_on_order_submitted:
             cb(order)
 
-        agv = self._dispatch_strategy.select(order, self.fleet, self.graph)
+        agv = self._dispatch_strategy.select(order, self.fleet, self._dispatch_context())
         if agv is not None:
             self._dispatch(order, agv)
         else:
@@ -340,6 +405,8 @@ class FleetCoordinator(Entity, kind="fleet"):
         self._hooks_on_delivery_complete.append(callback)
 
     def on_battery_low(self, callback: Callable[[AGV], None]) -> None:
+        """Call `callback` with the AGV when it is sent to charge. ``agv.battery.level`` is the level as last accounted;
+        with idle power, :meth:`AGV.battery_level_now` is the level now (spec §9.5)."""
         self._hooks_on_battery_low.append(callback)
 
     def on_charging_started(self, callback: Callable[[AGV, ChargingStation], None]) -> None:
@@ -383,14 +450,16 @@ class FleetCoordinator(Entity, kind="fleet"):
         return {s: v / n for s, v in combined.items()}
 
     def agv_report(self) -> list[dict[str, object]]:
-        """Per-AGV summary."""
+        """Per-AGV summary. ``battery_pct`` is the level now (:meth:`AGV.battery_level_now`), with the idle power not
+        yet accounted taken off; the report accounts nothing."""
         report: list[dict[str, object]] = []
         for agv in self.fleet:
+            capacity = agv.battery.capacity
             report.append(
                 {
                     "agv_id": agv.agv_id,
                     "state": agv.state.name,
-                    "battery_pct": agv.battery.level_pct,
+                    "battery_pct": agv.battery_level_now() / capacity if capacity > 0 else 0.0,
                     "current_node": agv.current_node.id if agv.current_node else None,
                     "utilization": agv.utilization(),
                 }
@@ -423,8 +492,16 @@ class FleetCoordinator(Entity, kind="fleet"):
     # ------------------------------------------------------------------
 
     def _transition_agv(self, agv: AGV, new_state: AGVState) -> None:
-        """Transition an AGV to *new_state* (``AGV.transition_to`` emits ``agv.state_changed``)."""
+        """Transition an AGV to *new_state* (``AGV.transition_to`` emits ``agv.state_changed``).
+
+        On a transition to ``STRANDED`` the traffic controller is told that the AGV has come to rest without a travel
+        (``idle``, spec §7.1), so that the waits it blocks are reviewed: a stranding may release nothing, and without
+        it a sleeping wait behind the AGV would never be reviewed again (§7.9).
+        """
+        stranding = new_state is AGVState.STRANDED and agv.state is not AGVState.STRANDED
         agv.transition_to(new_state)
+        if stranding:
+            self.traffic_controller.idle(agv)
 
     def _set_status(self, order: TransferOrder, status: OrderStatus, reason: str) -> None:
         """Assign `status` to `order` and emit ``order.status_changed``."""
@@ -554,6 +631,7 @@ class FleetCoordinator(Entity, kind="fleet"):
     def _retire_if_terminal(self, order: TransferOrder) -> None:
         """Retire `order` if its status is terminal and it is still live (spec §5.1)."""
         if order.status in TERMINAL_STATUSES and self.env.entities.is_live(order):
+            self._requeues.pop(order.id, None)
             self.env.entities.retire(order)
 
     def _dispatch(self, order: TransferOrder, agv: AGV) -> None:
@@ -576,6 +654,7 @@ class FleetCoordinator(Entity, kind="fleet"):
                 )
             )
         self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        self._made_way_from.pop(agv, None)  # a mission starts: make-way moves may go anywhere again (spec §7.10)
 
         process = self.env.process(self._run_mission(order, agv))
         self._active_missions[order.id] = process
@@ -595,24 +674,38 @@ class FleetCoordinator(Entity, kind="fleet"):
         """Full mission lifecycle as a SimPy process."""
         mission = self.env.active_process
         notify_idle = False
+        gave_up_before_pickup = False
         try:
+            if order.id in self._cancelled_missions:
+                # Cancelled before the mission ran (its interrupt is still pending and is dropped when the process
+                # ends): nothing was done, so nothing is undone, and the order is not touched again.
+                self._transition_agv(agv, AGVState.IDLE)
+                notify_idle = True
+                return
+
             # 1. Travel empty to origin output bay
             # (order.status, dispatched_at, and AGV state are set eagerly in _dispatch)
-            origin_output_bay = order.origin.nearest_output_bay(self._require_current_node(agv), self.graph)
+            origin_output_bay = self.best_bay(agv, order.origin.output_bays)
             while True:
-                outcome = yield from self._travel(agv, self._require_current_node(agv), origin_output_bay, loaded=False)
-                if outcome is _TravelOutcome.ARRIVED:
+                outcome = yield from self._executor.travel(agv, origin_output_bay, loaded=False)
+                if outcome is TravelOutcome.ARRIVED:
                     break
-                if outcome is _TravelOutcome.BATTERY_STRANDED:
+                if outcome is TravelOutcome.BATTERY_STRANDED:
                     self._set_status(order, OrderStatus.FAILED, "battery_stranded")
                     return
-                if outcome is _TravelOutcome.MISSION_FAILED:
+                if outcome is TravelOutcome.NO_ROUTE:
                     self._set_status(order, OrderStatus.FAILED, "travel_failed")
                     self._transition_agv(agv, AGVState.IDLE)
                     return
+                gave_up = outcome is TravelOutcome.GAVE_UP
                 # Charging diversion or critical battery — charge first if needed
-                if agv.battery.is_critical and self.charging_stations:
-                    yield from self._charge_agv(agv)
+                if not gave_up and agv.battery.is_critical and self.charging_stations:
+                    gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
+                if gave_up:  # before pickup, so the order goes back to the pending queue (spec §8.2)
+                    self._requeue_for_traffic(order, agv)
+                    self._transition_agv(agv, AGVState.IDLE)
+                    notify_idle = gave_up_before_pickup = True
+                    return
                 self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
 
             # 2. Pick
@@ -636,18 +729,19 @@ class FleetCoordinator(Entity, kind="fleet"):
             self._trigger_event_driven_replenishment(order.origin)
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
 
-            dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
+            dest_input_bay = self.best_bay(agv, order.destination.input_bays, load_weight=_load_weight(agv))
             while True:
-                outcome = yield from self._travel(agv, self._require_current_node(agv), dest_input_bay, loaded=True)
-                if outcome is _TravelOutcome.ARRIVED:
+                outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
+                self._refuse_give_up_with_cargo(agv, outcome)
+                if outcome is TravelOutcome.ARRIVED:
                     break
-                if outcome is _TravelOutcome.BATTERY_STRANDED:
+                if outcome is TravelOutcome.BATTERY_STRANDED:
                     if agv.current_load is not None:
                         yield from self._return_cargo_to_origin(order, agv)
                     self._set_status(order, OrderStatus.FAILED, "battery_stranded")
                     self._transition_agv(agv, AGVState.STRANDED)
                     return
-                if outcome is _TravelOutcome.MISSION_FAILED:
+                if outcome is TravelOutcome.NO_ROUTE:
                     if agv.current_load is not None:
                         yield from self._return_cargo_to_origin(order, agv)
                     self._set_status(order, OrderStatus.FAILED, "travel_failed")
@@ -670,29 +764,8 @@ class FleetCoordinator(Entity, kind="fleet"):
             # 5. Post-mission
             for cb in self._hooks_on_delivery_complete:
                 cb(order, agv)
-
-            # Battery check after mission
-            if agv.battery.is_low and self.charging_stations:
-                yield from self._charge_agv(agv)
-            else:
-                # Repositioning
-                repo_ctx = RepositioningContext(
-                    graph=self.graph,
-                    parking_areas=self.parking_areas,
-                    charging_stations=self.charging_stations,
-                    fleet=self.fleet,
-                )
-                target = self._repositioning_policy.reposition(agv, repo_ctx)
-                if target is not None and target != agv.current_node:
-                    self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-                    outcome = yield from self._travel(agv, self._require_current_node(agv), target, loaded=False)
-                    if outcome is _TravelOutcome.BATTERY_STRANDED:
-                        return
-                    if outcome is _TravelOutcome.MISSION_FAILED:
-                        self.env.warning(
-                            f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
-                            component="FleetCoordinator",
-                        )
+            if (yield from self._rest(agv)) is TravelOutcome.BATTERY_STRANDED:
+                return
 
             # Go IDLE
             self._transition_agv(agv, AGVState.IDLE)
@@ -732,7 +805,8 @@ class FleetCoordinator(Entity, kind="fleet"):
                         )
                     )
             # A generator closed unfinished (the process is discarded, e.g. garbage-collected) retires nothing.
-            if not isinstance(sys.exc_info()[1], GeneratorExit):
+            closed = isinstance(sys.exc_info()[1], GeneratorExit)
+            if not closed:
                 self._retire_if_terminal(order)
 
             # Hooks may dispatch immediately, so all old mission ownership must
@@ -740,7 +814,19 @@ class FleetCoordinator(Entity, kind="fleet"):
             if notify_idle:
                 for cb in self._hooks_on_agv_idle:
                     cb(agv)
-            self._check_pending_queue()
+            if gave_up_before_pickup:
+                # The controller is told first, so that the AGV can make way, and the pending-queue check of this
+                # instant does not hand the order back to the AGV that gave it up (spec §8.2).
+                self._notify_idle(agv)
+                self._withheld = (order, agv)
+                try:
+                    self._check_pending_queue()
+                finally:
+                    self._withheld = None
+            else:
+                self._check_pending_queue()
+                if not closed:
+                    self._notify_idle(agv)
 
     def _recover_mission(self, order: TransferOrder, agv: AGV) -> ProcessGenerator:
         """Finish an interrupted mission without exposing rollback to more interrupts."""
@@ -766,18 +852,17 @@ class FleetCoordinator(Entity, kind="fleet"):
 
                 if order.status == OrderStatus.IN_TRANSIT and agv.current_load is not None:
                     # S6: ResumeDelivery — re-travel to destination from current position
-                    dest_input_bay = order.destination.nearest_input_bay(self._require_current_node(agv), self.graph)
+                    dest_input_bay = self.best_bay(agv, order.destination.input_bays, load_weight=_load_weight(agv))
                     self._transition_agv(agv, AGVState.TRAVELING_LOADED)
                     while True:
-                        outcome = yield from self._travel(
-                            agv, self._require_current_node(agv), dest_input_bay, loaded=True
-                        )
-                        if outcome is _TravelOutcome.ARRIVED:
+                        outcome = yield from self._executor.travel(agv, dest_input_bay, loaded=True)
+                        self._refuse_give_up_with_cargo(agv, outcome)
+                        if outcome is TravelOutcome.ARRIVED:
                             break
-                        if outcome in (_TravelOutcome.BATTERY_STRANDED, _TravelOutcome.MISSION_FAILED):
+                        if outcome is TravelOutcome.BATTERY_STRANDED or outcome is TravelOutcome.NO_ROUTE:
                             # H1 fix: fall back to return-to-origin, then drop
                             yield from self._return_cargo_to_origin(order, agv)
-                            stranded = outcome is _TravelOutcome.BATTERY_STRANDED
+                            stranded = outcome is TravelOutcome.BATTERY_STRANDED
                             reason = "battery_stranded" if stranded else "travel_failed"
                             self._set_status(order, OrderStatus.FAILED, reason)
                             break
@@ -820,327 +905,291 @@ class FleetCoordinator(Entity, kind="fleet"):
             # Ensure status stays CANCELLED (may have been changed by _return_cargo_to_origin)
             self._set_status(order, OrderStatus.CANCELLED, "cancelled")
 
-    def _travel(
-        self,
-        agv: AGV,
-        from_node: Node,
-        to_node: Node,
-        loaded: bool,
-    ) -> ProcessGenerator:
-        """Move the AGV along the graph from ``from_node`` to ``to_node``.
-
-        Returns a ``_TravelOutcome`` describing whether the AGV arrived,
-        should retry from its current position, failed for mission-routing
-        reasons, or became battery-stranded.
-        """
-        if from_node == to_node:
-            return _TravelOutcome.ARRIVED
-
-        avoid_nodes: list[Node] | None = None
-
-        while True:
-            path = self._path_planner.plan(self.graph, from_node, to_node, avoid=avoid_nodes)
-            if path is None:
-                self.env.error(
-                    f"No path from {from_node.id} to {to_node.id} for {agv.agv_id}",
-                    component="FleetCoordinator",
-                )
-                return _TravelOutcome.MISSION_FAILED
-
-            while True:
-                result = self._traffic_manager.check_path(agv, path)
-                if result.feasible:
-                    break
-
-                if result.conflict_nodes:
-                    alt_path = self._path_planner.plan(self.graph, from_node, to_node, avoid=result.conflict_nodes)
-                    if alt_path is None:
-                        self.env.error(
-                            f"No alternative path from {from_node.id} to {to_node.id} for {agv.agv_id}",
-                            component="FleetCoordinator",
-                        )
-                        return _TravelOutcome.MISSION_FAILED
-                    alt_result = self._traffic_manager.check_path(agv, alt_path)
-                    if alt_result.feasible:
-                        path = alt_path
-                        break
-                    if alt_result.delay_until is not None:
-                        wait = max(0.0, alt_result.delay_until - self.env.now)
-                        if wait > 0:
-                            yield from self._traffic_delay(agv, alt_path[1], wait, "path_delay")
-                        path = alt_path
-                        continue
-                    self.env.error(
-                        f"Alternative path also infeasible from {from_node.id} to {to_node.id} for {agv.agv_id}",
-                        component="FleetCoordinator",
-                    )
-                    return _TravelOutcome.MISSION_FAILED
-
-                if result.delay_until is not None:
-                    wait = max(0.0, result.delay_until - self.env.now)
-                    if wait > 0:
-                        yield from self._traffic_delay(agv, path[1], wait, "path_delay")
-                    continue
-
-                self.env.error(
-                    f"Infeasible path from {from_node.id} to {to_node.id} for {agv.agv_id} "
-                    f"with no reroute or delay guidance",
-                    component="FleetCoordinator",
-                )
-                return _TravelOutcome.MISSION_FAILED
-
-            self._traffic_manager.register_intent(agv, path)
-            deadlock_timeout = getattr(self._traffic_manager, "deadlock_timeout", None)
-            reroute_requested = False
-
-            try:
-                for i in range(len(path) - 1):
-                    current = path[i]
-                    next_node = path[i + 1]
-
-                    distance = math.hypot(next_node.x - current.x, next_node.y - current.y)
-                    if loaded and agv.current_load:
-                        load_weight = math.fsum(sku.weight * qty for sku, qty in agv.current_load.items())
-                    else:
-                        load_weight = 0.0
-
-                    arc = self.graph.arc_between(current, next_node)
-                    arc_speed_limit = arc.speed_limit if arc is not None else None
-                    battery_pct = agv.battery.level_pct
-                    speed_profile = agv.agv_type.speed_profile
-                    travel_time = speed_profile.travel_time(
-                        distance, load_weight, battery_pct, speed_limit=arc_speed_limit
-                    )
-                    # Described now, with the arguments the travel time was just computed from (spec §6.5).
-                    description = describe_motion(speed_profile, distance, load_weight, battery_pct, arc_speed_limit)
-                    avg_speed = distance / travel_time if travel_time > 0 else 0.0
-                    energy_cost = agv.battery.estimate_energy(distance, load_weight, avg_speed)
-
-                    if agv.battery.level < energy_cost:
-                        charger = self._find_reachable_charger(agv)
-                        if charger is not None:
-                            prior_state = agv.state
-                            yield from self._charge_agv(agv, charger)
-                            self._transition_agv(agv, prior_state)
-                            if agv.battery.level < energy_cost:
-                                self._transition_agv(agv, AGVState.STRANDED)
-                                self._stranded(agv, current, "insufficient_after_charging")
-                                self.env.error(
-                                    f"{agv.agv_id} STRANDED at {current.id} — insufficient energy even after charging",
-                                    component="FleetCoordinator",
-                                )
-                                return _TravelOutcome.BATTERY_STRANDED
-                            self._traffic_manager.cancel(agv)
-                            return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
-
-                        self._transition_agv(agv, AGVState.STRANDED)
-                        self._stranded(agv, current, "no_reachable_charger")
-                        self.env.error(
-                            f"{agv.agv_id} STRANDED at {current.id} — no reachable charger",
-                            component="FleetCoordinator",
-                        )
-                        return _TravelOutcome.BATTERY_STRANDED
-
-                    reached_next = False
-                    try:
-                        if deadlock_timeout is not None:
-                            enter_outcome = yield from self._enter_with_timeout(
-                                agv, next_node, deadlock_timeout, destination=to_node
-                            )
-                            if enter_outcome is _EnterOutcome.REROUTE:
-                                avoid_nodes = [next_node]
-                                reroute_requested = True
-                                break
-                            if enter_outcome is _EnterOutcome.GAVE_UP:
-                                self.env.error(
-                                    f"{agv.agv_id} could not enter node {next_node.id} after deadlock retries",
-                                    component="FleetCoordinator",
-                                )
-                                return _TravelOutcome.MISSION_FAILED
-                        else:
-                            yield from self._traffic_manager.enter_node(agv, next_node)
-
-                        self._start_segment(agv, current, next_node, travel_time, description, loaded)
-                        yield self.env.timeout(travel_time)
-                        # The traffic release comes first, so the battery and position change together in move_ended.
-                        self._traffic_manager.leave_node(agv, current)
-                        agv.battery.deplete(distance, load_weight, avg_speed)
-                        self._end_segment(agv, next_node)
-                        reached_next = True
-
-                        if agv.battery.is_critical:
-                            self._traffic_manager.cancel(agv)
-                            return _TravelOutcome.RETRY_FROM_CURRENT_POSITION
-                    except simpy.Interrupt as interrupt:
-                        if agv.motion is not None:
-                            self._interrupt_segment(agv, interrupt.cause)
-                        if not reached_next:  # pragma: no cover
-                            self._traffic_manager.leave_node(agv, next_node)
-                        raise
-            finally:
-                self._traffic_manager.cancel(agv)
-
-            if reroute_requested:
-                from_node = self._require_current_node(agv)
-                continue
-
-            return _TravelOutcome.ARRIVED
-
-    def _start_segment(
-        self,
-        agv: AGV,
-        source: Node,
-        target: Node,
-        travel_time: float,
-        description: MotionDescription,
-        loaded: bool,
-    ) -> None:
-        """Set the AGV's active motion (spec §6.5) and emit ``agv.move_started``.
-
-        `description` is the speed profile's description of the segment. A non-finite travel time ends at ``+inf``
-        and marks the segment ``stalled``.
-        """
-        env = self.env
-        t_start = float(env.now)
-        motion: dict[str, object] = {"from": source.id, "to": target.id, "t_start": t_start}
-        if math.isfinite(travel_time):
-            t_end = motion["t_end"] = t_start + travel_time
-        else:
-            t_end = motion["t_end"] = math.inf
-            motion["stalled"] = True
-        frozen_description = cast("FrozenMap", freeze(description))
-        motion["description"] = frozen_description
-        frozen = cast("FrozenMap", freeze(motion))
-        agv.motion = frozen
-        if env.wants(AgvMoveStarted):
-            env.emit(
-                AgvMoveStarted(
-                    agv=agv.id,
-                    from_node=source.id,
-                    to_node=target.id,
-                    t_end=t_end,
-                    motion=frozen_description,
-                    loaded=loaded,
-                    deltas=Deltas.build().set(agv.id, "motion", frozen).done(),
-                )
-            )
-
-    def _end_segment(self, agv: AGV, node: Node) -> None:
-        """Move the AGV to `node` at the end of a segment, clear its motion and emit ``agv.move_ended``."""
-        agv._validate_node(node)
-        agv.motion = None
-        left, entered = agv._relocate(node)
-        env = self.env
-        if env.wants(AgvMoveEnded):
-            battery = wire_float(agv.battery.level)
-            build = agv._node_deltas(node, left, entered).set(agv.id, "battery", battery).set(agv.id, "motion", None)
-            env.emit(AgvMoveEnded(agv=agv.id, node=node.id, battery=battery, deltas=build.done()))
-
-    def _interrupt_segment(self, agv: AGV, cause: object) -> None:
-        """Clear the motion of a segment cut short by an interrupt and emit ``agv.move_interrupted``."""
-        agv.motion = None
-        env = self.env
-        if env.wants(AgvMoveInterrupted):
-            node = agv.current_node
-            env.emit(
-                AgvMoveInterrupted(
-                    agv=agv.id,
-                    node=None if node is None else node.id,
-                    reason=cause if isinstance(cause, str) else "interrupted",
-                    deltas=Deltas.build().set(agv.id, "motion", None).done(),
-                )
-            )
-
     def _stranded(self, agv: AGV, node: Node, reason: str) -> None:
         env = self.env
         if env.wants(AgvStranded):
             env.emit(AgvStranded(agv=agv.id, node=node.id, reason=reason))
 
-    def _enter_with_timeout(
-        self,
-        agv: AGV,
-        node: Node,
-        timeout: float,
-        *,
-        destination: Node,
-        _max_retries: int = 3,
-    ) -> ProcessGenerator:
-        """Try to enter ``node`` with timeout, reroute, and priority backoff.
+    def _may_give_up(self, agv: AGV) -> bool:
+        """Whether the travel of `agv` may give up now: the ``give_up`` hook of the executor (spec §8.2).
 
-        On timeout, first try a reroute that avoids the blocked node. If no
-        alternative exists, wait with exponential backoff and retry. Returns an
-        ``_EnterOutcome`` indicating whether the node was entered, travel should
-        be rerouted, or the coordinator should give up.
+        Never with cargo on board, whatever the travel (a charging diversion travels unloaded and still refuses). An
+        order mission before pickup (its order is ``DISPATCHED``), including a charging diversion inside it, may while
+        the order was requeued for traffic fewer than ``max_traffic_requeues`` times. A travel with no order
+        (repositioning, make way, clearing a service node, charging after a mission) always may.
         """
-        for attempt in range(_max_retries):
-            enter_proc = self.env.process(self._traffic_manager.enter_node(agv, node))
-            timer = self.env.timeout(timeout)
-            entry = enter_proc | timer
-            try:
-                yield entry
-            except simpy.Interrupt as interruption:
-                # The entry child must finish withdrawing its request before
-                # mission recovery can move/reuse this AGV. In particular, a
-                # granted request must not resume later and create a ghost
-                # reservation after the parent has released the target node.
-                entry.defused = True
-                if enter_proc.is_alive:
-                    enter_proc.interrupt("deadlock_timeout")
-                while not enter_proc.processed:
-                    try:
-                        yield enter_proc
-                    except simpy.Interrupt:
-                        if enter_proc.triggered and not enter_proc.ok:
-                            break  # custom managers may propagate the child's interruption
-                        # Merge further interrupts while the child cleans up.
-                raise interruption
+        if agv.current_load is not None:
+            return False
+        order = self._agv_mission.get(agv)
+        if order is None or order.status is not OrderStatus.DISPATCHED:
+            return True
+        return self._requeues.get(order.id, 0) < self.max_traffic_requeues
 
-            if enter_proc.triggered:
-                return _EnterOutcome.ENTERED
+    def _refuse_give_up_with_cargo(self, agv: AGV, outcome: TravelOutcome) -> None:
+        """Fail loudly when a travel with cargo on board ended with ``GAVE_UP``. The ``give_up`` hook refuses such a
+        travel, so only a controller that ends a travel with ``GaveUp`` without asking the hook can cause this."""
+        if outcome is TravelOutcome.GAVE_UP:
+            raise RuntimeError(
+                f"{type(self.traffic_controller).__name__} ended a travel of {agv.agv_id} with cargo on board with "
+                "GaveUp; a travel with cargo refuses to give up"
+            )
 
-            if enter_proc.is_alive:  # pragma: no cover
-                enter_proc.interrupt("deadlock_timeout")
-            self._traffic_manager.cancel(agv)
+    def _requeue_for_traffic(self, order: TransferOrder, agv: AGV) -> None:
+        """Put the order of a mission that gave up before pickup back to ``PENDING``, unassigned, at the end of the
+        pending queue (spec §8.2); the mission counts one more requeue of the order."""
+        self._requeues[order.id] = self._requeues.get(order.id, 0) + 1
+        self._set_status(order, OrderStatus.PENDING, "traffic_requeued")
+        self._unassign_order(order, agv)
+        self._pending_add(order)
+        self._ensure_pending_retry_loop()
 
-            current_node = agv.current_node
-            if current_node is not None:
-                alt_path = self._path_planner.plan(self.graph, current_node, destination, avoid=[node])
-                if alt_path is not None:
-                    return _EnterOutcome.REROUTE
+    @property
+    def service_nodes(self) -> frozenset[Node]:
+        """The nodes AGVs should not idle on: the bays of the fleet's warehouses and the nodes of its charging
+        stations (spec §7.10)."""
+        nodes = {station.node for station in self.charging_stations}
+        for warehouse in self.warehouses:
+            nodes.update(warehouse.input_bays)
+            nodes.update(warehouse.output_bays)
+        return frozenset(nodes)
 
-            priority_fn = getattr(self._traffic_manager, "priority", None)
-            priority = priority_fn(agv) if priority_fn is not None else 0.0
-            backoff_multiplier = attempt + 1 if priority > 0 else 2**attempt
-            yield from self._traffic_delay(agv, node, timeout * backoff_multiplier, "deadlock_backoff")
+    def make_way(self, agv: AGV, target: Node | None = None, *, concerned: Sequence[AGV] = ()) -> bool:
+        """Move the idle `agv` out of the way of the waiting AGVs `concerned`, to `target` or, without one, to the node
+        of the standard search for an idle AGV (spec §7.9, §7.10); whether a move was started. When that search finds
+        no node, a service node or a root of capacity above 1 is taken under the same rules (the fallback of §7.9).
 
-        return _EnterOutcome.GAVE_UP
+        Nothing happens, and false is returned, for an AGV that is not idle (one already making way is not), when there
+        is no target, when the target is the AGV's own node, a node the router cannot reach from the AGV's node
+        (asked with purpose ``make_way``, for a target that was given) or a parking area without a free slot, and when
+        the AGV's previous make-way move ended at the current time on the node it started from (so that a move that
+        fails at once is not repeated without time passing). A node the AGV has made way from in the current chain of
+        moves is not a target: a given one is refused and the search skips it. Nor does a move start from such a node:
+        a move cut short before its target (a deadlock it gives up, which a travel without an order always does) can
+        leave the AGV on a node it left, and every move started from it would add nothing to the chain. Each move of a
+        chain therefore starts from a new node, which bounds a chain by the number of nodes. The chain ends when the
+        AGV starts an order mission or becomes idle where it blocks no wait. Otherwise
+        the AGV leaves ``IDLE`` at once (``TRAVELING_EMPTY``), a travel with purpose ``make_way`` runs as a process, and
+        when it ends, whatever the outcome (a stranded AGV stays stranded), the AGV is ``IDLE`` again and the
+        ``on_agv_idle`` hooks and the pending-queue check run as after any mission. A move that charges on its way and
+        ends elsewhere than its target, with no order pending, is first followed once by the decision of where to rest
+        of an AGV that ends a mission there.
+        """
+        origin = agv.current_node
+        if agv.state is not AGVState.IDLE or origin is None:
+            return False
+        if self._returned.get(agv) == (float(self.env.now), origin):
+            return False
+        left = self._made_way_from.get(agv, set())
+        if origin in left:  # the chain came back to a node it left: a move cut short would start again for ever
+            return False
+        if target is None:
+            exclude = sorted(left, key=lambda n: n.id)
+            target = standard_target(self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=exclude)
+            if target is None:  # the fallback: a service node or a root with room to spare (spec §7.9)
+                target = standard_target(
+                    self, agv, concerned=concerned, idle=True, purpose="make_way", exclude=exclude, roomy=True
+                )
+        elif target in left or (target != origin and not self._reachable(agv, origin, target)):
+            return False
+        if target is None or target == origin or not self._take_slot(agv, target):
+            return False
+        self._made_way_from.setdefault(agv, set()).add(origin)
+        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        self.env.process(self._make_way_move(agv, target))
+        return True
 
-    def _traffic_delay(self, agv: AGV, node: Node, delay: float, reason: str) -> ProcessGenerator:
-        """Wait `delay` before trying to enter `node` again, between ``traffic.wait_started`` (with `reason`) and
-        ``traffic.wait_ended`` (``elapsed``, or ``interrupted`` when the mission is interrupted meanwhile)."""
-        env = self.env
-        if env.wants(TrafficWaitStarted):
-            env.emit(TrafficWaitStarted(agv=agv.id, node=node.id, reason=reason))
+    def _reachable(self, agv: AGV, origin: Node, target: Node) -> bool:
+        """Whether the router finds a route for a make-way move of `agv` from `origin` to `target`."""
+        request = RouteRequest(agv, origin, target, 0.0, purpose="make_way")
+        return self.router.route(request, self.traffic_controller.view) is not None
+
+    def _make_way_move(self, agv: AGV, target: Node) -> ProcessGenerator:
+        """The process of one make-way move: the travel, then the idle bookkeeping of a finished mission."""
+        origin = self._require_current_node(agv)
+        outcome = yield from self._idle_travel(agv, target, "make_way")
+        if outcome is TravelOutcome.BATTERY_STRANDED:
+            return
+        if agv.current_node == origin:
+            self._returned[agv] = (float(self.env.now), origin)
+        self._transition_agv(agv, AGVState.IDLE)
+        for cb in self._hooks_on_agv_idle:
+            cb(agv)
+        self._check_pending_queue()
+        self._notify_idle(agv)
+
+    def _notify_idle(self, agv: AGV) -> None:
+        """Tell the traffic controller that `agv` became idle where it stands, unless the hooks or the dispatch of a
+        pending order already took it out of ``IDLE`` (spec §7.1, §7.10).
+
+        An AGV still idle afterwards that blocks no wait ends its chain of make-way moves: the nodes it made way from
+        are forgotten."""
+        if agv.state is AGVState.IDLE:
+            controller = self.traffic_controller
+            controller.idle(agv)
+            if agv.state is AGVState.IDLE and not controller.view.waiting_on(agv):
+                self._made_way_from.pop(agv, None)
+
+    def _rest(self, agv: AGV) -> ProcessGenerator:
+        """Decide where `agv` rests at the end of a mission, where it stands (spec §7.10): with a low battery it charges
+        (and then only clears a service node); otherwise the repositioning policy is asked and the AGV travels to the
+        node it names, taking a parking slot there; where the policy names none, a service node is cleared. The caller
+        makes the AGV ``IDLE``. Returns ``BATTERY_STRANDED`` when the AGV stranded, else None.
+
+        A trip of this decision, or of a make-way move, that charges on its way and ends away from its target is
+        followed by this decision once, from the charger's node, unless an order is pending (:meth:`_idle_travel`)."""
+        # Battery check after mission
+        target = None
+        gave_up = False
+        agv.accrue_idle_power()  # the level the check reads includes the idle power of the waits of the mission
+        if agv.battery.is_low and self.charging_stations:
+            gave_up = (yield from self._charge_agv(agv)) is TravelOutcome.GAVE_UP
+        else:
+            # Repositioning
+            repo_ctx = RepositioningContext(
+                graph=self.graph,
+                parking_areas=self.parking_areas,
+                charging_stations=self.charging_stations,
+                fleet=self.fleet,
+                router=self.router,
+                view=self.traffic_controller.view,
+            )
+            target = self._repositioning_policy.reposition(agv, repo_ctx)
+            if target is not None and target != agv.current_node:
+                if self._take_slot(agv, target):
+                    if agv.state is not AGVState.TRAVELING_EMPTY:  # after a charge on the way it travels already
+                        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+                    outcome = yield from self._idle_travel(agv, target)
+                    if outcome is TravelOutcome.BATTERY_STRANDED:
+                        return outcome
+                    if outcome is TravelOutcome.NO_ROUTE:
+                        self.env.warning(
+                            f"Repositioning failed for {agv.agv_id} — no path to {target.id}",
+                            component="FleetCoordinator",
+                        )
+                else:  # a full parking area is not a valid target (spec §7.10)
+                    target = None
+
+        # Clear a service node the AGV would otherwise idle on (not after a travel that gave up: it idles in place)
+        if not gave_up and target is None:
+            if (yield from self._clear_service_node(agv)) is TravelOutcome.BATTERY_STRANDED:
+                return TravelOutcome.BATTERY_STRANDED
+        return None
+
+    def _clear_service_node(self, agv: AGV) -> ProcessGenerator:
+        """Move `agv` off the service node it would idle on, to the standard-search node (spec §7.10).
+
+        Only with ``clear_service_nodes``, a traffic controller that controls occupancy and an empty pending queue (the
+        AGV is about to be dispatched where it stands). Returns the outcome of the travel, or None when the AGV stays
+        (stranded, not on a service node, or no target).
+        """
+        if not self.clear_service_nodes or not self.traffic_controller.controls_occupancy or self._pending_queue:
+            return None
+        if agv.state is AGVState.STRANDED:  # a charging travel after the mission ended stranded
+            return None
+        if agv.current_node not in self.service_nodes:
+            return None
+        target = standard_target(self, agv, idle=True, purpose="clear_node")
+        if target is None or not self._take_slot(agv, target):
+            return None
+        self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
+        return (yield from self._idle_travel(agv, target, "clear_node"))
+
+    def _idle_travel(self, agv: AGV, target: Node, purpose: str = "travel") -> ProcessGenerator:
+        """Travel `agv` unloaded to `target` and return the outcome. The parking slot that :meth:`_take_slot` took for
+        `target` is given back, whatever the outcome and for an interrupt, unless the AGV stands on `target` (an
+        interrupt takes effect at the first node where the AGV can be at rest, which may be `target`); a travel that
+        turns to charge gave it back already, as it turned (:meth:`_charge_agv`), unless the charger is on `target`
+        itself, where the slot is kept and given back here only if the AGV does not stand there.
+
+        A travel that turns to charge and charges is not resumed. When it ends away from `target`, the pending queue is
+        empty and the travel is not itself a trip of such a decision, the AGV is asked where to rest as an AGV that
+        ends a mission on the charger's node (:meth:`_rest`), and the outcome is that decision's ``BATTERY_STRANDED``,
+        or else the travel's. Otherwise the caller makes the AGV ``IDLE`` where it charged: with an order pending, the
+        pending-queue check that follows runs; a trip of that decision that charges again ends there, so the
+        decision is made at most once per move (a repositioning, a clearance or a make-way move)."""
+        charges = self._charges.get(agv, 0)
         try:
-            yield env.timeout(delay)
+            outcome = yield from self._executor.travel(agv, target, loaded=False, purpose=purpose)
         except simpy.Interrupt:
-            if env.wants(TrafficWaitEnded):
-                env.emit(TrafficWaitEnded(agv=agv.id, node=node.id, reason="interrupted"))
+            self._release_slots_unless_there(agv, target)
             raise
-        if env.wants(TrafficWaitEnded):
-            env.emit(TrafficWaitEnded(agv=agv.id, node=node.id, reason="elapsed"))
+        if outcome is not TravelOutcome.ARRIVED:
+            self._release_slots_unless_there(agv, target)
+        if (
+            outcome is TravelOutcome.RETRY_FROM_CURRENT_POSITION
+            and self._charges.get(agv, 0) != charges
+            and agv.current_node != target
+            and not self._pending_queue
+            and agv not in self._after_charge
+        ):
+            self._after_charge.add(agv)
+            try:
+                if (yield from self._rest(agv)) is TravelOutcome.BATTERY_STRANDED:
+                    return TravelOutcome.BATTERY_STRANDED
+            finally:
+                self._after_charge.discard(agv)
+        return outcome
+
+    # Parking slots (spec §7.10)
+
+    def _take_slot(self, agv: AGV, target: Node) -> bool:
+        """Take a slot for `agv` in the first parking area at `target` that has one, at once, and return true.
+
+        True without a slot when `target` is not the node of a parking area; false when it is and every area there is
+        full (nothing is taken).
+        """
+        areas = [area for area in self.parking_areas if area.node == target]
+        if not areas:
+            return True
+        for area in areas:
+            if area.available_capacity > 0:
+                for _ in area.enter(agv):  # the request is granted already: the process yields it once and ends
+                    pass
+                self._slots.setdefault(agv, []).append(area)
+                return True
+        return False
+
+    def _release_slots_unless_there(self, agv: AGV, node: Node) -> None:
+        """Give back the slots `agv` holds at `node` unless it stands on `node`."""
+        if agv.current_node != node:
+            self._release_slots(agv, node)
+
+    def _release_slots(self, agv: AGV, node: Node) -> None:
+        """Give back the slots `agv` holds in the parking areas at `node`."""
+        areas = self._slots.get(agv)
+        if areas is None:
+            return
+        for area in [area for area in areas if area.node == node]:
+            areas.remove(area)
+            area.leave(agv)
+        if not areas:
+            del self._slots[agv]
+
+    def _release_slots_elsewhere(self, agv: AGV, charger: Node) -> None:
+        """Give back the slots `agv` holds in parking areas away from its node and from `charger`, the node it turns to
+        charge on: those of a trip to park that ends without arriving because the AGV turns to charge elsewhere (spec
+        §7.10). A slot of the node it stands on goes when it departs; one of the charger's node is kept, and the AGV
+        rests there, parked, after the charge."""
+        kept = (agv.current_node, charger)
+        for area in [area for area in self._slots.get(agv, ()) if area.node not in kept]:
+            self._release_slots(agv, area.node)
 
     def _initial_placement(self) -> None:
-        """Activation initializer: register the starting positions of all AGVs with the traffic manager (S1).
+        """Activation initializer: place every AGV that has a node with the traffic controller (S1).
 
-        Raises `RuntimeError` when a starting node cannot be reserved immediately.
+        The controller raises `RuntimeError` when a starting node cannot be held.
         """
         for agv in self.fleet:
             if agv.current_node is not None:
-                self._traffic_manager.place_now(agv, agv.current_node)
+                self.traffic_controller.place(agv, agv.current_node)
 
     def _charge_agv(self, agv: AGV, station: ChargingStation | None = None) -> ProcessGenerator:
-        """Navigate to a charging station and recharge."""
+        """Navigate to a charging station and recharge.
+
+        Returns ``TravelOutcome.GAVE_UP`` when the travel to the station gave up (the AGV stands where it stopped,
+        nothing was charged), and None otherwise. A charge made, at the station or by the ``on_low_battery`` callback
+        in its place, is counted in ``_charges``.
+        """
         if station is None:
             station = self._find_reachable_charger(agv) or self._find_nearest_charger(agv)
         if station is None:
@@ -1150,6 +1199,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             )
             return
 
+        self._release_slots_elsewhere(agv, station.node)  # a trip to park that turns to charge elsewhere ends here
         self._low_battery_flags.add(agv)
 
         for cb in self._hooks_on_battery_low:
@@ -1162,6 +1212,7 @@ class FleetCoordinator(Entity, kind="fleet"):
             result = self._on_low_battery(agv)
             if result is not None:
                 yield from result
+                self._charges[agv] = self._charges.get(agv, 0) + 1
                 self._low_battery_flags.discard(agv)
                 return
 
@@ -1172,10 +1223,12 @@ class FleetCoordinator(Entity, kind="fleet"):
         current_node = agv.current_node
         if current_node != station.node:
             self._transition_agv(agv, AGVState.TRAVELING_EMPTY)
-            outcome = yield from self._travel(agv, current_node, station.node, loaded=False)
-            if outcome is not _TravelOutcome.ARRIVED:
+            outcome = yield from self._executor.travel(agv, station.node, loaded=False)
+            if agv.current_load is not None:  # a diversion with cargo travels unloaded but refuses to give up
+                self._refuse_give_up_with_cargo(agv, outcome)
+            if outcome is not TravelOutcome.ARRIVED:
                 self._low_battery_flags.discard(agv)
-                return
+                return outcome if outcome is TravelOutcome.GAVE_UP else None
 
         # Charge
         self._transition_agv(agv, AGVState.CHARGING)
@@ -1187,6 +1240,7 @@ class FleetCoordinator(Entity, kind="fleet"):
         for cb in self._hooks_on_charging_complete:
             cb(agv, station)
 
+        self._charges[agv] = self._charges.get(agv, 0) + 1
         self._low_battery_flags.discard(agv)
 
     def _drop_cargo(self, agv: AGV) -> None:
@@ -1204,11 +1258,12 @@ class FleetCoordinator(Entity, kind="fleet"):
             return
 
         current_node = self._require_current_node(agv)
-        origin_bay = order.origin.nearest_input_bay(current_node, self.graph)
+        origin_bay = self.best_bay(agv, order.origin.input_bays, load_weight=_load_weight(agv))
         if current_node != origin_bay:
             self._transition_agv(agv, AGVState.TRAVELING_LOADED)
-            outcome = yield from self._travel(agv, current_node, origin_bay, loaded=True)
-            if outcome is not _TravelOutcome.ARRIVED:
+            outcome = yield from self._executor.travel(agv, origin_bay, loaded=True)
+            self._refuse_give_up_with_cargo(agv, outcome)
+            if outcome is not TravelOutcome.ARRIVED:
                 self._drop_cargo(agv)
                 self._set_status(order, OrderStatus.FAILED, "cargo_dropped")
                 return
@@ -1217,40 +1272,81 @@ class FleetCoordinator(Entity, kind="fleet"):
             yield from order.origin.put(sku, qty)
         self._set_load(agv, None)
 
+    def best_bay(self, agv: AGV, bays: Sequence[Node], *, load_weight: float = 0.0) -> Node:
+        """The bay of `bays` that `agv` reaches from its current node at the least router cost (spec §10.4).
+
+        The router is asked as for the travel to the bay, with `load_weight` and the purpose ``"travel"``
+        (:func:`~simulatte.intralogistics.policies.ranking_route`). Among bays of equal cost the first in `bays` wins;
+        when none is reachable, the first bay is returned. An AGV without a node raises `RuntimeError`.
+        :meth:`Warehouse.nearest_input_bay` and :meth:`Warehouse.nearest_output_bay` rank by chord distance instead
+        and are not used here.
+        """
+        self._require_current_node(agv)
+        router, view = self.router, self.traffic_controller.view
+
+        def cost(bay: Node) -> float:
+            route = ranking_route(router, view, agv, bay, load_weight)
+            return math.inf if route is None else route.cost
+
+        return min(bays, key=cost)
+
+    def _dispatch_context(self) -> DispatchContext:
+        """The context of the dispatch strategy's decisions: the fleet's graph, router and traffic view."""
+        return DispatchContext(self.graph, self.router, self.traffic_controller.view)
+
     def _find_nearest_charger(self, agv: AGV) -> ChargingStation | None:
-        """Find the nearest charging station by graph distance."""
+        """The charging station `agv` reaches at the least router cost of the unloaded travel to it, the first of
+        ``charging_stations`` among equal costs; None when none is reachable."""
         if not self.charging_stations or agv.current_node is None:
             return None
-
-        def _distance(cs: ChargingStation) -> float:
-            assert agv.current_node is not None
-            path = self.graph.shortest_path(agv.current_node, cs.node)
-            if path is None:
-                return float("inf")
-            return self.graph.path_distance(path)
-
-        best = min(self.charging_stations, key=_distance)
-        d = _distance(best)
-        return best if d < float("inf") else None
+        router, view = self.router, self.traffic_controller.view
+        best: tuple[float, ChargingStation] | None = None
+        for cs in self.charging_stations:
+            route = ranking_route(router, view, agv, cs.node)
+            if route is not None and (best is None or route.cost < best[0]):
+                best = (route.cost, cs)
+        return None if best is None else best[1]
 
     def _find_reachable_charger(self, agv: AGV) -> ChargingStation | None:
-        """Find a charger the AGV can reach with its current battery."""
+        """The charging station `agv` can reach with its battery level now at the least router cost, the first of
+        ``charging_stations`` among equal costs; None when none is reachable.
+
+        The energy is estimated on the route the router gives for the unloaded travel to the station, the route the
+        executor will travel, from the arc lengths: arc by arc at the arc cap for a profile with limits (the
+        executor's estimate, spec §9.5), else from the route's length at the profile's average speed.
+        """
         if not self.charging_stations or agv.current_node is None:
             return None
 
+        router, view, graph = self.router, self.traffic_controller.view, self.graph
+        level = agv.battery_level_now()
+        capacity = agv.battery.capacity
+        level_pct = level / capacity if capacity > 0 else 0.0
         reachable: list[tuple[float, ChargingStation]] = []
         for cs in self.charging_stations:
-            assert agv.current_node is not None
-            path = self.graph.shortest_path(agv.current_node, cs.node)
-            if path is None:
+            route = ranking_route(router, view, agv, cs.node)
+            if route is None:
                 continue
-            total_dist = self.graph.path_distance(path)
+            _check_route(self, route, agv.current_node, cs.node)
+            path = route.nodes
             # Estimate energy cost to get there
-            est_travel_time = agv.agv_type.speed_profile.travel_time(total_dist, 0.0, agv.battery.level_pct)
-            est_avg_speed = total_dist / est_travel_time if est_travel_time > 0 else 0.0
-            energy_needed = agv.battery.estimate_energy(total_dist, 0.0, est_avg_speed)
-            if agv.battery.level >= energy_needed:
-                reachable.append((total_dist, cs))
+            profile = agv.agv_type.speed_profile
+            if isinstance(profile, KinematicProfile):
+                # the executor's estimate, arc by arc at the arc cap (spec §9.5): the check at rest and this one agree
+                kin = profile.limits(0.0, level_pct)
+                parts: list[float] = []
+                for u, v in zip(path, path[1:]):
+                    arc = graph.arc_between(u, v)
+                    assert arc is not None
+                    parts.append(estimate_arc_energy(agv.battery, kin, graph.length(u, v), 0.0, arc.speed_limit))
+                energy_needed = math.fsum(parts)
+            else:
+                total_length = graph.path_length(path)
+                est_travel_time = profile.travel_time(total_length, 0.0, level_pct)
+                est_avg_speed = total_length / est_travel_time if est_travel_time > 0 else 0.0
+                energy_needed = agv.battery.estimate_energy(total_length, 0.0, est_avg_speed)
+            if level >= energy_needed:
+                reachable.append((route.cost, cs))
 
         if not reachable:
             return None
@@ -1282,17 +1378,23 @@ class FleetCoordinator(Entity, kind="fleet"):
 
         dispatched: list[TransferOrder] = []
         failed: list[TransferOrder] = []
+        context = self._dispatch_context()
         for order in orders:
             if builtin and not idle and order.id not in self._pending_unserviceable:
                 break
             candidates = idle if builtin else self.fleet
-            agv = self._dispatch_strategy.select(order, candidates, self.graph)
+            withheld = self._withheld
+            if withheld is not None and withheld[0] is order:  # not offered to the AGV that just gave it up
+                candidates = [a for a in candidates if a is not withheld[1]]
+            agv = self._dispatch_strategy.select(order, candidates, context)
             if agv is not None:
                 dispatched.append(order)
                 self._dispatch_retries.pop(order.id, None)
                 self._dispatch(order, agv)
                 if builtin:
                     idle = [a for a in idle if a.state == AGVState.IDLE]
+            elif withheld is not None and withheld[0] is order:
+                continue  # waits for a later check; no retry is spent on an order that was not offered
             else:
                 capable_agvs = [a for a in self.fleet if a.can_carry(order.sku, order.quantity)]
                 if capable_agvs:
@@ -1316,13 +1418,31 @@ class FleetCoordinator(Entity, kind="fleet"):
         if self._pending_queue:
             self._ensure_pending_retry_loop()
 
+    def _needs_retry_ticks(self) -> bool:
+        """Whether the pending queue needs the periodic retry (spec §8.4).
+
+        A custom dispatch strategy is polled for as long as an order is pending. With a built-in strategy dispatch is
+        restarted by every transition to ``IDLE``, so ticks are needed only to count retries: for an order no AGV can
+        carry, and for an order an idle AGV that can carry it was not selected for (a route it cannot take).
+        """
+        if not self._pending_queue:
+            return False
+        if type(self._dispatch_strategy) not in (NearestIdleStrategy, RoundRobinStrategy):
+            return True
+        if self._pending_unserviceable:
+            return True
+        idle = [agv for agv in self.fleet if agv.state == AGVState.IDLE]
+        return bool(idle) and any(
+            agv.can_carry(order.sku, order.quantity) for order in self._pending_queue for agv in idle
+        )
+
     def _ensure_pending_retry_loop(self) -> None:
-        if self._pending_queue and not self._pending_retry_scheduled:
+        if not self._pending_retry_scheduled and self._needs_retry_ticks():
             self._pending_retry_scheduled = True
             self.env.process(self._pending_retry_loop())
 
     def _pending_retry_loop(self) -> ProcessGenerator:
-        while self._pending_queue:
+        while self._needs_retry_ticks():
             yield self.env.timeout(self._pending_retry_delay)
             self._check_pending_queue()
         self._pending_retry_scheduled = False

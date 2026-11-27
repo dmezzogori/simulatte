@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from simulatte.intralogistics.speed import TrapezoidalProfile
+from simulatte.intralogistics.kinematics import Kinematics
+from simulatte.intralogistics.speed import KinematicProfile, TrapezoidalProfile
 
 
 class TestTrapezoidalProfile:
@@ -71,3 +72,25 @@ class TestTrapezoidalProfile:
 
         profile = TrapezoidalProfile(max_speed=2.0, acceleration=1.0, deceleration=1.0)
         assert isinstance(profile, SpeedProfile)
+
+
+class TestKinematicLimits:
+    def test_limits_scale_like_effective(self) -> None:
+        profile = TrapezoidalProfile(2.0, 1.0, 1.0)
+        assert profile.limits(0.0, 0.5) == Kinematics(1.0, 0.5, 1.0)
+
+    def test_limits_without_speed_limit(self) -> None:
+        profile = TrapezoidalProfile(2.0, 1.0, 1.5, load_speed_factor_fn=lambda weight: 1.0 / (1.0 + weight))
+        assert profile.limits(1.0, 1.0) == Kinematics(1.0, 1.0, 1.5)
+        assert profile.limits() == Kinematics(2.0, 1.0, 1.5)
+
+    def test_limits_leave_the_motion_cache_alone(self) -> None:
+        profile = TrapezoidalProfile(2.0, 1.0, 1.0)
+        profile.travel_time(10.0, 0.0, 1.0, 1.0)
+        before = profile._last
+        profile.limits(0.0, 0.5)
+        assert profile._last is before
+        assert profile.motion(10.0, 0.0, 1.0, 1.0)["v_max"] == 1.0
+
+    def test_trapezoidal_profile_is_a_kinematic_profile(self) -> None:
+        assert isinstance(TrapezoidalProfile(2.0, 1.0, 1.0), KinematicProfile)

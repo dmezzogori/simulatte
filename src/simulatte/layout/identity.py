@@ -11,6 +11,10 @@ from simulatte._wire import canonical_pack, escape_key, freeze
 from .errors import LayoutError
 
 ALGORITHMS = {"auto": "layered-v1", "network": "network-v1", "hash": "layout-hash-v1"}
+"""The algorithms of a bundle; ``auto`` is ``layered-v2`` instead when a target carries a ``layered-v2`` input."""
+AUTO_ALGORITHMS = ("layered-v1", "layered-v2")
+"""The names of the automatic placement: ``layered-v2`` exactly when a target carries ``size`` or ``node_ids``
+(studio map spec §6.5), so every other bundle keeps ``layered-v1`` and its hashes."""
 _GEOMETRY = frozenset(
     {
         "position",
@@ -32,6 +36,8 @@ _GEOMETRY = frozenset(
         "speed_limit",
         "approach_margin",
         "max_distance",
+        "block_length",
+        "length",
     }
 )
 
@@ -50,11 +56,13 @@ def normalize(value: Any, path: tuple[str, ...] = (), *, canonical: bool = True)
     if type(value) in (int, float):
         if not math.isfinite(value):
             raise LayoutError("layout numbers must be finite")
-        if path and path[-1] in {"capacity", "neighbors", "i", "j", "vertex", "row", "column", "code_count"}:
+        if path and path[-1] in {"capacity", "neighbors", "i", "j", "index", "vertex", "row", "column", "code_count"}:
             if value != int(value):
                 raise LayoutError("layout counts and indices must be integers")
             return int(value)
-        if any(key in _GEOMETRY for key in path):
+        # a target's size (layered-v2) is a pair of lengths: 2 and 2.0 must hash alike, as a JSON round trip in
+        # JavaScript writes 2.0 as 2
+        if any(key in _GEOMETRY for key in path) or (len(path) >= 3 and path[-1] == "size" and path[-3] == "targets"):
             value = float(value)
             if canonical and path and path[-1] == "rotation":
                 value %= 360

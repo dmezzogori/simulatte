@@ -127,3 +127,123 @@ it.each([
   else query.observed[field as string] = value;
   await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
 });
+
+const trafficExpected = JSON.parse(readFileSync(new URL("../../../../tests/fixtures/traces/generated/layout_traffic.expected.json", import.meta.url), "utf8")) as { layout: Record<string, any> };
+
+it("opens a schema 1.1 layout bundle and validates it like a 1.0 bundle", async () => {
+  expect(trafficExpected.layout["schema_version"]).toBe("1.1");
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout: trafficExpected.layout }));
+  expect(trace.layout).toEqual(trafficExpected.layout);
+  const zones = (trafficExpected.layout["network"].graph.zones as { members: unknown[] }[]);
+  expect(zones.length).toBe(1);
+  expect(zones[0]!.members.some((member) => Array.isArray(member))).toBe(true);
+});
+
+it("opens a schema 1.1 layout whose arcs record a declared length", async () => {
+  const layout = structuredClone(trafficExpected.layout);
+  layout["network"].graph.arcs[0].length = 12.5;
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout }));
+  expect(trace.layout?.["network"]).toEqual(layout["network"]);
+  expect((trace.layout?.["network"] as any).graph.arcs[0].length).toBe(12.5);
+});
+
+it.each([
+  ["full_hash", "bad"], ["algorithms", {}], ["stages", []],
+])("rejects malformed 1.1 layout %s", async (key, value) => {
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: { ...trafficExpected.layout, [key as string]: value } }))).rejects.toThrow(TraceCorrupted);
+});
+
+it.each([
+  [["network", "graph", "zones", 0, "capacity"], 0],
+  [["network", "graph", "zones", 0, "hold_back"], "yes"],
+  [["network", "graph", "zones", 0, "members"], [42]],
+  [["network", "graph", "zones", 0, "members", 3], ["a"]],
+  [["network", "graph", "zones", 0, "extra"], 1],
+  [["network", "graph", "arcs", 0, "passing"], "yes"],
+  [["network", "graph", "arcs", 0, "length"], 0],
+  [["network", "graph", "arcs", 0, "length"], "long"],
+  [["network", "graph", "arcs", 0, "extent"], 12.5],
+  [["network", "edges", 0, "passing"], 1],
+  [["network", "graph", "nodes", 0, "capacity"], -1],
+])("rejects nested 1.1 layout corruption %j", async (path, value) => {
+  const layout = structuredClone(trafficExpected.layout);
+  let parent: any = layout;
+  for (const key of (path as (string | number)[]).slice(0, -1)) parent = parent[key];
+  parent[(path as (string | number)[]).at(-1)!] = value;
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+});
+
+// The corridor example: its vehicle type has length 1.2 and no width, so its bundle is layered-v2 (studio map spec §6.5).
+const exampleExpected = JSON.parse(readFileSync(new URL("../../../../tests/fixtures/traces/generated/example_traffic.expected.json", import.meta.url), "utf8")) as { layout: Record<string, any> };
+
+it("opens a layered-v2 bundle whose vehicles carry their size, and keeps layered-v1 for the others", async () => {
+  const layout = exampleExpected.layout;
+  expect(layout["algorithms"].auto).toBe("layered-v2");
+  expect(layout["auto"].algorithm).toBe("layered-v2");
+  expect(layout["targets"]["AGV-1"].size).toEqual([1.2, 0.6]);
+  expect(layout["auto"].targets["AGV-1"].size).toEqual([1.2, 0.6]);
+  expect(layout["resolved"].placements["AGV-1"].footprint).toEqual({ depth: 0.6, height: 0.0, width: 1.2 });
+  expect(layout["targets"]["West"].size).toBeUndefined();
+  expect((await openTrace(buildTrace({ ...INITIAL, layout }))).layout).toEqual(layout);
+  expect(layoutExpected.layout["algorithms"]).toEqual({ auto: "layered-v1", network: "network-v1", hash: "layout-hash-v1" });
+});
+
+it("opens a layered-v2 bundle whose facility targets carry node_ids", async () => {
+  const layout = structuredClone(layoutExpected.layout) as Record<string, any>;
+  const facility = { kind: "warehouse", explicitly_placed: false };
+  layout["targets"]["store"] = { ...facility, explicitly_named: true, node_ids: ["a", "b"] };
+  layout["auto"].targets["store"] = { ...facility, node_ids: ["a", "b"] };
+  layout["algorithms"].auto = layout["auto"].algorithm = "layered-v2";
+  const trace = await openTrace(buildTrace({ ...INITIAL, layout }));
+  expect((trace.layout?.["targets"] as any).store.node_ids).toEqual(["a", "b"]);
+});
+
+it.each([
+  [["algorithms", "auto"], "layered-v3"],
+  [["auto", "algorithm"], "layered-v3"],
+  [["algorithms", "auto"], "layered-v1"],
+  [["auto", "algorithm"], "layered-v1"],
+  [["targets", "AGV-1", "size"], [1.2]],
+  [["targets", "AGV-1", "size"], [1.2, 0]],
+  [["targets", "AGV-1", "size"], [1.2, "wide"]],
+  [["auto", "targets", "AGV-1", "size"], "big"],
+  [["targets", "West", "size"], [1, 1]],
+  [["targets", "AGV-1", "node_ids"], ["W"]],
+  [["targets", "West", "node_ids"], []],
+  [["auto", "targets", "West", "node_ids"], [7]],
+  [["auto", "targets", "West", "node_ids"], "W"],
+  [["targets", "West", "extent"], 1],
+  [["auto", "targets", "AGV-1", "extent"], 1],
+  [["targets", "AGV-1", "size"], null],
+  [["auto", "targets", "AGV-1", "size"], null],
+  [["targets", "West", "node_ids"], null],
+  [["auto", "targets", "West", "node_ids"], null],
+])("rejects other algorithm names and malformed target fields %j", async (path, value) => {
+  const layout = structuredClone(exampleExpected.layout);
+  let parent: any = layout;
+  for (const key of (path as string[]).slice(0, -1)) parent = parent[key];
+  parent[(path as string[]).at(-1)!] = value;
+  await expect(openTrace(buildTrace({ ...INITIAL, layout }))).rejects.toThrow(TraceCorrupted);
+});
+
+it("rejects the layered-v2 name without its fields, and the fields under layered-v1", async () => {
+  const unsized = structuredClone(layoutExpected.layout) as Record<string, any>;
+  unsized["algorithms"].auto = unsized["auto"].algorithm = "layered-v2";
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: unsized }))).rejects.toThrow(TraceCorrupted);
+  const renamed = structuredClone(exampleExpected.layout);
+  renamed["algorithms"].auto = renamed["auto"].algorithm = "layered-v1";
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: renamed }))).rejects.toThrow(TraceCorrupted);
+  // the example's targets carry both fields (size since Task 11, node_ids since Task 12): both are taken out
+  const halved = structuredClone(exampleExpected.layout);
+  for (const t of Object.values(halved["auto"].targets) as Record<string, unknown>[]) {
+    delete t["size"];
+    delete t["node_ids"];
+  }
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: halved }))).rejects.toThrow(TraceCorrupted);
+  const saved = structuredClone(exampleExpected.layout); // the auto layer's targets still carry the fields
+  for (const t of Object.values(saved["targets"]) as Record<string, unknown>[]) {
+    delete t["size"];
+    delete t["node_ids"];
+  }
+  await expect(openTrace(buildTrace({ ...INITIAL, layout: saved }))).rejects.toThrow(TraceCorrupted);
+});

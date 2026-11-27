@@ -1,8 +1,30 @@
 # Intralogistics API Reference
 
-Import everything from `simulatte.intralogistics`.
+Import everything from `simulatte.intralogistics`; the layout and its declarations (`Explicit`, `Lattice`, `Lanes`) come
+from `simulatte.layout`.
+
+Every environment has a layout, `env.layout`. A transport network is declared on it once, before activation, and
+components take handles of it, never `Node` or `LayoutGraph` objects (a concrete one raises `LayoutError`, code
+`foreign-handle`). Physical fields (`agv.current_node`, `fleet.graph`, `controller.graph`, bays, `station.node`,
+`area.node`) raise `LayoutNotReady` until `env.layout.prepare()` or `env.activate()`; they hold canonical nodes, equal
+to the declared ones and different objects (compare with `==`).
 
 ## Spatial Layer
+
+### Declaring the network and handles
+
+```python
+layout = env.layout  # created on first read
+layout.set_network(Explicit(graph, capacities={"N1": 2}, zones={"z": {"capacity": 1, "members": ["N1", ("N1", "N2")]}}))
+# Lattice(...) and Lanes(...) are the other two declarations; a second call before preparation replaces the first.
+
+layout.graph()  # GraphRef: FleetCoordinator(graph=), ReservationController(graph=)
+layout.node("N1")  # NodeRef of an explicit node; layout.node_at(Address(...)) for generated networks
+layout.port(entity, "out")  # PortRef of a named port
+```
+
+`Explicit(graph, *, clearance=0, blocked=None, capacity=None, capacities=None, block_length=None, zones=None)` keeps each
+arc's direction, `speed_limit`, `passing` and `length`. Zone members are node ids or pairs of ids.
 
 ### Node
 
@@ -22,7 +44,9 @@ class Arc:
     source: Node
     target: Node
     bidirectional: bool = True
-    speed_limit: float | None = None
+    speed_limit: float | None = None  # positive and finite when given
+    length: float | None = None  # travelled length; None: the chord; never shorter than the chord
+    passing: bool = False  # opposite traffic may pass on this arc (ReservationController)
 ```
 
 ### LayoutGraph
@@ -35,21 +59,41 @@ class LayoutGraph:
     def nodes(self) -> tuple[Node, ...]: ...  # insertion order
     def neighbors(self, node: Node) -> list[Node]: ...
     def arc_between(self, source: Node, target: Node) -> Arc | None: ...
-    def distance(self, source: Node, target: Node) -> float: ...  # Euclidean, requires arc
+    def distance(self, source: Node, target: Node) -> float: ...  # chord, requires arc
+    def length(self, source: Node, target: Node) -> float: ...  # travelled arc length, requires arc
+    def path_length(self, path) -> float: ...  # sum of arc lengths
     @staticmethod
-    def path_distance(path: list[Node]) -> float: ...  # sum of segments
-    def shortest_path(self, source: Node, target: Node) -> list[Node] | None: ...  # Dijkstra
+    def path_distance(path: list[Node]) -> float: ...  # sum of chords
+    def shortest_path(self, source: Node, target: Node) -> list[Node] | None: ...  # Dijkstra by arc length
+    def subdivide(self, max_length: float) -> LayoutGraph: ...  # split long arcs; new nodes "<a>~<b>#<k>"
 ```
 
-### Pathfinding
+### Routing
 
 ```python
-class DijkstraPlanner:
-    def plan(self, graph, origin, destination, avoid=None) -> list[Node] | None: ...
+@dataclass(frozen=True)
+class RouteRequest:
+    agv: AGV | None
+    origin: Node
+    destination: Node
+    load_weight: float = 0.0
+    avoid: frozenset = frozenset()  # resources and nodes to avoid
+    purpose: str = "travel"  # "travel", "make_way", "step_aside", "clear_node"
 
 
-class AStarPlanner:
-    def plan(self, graph, origin, destination, avoid=None) -> list[Node] | None: ...
+@dataclass(frozen=True)
+class Route:
+    nodes: tuple[Node, ...]  # a simple path
+    cost: float  # in the router's own unit; compare only within one router
+
+
+class Router(Protocol):
+    def route(self, request: RouteRequest, view: TrafficView) -> Route | None: ...
+
+
+ShortestDistanceRouter(algorithm="dijkstra")  # or "astar"; default router; cost = path length
+FastestRouter()  # cost = travel time with the AGV's limits, speed limits, turn_time / corner_speed
+CongestionAwareRouter(base=FastestRouter(), wait_weight=1.0, horizon=60.0)  # heuristic; base exactly one of the two
 ```
 
 ## Products
@@ -78,8 +122,8 @@ class Warehouse:
         *,
         env,
         name: str,
-        input_bays: list[Node],  # nodes where AGVs deliver
-        output_bays: list[Node],  # nodes where AGVs pick up
+        input_bays: Sequence[NodeRef | PortRef],  # handles of the nodes where AGVs deliver
+        output_bays: Sequence[NodeRef | PortRef],  # handles of the nodes where AGVs pick up
         n_slots: int,  # concurrent pick/put operations
         products: list[SKU],
         initial_inventory: dict[SKU, int] | None = None,
@@ -137,7 +181,15 @@ class AGVType:
     critical_battery_threshold: float = 0.05  # fraction, triggers mid-trip charging
     load_time: SamplerDescription | float | Callable[[], float] = 0.0  # bound per AGV: "<agv id>/load"
     unload_time: SamplerDescription | float | Callable[[], float] = 0.0  # bound per AGV: "<agv id>/unload"
+    length: float | None = None  # required by ReservationController
+    min_gap: float = 0.0  # extent = length + min_gap
+    corner_speed: Callable[[float], float] | None = None  # heading change (rad) -> speed cap at the node
+    turn_time: Callable[[float], float] | None = None  # heading change (rad) -> wait at rest before leaving
+    idle_power: float = 0.0  # energy per unit time outside CHARGING, accounted lazily
 ```
+
+`depletion_fn`, `corner_speed`, `turn_time` and a profile's `limits` must be pure: they are also called for
+arcs and turns that are never travelled.
 
 Default depletion: `distance * 1.0`. Default recharge: `(target - current) * 1.0`.
 
@@ -146,17 +198,20 @@ Default depletion: `distance * 1.0`. Default recharge: `(target - current) * 1.0
 ```python
 class AGV:
     def __init__(
-        self, *, env, agv_type: AGVType, agv_id: str | None = None, initial_node: Node | None = None
+        self, *, env, agv_type: AGVType, agv_id: str | None = None, initial_node: NodeRef | PortRef | None = None
     ) -> None: ...
 
     agv_id: str
     agv_type: AGVType
-    current_node: Node | None
+    current_node: Node | None  # after preparation; assign a canonical node of the resolved network only
     current_load: dict[SKU, int] | None
     battery: Battery
     state: AGVState  # property
 
+    heading: float | None  # direction of the last arc traversed; None after placement
+
     def can_carry(self, sku: SKU, quantity: int) -> bool: ...  # checks weight AND volume AND compatibility
+    def battery_level_now(self) -> float: ...  # level with unaccounted idle power taken off; changes nothing
     def utilization(self) -> float: ...  # fraction of time in utilized states
     def state_percentage(self, state) -> float: ...
     def time_allocation(self) -> dict[AGVState, float]: ...
@@ -176,7 +231,10 @@ class TrapezoidalProfile:
     ) -> None: ...
 
     def travel_time(self, distance, load_weight=0.0, battery_level=1.0, speed_limit=None) -> float: ...
+    def limits(self, load_weight=0.0, battery_level=1.0) -> Kinematics: ...  # v_max, accel, decel
 ```
+
+A profile with `limits` moves in runs and passes nodes at speed; one without is traversed rest to rest.
 
 Default battery degradation: `lambda level: level` (proportional). Default load factor: `lambda _: 1.0` (no effect).
 
@@ -217,7 +275,7 @@ class ChargingStation:
         *,
         env,
         name: str,
-        node: Node,
+        node: NodeRef | PortRef,
         n_slots: int,
         recharge_time=None,  # number | description | (current_level, target_level) -> time; stream "<name>/recharge"
         supports_swap=False,
@@ -226,7 +284,7 @@ class ChargingStation:
         swap_recharge_time=0.0,
     ) -> None: ...
 
-    node: Node
+    node: Node  # after preparation, read-only
     total_recharges: int
     total_swaps: int
     total_occupied_time: float
@@ -239,9 +297,9 @@ class ChargingStation:
 
 ```python
 class ParkingArea:
-    def __init__(self, *, env, name: str, node: Node, capacity: int) -> None: ...
+    def __init__(self, *, env, name: str, node: NodeRef | PortRef, capacity: int) -> None: ...
 
-    node: Node
+    node: Node  # after preparation, read-only
     available_capacity: int  # property
 
     def enter(self, agv) -> ProcessGenerator: ...
@@ -289,26 +347,59 @@ class TransferOrder:
 
 ## Traffic
 
-### ResourceBasedTrafficManager
+### FreeFlowController
+
+Grants every claim at once; no entities, no traffic events. Default when `traffic_controller` is omitted from
+`FleetCoordinator`. One instance serves the network of one environment.
+
+### ReservationController
 
 ```python
-class ResourceBasedTrafficManager:
+class ReservationController:
     def __init__(
-        self, *, graph, env, node_capacity: int = 1, deadlock_timeout: float = 30.0, priority_fn=None
+        self,
+        *,
+        env,
+        graph: GraphRef,  # layout.graph()
+        node_capacity: int = 1,  # fallback capacity; capacities and zones are declared with the network
+        derive_corridors: bool = True,
+        hold_back_dead_ends: bool = True,
+        policy: TrafficPolicy | None = None,  # default StandardTrafficPolicy()
+        priority_fn: Callable[[AGV], float] | None = None,  # higher first
     ) -> None: ...
 ```
 
-Creates a `simpy.Resource` per node. `check_path` rejects paths sharing
-future nodes with other AGVs' intents — this effectively serializes
-traffic on shared paths. Use only with layouts that have true parallel routes.
+Claims nodes, segments (`"<a>~<b>"`), zones and derived corridors (`"corridor:<node>"`) all or nothing. Node
+capacity: declared on the network, else the facilities on the node, else `node_capacity`. Fleets register before activation;
+every vehicle type needs `length`. Placing more AGVs on a node than its capacity raises `RuntimeError` at
+activation. Emits `traffic.reserved`, `traffic.released`, `traffic.wait_started`, `traffic.wait_ended`,
+`traffic.wait_stuck` and `traffic.deadlock`.
 
-`place_now(agv, node)` (renamed from `place`) reserves the node for an AGV at activation and
-requires an immediate grant; a conflict raises. `TrafficManager` is a runtime-checkable protocol.
+```python
+# The value a declared zone resolves to (read it from `traffic.network.zones`); declare zones with the network.
+Zone(id: str, members: tuple[Node | tuple[Node, Node], ...], capacity: int = 1, hold_back: bool = False)
 
-### FreeTrafficManager
+StandardTrafficPolicy(*, reroute_after=30.0, max_detour=1.5, max_resolutions=8)
 
-No-op. All paths are feasible, no resource acquisition. Default when
-`traffic_manager` is omitted from `FleetCoordinator`.
+
+class TrafficPolicy(Protocol):
+    def on_blocked(self, wait: Wait, view: TrafficView) -> Sequence[Reaction]: ...
+    def on_deadlock(self, waits: Sequence[Wait], view: TrafficView) -> Sequence[tuple[AGV, Reaction]]: ...
+    def make_way_target(self, blocker: AGV, wait: Wait, view: TrafficView) -> Node | None: ...
+
+
+# Reactions
+KeepWaiting(review_after=None)
+Reroute(avoid=frozenset(), max_cost_ratio=None)
+StepAside(target=None)
+GiveUp()
+```
+
+### TrafficKPIs
+
+`TrafficKPIs(coordinator).attach(env)`: `blocked_time`, `waits`, `stuck_waits`, `deadlocks_resolved`,
+`deadlocks_unresolved`, `reroutes`, `make_way_moves`, `requeued_orders`, keyed `"<fleet id>/<kpi>"`; empty under
+`FreeFlowController`.
 
 ## FleetCoordinator
 
@@ -318,16 +409,19 @@ class FleetCoordinator:
         self,
         *,
         env,
-        graph: LayoutGraph,
+        graph: GraphRef,  # layout.graph()
         fleet: list[AGV],
         warehouses: list[Warehouse],
         charging_stations: list[ChargingStation],
         parking_areas: list[ParkingArea] | None = None,
-        traffic_manager: TrafficManager | None = None,  # default: FreeTrafficManager
-        path_planner: PathPlanner | None = None,  # default: DijkstraPlanner
+        traffic_controller: TrafficController | None = None,  # default: FreeFlowController()
+        router: Router | None = None,  # default: ShortestDistanceRouter()
         dispatch_strategy: DispatchStrategy | None = None,  # default: NearestIdleStrategy
         repositioning_policy: RepositioningPolicy | None = None,  # default: StayInPlace
         load_recovery_strategy: LoadRecoveryStrategy | None = None,  # default: ReturnToOrigin
+        clear_service_nodes: bool = True,  # idle AGVs move off bays and charger nodes under traffic control
+        max_traffic_requeues: int = 3,  # per order, when an AGV gives up in traffic before pickup
+        lookahead_margin: float = 0.0,  # claims held ahead beyond the braking distance
         default_metrics: bool = True,  # attach OrderEMACollector as self.metrics
         on_low_battery: Callable[[AGV], ProcessGenerator | None] | None = None,
         max_dispatch_retries: int = 10,
@@ -349,7 +443,9 @@ class FleetCoordinator:
     fleet_utilization: float  # property, average across fleet
 
     def fleet_time_allocation(self) -> dict[AGVState, float]: ...
-    def agv_report(self) -> list[dict[str, object]]: ...
+    def agv_report(self) -> list[dict[str, object]]: ...  # battery_pct is the level now
+    def best_bay(self, agv, bays, *, load_weight=0.0) -> Node: ...  # least router cost, first among equals
+    def make_way(self, agv, target=None, *, concerned=()) -> bool: ...  # move an idle AGV out of the way
 
     # Lifecycle hooks
     def on_order_submitted(self, callback) -> None: ...
@@ -368,14 +464,23 @@ class FleetCoordinator:
 ### Dispatch
 
 ```python
-class NearestIdleStrategy:
-    def select(self, order, fleet, graph) -> AGV | None: ...
+@dataclass(frozen=True)
+class DispatchContext:
+    graph: LayoutGraph
+    router: Router
+    view: TrafficView
 
-    # Closest idle AGV by graph path distance. Tie-breaks by agv_id.
+    def cost(self, agv, node, *, load_weight=0.0) -> float: ...  # router cost; inf without a route
+
+
+class NearestIdleStrategy:
+    def select(self, order, fleet, context: DispatchContext) -> AGV | None: ...
+
+    # Idle AGV with the least router cost to an output bay of the origin. Tie-breaks by agv_id.
 
 
 class RoundRobinStrategy:
-    def select(self, order, fleet, graph) -> AGV | None: ...
+    def select(self, order, fleet, context: DispatchContext) -> AGV | None: ...
 
     # Cycles through idle AGVs via internal cursor.
 ```
@@ -392,7 +497,9 @@ class StayInPlace:
 class NearestParkingPolicy:
     def reposition(self, agv, context) -> Node | None: ...
 
-    # Returns nearest parking area node with available capacity.
+    # Returns the node of the parking area with available capacity at the least context.cost
+    # (first area among equal costs). RepositioningContext has graph, parking_areas,
+    # charging_stations, fleet, router, view and cost(agv, node).
 ```
 
 ### Replenishment
@@ -488,8 +595,14 @@ def build_simple_system(
     initial_inventory_a: dict[SKU, int] | None = None,
     initial_inventory_b: dict[SKU, int] | None = None,
     prefix: str = "",  # entity id prefix, to host several systems in one env
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, LayoutGraph]: ...
+    layout=None,  # default env.layout
+    nodes=None,  # role -> NodeRef | PortRef, required when the layout already has a network
+    traffic_controller=None,
+    router=None,
+    agv_length: float | None = None,  # required by ReservationController
+) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, GraphRef]: ...
 ```
 
-Creates a 5-node linear graph (WH_A → N1 → N2 → N3 → WH_B), two
-warehouses, a charging station at N2, and *n_agvs* AGVs starting at N1.
+Builds on `env.layout`. With no declared network it declares a 5-node linear graph (WH_A → N1 → N2 → N3 → WH_B);
+with one, `nodes` maps the roles `WH_A_OUT`, `N1`, `N2`, `N3` and `WH_B_IN` to handles. Two warehouses, a charging
+station at N2, and *n_agvs* AGVs starting at N1, named `vehicle-<i>` (`<prefix>agv-<i>` with a prefix).

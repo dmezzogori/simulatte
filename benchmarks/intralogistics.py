@@ -1,7 +1,9 @@
 """Advanced intralogistics across released 0.12.0 and SP1 (spec §14, ruling R28). Report only.
 
 The layout, SKUs, warehouses, AGV type, parking, charging, strategies and the reorder-point replenishment are those of
-``examples/intralogistics_advanced.py`` (16 nodes, 16 arcs, 5 SKUs, 3 warehouses). The scale-up is in three numbers:
+``examples/intralogistics_advanced.py`` (16 nodes, 16 arcs, 5 SKUs, 3 warehouses). On the branch the graph is declared
+on ``env.layout`` and every component takes handles, as the example does; released 0.12.0 has no layout and gets the
+graph and its nodes. The scale-up is in three numbers:
 more AGVs (the example's five starting nodes are reused cyclically), a shorter outbound order interval and a longer
 horizon; defaults are 20 AGVs, orders every 30 to 60 time units and 20 shifts of 28,800 time units. The run is
 deterministic: the compatibility shim uses the same three named RNG streams in both versions.
@@ -176,6 +178,19 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
         for sink in env.sinks:
             sink.close()
     graph, nodes = _layout()
+    if HAS_TRACE:
+        from simulatte.layout import Explicit
+
+        env.layout.set_network(Explicit(graph))
+        graph_arg: Any = env.layout.graph()
+
+        def at(name: str) -> Any:
+            return env.layout.node(name)
+    else:
+        graph_arg = graph
+
+        def at(name: str) -> Any:
+            return nodes[name]
 
     skus = [
         SKU(id="Pallet-A-Heavy", weight=120.0, volume=0.5),
@@ -193,8 +208,8 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
         return Warehouse(
             env=env,
             name=name,
-            input_bays=[nodes[bays[0]]],
-            output_bays=[nodes[bays[1]]],
+            input_bays=[at(bays[0])],
+            output_bays=[at(bays[1])],
             n_slots=slots,
             products=skus,
             initial_inventory={sku: stock for sku in skus},
@@ -231,7 +246,7 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
         critical_battery_threshold=0.05,
         **load_options,
     )
-    starting = [nodes[n] for n in ("PARK", "BULK_OUT", "B1", "R1", "B3")]
+    starting = [at(n) for n in ("PARK", "BULK_OUT", "B1", "R1", "B3")]
     agvs = [
         AGV(env=env, agv_type=agv_type, agv_id=f"AGV-{i + 1}", initial_node=starting[i % len(starting)])
         for i in range(args.agvs)
@@ -243,11 +258,11 @@ def run(args: argparse.Namespace, *, mode: str, trace_path: Path | None) -> dict
     )
     coordinator = FleetCoordinator(
         env=env,
-        graph=graph,
+        graph=graph_arg,
         fleet=agvs,
         warehouses=[receiving, bulk, dispatch],
-        charging_stations=[ChargingStation(env=env, name="Charger", node=nodes["CHRG"], n_slots=2)],
-        parking_areas=[ParkingArea(env=env, name="Parking", node=nodes["PARK"], capacity=3)],
+        charging_stations=[ChargingStation(env=env, name="Charger", node=at("CHRG"), n_slots=2)],
+        parking_areas=[ParkingArea(env=env, name="Parking", node=at("PARK"), capacity=3)],
         dispatch_strategy=RoundRobinStrategy(),
         repositioning_policy=NearestParkingPolicy(),
         load_recovery_strategy=ReturnToOrigin(),

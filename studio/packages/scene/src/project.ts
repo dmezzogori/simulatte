@@ -1,6 +1,10 @@
 import type { PreparedFrame } from "@simulatte/playback";
-import type { State } from "@simulatte/trace";
+import { isKnownLayoutVersion, type State } from "@simulatte/trace";
 import { motionProgress } from "./motion";
+import { buildFacilities, buildOrders } from "./map/facilities";
+import { buildFloor } from "./map/floor";
+import type { MapModel, StaticMap } from "./map/model";
+import { buildVehicles, buildWaitLines, summarizeTraffic, type VehiclePlace } from "./map/vehicles";
 export interface Point {
   x: number;
   y: number;
@@ -25,6 +29,8 @@ export interface Projection {
   links: readonly (readonly [Point, Point])[];
   fallback: boolean;
   ports: readonly Point[];
+  /** The map of the floor; null without a layout or a network, absent for editor projections. */
+  map?: MapModel | null;
 }
 export const object = (v: unknown): Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v)
@@ -32,6 +38,7 @@ export const object = (v: unknown): Record<string, unknown> =>
     : {};
 const finite = (v: unknown, defaultValue = 0): number =>
   typeof v === "number" && Number.isFinite(v) ? v : defaultValue;
+const TRAFFIC_KINDS = ["segment", "zone"];
 const position = (v: unknown): Point | null =>
   Array.isArray(v) &&
   typeof v[0] === "number" &&
@@ -47,11 +54,20 @@ export function equipment(location: unknown): string | null {
 }
 export class Projector {
   readonly #fallback = new Map<string, Point>();
+  readonly #vehicles: string[];
+  /**
+   * What the map model takes from the layout alone, for the layout object it was last built from. It is keyed by
+   * the object's identity: a layout must not be mutated in place, a changed layout is a new object.
+   */
+  #static: StaticMap | null = null;
   constructor(initial: State) {
+    this.#vehicles = Object.keys(initial).filter((id) => initial[id]?.["$kind"] === "agv");
     Object.keys(initial)
       .filter(
         (id) =>
-          !["job", "order", "agv"].includes(String(initial[id]?.["$kind"])),
+          ![...TRAFFIC_KINDS, "job", "order", "agv"].includes(
+            String(initial[id]?.["$kind"]),
+          ),
       )
       .sort()
       .forEach((id, i) =>
@@ -59,7 +75,7 @@ export class Projector {
       );
   }
   project(frame: PreparedFrame): Projection {
-    const layout = frame.layout?.schema_version === "1.0" ? frame.layout : null;
+    const layout = isKnownLayoutVersion(frame.layout?.schema_version) ? frame.layout : null;
     const placements = object(object(layout?.["resolved"])["placements"]);
     const nodes = new Map<string, Point>();
     for (const [id, fields] of Object.entries(frame.state)) {
@@ -95,13 +111,16 @@ export class Projector {
               queueIndex.set(values[i] as string, i);
       }
     let unplaced = 0;
+    const places = new Map<string, VehiclePlace>();
     for (const [id, fields] of Object.entries(frame.state)) {
-      const kind = String(fields["$kind"]),
-        place = object(placements[id]),
+      const kind = String(fields["$kind"]);
+      if (TRAFFIC_KINDS.includes(kind)) continue;
+      const place = object(placements[id]),
         visual = object(place["visual"]),
         footprint = object(place["footprint"]);
       let point = nodes.get(id) ?? null,
         diagnostic: string | null = null;
+      let arc: readonly [Point, Point] | null = null;
       let status = typeof fields["state"] === "string" ? fields["state"] : kind;
       if (kind === "job") {
         const target = equipment(fields["location"]);
@@ -124,6 +143,7 @@ export class Projector {
         if (Object.keys(motion).length) {
           const from = nodes.get(String(motion["from"])),
             to = nodes.get(String(motion["to"]));
+          if (from && to) arc = [from, to];
           if (!Number.isFinite(frame.time)) {
             point = nodes.get(String(fields["node"])) ?? from ?? null;
             diagnostic = "Static non-finite time";
@@ -145,6 +165,7 @@ export class Projector {
         };
         unplaced++;
       }
+      if (kind === "agv" && !isUnplaced) places.set(id, { point, arc });
       if (!isUnplaced)
         for (const port of Object.values(object(place["ports"]))) {
           const local = position(object(port)["position"]);
@@ -234,7 +255,43 @@ export class Projector {
                     : "",
       });
     }
-    return { glyphs, links, ports, fallback: !layout };
+    if (layout && this.#static?.layout !== layout) this.#static = { layout };
+    const cache = layout ? this.#static! : undefined;
+    const map = layout
+      ? buildFloor(
+          {
+            time: frame.time,
+            layout,
+            state: frame.state,
+            positions: nodes,
+            vehicles: this.#vehicles,
+          },
+          cache,
+        )
+      : null;
+    if (layout && map) {
+      map.orders = buildOrders(frame.state);
+      map.facilities = buildFacilities(
+        {
+          layout,
+          state: frame.state,
+          positions: nodes,
+          orders: map.orders,
+        },
+        cache,
+      );
+      map.vehicles = buildVehicles({
+        time: frame.time,
+        layout,
+        state: frame.state,
+        places,
+        fleets: map.fleets,
+        facilities: map.facilities,
+      });
+      map.waitLines = buildWaitLines(map.vehicles);
+      map.traffic = summarizeTraffic(map.vehicles, frame.state);
+    }
+    return { glyphs, links, ports, fallback: !layout, map };
   }
 }
 

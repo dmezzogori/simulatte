@@ -46,7 +46,8 @@ class ChargingStation(Entity, kind="charging_station"):
 
     Events (spec §6.4): ``charging.started`` when an AGV is granted a slot and ``charging.ended`` when it releases
     it, ``charging.pool_changed`` whenever the swap pool changes, and ``agv.battery_changed`` after a recharge or a
-    swap.
+    swap. Idle power (spec §9.5) does not drain while the AGV is charging: a recharge brings the level up to date when
+    its slot is granted and the time after that is not accounted.
 
     ``recharge_time`` is a distribution description or a number (managed) or a callable
     ``(current_level, target_level) -> float`` (opaque), bound to the stream ``<name>/recharge``; without it the
@@ -54,7 +55,7 @@ class ChargingStation(Entity, kind="charging_station"):
     """
 
     state_schema: ClassVar[StateSchema] = StateSchema(
-        {"slots_in_use": FieldSpec("int"), "swap_pool": FieldSpec("float", nullable=True)}
+        {"slots_in_use": FieldSpec("int"), "swap_pool": FieldSpec("float", nullable=True), "slots": FieldSpec("int")}
     )
 
     def __init__(
@@ -62,7 +63,7 @@ class ChargingStation(Entity, kind="charging_station"):
         *,
         env: Environment,
         name: str,
-        node: Node | NodeRef | PortRef,
+        node: NodeRef | PortRef,
         n_slots: int,
         recharge_time: SamplerDescription[float] | float | Callable[[float, float], float] | None = None,
         supports_swap: bool = False,
@@ -73,12 +74,13 @@ class ChargingStation(Entity, kind="charging_station"):
     ) -> None:
         self.env = env
         self.name = name
-        self._node, self._pending_node = node_input(env, node)
+        self._node, self._pending_node = node_input(env, node, component="ChargingStation", parameter="node")
         self.supports_swap = supports_swap
         self.swap_time = swap_time
         self.swap_recharge_time = swap_recharge_time
 
         self._slots = NotifyingResource(env, capacity=n_slots, on_change=self._slot_changed)
+        self._n_slots = int(self._slots.capacity)  # the state's constant, read once (studio map spec §6.4)
 
         self._swap_pool: NotifyingContainer | None = None
         if supports_swap:
@@ -90,7 +92,6 @@ class ChargingStation(Entity, kind="charging_station"):
         self.total_recharges: int = 0
         self.total_swaps: int = 0
         self.total_occupied_time: float = 0.0
-        self._uses_explicit_graph = env.layout is None and True
         env.entities.attach(self, name=name, label=label)
         self._recharge_time: Callable[..., float] | None = (
             None
@@ -107,15 +108,21 @@ class ChargingStation(Entity, kind="charging_station"):
 
     @node.setter
     def node(self, value: Node) -> None:
-        readonly(self.env, "node")
-        self._node = value
+        readonly("node")
+
+    @property
+    def n_slots(self) -> int:
+        """The number of charging slots."""
+        return int(self._slots.capacity)
 
     def snapshot(self) -> dict[str, Any]:
-        """Current entity state: slots in use and the swap-pool level (None without battery swapping)."""
+        """Current entity state: slots in use, the swap-pool level (None without battery swapping) and the number of
+        slots, a constant written once in the initial state (studio map spec §6.4), as read at construction."""
         pool = self._swap_pool
         return {
             "slots_in_use": self._slots.count,
             "swap_pool": None if pool is None else wire_float(pool.level),
+            "slots": self._n_slots,
             "label": self.label,
         }
 
@@ -129,6 +136,7 @@ class ChargingStation(Entity, kind="charging_station"):
         req = _SlotRequest(self._slots, agv, "recharge")
         try:
             yield req
+            agv.accrue_idle_power()  # the level the charge starts from (in the CHARGING state nothing accrues)
             target_level = target_pct * agv.battery.capacity
 
             if target_level <= agv.battery.level:
@@ -152,6 +160,7 @@ class ChargingStation(Entity, kind="charging_station"):
             self.total_recharges += 1
         finally:
             if req.triggered:
+                agv.skip_idle_power()  # the time since the slot was granted was spent charging: it does not drain
                 self._slots.release(req)
             else:
                 req.cancel()
@@ -186,6 +195,7 @@ class ChargingStation(Entity, kind="charging_station"):
 
             # Set AGV battery to full
             agv.battery.level = agv.battery.capacity
+            agv.skip_idle_power()  # the level was replaced: idle power counts again from here
             self._battery_changed(agv)
 
             occupied = self.env.now - start

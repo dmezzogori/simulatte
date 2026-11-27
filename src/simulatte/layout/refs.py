@@ -10,6 +10,15 @@ from typing import Any
 from .errors import LayoutNotReady
 
 
+class _PhysicalAttributeError(LayoutNotReady, AttributeError):
+    """Reading what a `Node` or a `LayoutGraph` has from a handle.
+
+    It is a `LayoutNotReady` for a caller that reads the attribute and an `AttributeError` for one that probes it:
+    ``hasattr(handle, "id")`` is False and ``getattr(handle, "id", default)`` is the default, as for any name a handle
+    has not, while a direct read raises with the message below.
+    """
+
+
 @dataclass(frozen=True, init=False)
 class Address:
     """Immutable logical address with an injective generated entity id."""
@@ -27,6 +36,8 @@ class Address:
                     canonicalize(child)
                 if value.get("kind") == "lattice":
                     value["i"], value["j"] = int(value["i"]), int(value["j"])
+                if value.get("kind") in ("block_node", "block_edge"):
+                    value["index"] = int(value["index"])
                 if value.get("kind") == "intersection":
                     value["incidents"].sort(
                         key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -67,11 +78,35 @@ class _Ref:
         return self.address.to_dict()
 
     def __getattr__(self, name: str) -> Any:
-        if name in ("x", "y", "z", "nodes", "neighbors", "arc_between"):
-            raise LayoutNotReady(
-                f"{type(self).__name__} is a logical handle; resolve it before reading {name}", code="lifecycle-error"
+        if name in _PHYSICAL:
+            raise _PhysicalAttributeError(
+                f"{type(self).__name__} is a layout handle for constructing components, not the resolved graph or "
+                f"node, and has no {name}: read the resolved objects from fleet.graph, or from "
+                "env.layout.prepare().network (its graph, and network.node(env.layout.node(id).address) for a node)",
+                code="lifecycle-error",
             )
         raise AttributeError(name)
+
+
+_PHYSICAL = frozenset(
+    (
+        "id",
+        "x",
+        "y",
+        "z",
+        "nodes",
+        "neighbors",
+        "arc_between",
+        "distance",
+        "length",
+        "path_length",
+        "path_distance",
+        "shortest_path",
+        "subdivide",
+    )
+)
+"""What a `Node` or a `LayoutGraph` has and a handle does not: reading it from a handle raises `LayoutNotReady` (also an
+`AttributeError`, so that a probe with `hasattr` or `getattr` and a default finds nothing)."""
 
 
 @dataclass(frozen=True, eq=False, init=False)

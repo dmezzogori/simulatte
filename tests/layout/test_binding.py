@@ -1,8 +1,10 @@
+import types
+
 from simulatte import Environment, Layout
 from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.layout import Explicit, LayoutNotReady
 from simulatte import Trace, TraceRecorder
 from simulatte._wire import FrozenMap
@@ -11,7 +13,7 @@ from simulatte.intralogistics.charging import ChargingStation
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.sku import SKU
-from simulatte.intralogistics.traffic import FreeTrafficManager
+from simulatte.intralogistics.traffic import FreeFlowController
 from simulatte.intralogistics.warehouse import Warehouse
 from simulatte.layout import Address, Grid, Lattice, LayoutError, NetworkOverride, Point
 from tests.intralogistics.test_fleet_events import FleetReplay
@@ -20,7 +22,10 @@ import pytest
 
 def vehicle(env, node, name=None):
     return AGV(
-        env=env, agv_id=name, initial_node=node, agv_type=AGVType("cart", TrapezoidalProfile(2, 1, 1), 100, 100, 100)
+        env=env,
+        agv_id=name,
+        initial_node=node,
+        agv_type=AGVType("cart", TrapezoidalProfile(2, 1, 1), 100, 100, 100, length=0.5),
     )
 
 
@@ -35,7 +40,7 @@ def test_pending_nodes_bind_in_attachment_order_and_prepare_is_pure():
     env = Environment()
     layout = line(env)
     first, second = vehicle(env, layout.node("A"), "zed"), vehicle(env, layout.node("A"), "alpha")
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph(), node_capacity=2)
+    manager = ReservationController(env=env, graph=layout.graph(), node_capacity=2)
     assert first.snapshot()["node"] is None
     with pytest.raises(LayoutNotReady):
         _ = first.current_node
@@ -82,7 +87,7 @@ def system(env, layout, *, name="fleet", manager=None, start="A"):
         warehouses=[origin, destination],
         charging_stations=[station],
         parking_areas=[parking],
-        traffic_manager=manager,
+        traffic_controller=manager,
         name=name,
     )
     return fleet, cart, origin, destination, station, parking
@@ -95,7 +100,7 @@ def test_deferred_all_components_snapshot_binding_and_recording(mode, tmp_path):
     if mode == "debug":
         FleetReplay(env)
     layout = line(env)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     fleet, cart, origin, destination, station, parking = system(env, layout, manager=manager)
     for component, field in [
         (fleet, "graph"),
@@ -128,13 +133,14 @@ def test_deferred_all_components_snapshot_binding_and_recording(mode, tmp_path):
 def test_finalized_constructors_publish_resolved_snapshots_and_reuse_resources(activated):
     env = Environment(debug=True)
     layout = line(env)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph(), node_capacity=3)
+    manager = ReservationController(env=env, graph=layout.graph(), node_capacity=3)
     original = layout.prepare()
     if activated:
         env.activate()
     events = []
     env.bus.subscribe(events.append, (EntityCreated,))
-    fleet, cart, origin, destination, station, parking = system(env, layout, manager=manager)
+    # After activation the controller's network is built and no fleet can register with it: use free flow.
+    fleet, cart, origin, destination, station, parking = system(env, layout, manager=None if activated else manager)
     assert events[0].deltas.ops[0][3]["node"] == "A"
     assert fleet.graph is manager.graph is original.network.graph
     assert cart.current_node is origin.input_bays[0] is parking.node
@@ -144,11 +150,12 @@ def test_finalized_constructors_publish_resolved_snapshots_and_reuse_resources(a
     binding = env.entities.node_binding(cart.current_node)
     assert binding is not None and binding.agvs == ["cart"]
     if not activated:
-        assert manager._node_resources[cart.current_node].count == 0
+        assert manager.view.holders(cart.current_node) == ()
         env.activate()
-    assert manager._node_resources[cart.current_node].count == 1
+        assert manager.view.holders(cart.current_node) == (cart,)
+        assert manager.network.capacity(cart.current_node) == 1  # the parking area's slot, before node_capacity
     with pytest.raises(LayoutError):
-        ResourceBasedTrafficManager(env=env, graph=layout.graph())
+        ReservationController(env=env, graph=layout.graph())
     with pytest.raises(LayoutError):
         layout.place(cart, position=Point(2, 3))
 
@@ -158,9 +165,9 @@ def test_first_resource_manager_after_finalize_rejected_and_free_allowed():
     layout = line(env)
     layout.prepare()
     with pytest.raises(LayoutError):
-        ResourceBasedTrafficManager(env=env, graph=layout.graph())
+        ReservationController(env=env, graph=layout.graph())
     fleet, *_ = system(env, layout)
-    assert isinstance(fleet._traffic_manager, FreeTrafficManager)
+    assert isinstance(fleet.traffic_controller, FreeFlowController)
 
 
 @pytest.mark.parametrize("endpoint", ["copy", "foreign"])
@@ -178,7 +185,7 @@ def test_noncanonical_movement_is_atomic_before_equality_or_motion_clear(endpoin
     for move in (
         lambda: setattr(cart, "current_node", bad),
         lambda: cart._relocate(bad),
-        lambda: fleet._end_segment(cart, bad),
+        lambda: fleet._executor._end_segment(cart, bad),
         lambda: env.entities.bind_node(bad),
     ):
         with pytest.raises(LayoutError, match="canonical"):
@@ -190,20 +197,21 @@ def test_noncanonical_movement_is_atomic_before_equality_or_motion_clear(endpoin
     cart.current_node = current
     cart.current_node = None
     cart.current_node = fleet.graph.nodes[1]
-    fleet._end_segment(cart, current)
+    fleet._executor._end_segment(cart, current)
     binding = env.entities.node_binding(current)
     assert binding is not None and binding.agvs == [cart.id]
 
 
-def test_static_bindings_reject_assignment_but_no_layout_keeps_mutable_api():
+def test_static_bindings_reject_assignment():
     env = Environment()
     layout = line(env)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     fleet, _, origin, _, station, parking = system(env, layout, manager=manager)
     layout.prepare()
+    with pytest.raises(AttributeError):
+        manager.graph = manager.graph  # ty: ignore[invalid-assignment]  # the controller's graph never changes
     for component, field in [
         (fleet, "graph"),
-        (manager, "graph"),
         (origin, "input_bays"),
         (origin, "output_bays"),
         (station, "node"),
@@ -213,24 +221,10 @@ def test_static_bindings_reject_assignment_but_no_layout_keeps_mutable_api():
             setattr(component, field, getattr(component, field))
     with pytest.raises(AttributeError):
         origin.input_bays.append(fleet.graph.nodes[0])
-    plain = Environment()
-    node = Node("x", 0, 0)
-    wh = warehouse(plain, "wh", node)
-    wh.input_bays.append(node)
-    wh.input_bays = [node]
-    wh.output_bays = [node]
-    st = ChargingStation(env=plain, name="charger", node=node, n_slots=1)
-    pa = ParkingArea(env=plain, name="parking", node=node, capacity=1)
-    st.node = pa.node = node
-    graph = LayoutGraph([node], [])
-    tm = ResourceBasedTrafficManager(env=plain, graph=graph)
-    fc = FleetCoordinator(env=plain, graph=graph, fleet=[], warehouses=[wh], charging_stations=[st])
-    fc.graph = tm.graph = graph
-    assert isinstance(wh.input_bays, list) and tm.graph is graph
 
 
 @pytest.mark.parametrize("consumer", ["agv", "warehouse", "charger", "parking", "fleet", "traffic", "node_binding"])
-def test_explicit_consumers_before_layout_and_direct_values_in_layout_rejected(consumer):
+def test_direct_values_in_layout_rejected(consumer):
     def create(env, node, graph):
         return {
             "agv": lambda: vehicle(env, node),
@@ -238,16 +232,12 @@ def test_explicit_consumers_before_layout_and_direct_values_in_layout_rejected(c
             "charger": lambda: ChargingStation(env=env, name="charger", node=node, n_slots=1),
             "parking": lambda: ParkingArea(env=env, name="parking", node=node, capacity=1),
             "fleet": lambda: FleetCoordinator(env=env, graph=graph, fleet=[], warehouses=[], charging_stations=[]),
-            "traffic": lambda: ResourceBasedTrafficManager(env=env, graph=graph),
+            "traffic": lambda: ReservationController(env=env, graph=graph),
             "node_binding": lambda: env.entities.bind_node(node),
         }[consumer]()
 
     node = Node("a", 0, 0)
     graph = LayoutGraph([node], [])
-    plain = Environment()
-    create(plain, node, graph)
-    with pytest.raises(LayoutError):
-        Layout(plain)
     env = Environment()
     line(env)
     before = env.entities.live()
@@ -262,22 +252,22 @@ def test_foreign_refs_wrong_environment_members_and_duplicate_managers_preflight
     for make in (
         lambda: vehicle(env, foreign.node("A")),
         lambda: warehouse(env, "bad", foreign.node("A")),
-        lambda: ResourceBasedTrafficManager(env=env, graph=foreign.graph()),
+        lambda: ReservationController(env=env, graph=foreign.graph()),
         lambda: vehicle(Environment(), layout.node("A")),
-        lambda: ResourceBasedTrafficManager(env=Environment(), graph=layout.graph()),
+        lambda: ReservationController(env=Environment(), graph=layout.graph()),
     ):
         with pytest.raises(LayoutError):
             make()
     assert env.entities.live() == ()
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     with pytest.raises(LayoutError, match="shared resource owner"):
-        ResourceBasedTrafficManager(env=env, graph=layout.graph())
+        ReservationController(env=env, graph=layout.graph())
     alien = vehicle(other, foreign.node("A"))
     cart = vehicle(env, layout.node("A"))
     for members, traffic in [
         ([alien], manager),
         ([cart, cart], manager),
-        ([cart], ResourceBasedTrafficManager(env=other, graph=foreign.graph())),
+        ([cart], ReservationController(env=other, graph=foreign.graph())),
     ]:
         before = env.entities.live()
         with pytest.raises(LayoutError):
@@ -287,17 +277,17 @@ def test_foreign_refs_wrong_environment_members_and_duplicate_managers_preflight
                 fleet=members,
                 warehouses=[],
                 charging_stations=[],
-                traffic_manager=traffic,
+                traffic_controller=traffic,
             )
         assert env.entities.live() == before and cart.fleet is None
     fleet = FleetCoordinator(
-        env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[], traffic_manager=manager
+        env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[], traffic_controller=manager
     )
     with pytest.raises(LayoutError, match="already belongs"):
         FleetCoordinator(env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[])
     second = vehicle(env, layout.node("B"))
     shared = FleetCoordinator(
-        env=env, graph=layout.graph(), fleet=[second], warehouses=[], charging_stations=[], traffic_manager=manager
+        env=env, graph=layout.graph(), fleet=[second], warehouses=[], charging_stations=[], traffic_controller=manager
     )
     env.activate()
     assert fleet.graph is shared.graph is manager.graph
@@ -309,25 +299,30 @@ def test_capacity_overrides_fallback_and_canonical_generated_aliases():
     layout.set_grid(Grid(1, 1))
     layout.set_network(Lattice((0, 0, 2, 0), capacity=5))
     layout.override(NetworkOverride("unset", {"kind": "lattice", "i": 0, "j": 0}, {"capacity": {"$unset": True}}))
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph(), node_capacity=2)
+    manager = ReservationController(env=env, graph=layout.graph(), node_capacity=2)
     ref = layout.node_at(Address({"kind": "lattice", "i": 0, "j": 0}))
     cart = vehicle(env, ref)
     layout.prepare()
-    assert manager._node_resources[cart.current_node].capacity == 2
-    assert sorted(resource.capacity for resource in manager._node_resources.values()) == [2, 5, 5]
+    assert manager.graph is layout.prepare().network.graph
+    env.activate()  # the controller builds its network from the resolved graph and capacities
+    network = manager.network
+    assert network.graph is manager.graph
+    assert network.capacity(cart.current_node) == 2
+    assert sorted(network.capacity(node) for node in network.graph.nodes) == [2, 5, 5]
 
 
 def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
-    class Manager(FreeTrafficManager):
-        pass
+    class Manager(FreeFlowController):
+        controls_occupancy = True
 
     env = Environment()
     layout = line(env)
     manager, other, owner = Manager(), Manager(), object()
-    with pytest.raises(LayoutError, match="custom manager"):
+    with pytest.raises(LayoutError, match="custom traffic controller requires") as raised:
         FleetCoordinator(
-            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_manager=manager
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
         )
+    assert "layout.register_resource_owner(" in str(raised.value) and "layout.on_bind(" in str(raised.value)
     layout.register_resource_owner(manager, owner=owner, graph=layout.graph(), binder="resources")
     layout.register_resource_owner(other, owner=owner, graph=layout.graph(), binder="resources")
     with pytest.raises(LayoutError, match="already registered"):
@@ -343,7 +338,7 @@ def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
         reads=(layout.graph(),),
     )
     fleet = FleetCoordinator(
-        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_manager=manager
+        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
     )
     result = layout.prepare()
     assert seen == [(result.network.graph.nodes[0], fleet.graph)]
@@ -351,24 +346,25 @@ def test_custom_resource_owner_requires_named_binder_and_can_share_identity():
 
 
 @pytest.mark.parametrize("mode", ["off", "full", "debug"])
-def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_path):
+def test_speed_limited_transport_reproduces_the_fingerprint_both_modes_agreed_on(mode, tmp_path):
+    """The run reproduces the fingerprint pinned at the last commit with explicit mode (e4afae4), where the same model
+    built with concrete objects gave the same initial and final states and fingerprint; and it is deterministic. The
+    fingerprint is pinned again for the vehicle's ``wait`` and ``route`` (studio map spec §6.2), then for the capacities
+    and the traffic counters (§6.4, §6.6), each time the only change to the run's projection."""
     outcomes = []
-    for use_layout in (False, True):
+    for run in range(2):
         env = Environment(seed=17, debug=mode == "debug")
         env.enable_digest()
         if mode == "full":
-            TraceRecorder(env, tmp_path / f"{use_layout}.trace")
+            TraceRecorder(env, tmp_path / f"{run}.trace")
         if mode == "debug":
             FleetReplay(env)
         a, b = Node("A", 0, 0), Node("B", 2, 0)
         graph = LayoutGraph([a, b], [Arc(a, b, speed_limit=0.5)])
-        if use_layout:
-            layout = Layout(env)
-            layout.set_network(Explicit(graph))
-            supplied_graph, supplied_a, supplied_b = layout.graph(), layout.node("A"), layout.node("B")
-        else:
-            supplied_graph, supplied_a, supplied_b = graph, a, b
-        manager = ResourceBasedTrafficManager(env=env, graph=supplied_graph)
+        layout = env.layout
+        layout.set_network(Explicit(graph))
+        supplied_graph, supplied_a, supplied_b = layout.graph(), layout.node("A"), layout.node("B")
+        manager = ReservationController(env=env, graph=supplied_graph)
         cart = vehicle(env, supplied_b, "cart")
         origin, destination = warehouse(env, "origin", supplied_a), warehouse(env, "destination", supplied_b)
         fleet = FleetCoordinator(
@@ -377,7 +373,7 @@ def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_p
             fleet=[cart],
             warehouses=[origin, destination],
             charging_stations=[],
-            traffic_manager=manager,
+            traffic_controller=manager,
             name="fleet",
         )
         order = fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination)
@@ -389,6 +385,102 @@ def test_explicit_layout_semantic_parity_and_speed_limited_transport(mode, tmp_p
         outcomes.append((env.initial_state, env.entities.snapshot(), env.fingerprint()))
         env.close()
     assert outcomes[0] == outcomes[1]
+    assert outcomes[1][2].digest == "76f74dfd9137635d914680c00dcec9b0c755f1a532ded09cbe40addea9c18897"
+
+
+def test_a_controller_without_occupancy_needs_no_registration():
+    """``_validate_fleet`` accepts any controller whose ``controls_occupancy`` is false, whatever its class."""
+
+    class Unregistered(FreeFlowController):
+        pass
+
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"), "cart")
+    controller = Unregistered()
+    fleet = FleetCoordinator(
+        env=env, graph=layout.graph(), fleet=[cart], warehouses=[], charging_stations=[], traffic_controller=controller
+    )
+    layout.prepare()
+    assert fleet.traffic_controller is controller and controller.view.graph is fleet.graph
+
+
+def test_a_reservation_controller_must_be_the_registered_owner_of_its_environment():
+    env = Environment()
+    layout = line(env)
+    controller = ReservationController(env=env, graph=layout.graph())
+    layout._resource_owner = object()  # another owner took the graph's resources
+    with pytest.raises(LayoutError, match="reuse the registered traffic controller"):
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=controller
+        )
+
+
+def test_the_registered_resource_owner_is_accepted_whatever_its_class():
+    """spec §12: ``_validate_fleet`` checks the layout's record of resource owners, not the controller's class."""
+
+    class Owner(FreeFlowController):
+        controls_occupancy = True
+
+    env = Environment()
+    layout = line(env)
+    controller = Owner()
+    layout._register_manager(controller)
+    fleet = FleetCoordinator(
+        env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=controller
+    )
+    assert fleet.traffic_controller is controller
+    other = Environment()
+    stranger = ReservationController(env=other, graph=line(other).graph())  # the owner of another layout
+    with pytest.raises(LayoutError, match="belongs to another environment") as raised:
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=stranger
+        )
+    assert "register_resource_owner" not in str(raised.value)  # its fix is not a registration
+
+
+@pytest.mark.parametrize("private", [None, "this", "other", "none"])
+def test_an_unregistered_custom_controller_is_told_to_register_whatever_private_attributes_it_has(private):
+    """The message for a controller that was not registered does not depend on its private attributes: only a
+    built-in controller of another environment is told it belongs to another environment."""
+
+    class Manager(FreeFlowController):
+        controls_occupancy = True
+
+    env, other = Environment(), Environment()
+    layout = line(env)
+    manager = Manager()
+    if private is not None:
+        manager._env = {"this": env, "other": other, "none": None}[private]
+        manager.env = manager._env
+    with pytest.raises(LayoutError, match="custom traffic controller requires") as raised:
+        FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[], warehouses=[], charging_stations=[], traffic_controller=manager
+        )
+    assert "belongs to another environment" not in str(raised.value)
+
+
+def test_a_reservation_controller_subclass_that_never_registered_is_told_to_register():
+    """Only a built-in controller whose constructor set another environment is told it belongs to one: a subclass whose
+    own `__init__` skips the constructor has registered nowhere and is told to register, like any custom controller."""
+
+    class Skips(ReservationController):
+        def __init__(self, env=None):
+            if env is not None:  # the constructor of the built-in controller sets the environment it serves
+                super().__init__(env=env, graph=line(env).graph())
+
+    env, other = Environment(), Environment()
+    layout = line(env)
+    for controller, advice in ((Skips(), "custom traffic controller requires"), (Skips(other), "belongs to another")):
+        with pytest.raises(LayoutError, match=advice):
+            FleetCoordinator(
+                env=env,
+                graph=layout.graph(),
+                fleet=[],
+                warehouses=[],
+                charging_stations=[],
+                traffic_controller=controller,
+            )
 
 
 def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication():
@@ -410,21 +502,25 @@ def test_disabled_or_unreachable_required_nodes_fail_before_any_node_publication
 
 
 @pytest.mark.parametrize("consumer", ["agv", "input_bays", "output_bays"])
-def test_preexisting_public_mutation_to_concrete_nodes_blocks_layout_attachment(consumer):
+def test_public_mutation_to_concrete_nodes_is_rejected(consumer):
+    """A component never holds a concrete node: an AGV refuses one and the bays are a tuple from construction."""
     env = Environment()
     concrete = Node("A", 0, 0)
     if consumer == "agv":
         cart = vehicle(env, None)
-        cart.current_node = concrete
+        before = env.entities.snapshot()
+        with pytest.raises(LayoutError, match="canonical"):
+            cart.current_node = concrete
     else:
         wh = Warehouse(
             env=env, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
         )
-        getattr(wh, consumer).append(concrete)
-    before = env.entities.snapshot()
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        Layout(env)
-    assert env.layout is None and env.entities.snapshot() == before
+        before = env.entities.snapshot()
+        with pytest.raises(AttributeError):
+            getattr(wh, consumer).append(concrete)
+    assert env.entities.snapshot() == before
+    env.activate()  # nothing concrete was taken: the environment's layout prepares
+    assert env.initial_state == before
 
 
 def test_preexisting_empty_bays_seal_and_unplaced_agv_remains_supported():
@@ -440,13 +536,13 @@ def test_preexisting_empty_bays_seal_and_unplaced_agv_remains_supported():
     for field in ("input_bays", "output_bays"):
         with pytest.raises(AttributeError):
             getattr(wh, field).append(Node("outside", 0, 0))
-    plain = Environment()
+    fresh = Environment()  # bays are sealed at construction, before the environment's layout exists
     unchanged = Warehouse(
-        env=plain, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
+        env=fresh, name="empty", input_bays=[], output_bays=[], n_slots=1, products=[], pick_time=0, put_time=0
     )
-    assert isinstance(unchanged.input_bays, list)
-    unchanged.input_bays.append(Node("outside", 0, 0))
-    assert isinstance(unchanged.input_bays, list)
+    assert fresh._layout is None and unchanged.input_bays == ()
+    with pytest.raises(AttributeError):
+        unchanged.input_bays.append(Node("outside", 0, 0))
 
 
 def test_preexisting_bay_alias_cannot_introduce_concrete_nodes_during_preparation():
@@ -456,8 +552,270 @@ def test_preexisting_bay_alias_cannot_introduce_concrete_nodes_during_preparatio
     )
     old_bays = wh.input_bays
     layout = line(env)
-    assert isinstance(old_bays, list)
-    old_bays.append(Node("outside", 0, 0))
-    with pytest.raises(LayoutError, match="explicit graph consumers"):
-        layout.prepare()
-    assert not any(entity.kind == "node" for entity in env.entities.live())
+    assert old_bays == ()
+    with pytest.raises(AttributeError):
+        old_bays.append(Node("outside", 0, 0))
+    layout.prepare()
+    assert wh.input_bays == () and [entity.id for entity in env.entities.live() if entity.kind == "node"] == ["A", "B"]
+
+
+class ConstantSpeed:
+    """A speed profile with only ``travel_time``: 2 m/s, no limits."""
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        return distance / 2.0
+
+
+def test_an_agv_drives_a_recorded_explicit_length_and_not_the_chord():
+    def run(length: float | None) -> float:
+        env = Environment()
+        layout = Layout(env)
+        a, b = Node("A", 0, 0), Node("B", 10, 0)
+        layout.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b, length=length)])))
+        origin, destination = (
+            warehouse(env, "origin", layout.node("A")),
+            warehouse(env, "destination", layout.node("B")),
+        )
+        kind = AGVType("cart", ConstantSpeed(), 100, 100, 100, length=0.5)
+        cart = AGV(env=env, agv_id="cart", initial_node=layout.node("A"), agv_type=kind)
+        fleet = FleetCoordinator(
+            env=env, graph=layout.graph(), fleet=[cart], warehouses=[origin, destination], charging_stations=[]
+        )
+        fleet.submit(fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination))
+        env.run()
+        env.close()
+        return env.now
+
+    assert run(None) == 5.0  # the chord, 10 m at 2 m/s
+    assert run(25.0) == 12.5
+
+
+def test_node_validation_accepts_the_canonical_node_and_nothing_else():
+    env = Environment()
+    layout = Layout(env)
+    a, b, c = Node("A", 0, 0), Node("B", 2, 0), Node("C", 4, 0)
+    layout.set_network(Explicit(LayoutGraph([a, b, c], [Arc(a, b), Arc(b, c)])))
+    layout.override(NetworkOverride("off", {"kind": "explicit", "id": "C"}, {"enabled": False}))
+    cart = vehicle(env, layout.node("A"))
+    network = layout.prepare().network
+    canonical = network.node(layout.node("A").address)
+    other = Environment()
+    elsewhere = Layout(other)
+    elsewhere.set_network(Explicit(LayoutGraph([a, b], [Arc(a, b)])))
+    foreign = elsewhere.prepare().network.node(elsewhere.node("A").address)
+    assert foreign == canonical and foreign is not canonical
+    equal = Node(canonical.id, canonical.x, canonical.y)
+    assert equal == canonical and equal is not canonical
+    layout._validate_node(None)
+    layout._validate_node(canonical)
+    cart._validate_node(None)
+    cart._validate_node(canonical)
+    cart.current_node = canonical
+    for rejected in (equal, foreign, c, Node("unknown", 9, 9)):  # equal by value, another network, disabled, unknown
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+            layout._validate_node(rejected)
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+            cart._validate_node(rejected)
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+            cart.current_node = rejected
+        assert cart.current_node is canonical
+    assert env.entities.node_binding(canonical).agvs == [cart.id]
+
+
+def test_node_validation_names_a_missing_layout_as_before():
+    env = Environment()
+    cart = vehicle(env, None)
+    with pytest.raises(LayoutError, match="exact canonical enabled graph node"):
+        cart._validate_node(Node("A", 0, 0))
+
+
+def test_node_validation_of_an_agv_whose_node_is_not_resolved_yet():
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"))
+    for action in (
+        lambda: cart._validate_node(None),
+        lambda: cart._validate_node(Node("A", 0, 0)),
+        lambda: setattr(cart, "current_node", None),
+        lambda: setattr(cart, "current_node", Node("A", 0, 0)),
+    ):
+        with pytest.raises(LayoutNotReady):
+            action()
+    layout.prepare()
+    cart._validate_node(None)  # resolved: the validation passes
+    assert cart.current_node is layout.prepare().network.node(layout.node("A").address)
+
+
+def test_assigning_none_needs_no_layout():
+    """`AGV._validate_node(None)` accepts without asking for the environment's layout, which it used to create: a model
+    that only clears an AGV's node can still make its layout afterwards."""
+    env = Environment()
+    cart = vehicle(env, None)
+    cart.current_node = None
+    cart._validate_node(None)
+    assert env._layout is None
+    layout = Layout(env)
+    assert env.layout is layout
+
+
+class Unready:
+    @property
+    def id(self):
+        raise LayoutNotReady("not ready")
+
+
+def _outcome(call):
+    try:
+        call()
+    except BaseException as error:
+        return type(error), str(error)
+    return None
+
+
+@pytest.mark.parametrize("block", [None, 1.0])
+def test_the_agv_and_the_layout_accept_the_same_nodes(block):
+    """The AGV checks the canonical node on its own fast path and leaves the rest to the layout: whatever the inputs,
+    the two give one outcome, so that a condition added to one and not to the other fails here."""
+    from unittest import mock
+
+    env = Environment()
+    layout = Layout(env)
+    a, b, c, d = Node("A", 0, 0), Node("B", 2, 0), Node("C", 4, 0), Node("D", 2, 3)
+    kwargs = {} if block is None else {"block_length": block}
+    layout.set_network(Explicit(LayoutGraph([a, b, c, d], [Arc(a, b), Arc(b, c), Arc(b, d)]), **kwargs))
+    layout.override(NetworkOverride("off", {"kind": "explicit", "id": "C"}, {"enabled": False}))
+    cart = vehicle(env, layout.node("A"))
+    graph = layout.prepare().network.graph
+    canonical = {node.id: node for node in graph.nodes}
+    other = Environment()
+    elsewhere = Layout(other)
+    e = Node("E", 6, 0)
+    elsewhere.set_network(Explicit(LayoutGraph([a, b, e], [Arc(a, b), Arc(b, e)])))
+    foreign = {node.id: node for node in elsewhere.prepare().network.graph.nodes}
+    apart = Layout(Environment())
+    far = Node("A", 9, 9)
+    apart.set_network(Explicit(LayoutGraph([far, Node("Z", 9, 12)], [Arc(far, Node("Z", 9, 12))])))
+    apart_nodes = {node.id: node for node in apart.prepare().network.graph.nodes}
+    inputs = [
+        canonical["A"],  # the current node
+        canonical["B"],
+        canonical["D"],
+        Node("A", canonical["A"].x, canonical["A"].y),  # equal by value, not canonical
+        Node("B", canonical["B"].x, canonical["B"].y),
+        a,  # declared by the user: equal to the canonical node
+        b,
+        Node("A", 7.0, 7.0),  # the id of a node at another position
+        c,  # disabled
+        Node("C", 4.0, 0.0),
+        foreign["A"],  # canonical in another environment
+        foreign["B"],
+        foreign["E"],  # canonical in another environment, whose id is not in this network
+        apart_nodes["A"],  # canonical in another environment, the id of a node here at another position
+        apart_nodes["Z"],
+        Node("unknown", 9, 9),
+        None,
+        "A",
+        5,
+        object(),
+        types.SimpleNamespace(id="A"),
+        types.SimpleNamespace(id=[]),
+        mock.ANY,
+        Node(None, 0, 0),
+        layout.node("A"),  # a handle, which is for construction
+        layout.node("B"),
+        layout.graph(),
+        Unready(),  # not a handle, its id is not ready
+    ]
+    generated = [node for node in graph.nodes if node.id not in ("A", "B", "C", "D")]
+    assert bool(generated) == (block is not None)
+    for node in generated[:2]:
+        inputs += [node, Node(node.id, node.x, node.y)]
+    outcomes = set()
+    for node in inputs:
+        by_layout = _outcome(lambda: layout._validate_node(node))
+        assert _outcome(lambda: cart._validate_node(node)) == by_layout
+        outcomes.add(by_layout)
+        before = cart.current_node
+        assert _outcome(lambda: setattr(cart, "current_node", node)) == by_layout
+        if by_layout is not None:
+            assert cart.current_node is before  # a refused node changes nothing
+    assert None in outcomes and len(outcomes) >= 3  # accepted and refused for several reasons
+
+
+CANONICAL_FIX = "fleet.graph, or env.layout.prepare().network.node(env.layout.node(id).address)"
+
+
+def test_a_refused_node_names_where_the_canonical_node_comes_from():
+    """A `Node` the script built, equal to the canonical node, and a handle, which is for construction, are refused by
+    the AGV and by the node binding with a message that names the canonical node of the same id."""
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"))
+    canonical = layout.prepare().network.node(layout.node("B").address)
+    copy = Node("B", canonical.x, canonical.y)
+    for refuse in (lambda node: setattr(cart, "current_node", node), env.entities.bind_node, layout._validate_node):
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node") as raised:
+            refuse(copy)
+        assert CANONICAL_FIX in str(raised.value)
+        for handle in (layout.node("B"), layout.graph()):
+            with pytest.raises(LayoutError) as raised:
+                refuse(handle)
+            message = str(raised.value)
+            assert "a layout handle" in message and "for constructing components" in message, message
+            assert CANONICAL_FIX in message, message
+    assert cart.current_node is layout.prepare().network.node(layout.node("A").address)
+    cart.current_node = canonical
+    assert cart.current_node is canonical
+
+
+def test_a_refused_node_is_told_what_is_true_for_it():
+    """One refusal, four reasons: a node equal to the canonical one is told to take the canonical object; a disabled
+    node is told it is disabled; a node whose id is not in the network is told so, and a node of the id at another
+    position is told it lies elsewhere. No message advises a node that cannot be canonical to take it from the graph."""
+    env = Environment()
+    layout = line(env)
+    layout.override(NetworkOverride("off", {"kind": "explicit", "id": "B"}, {"enabled": False}))
+    layout.prepare()
+    canonical = layout._canonical_nodes["A"]
+    cases = {
+        "equal": Node("A", canonical.x, canonical.y),
+        "disabled": Node("B", 2, 0),
+        "unknown": Node("unknown", 9, 9),
+        "elsewhere": Node("A", canonical.x + 5, canonical.y),
+        "not a node": types.SimpleNamespace(id="A"),
+    }
+    messages = {}
+    for label, node in cases.items():
+        with pytest.raises(LayoutError, match="exact canonical enabled graph node") as raised:
+            layout._validate_node(node)
+        messages[label] = str(raised.value)
+    assert CANONICAL_FIX in messages["equal"] and "equal to the network's node of that id" in messages["equal"]
+    assert "disabled in the network" in messages["disabled"] and "fleet.graph" not in messages["disabled"]
+    assert "not the id of a node of this environment's network" in messages["unknown"]
+    assert CANONICAL_FIX not in messages["unknown"] and "equal to" not in messages["unknown"]
+    assert "lies elsewhere" in messages["elsewhere"]
+    assert f"({canonical.x + 5}, {canonical.y} against {canonical.x}, {canonical.y})" in messages["elsewhere"]
+    assert "is a SimpleNamespace, not a Node" in messages["not a node"]
+    bare = Environment()
+    with pytest.raises(LayoutError, match="this layout has no network: declare one with env.layout.set_network"):
+        bare.layout._validate_node(Node("A", 0, 0))
+    declared = Environment()
+    line(declared)  # a network declared and not prepared yet
+    with pytest.raises(LayoutError, match="declared but not prepared yet: call env.layout.prepare") as raised:
+        declared.layout._validate_node(Node("A", 0, 0))
+    assert "set_network" not in str(raised.value)
+
+
+def test_assigning_the_node_of_an_agv_whose_node_is_pending_names_the_assignment():
+    env = Environment()
+    layout = line(env)
+    cart = vehicle(env, layout.node("A"))
+    with pytest.raises(LayoutNotReady, match="before reading it"):
+        _ = cart.current_node
+    for node in (None, Node("A", 0, 0)):
+        with pytest.raises(LayoutNotReady) as raised:
+            cart.current_node = node
+        message = str(raised.value)
+        assert "before assigning it" in message and "reading" not in message, message

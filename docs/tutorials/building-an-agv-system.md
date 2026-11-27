@@ -21,7 +21,11 @@ STORE_OUT(0,0) -- C1(10,0) -- C2(20,0) -- LINE_IN(30,0)
 ```
 
 ```python
+from simulatte.environment import Environment
 from simulatte.intralogistics import Arc, LayoutGraph, Node
+from simulatte.layout import Explicit
+
+env = Environment()
 
 store_out = Node(id="STORE_OUT", x=0.0, y=0.0)
 c1 = Node(id="C1", x=10.0, y=0.0)
@@ -36,9 +40,14 @@ arcs = [
     Arc(source=c1, target=park_node, bidirectional=True),
 ]
 graph = LayoutGraph([store_out, c1, c2, line_in, park_node], arcs)
+
+# The graph is the network of the environment's layout. Every component below refers to its nodes and to the
+# graph through handles; the layout resolves them when the run starts.
+layout = env.layout
+layout.set_network(Explicit(graph))
 ```
 
-`LayoutGraph` builds an adjacency structure that the path planner (Dijkstra or A*) uses to route AGVs.
+`LayoutGraph` builds an adjacency structure that the fleet's router uses to route AGVs. An arc's travelled length is the distance between its nodes unless you pass `length=`. `Explicit(graph)` declares it as the network of the environment's layout (`env.layout`); the components that follow take `layout.node(id)` and `layout.graph()` handles, never the `Node` and `LayoutGraph` objects themselves.
 
 ---
 
@@ -56,8 +65,8 @@ products = [sku_a, sku_b]
 storage = Warehouse(
     env=env,
     name="Storage",
-    input_bays=[store_out],
-    output_bays=[store_out],
+    input_bays=[layout.node("STORE_OUT")],
+    output_bays=[layout.node("STORE_OUT")],
     n_slots=3,
     products=products,
     initial_inventory={sku_a: 50, sku_b: 30},
@@ -68,8 +77,8 @@ storage = Warehouse(
 production_line = Warehouse(
     env=env,
     name="ProductionLine",
-    input_bays=[line_in],
-    output_bays=[line_in],
+    input_bays=[layout.node("LINE_IN")],
+    output_bays=[layout.node("LINE_IN")],
     n_slots=3,
     products=products,
     initial_inventory={},
@@ -102,49 +111,49 @@ agv_type = AGVType(
     unload_time=5.0,
 )
 # Two AGVs starting at the corridor junction C1 (ids are generated: agv-0, agv-1)
-agvs = [AGV(env=env, agv_type=agv_type, initial_node=c1) for _ in range(2)]
+agvs = [AGV(env=env, agv_type=agv_type, initial_node=layout.node("C1")) for _ in range(2)]
 ```
 
 Ids such as `agv-0` are reserved for generated ids; pass `agv_id=` only for a custom name like `"forklift-A"`.
 
-`TrapezoidalProfile` models acceleration and deceleration; travel time between nodes is computed from the actual arc distance and the profile.
+`TrapezoidalProfile` models acceleration and deceleration. It reports its kinematic limits, so an AGV accelerates from rest, passes intermediate nodes at speed and brakes only where it stops; travel times follow from the arc lengths and the profile.
 
 ---
 
 ## 4. Wire FleetCoordinator and policies
 
-`FleetCoordinator` is the central dispatcher. Pass it the graph, fleet, warehouses, and optional infrastructure (charging stations, parking areas). The `dispatch_strategy` and `repositioning_policy` are pluggable.
+`FleetCoordinator` is the central dispatcher. Pass it the layout's graph handle, fleet, warehouses, and optional infrastructure (charging stations, parking areas). The `dispatch_strategy` and `repositioning_policy` are pluggable.
 
 ```python
 from simulatte.intralogistics import (
-    DijkstraPlanner,
     FleetCoordinator,
-    FreeTrafficManager,
+    FreeFlowController,
     NearestIdleStrategy,
     NearestParkingPolicy,
     ParkingArea,
+    ShortestDistanceRouter,
 )
 
-parking = ParkingArea(env=env, name="Parking", node=park_node, capacity=2)
+parking = ParkingArea(env=env, name="Parking", node=layout.node("PARK"), capacity=2)
 
 coordinator = FleetCoordinator(
     env=env,
-    graph=graph,
+    graph=layout.graph(),
     fleet=agvs,
     warehouses=[storage, production_line],
     charging_stations=[],
     parking_areas=[parking],
-    traffic_manager=FreeTrafficManager(),
-    path_planner=DijkstraPlanner(),
+    traffic_controller=FreeFlowController(),
+    router=ShortestDistanceRouter(),
     dispatch_strategy=NearestIdleStrategy(),
     repositioning_policy=NearestParkingPolicy(),
 )
 ```
 
-- `NearestIdleStrategy` selects the idle AGV closest to the order's origin warehouse.
-- `NearestParkingPolicy` sends idle AGVs to the closest parking area to keep the main corridor clear.
-- `FreeTrafficManager` imposes no node-capacity limits; swap in `ResourceBasedTrafficManager` for congestion control.
-- `DijkstraPlanner` computes shortest paths; `AStarPlanner` is available for larger graphs.
+- `NearestIdleStrategy` selects the idle AGV with the least route cost to the order's origin warehouse.
+- `NearestParkingPolicy` sends idle AGVs to the parking area with the least route cost, to keep the main corridor clear.
+- `FreeFlowController` (the default) lets AGVs share nodes and lanes without waiting for one another. Swap in a `ReservationController` to model congestion: it requires a `length` on the AGV type (see [traffic control](../guides/intralogistics.md#traffic-control)).
+- `ShortestDistanceRouter` (the default) routes by distance, with `algorithm="astar"` for A*; `FastestRouter` routes by travel time (see [routing](../guides/intralogistics.md#routing)).
 
 ---
 
@@ -208,14 +217,14 @@ Orders: 5 submitted
 Simulation time: 300.0s
 
 Completed orders: 5/5
-Avg fulfillment time: 135.8s
+Avg fulfillment time: 124.3s
 
 order sku          qty status      dispatch   pick deliver agv
-    1 ComponentA       4 COMPLETED       0.0    21.5    59.5 agv-0
-    2 ComponentB       2 COMPLETED       0.0    17.5    55.5 agv-1
-    3 ComponentA       6 COMPLETED      82.1   117.1   156.7 agv-1
-    4 ComponentB       3 COMPLETED      86.1   115.1   154.7 agv-0
-    5 ComponentA       2 COMPLETED     182.9   211.1   252.7 agv-0
+    1 ComponentA       4 COMPLETED       0.0    21.5    55.6 agv-0
+    2 ComponentB       2 COMPLETED       0.0    17.5    51.6 agv-1
+    3 ComponentA       6 COMPLETED      74.3   107.4   143.2 agv-1
+    4 ComponentB       3 COMPLETED      78.3   105.4   141.2 agv-0
+    5 ComponentA       2 COMPLETED     165.7   192.1   229.9 agv-0
 
 Inventory (start -> end):
   Storage:
@@ -226,14 +235,14 @@ Inventory (start -> end):
     ComponentB       0 ->   5
 
 Fleet report:
-  Overall utilization: 78.0%
+  Overall utilization: 70.7%
   agv-0: state=IDLE, battery=77%, node=PARK
   agv-1: state=IDLE, battery=85%, node=PARK
 ```
 
 ## What the output shows
 
-All five orders complete within the 300-second window. The two AGVs handle the first two orders in parallel (both dispatched at t=0), then pick up the next pair once they return (~t=82–86 s), and agv-0 takes the fifth order alone. Average fulfillment time of 135.8 s reflects pick time (which scales with quantity), travel across 30 m of corridor, and unload time at the production line. Both AGVs park at the PARK node when idle, keeping the main corridor free. Fleet utilisation is 78 %, leaving headroom to absorb additional orders without queuing.
+All five orders complete within the 300-second window. The two AGVs handle the first two orders in parallel (both dispatched at t=0), then pick up the next pair once they return (~t=74–78 s), and agv-0 takes the fifth order alone. Average fulfillment time of 124.3 s reflects pick time (which scales with quantity), travel across 30 m of corridor, and unload time at the production line. Both AGVs park at the PARK node when idle, keeping the main corridor free. Under the default `FreeFlowController` they share the corridor and the PARK node without waiting for each other. Fleet utilisation is 70.7 %, leaving headroom to absorb additional orders without queuing.
 
 ---
 

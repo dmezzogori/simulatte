@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .bundle import ResolvedLayout, finalize_layout, validate_file_eligibility
-from .auto import AutoLayer, TargetMetadata, auto_layout
-from .binding import bind_components, check_existing_endpoints
+from .auto import _BOUND_KINDS, AutoLayer, NetworkGeometry, TargetMetadata, auto_layout
+from .binding import _loaded, bind_components
 from .dependencies import MISSING, DependencyClosure
-from .errors import LayoutDiagnostic, LayoutError, sort_diagnostics
+from .errors import LayoutDiagnostic, LayoutError, LayoutNotReady, sort_diagnostics
 from .io import load_layout, save_layout
 from .layers import FileLayer, ResolvedValues, _thaw, resolve_layers
 from .lifecycle import PreparationCoordinator, PreparationState
 from .network import ResolvedNetwork, resolve_network
-from .refs import Address, GraphRef, NodeRef, PortRef, ValueRef
+from .refs import Address, GraphRef, NodeRef, PortRef, ValueRef, _Ref
 from .topology import snapshot_topology
 from .types import Explicit, Grid, Lanes, Lattice, LayoutLimits, NetworkOverride, Point, _freeze
 
@@ -24,6 +24,17 @@ if TYPE_CHECKING:
     from simulatte.entities import Entity
     from simulatte.environment import Environment
     from simulatte.intralogistics.graph import Node
+
+_FINALIZED_NETWORK = (
+    "the layout is finalized when it is prepared, at env.activate() or the first env.run(): declare the network on "
+    "env.layout before activating; components with handles may still be added later"
+)
+"""Why a network cannot be declared, or first used, once the layout is finalized, and what to do (spec §5.5)."""
+
+_CANONICAL_NODE = (
+    "take the node of the same id from fleet.graph, or env.layout.prepare().network.node(env.layout.node(id).address)"
+)
+"""Where the canonical node an AGV moves to comes from (spec §5.4)."""
 
 _BUILTINS = {
     "server",
@@ -61,6 +72,13 @@ def _data(value: Any, owner: object) -> Any:
     return value
 
 
+def _binds(obj: Entity, node: Node) -> bool:
+    """Whether `obj` is the binding of `node` (imported here: only a model with a network binds nodes)."""
+    from simulatte.intralogistics.graph import NodeBinding
+
+    return type(obj) is NodeBinding and obj.node is node
+
+
 @dataclass(frozen=True)
 class _PreparedLayout:
     """Internal Task 9 finalizer input; no provisional hashes or bundle format."""
@@ -79,11 +97,12 @@ class Layout:
     def __init__(
         self, env: Environment, *, file: str | Path | None = None, limits: LayoutLimits = LayoutLimits()
     ) -> None:
-        if env.layout is not None or env._activation_started or env._explicit_graph_use or env.now != 0:
+        if env._layout is not None:
             raise LayoutError(
-                "Layout requires an unactivated environment without explicit graph consumers", code="lifecycle-error"
+                "the environment already has a layout: Layout(env, ...) must come before the first use of env.layout "
+                "and before activation",
+                code="lifecycle-error",
             )
-        check_existing_endpoints(env)
         self.env, self.limits = env, limits
         layer = FileLayer({"schema_version": "1.0"}) if file is None else load_layout(file, limits=limits)
         self._placed: set[str] = set()
@@ -143,21 +162,37 @@ class Layout:
             if coordinator.network is not None:
                 result.update({definition.id: "node" for definition in coordinator.network.definitions.nodes.values()})
             else:
-                raw = resolve_layers(coordinator._code, coordinator.file_layer).explicit_data.get("network", {})
+                raw = resolve_layers(coordinator._code, coordinator.file_layer, code_checked=True).explicit_data.get(
+                    "network", {}
+                )
                 if raw.get("type") == "explicit":
                     result.update({node["id"]: "node" for node in raw.get("nodes", ())})
         return result
 
-    def _entity_id(self, entity: Entity | str) -> str:
+    def _entity_id(self, entity: Entity | str, call: str, takes: str) -> str:
         if isinstance(entity, str):
             return entity
+        if isinstance(entity, _Ref):
+            address = entity.address.to_dict()
+            advice = (
+                f": to place the node {address['id']!r}, write layout.place({address['id']!r}, kind='node', ...)"
+                if call == "layout.place" and isinstance(entity, NodeRef) and address["kind"] == "explicit"
+                else ""
+            )
+            raise LayoutError(
+                f"{call} takes {takes}; {type(entity).__name__} is a layout handle, which stands for a part of "
+                f"the layout when constructing a component, and is not an entity{advice}",
+                code="foreign-handle",
+            )
         if not self.env.entities.is_live(entity):
             raise LayoutError("placement/flow entity belongs to another environment or is not live")
         return entity.id
 
     def place(self, entity: Entity | str, *, kind: str | None = None, **placement_patch: Any) -> None:
         self._coordinator._mutable()
-        entity_id = self._entity_id(entity)
+        entity_id = self._entity_id(
+            entity, "layout.place", "an entity of this environment, or the id of one with kind=..."
+        )
         if isinstance(entity, str):
             if kind is None:
                 raise LayoutError("string placement target requires kind")
@@ -175,7 +210,11 @@ class Layout:
 
     def flow(self, entities: Sequence[Entity | str]) -> None:
         self._coordinator._mutable()
-        self._flows.append(tuple(self._entity_id(entity) for entity in entities))
+        self._flows.append(
+            tuple(
+                self._entity_id(entity, "layout.flow", "the entities of the flow, or their ids") for entity in entities
+            )
+        )
 
     def set_grid(self, grid: Grid) -> None:
         if not isinstance(grid, Grid):
@@ -184,7 +223,16 @@ class Layout:
 
     def set_network(self, spec: Lattice | Lanes | Explicit) -> None:
         if not isinstance(spec, (Lattice, Lanes, Explicit)):
+            from simulatte.intralogistics.graph import LayoutGraph
+
+            if isinstance(spec, LayoutGraph):
+                raise LayoutError(
+                    "network must be Lattice, Lanes or Explicit: declare a LayoutGraph with "
+                    "layout.set_network(Explicit(graph))"
+                )
             raise LayoutError("network must be Lattice, Lanes or Explicit")
+        if self._coordinator.state is PreparationState.FINALIZED:
+            raise LayoutError(f"cannot declare the network: {_FINALIZED_NETWORK}", code="lifecycle-error")
         self._coordinator.declare({"network": {"type": type(spec).__name__.lower(), **_data(spec, self)}})
 
     def override(self, override: NetworkOverride) -> None:
@@ -201,13 +249,20 @@ class Layout:
         return self._coordinator.ref(*path)
 
     def node(self, node_id: str) -> NodeRef:
+        if not isinstance(node_id, str):
+            from simulatte.intralogistics.graph import Node
+
+            if isinstance(node_id, Node):
+                raise LayoutError(f"layout.node() takes a node id: write layout.node(node.id), here {node_id.id!r}")
         return self.node_at(Address({"kind": "explicit", "id": node_id}))
 
     def node_at(self, address: Address) -> NodeRef:
         return NodeRef(self, address)
 
     def port(self, entity: Entity | str, port_name: str) -> PortRef:
-        return PortRef(self, self._entity_id(entity), port_name)
+        return PortRef(
+            self, self._entity_id(entity, "layout.port", "an entity of this environment, or its id"), port_name
+        )
 
     def graph(self) -> GraphRef:
         return self._coordinator.graph()
@@ -256,6 +311,22 @@ class Layout:
         self._coordinator._owner(ref)
         return self._coordinator.network.node(ref.address)
 
+    def _bound_nodes(self, refs: Sequence[NodeRef | PortRef]) -> tuple[str, ...] | None:
+        """The ids of the nodes a facility is bound to, in binding order, each once: the ``node_ids`` of its target,
+        the input of its placement (studio map spec §6.3, §6.5). A warehouse lists its input bays, then its output
+        bays."""
+        return tuple(dict.fromkeys(self._resolve_node(ref).id for ref in refs))
+
+    def _resolve_late_node(self, ref: NodeRef | PortRef) -> Node:
+        """`ref` resolved for a component constructed after preparation; without a network that names the cause."""
+        if self._coordinator.values.at(("network",), explicit=True).state != "present":
+            raise LayoutError(
+                f"node reference requires a declared network: {_FINALIZED_NETWORK}",
+                code="missing-handle",
+                path=("network",),
+            )
+        return self._resolve_node(ref)
+
     def _bind_node(self, ref: NodeRef | PortRef, entity_id: str, field: str) -> Node:
         node = self._resolve_node(ref)
         self._coordinator.closure.bind(f"{entity_id}:{field}", {"address": ref.to_dict(), "endpoint": node.id})
@@ -268,23 +339,76 @@ class Layout:
 
     def _graph_of(self, network: ResolvedNetwork):
         if self._coordinator.values.at(("network",), explicit=True).state != "present":
+            if self._coordinator.state is PreparationState.FINALIZED:
+                raise LayoutError(
+                    f"graph reference requires a declared network: {_FINALIZED_NETWORK}",
+                    code="missing-handle",
+                    path=("network",),
+                )
             raise LayoutError("graph reference requires a declared network", code="missing-handle", path=("network",))
         return network.graph
 
     def _validate_node(self, node: Node | None) -> None:
         if node is None:
             return
-        if self._canonical_nodes.get(node.id) is not node:
-            raise LayoutError("AGV movement requires an exact canonical enabled graph node")
+        try:
+            if self._canonical_nodes.get(node.id) is node:
+                return
+        except LayoutNotReady:
+            if not isinstance(node, (NodeRef, PortRef, GraphRef, ValueRef)):
+                raise
+            raise LayoutError(
+                f"AGV movement takes a node of the resolved network, not a layout handle ({type(node).__name__}): "
+                f"handles are for constructing components; {_CANONICAL_NODE}"
+            ) from None
+        raise LayoutError(self._refused_node(node))
+
+    def _refused_node(self, node: Node) -> str:
+        """Why `node`, which is not the canonical node of its id, is refused, in words that are true for it.
+
+        Only an error path asks: the accepted path is the identity check of :meth:`_validate_node`.
+        """
+        head = "AGV movement requires an exact canonical enabled graph node, the object of the resolved network"
+        network = self._coordinator.network
+        if network is None:
+            declared = self._coordinator.values.at(("network",), explicit=True).state == "present"
+            return f"{head}: " + (
+                "the network is declared but not prepared yet: call env.layout.prepare() or env.activate()"
+                if declared
+                else "this layout has no network: declare one with env.layout.set_network(...)"
+            )
+        canonical = self._canonical_nodes.get(node.id)
+        if canonical is None:
+            disabled = any(not d.enabled and d.id == node.id for d in network.definitions.nodes.values())
+            if disabled:
+                return (
+                    f"{head}: node {node.id!r} is disabled in the network, so no AGV can be at it or move to it; "
+                    "enable it with a NetworkOverride or choose an enabled node"
+                )
+            return (
+                f"{head}: {node.id!r} is not the id of a node of this environment's network, so it is another "
+                "network's node or one the script built; choose a node of fleet.graph or "
+                "env.layout.prepare().network.graph"
+            )
+        if not isinstance(node, type(canonical)):
+            return f"{head}: {_CANONICAL_NODE}; this is a {type(node).__name__}, not a Node"
+        if canonical == node:
+            return (
+                f"{head}: {_CANONICAL_NODE}; this Node is equal to the network's node of that id but is another "
+                "object (one the script built, or one of another environment's network)"
+            )
+        return (
+            f"{head}: {_CANONICAL_NODE}; this Node has the id of a node of the network but lies elsewhere "
+            f"({node.x}, {node.y} against {canonical.x}, {canonical.y}), so it was built by the script or belongs to "
+            "another environment's network"
+        )
 
     def _before_attach(self, obj: Entity, entity_id: str) -> None:
-        from simulatte.intralogistics.graph import NodeBinding
-
         coordinator = self._coordinator
-        if type(obj) is NodeBinding and obj.node is self._binding_node:
-            return
         if coordinator.state is PreparationState.FINALIZED:
-            return  # constructor preflight already resolved frozen graph refs
+            return  # constructor preflight already resolved frozen graph refs; run-time entities are not targets
+        if self._binding_node is not None and _binds(obj, self._binding_node):
+            return
         coordinator._mutable()
         if obj.kind in _BUILTINS or entity_id in self._placed:
             self._attaching_target = (entity_id, obj.kind)
@@ -294,6 +418,14 @@ class Layout:
                 self._attaching_target = None
 
     def _register_manager(self, manager: Any) -> None:
+        """Register a built-in traffic controller (``ReservationController``) as the owner of the graph's resources;
+        it gets the resolved graph and capacities at binding (``_install_layout_graph``)."""
+        if self._coordinator.state is PreparationState.FINALIZED:
+            raise LayoutError(
+                f"{type(manager).__name__} must be constructed before the layout is prepared: it takes the network's "
+                "resources at binding, which env.layout.prepare() and env.activate() finish",
+                code="lifecycle-error",
+            )
         self._coordinator._mutable()
         if self._resource_owner is not None and self._resource_owner is not manager:
             raise LayoutError("one shared resource owner is allowed per layout graph")
@@ -315,22 +447,37 @@ class Layout:
         self._resource_owner = owner
         self._custom_managers.append((manager, owner, binder))
 
-    def _validate_fleet(self, members: Sequence[Any], manager: Any) -> None:
-        from simulatte.intralogistics.traffic import FreeTrafficManager, ResourceBasedTrafficManager
-
+    def _validate_fleet(self, members: Sequence[Any], controller: Any) -> None:
+        """Check a fleet's members and traffic controller: a controller that does not control occupancy needs no
+        registration; a built-in controller registered with this layout must be its resource owner; any other
+        controller must be registered with :meth:`register_resource_owner`. The layout's own record of registered
+        owners decides (spec §12); the class of the controller only tells a built-in `ReservationController` that
+        its constructor set another environment (the layout it registered with) from a controller that was never
+        registered, which is told to register."""
         for member in members:
             if getattr(member, "env", None) is not self.env or not self.env.entities.is_live(member):
                 raise LayoutError("fleet member must be live in the same environment")
-        if type(manager) is FreeTrafficManager:
+        if not controller.controls_occupancy:
             return
-        if type(manager) is ResourceBasedTrafficManager:
-            if manager._env is not self.env or manager is not self._resource_owner:
-                raise LayoutError("fleet must reuse the registered resource manager in its environment")
-        elif not any(item[0] is manager for item in self._custom_managers):
-            raise LayoutError("custom manager requires explicit resource owner and binder registration")
+        if any(manager is controller for manager in self._resource_managers):
+            if controller is not self._resource_owner:
+                raise LayoutError("fleet must reuse the registered traffic controller in its environment")
+        elif not any(item[0] is controller for item in self._custom_managers):
+            reservation = _loaded("simulatte.intralogistics.reservation", "ReservationController")
+            built_for = getattr(controller, "_env", None) if isinstance(controller, reservation) else None
+            if built_for is not None and built_for is not self.env:
+                # The constructor of a built-in controller sets the environment and registers it with that layout.
+                raise LayoutError(
+                    f"the traffic controller ({type(controller).__name__}) belongs to another environment: a fleet "
+                    "takes a controller built with env= the fleet's own environment"
+                )
+            raise LayoutError(
+                "custom traffic controller requires explicit resource owner and binder registration: before the "
+                "layout is prepared, call layout.register_resource_owner(controller, owner=..., graph=layout.graph(), "
+                "binder=name) and layout.on_bind(name, callback, reads=...)"
+            )
 
     def _validate(self, coordinator: PreparationCoordinator) -> ResolvedValues:
-        check_existing_endpoints(self.env)
         if (
             self._resource_managers
             or self._custom_managers
@@ -342,6 +489,7 @@ class Layout:
             raise LayoutError("custom resource owner requires its registered on_bind hook")
         required = []
         metadata = {}
+        facilities: dict[str, list[NodeRef | PortRef]] = {}
         for entity in self.env.entities.live():
             if entity.id not in coordinator.values.targets:
                 continue
@@ -353,7 +501,12 @@ class Layout:
                     required.append(ref.address)
                     if entity.kind == "agv":
                         node_id = self._resolve_node(ref).id
-            metadata[entity.id] = TargetMetadata(entity.kind, entity.id in self._placed, node_id=node_id)
+                    elif entity.kind in _BOUND_KINDS:
+                        facilities.setdefault(entity.id, []).append(ref)
+            # A vehicle's size comes from its type (studio map spec §6.1); the layout reads it without importing
+            # the intralogistics package.
+            size = getattr(getattr(entity, "agv_type", None), "size", None) if entity.kind == "agv" else None
+            metadata[entity.id] = TargetMetadata(entity.kind, entity.id in self._placed, node_id=node_id, size=size)
         for definition in coordinator.network.definitions.nodes.values():
             metadata[definition.id] = TargetMetadata("node", definition.id in self._placed, definition.position)
         self._required_paths = coordinator.network.validate(
@@ -377,8 +530,19 @@ class Layout:
                     "path": [address.to_dict() for address in result.path],
                 },
             )
+        for key, refs in facilities.items():
+            metadata[key] = replace(metadata[key], node_ids=self._bound_nodes(refs))
+        graph = coordinator.network.graph
+        geometry = NetworkGeometry.from_arcs(
+            {node.id: Point(node.x, node.y) for node in graph.nodes},
+            ((a.id, b.id) for a in graph.nodes for b in graph.neighbors(a)),
+        )
         self._auto = auto_layout(
-            metadata, snapshot_topology(self.env, tuple(self._flows)), coordinator.values, limits=self.limits
+            metadata,
+            snapshot_topology(self.env, tuple(self._flows)),
+            coordinator.values,
+            limits=self.limits,
+            network=geometry,
         )
         return resolve_layers(
             coordinator.values.bundle.code_stages,
@@ -386,6 +550,8 @@ class Layout:
             self._auto.data,
             targets=self._targets(),
             final=True,
+            auto_checked=True,
+            code_checked=True,
         )
 
     def _finalize(self, coordinator: PreparationCoordinator) -> ResolvedLayout:

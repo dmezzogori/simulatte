@@ -19,6 +19,11 @@ the test collects them as they are submitted and compares each one's snapshot (s
 only the model. Among the four instrumented configurations the digests, the printed report, the EMA metrics and
 every KPI scalar present in more than one of them are identical (exact equality), full traces verify, and fresh
 processes with different ``PYTHONHASHSEED`` values reproduce the digest.
+
+Everything above runs twice: with the example's own free-flow coordinator and with every coordinator on a
+``ReservationController`` (vehicle length 0, see :func:`reserve_every_fleet`), so that the traffic entities, the
+claims, the waits and the deadlock resolution are held to the same invariance: a run with no subscriber at all ends in
+the same state as the observed runs, with the same digest and the same trace.
 """
 
 from __future__ import annotations
@@ -63,6 +68,28 @@ class Inert:
         if name.startswith("ema_"):
             return None
         raise AttributeError(name)
+
+
+def reserve_every_fleet(patch: Any) -> None:
+    """Replace, through `patch.setattr`, the coordinator and the vehicle type that the examples build with versions that
+    put every fleet on its own ``ReservationController`` and give every vehicle type a length of 0. Nothing is attached
+    to the environment: the controller subscribes to no event."""
+    from simulatte.intralogistics import AGVType, ReservationController
+    from simulatte.intralogistics import builders as intralogistics_builders
+
+    class Reserved(FleetCoordinator):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            controller = ReservationController(env=kwargs["env"], graph=kwargs["graph"])
+            super().__init__(*args, **{**kwargs, "traffic_controller": controller})
+
+    def with_length(*args: Any, **kwargs: Any) -> AGVType:
+        if kwargs.get("length") is None:
+            kwargs["length"] = 0.0
+        return AGVType(*args, **kwargs)
+
+    for module in (intralogistics, intralogistics_builders):
+        patch.setattr(module, "FleetCoordinator", Reserved)
+        patch.setattr(module, "AGVType", with_length)
 
 
 class OrderEMAWithFleetKPIs(OrderEMACollector):
@@ -113,8 +140,9 @@ def final_state(env: CountingEnvironment, orders: list[TransferOrder]) -> dict[s
     }
 
 
-def run_example(configuration: str, tmp_path: Path) -> Outcome:
-    """Run the advanced example under `configuration` and return what the comparisons need."""
+def run_example(configuration: str, tmp_path: Path, *, reserved: bool = False) -> Outcome:
+    """Run the advanced example under `configuration` and return what the comparisons need; `reserved` puts its fleet on
+    a ``ReservationController``."""
     trace_path = tmp_path / f"fleet-{configuration}.simtrace"
     created: list[CountingEnvironment] = []
     submitted: list[TransferOrder] = []
@@ -148,6 +176,8 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
             monkeypatch.setattr(matplotlib.pyplot, "show", lambda *args, **kwargs: None)
         monkeypatch.setattr(simulatte.environment, "Environment", make_environment)
         monkeypatch.setattr(FleetCoordinator, "submit", submit)
+        if reserved:
+            reserve_every_fleet(monkeypatch)
         if configuration == "none":
             monkeypatch.setattr(intralogistics, "OrderEMACollector", Inert)
             monkeypatch.setattr(intralogistics, "FleetTimeSeries", Inert)
@@ -173,11 +203,13 @@ def run_example(configuration: str, tmp_path: Path) -> Outcome:
     )
 
 
-@pytest.fixture(scope="module")
-def outcomes(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Outcome]:
-    """Every configuration run once; the tests below compare them."""
+@pytest.fixture(scope="module", params=["free_flow", "reservation"])
+def outcomes(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory) -> dict[str, Outcome]:
+    """Every configuration run once, under free flow and under reservation; the tests below compare them."""
     return {
-        configuration: run_example(configuration, tmp_path_factory.mktemp(configuration))
+        configuration: run_example(
+            configuration, tmp_path_factory.mktemp(configuration), reserved=request.param == "reservation"
+        )
         for configuration in CONFIGURATIONS
     }
 
@@ -251,6 +283,14 @@ if plotting:
 
 import simulatte.environment
 
+if sys.argv[2] == "reservation":
+    from tests.intralogistics.test_invariance import reserve_every_fleet
+
+    class Patch:
+        setattr = staticmethod(setattr)
+
+    reserve_every_fleet(Patch)
+
 real_environment = simulatte.environment.Environment
 created = []
 
@@ -271,10 +311,20 @@ print("DIGEST", env.fingerprint().digest)
 """
 
 
-def test_digest_is_stable_across_hash_seeds_in_fresh_processes(outcomes: dict[str, Outcome]) -> None:
+def test_digest_is_stable_across_hash_seeds_in_fresh_processes(
+    outcomes: dict[str, Outcome], request: pytest.FixtureRequest
+) -> None:
+    variant = request.node.callspec.params["outcomes"]
     for hash_seed in ("0", "1", "123"):
         completed = subprocess.run(
-            [sys.executable, "-c", _HASH_SEED_SCRIPT, str(EXAMPLE)],
+            [
+                sys.executable,
+                "-c",
+                _HASH_SEED_SCRIPT,
+                str(EXAMPLE),
+                "reservation" if variant == "reservation" else "free_flow",
+            ],
+            cwd=EXAMPLE.parents[1],
             env={**os.environ, "PYTHONHASHSEED": hash_seed, "MPLBACKEND": "Agg"},
             capture_output=True,
             text=True,

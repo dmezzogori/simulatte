@@ -19,6 +19,7 @@ __all__ = [
     "AgvMoveInterrupted",
     "AgvMoveStarted",
     "AgvPlaced",
+    "AgvRouted",
     "AgvStateChanged",
     "AgvStranded",
     "ChargingEnded",
@@ -31,10 +32,12 @@ __all__ = [
     "OrderUnassigned",
     "ParkingEntered",
     "ParkingLeft",
+    "TrafficDeadlock",
     "TrafficReleased",
     "TrafficReserved",
     "TrafficWaitEnded",
     "TrafficWaitStarted",
+    "TrafficWaitStuck",
     "WarehouseInventoryChanged",
     "WarehouseSlotChanged",
 ]
@@ -76,9 +79,10 @@ class OrderStatusChanged(DomainEvent):
     (``dispatched_at``, ``delivered_at``); with reason ``load_recovery`` they also set the order's ``agv`` when the
     strategy changed it together with the status (``ReturnToOrigin`` clears it). `reason` names the transition:
     ``awaiting_activation``, ``no_idle_agv``, ``dispatched``, ``arrived_at_origin``, ``picked``,
-    ``arrived_at_destination``, ``delivered``, ``interrupted`` (re-queued before pickup), ``cancelled``,
-    ``load_recovery`` (set by the load-recovery strategy), ``battery_stranded``, ``travel_failed``, ``cargo_dropped``
-    or ``retries_exhausted``.
+    ``arrived_at_destination``, ``delivered``, ``interrupted`` (re-queued before pickup), ``traffic_requeued``
+    (re-queued before pickup because the AGV gave up its travel in traffic, spec §8.2), ``cancelled``,
+    ``load_recovery`` (set by the load-recovery strategy), ``battery_stranded``, ``travel_failed`` (the router found
+    no route), ``cargo_dropped`` or ``retries_exhausted``.
     """
 
     order: str
@@ -111,21 +115,27 @@ class OrderUnassigned(DomainEvent):
 # --- AGVs --------------------------------------------------------------------------------------------------
 
 
-@event_type("agv.state_changed", touches={"agv": ("state",)})
+@event_type("agv.state_changed", touches={"agv": ("state", "route")})
 class AgvStateChanged(DomainEvent):
-    """``AGV.transition_to`` ran; `previous` equals `state` when a mission re-enters its state (after charging)."""
+    """``AGV.transition_to`` ran; `previous` equals `state` when a mission re-enters its state (after charging).
+
+    Its deltas also clear the AGV's ``route`` when a travel ended without an event of its own to clear it: a retry
+    from the current position, a stranding, a give-up, the turn to a charger, a route of one node (studio map spec
+    §6.2).
+    """
 
     agv: str
     state: str
     previous: str
 
 
-@event_type("agv.placed", touches={"agv": ("node",), "node": ("agvs",)})
+@event_type("agv.placed", touches={"agv": ("node", "heading"), "node": ("agvs",)})
 class AgvPlaced(DomainEvent):
     """The AGV was located at `node` without a movement segment.
 
     Emitted when an AGV is created at a node that is already bound (the node's ``agvs`` gains the AGV) and when
-    ``current_node`` is assigned directly. Movement along the graph emits :class:`AgvMoveEnded` instead.
+    ``current_node`` is assigned directly, which makes the AGV's ``heading`` unknown (None). Movement along the graph
+    emits :class:`AgvMoveEnded` instead.
     """
 
     agv: str
@@ -133,9 +143,27 @@ class AgvPlaced(DomainEvent):
     previous: str | None
 
 
+@event_type("agv.routed", touches={"agv": ("route",)})
+class AgvRouted(DomainEvent):
+    """The AGV took the route `nodes` (node ids) from `origin` to `destination`, of router cost `cost` (spec §11.2).
+
+    `reason` is ``"travel"`` for a new travel, or for the route back to the goal after a step aside,
+    ``"blocked"`` or ``"deadlock"`` for a reroute the traffic controller staged, ``"step_aside"`` for a step aside,
+    and ``"make_way"`` or ``"clear_node"`` for the coordinator's moves of those purposes. Its deltas set the AGV's
+    ``route`` to ``{nodes, destination, reason}`` (studio map spec §6.2).
+    """
+
+    agv: str
+    origin: str
+    destination: str
+    nodes: tuple[str, ...]
+    cost: float
+    reason: str
+
+
 @event_type("agv.move_started", touches={"agv": ("motion",)})
 class AgvMoveStarted(DomainEvent):
-    """The AGV started a segment from `from_node` to `to_node` (spec §6.5), after the traffic manager let it in.
+    """The AGV started a segment from `from_node` to `to_node` (spec §6.5), holding the claim that covers it.
 
     `motion` is the speed profile's motion description; the AGV's ``motion`` state holds the active segment.
     `t_end` is ``+inf`` for a stalled segment (a non-finite travel time).
@@ -149,20 +177,34 @@ class AgvMoveStarted(DomainEvent):
     loaded: bool
 
 
-@event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion"), "node": ("agvs",)})
+@event_type("agv.move_ended", touches={"agv": ("node", "battery", "motion", "heading", "route"), "node": ("agvs",)})
 class AgvMoveEnded(DomainEvent):
-    """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion."""
+    """The AGV reached `node` at the end of a segment; `battery` is its level after the segment's depletion and the
+    idle power of its duration.
+
+    Its deltas also set the AGV's ``heading`` to the direction of the segment, and clear its ``route`` when `node` is
+    the route's last node. An AGV that passes `node` at speed starts its next segment at the same instant.
+
+    A stalled segment (``t_end`` infinite) that is interrupted ends with this event at its departure node: `node` is the
+    node the AGV never left and the deltas only clear the motion. A consumer that counts arrivals must check that the
+    node changed.
+    """
 
     agv: str
     node: str
     battery: float
 
 
-@event_type("agv.move_interrupted", touches={"agv": ("motion",)})
+@event_type("agv.move_interrupted", touches={"agv": ("route",)})
 class AgvMoveInterrupted(DomainEvent):
-    """The mission was interrupted during a segment; the AGV stays at `node`, the node it left.
+    """The travel was interrupted and the AGV came to rest at `node` (spec §8.3).
 
-    `reason` is the interrupt cause when it is a string, otherwise ``"interrupted"``.
+    An interrupt received while the AGV waits for a claim takes effect at once, at the node where it waits; one
+    received while it moves takes effect where it comes to rest, after ``agv.move_ended``: the end node of the
+    segment for a rest-to-rest profile, the node it held last when the interrupt arrived for a run, and the departure
+    node for a stalled segment, which is never left. `reason` is the
+    interrupt cause when it is a string, otherwise ``"interrupted"``. It ends the travel: its deltas clear the AGV's
+    ``route`` (studio map spec §6.2); ``agv.move_ended`` already cleared the motion.
     """
 
     agv: str
@@ -181,7 +223,8 @@ class AgvLoadChanged(DomainEvent):
 
 @event_type("agv.battery_changed", touches={"agv": ("battery",)})
 class AgvBatteryChanged(DomainEvent):
-    """The battery level changed outside movement: a recharge or a battery swap at a charging station."""
+    """The battery level changed outside movement: a recharge or a battery swap at a charging station, or idle power
+    accounted at an event of the AGV outside a move (inside a move it is part of ``agv.move_ended``)."""
 
     agv: str
     battery: float
@@ -189,10 +232,12 @@ class AgvBatteryChanged(DomainEvent):
 
 @event_type("agv.stranded")
 class AgvStranded(DomainEvent):
-    """The AGV is stranded at `node` without enough energy for its next segment.
+    """The AGV is stranded at `node`, the node it stands on, without enough energy for its next segment.
 
-    `reason` is ``"no_reachable_charger"`` or ``"insufficient_after_charging"``. It changes no state: the
-    preceding ``agv.state_changed`` to ``STRANDED`` carries the state change.
+    `reason` is ``"no_reachable_charger"`` (no charger is reachable from `node`), ``"insufficient_after_charging"`` (it
+    diverted to a charger and charged, and still cannot cover the segment it turned at) or ``"charger_not_reached"``
+    (it diverted to a charger and stopped before reaching it, its level critical on the way or without a route). It
+    changes no state: the preceding ``agv.state_changed`` to ``STRANDED`` carries the state change.
     """
 
     agv: str
@@ -203,49 +248,104 @@ class AgvStranded(DomainEvent):
 # --- traffic -----------------------------------------------------------------------------------------------
 
 
-@event_type("traffic.reserved", touches={"node": ("reserved_by",)})
+_HOLDINGS = {"node": ("reserved_by",), "segment": ("forward", "backward"), "zone": ("reserved_by", "orientation")}
+
+
+@event_type("traffic.reserved", touches=_HOLDINGS)
 class TrafficReserved(DomainEvent):
-    """The traffic manager recorded a reservation of `node` for the AGV: at its initial placement (``place_now``)
-    or when ``enter_node`` resumed after the grant. The node's ``reserved_by`` gains the AGV."""
+    """The AGV took hold of `resources` (entity ids, in claim order): one event per grant or placement (spec §11.2).
+
+    The deltas insert the AGV into each node's and zone's ``reserved_by`` and into each segment's ``forward`` or
+    ``backward``, and set a corridor's ``orientation`` when it changes. A node without a binding is left out. A
+    corridor claimed again with the orientation it already has is listed in `resources` with no delta, so an event
+    can carry empty deltas.
+    """
 
     agv: str
-    node: str
+    resources: tuple[str, ...]
 
 
-@event_type("traffic.released", touches={"node": ("reserved_by",)})
+@event_type("traffic.released", touches=_HOLDINGS)
 class TrafficReleased(DomainEvent):
-    """The AGV left `node` (``leave_node`` released a recorded reservation); the node's ``reserved_by`` loses it."""
+    """The AGV let go of `resources` (entity ids): one event per release call that frees something (spec §11.2).
+
+    The deltas remove the AGV from the lists :class:`TrafficReserved` inserted it into, and set a corridor's
+    ``orientation`` back to null when its last oriented holder leaves.
+    """
 
     agv: str
-    node: str
+    resources: tuple[str, ...]
 
 
-@event_type("traffic.wait_started")
+@event_type("traffic.wait_started", touches={"agv": ("wait",), "fleet": ("waits",)})
 class TrafficWaitStarted(DomainEvent):
-    """The AGV started waiting before entering `node`, the next node it means to enter.
+    """The AGV stopped to wait before entering `node`, the next node it means to enter (spec §11.2).
 
-    `reason` is ``"node_occupied"`` (``enter_node`` found the node fully reserved), ``"path_delay"`` (the traffic
-    manager's path check asked to wait until a later time) or ``"deadlock_backoff"`` (the coordinator backs off
-    after a deadlock timeout found no alternative route). It changes no state.
+    `resources` are the ids of the resources the waiting claim still needs, `blockers` the ids of the AGVs that hold
+    them (then of those whose earlier claims gate it) and `reason` is ``"occupied"``. Its deltas set the AGV's ``wait``
+    to ``{since, node, resources, blockers}``, `since` the event's time (studio map spec §6.2), and add one to ``waits``
+    of the AGV's fleet, if it has one (§6.6). That is what ``ReservationController`` does. In 0.18 the AGV's ``wait``
+    is maintained by ``ReservationController`` only: a custom controller that emits this event leaves ``wait`` null,
+    in the state and in the deltas alike. It may count the wait with
+    :func:`~simulatte.intralogistics.traffic.count_traffic` and add
+    :func:`~simulatte.intralogistics.traffic.counter_deltas` to the event's deltas, whether or not the event is
+    wanted; if it does not, the counters stay at 0, again consistently, so a replay of the deltas equals the snapshot.
     """
 
     agv: str
     node: str
+    resources: tuple[str, ...]
+    blockers: tuple[str, ...]
     reason: str
 
 
-@event_type("traffic.wait_ended")
+@event_type("traffic.wait_ended", touches={"agv": ("wait",)})
 class TrafficWaitEnded(DomainEvent):
     """A wait announced by ``traffic.wait_started`` ended; `node` is the same node.
 
-    `reason` is the outcome: ``"granted"`` (the node was reserved; ``traffic.reserved`` follows), ``"cancelled"``
-    (the traffic manager withdrew the waiting request), ``"interrupted"`` (the waiting process was interrupted) or
-    ``"elapsed"`` (a delay or a backoff ran out). It changes no state.
+    `reason` is the outcome: ``"granted"`` (``traffic.reserved`` follows), ``"rerouted"``, ``"stepped_aside"`` or
+    ``"gave_up"`` (the controller staged that reaction) or ``"interrupted"`` (the request was withdrawn, for example
+    because the waiting travel was interrupted). Its deltas set the AGV's ``wait`` to null.
     """
 
     agv: str
     node: str
     reason: str
+
+
+@event_type("traffic.wait_stuck", touches={"fleet": ("stuck_waits",)})
+class TrafficWaitStuck(DomainEvent):
+    """The AGV's wait is stuck (spec §7.9): every blocker is idle, stranded or stalled, or waits in a wait that is
+    stuck by the same rule.
+
+    `blockers` maps each blocker's id to its disposition name (``IDLE``, ``STRANDED``, ``WAITING``), or ``STALLED``
+    for an AGV whose motion is stalled. It is emitted at a review that keeps the wait waiting, when a blocker comes to
+    rest or stalls and does not move (``idle``), for the waits behind a wait just reported, and for a wait with no
+    review scheduled when the controller is entered for something other than a grant or a release (a wait opens, a
+    pending claim is withdrawn, a review ends, an AGV comes to rest or stalls), unless a review already scheduled will
+    reach it. Emitted once per wait; it is a report, not a deadlock. Its deltas add one to ``stuck_waits`` of the AGV's
+    fleet, if it has one (studio map spec §6.6); a custom controller that emits it must carry the same delta and count
+    with :func:`~simulatte.intralogistics.traffic.count_traffic` whether or not the event is wanted.
+    """
+
+    agv: str
+    blockers: FrozenMap
+
+
+@event_type("traffic.deadlock", touches={"fleet": ("deadlocks",)})
+class TrafficDeadlock(DomainEvent):
+    """The waiting AGVs `agvs` (sorted ids) are deadlocked (spec §7.8).
+
+    `victim` is the AGV whose reaction was staged and `action` that reaction (``"reroute"``, ``"step_aside"`` or
+    ``"give_up"``); when no attempt succeeded `victim` is null and `action` is ``"unresolved"``, emitted once while
+    the same set stands. Its deltas add one to ``deadlocks`` of each distinct fleet that has an AGV in the set, once
+    however many of its AGVs are in it (studio map spec §6.6); a custom controller that emits it must carry the same
+    deltas and count with :func:`~simulatte.intralogistics.traffic.count_traffic` whether or not the event is wanted.
+    """
+
+    agvs: tuple[str, ...]
+    victim: str | None
+    action: str
 
 
 # --- warehouses --------------------------------------------------------------------------------------------

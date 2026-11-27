@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.1",
+  "network": {
+    "type": "explicit",
+    "zones": {
+      "z": {
+        "capacity": 0,
+        "members": [
+          {
+            "kind": "explicit",
+            "id": "a"
+          }
+        ]
+      }
+    }
+  }
+}

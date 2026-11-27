@@ -532,8 +532,7 @@ class TraceRecorder:
             "state": replay,
             "manifest": {k: v for k, v in requested.items() if k in ACTIVATION_MANIFEST_FIELDS},
         }
-        if env.layout is not None:
-            initial["layout"] = env.layout.prepare().bundle.to_dict()
+        initial["layout"] = env.layout.prepare().bundle.to_dict()  # activation created the layout
         if self._resolve_execution is not None:
             from simulatte.trace.execution import initial as execution_initial
 

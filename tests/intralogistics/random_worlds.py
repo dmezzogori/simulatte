@@ -1,0 +1,1984 @@
+"""Random intralogistics worlds described as pure data, built through the layout, and an independent monitor of their
+runs.
+
+`world_spec(seed)` draws a world: a grid with removed links, chains, spurs, one-way arcs, passing segments, speed
+limits, arcs with explicit lengths, block lengths, zones with and without hold-back, nodes of capacity 2,
+warehouses, chargers, parking areas, low batteries, cancellations and interruptions, and sometimes a second fleet on
+the same traffic controller. No two nodes share a position. `build_world` builds it through ``Explicit`` and the
+handles of the environment's layout; AGVs are constructed with ``agv_id=`` and every component is named. `run_world`
+runs a world with a `Monitor` and a `StreamRecorder` and returns a `RunRecord`, which compares equal for equal runs.
+`present` and `exercised` name the features a spec contains and those a recorded run used.
+
+The `Monitor` takes its geometry from the spec (`reference_graph`), not from the graph the run built, and reports a
+built graph that differs from it. It keeps its own body model of every vehicle, driven by the motion events only, and
+checks after every domain event that the replayed deltas equal the live entities (from the first event and from the
+initial state), and, under a `ReservationController`, that the bodies respect node, segment, zone and corridor
+admission, that no other holder of a single-lane segment holds it against a body that lies on it, that the holdings
+cover the bodies (exactly so for a vehicle at rest and at every exit of a travel), that the entities agree with the
+holdings ledger, and that the ledger's both-directions state (traffic spec §7.2) covers every body that lies on a
+segment against its holder's recorded direction, no longer than the body as it arrived does, with no other holder and
+never on a segment with ``passing``. It follows the
+waits and their reports from the traffic events alone: what a stuck report says of the wait and its blockers (the rule
+of the stuck report, as far as the holdings decide it), that a reported deadlock is the deadlocked set by its own
+admission test over the replayed holdings and that every deadlock is reported, and, at the end, that every open wait
+carries a report. It follows the parking slots from the parking events: a slot is held by an
+AGV at rest on the area's node or travelling there, and given back as the AGV departs from the node or when its travel
+there does not arrive; and an AGV that travels without an order to a parking node holds a slot there. It records
+violations instead of raising, so a run always ends.
+"""
+
+from __future__ import annotations
+
+import math
+import random
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, field, fields
+from typing import Any, Literal
+
+from simulatte.environment import Environment
+from simulatte.events import Event, apply_deltas
+from simulatte.intralogistics import (
+    AGV,
+    SKU,
+    AGVType,
+    ChargingStation,
+    CongestionAwareRouter,
+    FastestRouter,
+    FleetCoordinator,
+    FreeFlowController,
+    NearestIdleStrategy,
+    NearestParkingPolicy,
+    ParkingArea,
+    ReservationController,
+    ResumeDelivery,
+    ReturnToOrigin,
+    RoundRobinStrategy,
+    ShortestDistanceRouter,
+    TrapezoidalProfile,
+    Warehouse,
+)
+from simulatte.intralogistics.events import (
+    AgvMoveEnded,
+    AgvMoveInterrupted,
+    AgvMoveStarted,
+    AgvRouted,
+    AgvStateChanged,
+    AgvStranded,
+    ChargingStarted,
+    OrderStatusChanged,
+    ParkingEntered,
+    ParkingLeft,
+    TrafficDeadlock,
+    TrafficReleased,
+    TrafficReserved,
+    TrafficWaitEnded,
+    TrafficWaitStarted,
+    TrafficWaitStuck,
+)
+from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+from simulatte.intralogistics.network import Corridor, Segment
+from simulatte.intralogistics.order import TransferOrder
+
+ROUTERS = ("shortest", "fastest", "congestion")
+"""The three routers; ``"default"`` passes none, which is ``ShortestDistanceRouter()``."""
+CONTROLLERS = ("reservation", "free")
+EXCLUDED_FIELDS = frozenset({"seq", "ordinal"})
+"""Envelope fields left out of a recorded event, as the parity tests of ``tests/layout`` leave them out."""
+TRAVELING = ("TRAVELING_EMPTY", "TRAVELING_LOADED")
+TERMINAL = ("COMPLETED", "CANCELLED", "FAILED")
+"""The order statuses at which an order retires."""
+ENDED_BY = {"reroute": "rerouted", "step_aside": "stepped_aside", "give_up": "gave_up"}
+"""The reason of the victim's ``traffic.wait_ended`` for each action of a resolved ``traffic.deadlock``."""
+
+
+# --- the description --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ArcSpec:
+    source: str
+    target: str
+    bidirectional: bool = True
+    speed_limit: float | None = None
+    passing: bool = False
+    length: float | None = None
+    """The travelled length when it is not the chord; ``None`` leaves the chord."""
+
+
+@dataclass(frozen=True)
+class ZoneSpec:
+    id: str
+    nodes: tuple[str, ...]
+    pairs: tuple[tuple[str, str], ...]
+    """Adjacent node pairs, each in id order; with a block length a pair stands for its pieces and their nodes."""
+    capacity: int
+    hold_back: bool
+
+
+@dataclass(frozen=True)
+class WarehouseSpec:
+    name: str
+    input_bays: tuple[str, ...]
+    output_bays: tuple[str, ...]
+    pick_time: float
+    put_time: float
+
+
+@dataclass(frozen=True)
+class VehicleSpec:
+    """An AGV type; ``profile`` is ``("trapezoidal", max_speed, acceleration, deceleration)`` or ``("plain", v)``."""
+
+    name: str
+    profile: tuple[Any, ...]
+    battery_capacity: float
+    length: float
+    min_gap: float
+    low_battery_threshold: float = 0.2
+    critical_battery_threshold: float = 0.05
+    corner_speed: bool = False
+    turn_time: bool = False
+    idle_power: float = 0.0
+
+
+@dataclass(frozen=True)
+class OrderSpec:
+    time: float
+    sku: int
+    quantity: int
+    origin: int
+    destination: int
+    """Indices into the fleet's warehouses."""
+
+
+@dataclass(frozen=True)
+class FleetSpec:
+    name: str
+    vehicle: VehicleSpec
+    agvs: tuple[tuple[str, str], ...]
+    """``(agv id, start node id)``."""
+    warehouses: tuple[WarehouseSpec, ...]
+    chargers: bool
+    parking: bool
+    """Whether the fleet uses the world's chargers and parking areas."""
+    orders: tuple[OrderSpec, ...]
+    strategy: str = "nearest"
+    parking_policy: bool = False
+    recovery: str = "origin"
+    lookahead_margin: float = 0.0
+    clear_service_nodes: bool = True
+    disturbances: tuple[tuple[float, float, bool], ...] = ()
+    """``(delay, choice in [0, 1), cancel)``: after the delay, cancel or interrupt one of the live missions."""
+
+
+@dataclass(frozen=True)
+class WorldSpec:
+    """A world as plain data: what `build_world` builds."""
+
+    seed: int
+    nodes: tuple[tuple[str, float, float], ...]
+    arcs: tuple[ArcSpec, ...]
+    block_length: float | None
+    capacities: tuple[tuple[str, int], ...]
+    zones: tuple[ZoneSpec, ...]
+    derive_corridors: bool
+    hold_back_dead_ends: bool
+    priority: bool
+    skus: tuple[float, ...]
+    chargers: tuple[tuple[str, str, int], ...]
+    """``(name, node id, slots)``."""
+    parking: tuple[tuple[str, str, int], ...]
+    """``(name, node id, capacity)``."""
+    fleets: tuple[FleetSpec, ...]
+
+
+class _Draw:
+    """The node pool of one world: positions kept distinct, nodes handed out without repetition while they last."""
+
+    def __init__(self, rnd: random.Random) -> None:
+        self.rnd = rnd
+        self.nodes: dict[str, tuple[float, float]] = {}
+        self.taken: set[tuple[float, float]] = set()
+        self.pool: list[str] = []
+
+    def node(self, node_id: str, x: float, y: float) -> str:
+        while (x, y) in self.taken:
+            y += 0.013
+        self.taken.add((x, y))
+        self.nodes[node_id] = (x, y)
+        return node_id
+
+    def pick(self) -> str:
+        return self.pool.pop() if self.pool else self.rnd.choice(sorted(self.nodes))
+
+
+def _network(rnd: random.Random, draw: _Draw) -> tuple[list[ArcSpec], list[str], float, int]:
+    """Grid with removed links, chains, spurs, passing segments, one-way arcs; the arcs, the leaves, spacing, size."""
+    width, height = rnd.randint(2, 5), rnd.randint(2, 4)
+    spacing = rnd.choice([10.0, 10.0, 4.0, 2.0])
+    names = [f"g{i}_{j}" for i in range(width) for j in range(height)]
+    alias = dict(zip(names, rnd.sample(names, len(names)))) if rnd.random() < 0.5 else {n: n for n in names}
+    grid = {
+        (i, j): draw.node(alias[f"g{i}_{j}"], spacing * i, spacing * j) for i in range(width) for j in range(height)
+    }
+    arcs: list[ArcSpec] = []
+    extra = 0
+
+    def link(a: str, b: str) -> None:
+        limit = rnd.choice([None, None, None, 0.8, 0.5])
+        passing = rnd.random() < 0.12
+        length = None
+        if rnd.random() < 0.1:
+            (ax, ay), (bx, by) = draw.nodes[a], draw.nodes[b]
+            length = math.hypot(ax - bx, ay - by) * 1.3
+        if rnd.random() < 0.05:
+            source, target = (a, b) if rnd.random() < 0.5 else (b, a)
+            arcs.append(ArcSpec(source, target, False, limit, passing, length))
+        else:
+            arcs.append(ArcSpec(a, b, True, limit, passing, length))
+
+    for (i, j), node in sorted(grid.items()):
+        for di, dj in ((1, 0), (0, 1)):
+            other = grid.get((i + di, j + dj))
+            if other is None or rnd.random() < 0.18:
+                continue
+            if rnd.random() < 0.25:  # a chain of new nodes on the chord, slightly off it
+                (ax, ay), (bx, by) = draw.nodes[node], draw.nodes[other]
+                previous, k = node, rnd.randint(1, 3)
+                for m in range(1, k + 1):
+                    extra += 1
+                    point = (ax + (bx - ax) * m / (k + 1), ay + (by - ay) * m / (k + 1) + 0.01 * extra)
+                    chained = draw.node(f"c{extra:02d}", *point)
+                    arcs.append(ArcSpec(previous, chained))
+                    previous = chained
+                arcs.append(ArcSpec(previous, other))
+            else:
+                link(node, other)
+    leaves = []
+    for _ in range(rnd.randint(1, 4)):  # spurs: dead ends hanging off a grid node
+        root = rnd.choice(list(grid.values()))
+        rx, ry = draw.nodes[root]
+        previous = root
+        for m in range(rnd.randint(1, 3)):
+            extra += 1
+            spur = draw.node(
+                f"s{extra:02d}", rx - 0.3 * spacing * (m + 1) + 0.07 * extra, ry - 0.45 * spacing * (m + 1)
+            )
+            arcs.append(ArcSpec(previous, spur))
+            previous = spur
+        leaves.append(previous)
+    return arcs, leaves, spacing, width + height
+
+
+def _zones(rnd: random.Random, draw: _Draw, arcs: Sequence[ArcSpec]) -> list[ZoneSpec]:
+    around: dict[str, set[str]] = {n: set() for n in draw.nodes}
+    for arc in arcs:
+        around[arc.source].add(arc.target)
+        around[arc.target].add(arc.source)
+    everything = sorted(draw.nodes)
+    zones = []
+    for z in range(rnd.randint(0, 2)):
+        start = rnd.choice(everything)
+        members, frontier = [start], [start]
+        while frontier and len(members) < rnd.randint(1, 4):
+            current = frontier.pop()
+            for neighbour in sorted(around[current]):
+                if neighbour not in members and len(members) < 4:
+                    members.append(neighbour)
+                    frontier.append(neighbour)
+        pairs = [(a, b) for a in members for b in members if a < b and b in around[a] and rnd.random() < 0.7]
+        only_pairs = bool(pairs) and rnd.random() < 0.2
+        zones.append(
+            ZoneSpec(
+                f"Z{z}",
+                () if only_pairs else tuple(sorted(members)),
+                tuple(sorted(pairs)),
+                rnd.choice([1, 1, 2]),
+                rnd.random() < 0.5,
+            )
+        )
+    return zones
+
+
+def world_spec(seed: int) -> WorldSpec:
+    """The world of `seed`; the same seed always gives an equal spec.
+
+    The AGVs take their start nodes first, so every world has at least two AGVs in its first fleet and at least one in
+    its second fleet when it has one; warehouses, chargers and parking areas take the nodes left, then any node.
+    """
+    rnd = random.Random(seed)
+    draw = _Draw(rnd)
+    arcs, leaves, spacing, size = _network(rnd, draw)
+    block_length = rnd.choice([None, None, None, 0.45 * spacing, 0.7 * spacing])
+    everything = sorted(draw.nodes)
+    draw.pool = list(everything)
+    rnd.shuffle(draw.pool)
+    capacities = {rnd.choice(everything): 2 for _ in range(rnd.randint(0, 3))}
+    zones = _zones(rnd, draw, arcs)
+    skus = tuple(rnd.choice([[1.0, 5.0], [0.5, 12.0, 20.0], [3.0]]))
+    if rnd.random() < 0.6:
+        profile: tuple[Any, ...] = (
+            "trapezoidal",
+            rnd.choice([1.5, 2.0]),
+            rnd.choice([0.8, 0.3]),
+            rnd.choice([0.8, 0.4]),
+        )
+    else:
+        profile = ("plain", rnd.uniform(0.8, 1.6))
+    starts = _starts(draw, zones, rnd.randint(2, 6))
+    second = _second_fleet(seed, draw, skus, profile[0] == "trapezoidal", zones, starts) if rnd.random() < 0.3 else None
+    warehouses = []
+    for w in range(rnd.randint(3, 4)):
+        inputs = [draw.pick() for _ in range(rnd.randint(1, 2))]
+        outputs = rnd.sample(inputs, rnd.randint(0, 1)) + [draw.pick() for _ in range(rnd.randint(1, 2))]
+        if leaves and rnd.random() < 0.4:
+            outputs.append(rnd.choice(leaves))
+        warehouses.append(
+            WarehouseSpec(
+                f"W{w}",
+                tuple(dict.fromkeys(inputs)),
+                tuple(dict.fromkeys(outputs)),
+                rnd.uniform(1, 5),
+                rnd.uniform(1, 5),
+            )
+        )
+    chargers = tuple((f"C{c}", draw.pick(), rnd.randint(1, 2)) for c in range(rnd.randint(1, 2)))
+    parking = tuple((f"P{p}", draw.pick(), rnd.randint(1, 2)) for p in range(rnd.randint(0, 3)))
+    corner_speed, turn_time = rnd.random() < 0.25, rnd.random() < 0.2
+    # A low battery holds 1 to 5 times the span of the grid: missions drain it, so AGVs charge and some strand. The
+    # span is at least four grid spacings, so a full battery always covers the longest arc (1.3 spacings).
+    low = rnd.random() < 0.5
+    vehicle = VehicleSpec(
+        "t",
+        profile,
+        rnd.uniform(1.0, 5.0) * spacing * size if low else 1e9,
+        rnd.choice([0.0, 0.0, 1.0, 3.0, 6.0]),
+        rnd.choice([0.0, 0.0, 0.5]),
+        rnd.choice([0.2, 0.35, 0.5]),
+        rnd.choice([0.02, 0.05, 0.15]),
+        corner_speed,
+        turn_time,
+        rnd.choice([0.0, 0.0, 0.02, 0.05]) if low else 0.0,
+    )
+    ids = rnd.sample(["a", "b", "c", "d", "e", "f", "g"], len(starts))
+    options = {
+        "capacities": tuple(sorted(capacities.items())),
+        "zones": tuple(zones),
+        "derive_corridors": rnd.random() < 0.9,
+        "hold_back_dead_ends": rnd.random() < 0.9,
+        "priority": rnd.random() < 0.2,
+    }
+    strategy = rnd.choice(["nearest", "nearest", "nearest", "round"])
+    parking_policy = rnd.choice([True, True, False])
+    recovery = rnd.choice(["origin", "resume"])
+    margin = rnd.choice([0.0, 0.0, 2.0])
+    clear = rnd.random() < 0.85
+    orders = []
+    for time in sorted(rnd.uniform(0, 600) for _ in range(rnd.randint(8, 30))):
+        origin, destination = rnd.sample(range(len(warehouses)), 2)
+        orders.append(OrderSpec(time, rnd.randrange(len(skus)), rnd.randint(1, 3), origin, destination))
+    disturbances: tuple[tuple[float, float, bool], ...] = ()
+    if rnd.random() < 0.5:
+        disturbances = tuple((rnd.uniform(5, 150), rnd.random(), rnd.random() < 0.5) for _ in range(rnd.randint(0, 6)))
+    fleets = [
+        FleetSpec(
+            "fleet",
+            vehicle,
+            tuple((f"agv-{i}", start) for i, start in zip(ids, starts)),
+            tuple(warehouses),
+            True,
+            True,
+            tuple(orders),
+            strategy,
+            parking_policy,
+            recovery,
+            margin,
+            clear,
+            disturbances,
+        )
+    ]
+    if second is not None:
+        fleets.append(second)
+    return WorldSpec(
+        seed,
+        tuple((node, x, y) for node, (x, y) in draw.nodes.items()),
+        tuple(arcs),
+        block_length,
+        options["capacities"],
+        options["zones"],
+        options["derive_corridors"],
+        options["hold_back_dead_ends"],
+        options["priority"],
+        skus,
+        chargers,
+        parking,
+        tuple(fleets),
+    )
+
+
+def _starts(draw: _Draw, zones: Sequence[ZoneSpec], count: int, placed: Sequence[str] = ()) -> list[str]:
+    """Up to `count` start nodes from the pool, never more in one zone than its capacity (with those `placed`)."""
+    taken = list(placed)
+    starts: list[str] = []
+    while len(starts) < count and draw.pool:
+        node = draw.pool.pop()
+        if any(node in z.nodes and sum(n in z.nodes for n in taken) >= z.capacity for z in zones):
+            continue
+        starts.append(node)
+        taken.append(node)
+    return starts
+
+
+def _second_fleet(
+    seed: int, draw: _Draw, skus: Sequence[float], trapezoidal: bool, zones: Sequence[ZoneSpec], placed: list[str]
+) -> FleetSpec | None:
+    rnd = random.Random(seed * 7919 + 1)
+    everything = sorted(draw.nodes)
+    warehouses = tuple(
+        WarehouseSpec(f"V{k}", (rnd.choice(everything),), (rnd.choice(everything),), 2.0, 2.0) for k in range(2)
+    )
+    vehicle = VehicleSpec(
+        "u",
+        ("plain", 1.1) if trapezoidal else ("trapezoidal", 1.2, 0.5, 0.5),
+        1e9,
+        rnd.choice([0.0, 2.0, 5.0]),
+        rnd.choice([0.0, 0.3]),
+    )
+    starts = _starts(draw, zones, rnd.randint(1, 3), placed)
+    if not starts:  # every node left is in a full zone
+        return None
+    chargers, parking = rnd.random() < 0.5, rnd.random() < 0.5
+    parking_policy = rnd.random() < 0.5
+    orders = tuple(
+        OrderSpec(time, rnd.randrange(len(skus)), 1, 0, 1)
+        for time in sorted(rnd.uniform(0, 600) for _ in range(rnd.randint(4, 15)))
+    )
+    return FleetSpec(
+        "second",
+        vehicle,
+        tuple((f"bot-{chr(120 + k)}", start) for k, start in enumerate(starts)),
+        warehouses,
+        chargers,
+        parking,
+        orders,
+        parking_policy=parking_policy,
+    )
+
+
+# --- building ---------------------------------------------------------------------------------------------------
+
+
+class Plain:
+    """A speed profile without limits: linear motion at a constant speed."""
+
+    def __init__(self, speed: float) -> None:
+        self.speed = speed
+
+    def travel_time(
+        self, distance: float, load_weight: float = 0.0, battery_level: float = 1.0, speed_limit: float | None = None
+    ) -> float:
+        speed = self.speed if speed_limit is None else min(self.speed, speed_limit)
+        return distance / speed
+
+
+def _corner_speed(angle: float) -> float:
+    return 0.4 if angle > 0.5 else math.inf
+
+
+def _turn_time(angle: float) -> float:
+    return 2.0 if angle > 1.0 else 0.0
+
+
+def _priority(agv: AGV) -> float:
+    return float(ord(agv.id[-1]) % 3)
+
+
+def make_router(name: str) -> Any:
+    """``"shortest"``, ``"fastest"``, ``"congestion"``, or ``"default"`` for no router argument (``None``)."""
+    if name == "default":
+        return None
+    return {"shortest": ShortestDistanceRouter, "fastest": FastestRouter, "congestion": CongestionAwareRouter}[name]()
+
+
+def vehicle_type(spec: VehicleSpec) -> AGVType:
+    if spec.profile[0] == "trapezoidal":
+        _, top, acceleration, deceleration = spec.profile
+        profile: Any = TrapezoidalProfile(max_speed=top, acceleration=acceleration, deceleration=deceleration)
+    else:
+        profile = Plain(spec.profile[1])
+    return AGVType(
+        name=spec.name,
+        speed_profile=profile,
+        battery_capacity=spec.battery_capacity,
+        weight_capacity=50.0,
+        volume_capacity=2.0,
+        load_time=1.0,
+        unload_time=1.0,
+        length=spec.length,
+        min_gap=spec.min_gap,
+        low_battery_threshold=spec.low_battery_threshold,
+        critical_battery_threshold=spec.critical_battery_threshold,
+        corner_speed=_corner_speed if spec.corner_speed else None,
+        turn_time=_turn_time if spec.turn_time else None,
+        idle_power=spec.idle_power,
+    )
+
+
+def graph_of(spec: WorldSpec) -> LayoutGraph:
+    """The world's graph as written, before any block length."""
+    nodes = {node: Node(node, x, y) for node, x, y in spec.nodes}
+    arcs = []
+    for arc in spec.arcs:
+        options: dict[str, Any] = {"speed_limit": arc.speed_limit, "passing": arc.passing}
+        if arc.length is not None:
+            options["length"] = arc.length
+        arcs.append(Arc(nodes[arc.source], nodes[arc.target], arc.bidirectional, **options))
+    return LayoutGraph(list(nodes.values()), arcs)
+
+
+def reference_graph(spec: WorldSpec) -> LayoutGraph:
+    """The graph `spec` describes, built without the layout: `graph_of`, subdivided by the block length if any."""
+    graph = graph_of(spec)
+    return graph if spec.block_length is None else graph.subdivide(spec.block_length)
+
+
+def zone_members(spec: WorldSpec, zone: ZoneSpec, graph: LayoutGraph) -> tuple[Any, ...]:
+    """The members of `zone` in `graph` (the world's graph, subdivided when the world has a block length).
+
+    A pair stands for its pieces and the nodes generated between them. Nodes come first in id order, then pairs in
+    id order, the order in which the layout resolves a zone.
+    """
+    by_id = {node.id: node for node in graph.nodes}
+    nodes = {by_id[node] for node in zone.nodes}
+    pairs = set()
+    for low, high in zone.pairs:
+        generated = sorted(
+            (node for node in graph.nodes if node.id.startswith(f"{low}~{high}#")),
+            key=lambda node: int(node.id.rsplit("#", 1)[1]),
+        )
+        nodes.update(generated)
+        chain = [by_id[low], *generated, by_id[high]]
+        pairs.update(tuple(sorted(piece, key=lambda node: node.id)) for piece in zip(chain, chain[1:]))
+    return (*sorted(nodes, key=lambda node: node.id), *sorted(pairs, key=lambda pair: (pair[0].id, pair[1].id)))
+
+
+def _layout_zones(spec: WorldSpec) -> dict[str, Any] | None:
+    """The zones as ``Explicit`` takes them: node ids and pairs of ids as members."""
+    if not spec.zones:
+        return None
+    return {
+        zone.id: {"members": [*zone.nodes, *zone.pairs], "capacity": zone.capacity, "hold_back": zone.hold_back}
+        for zone in spec.zones
+    }
+
+
+@dataclass
+class BuiltWorld:
+    env: Environment
+    spec: WorldSpec
+    controller: Any
+    fleets: tuple[FleetCoordinator, ...]
+    agvs: dict[str, AGV]
+    """By id, in construction order."""
+    chargers: tuple[ChargingStation, ...]
+    parking: tuple[ParkingArea, ...]
+    orders: list[TransferOrder] = field(default_factory=list)
+    """Every order submitted so far, of every fleet."""
+
+
+def build_world(
+    env: Environment,
+    spec: WorldSpec,
+    *,
+    router: str = "default",
+    controller: Literal["reservation", "free"] = "reservation",
+) -> BuiltWorld:
+    """Build `spec` in `env` through ``Explicit`` and the handles of the environment's layout: the block length,
+    per-node capacities and zones are declared with the network. The order and disturbance processes are started
+    here."""
+    from simulatte.layout import Explicit
+
+    layout = env.layout
+    layout.set_network(
+        Explicit(
+            graph_of(spec),
+            block_length=spec.block_length,
+            capacities=dict(spec.capacities),
+            zones=_layout_zones(spec),
+        )
+    )
+    supplied_graph = layout.graph()
+    node = layout.node
+    if controller == "reservation":
+        traffic: Any = ReservationController(
+            env=env,
+            graph=supplied_graph,
+            derive_corridors=spec.derive_corridors,
+            hold_back_dead_ends=spec.hold_back_dead_ends,
+            priority_fn=_priority if spec.priority else None,
+        )
+    elif controller == "free":
+        traffic = FreeFlowController()
+    else:
+        raise ValueError(f"unknown controller {controller!r}")
+    skus = [SKU(id=f"s{k}", weight=weight, volume=0.1) for k, weight in enumerate(spec.skus)]
+    chargers = tuple(ChargingStation(env=env, name=name, node=node(at), n_slots=n) for name, at, n in spec.chargers)
+    parking = tuple(ParkingArea(env=env, name=name, node=node(at), capacity=n) for name, at, n in spec.parking)
+    world = BuiltWorld(env, spec, traffic, (), {}, chargers, parking)
+    fleets = []
+    for fleet_spec in spec.fleets:
+        warehouses = [
+            Warehouse(
+                env=env,
+                name=w.name,
+                input_bays=[node(bay) for bay in w.input_bays],
+                output_bays=[node(bay) for bay in w.output_bays],
+                n_slots=2,
+                products=skus,
+                initial_inventory={sku: 500 for sku in skus},
+                pick_time=w.pick_time,
+                put_time=w.put_time,
+            )
+            for w in fleet_spec.warehouses
+        ]
+        kind = vehicle_type(fleet_spec.vehicle)
+        agvs = [AGV(env=env, agv_type=kind, agv_id=agv_id, initial_node=node(at)) for agv_id, at in fleet_spec.agvs]
+        world.agvs.update((agv.id, agv) for agv in agvs)
+        fleet = FleetCoordinator(
+            env=env,
+            graph=supplied_graph,
+            fleet=agvs,
+            warehouses=warehouses,
+            charging_stations=list(chargers) if fleet_spec.chargers else [],
+            parking_areas=list(parking) if fleet_spec.parking else [],
+            traffic_controller=traffic,
+            router=make_router(router),
+            dispatch_strategy=NearestIdleStrategy() if fleet_spec.strategy == "nearest" else RoundRobinStrategy(),
+            repositioning_policy=NearestParkingPolicy() if fleet_spec.parking_policy else None,
+            load_recovery_strategy=ResumeDelivery() if fleet_spec.recovery == "resume" else ReturnToOrigin(),
+            lookahead_margin=fleet_spec.lookahead_margin,
+            clear_service_nodes=fleet_spec.clear_service_nodes,
+            default_metrics=False,
+            name=fleet_spec.name,
+        )
+        fleets.append(fleet)
+        env.process(_submit(world, fleet, fleet_spec, warehouses, skus))
+        if fleet_spec.disturbances:
+            env.process(_disturb(world, fleet, fleet_spec))
+    world.fleets = tuple(fleets)
+    return world
+
+
+def _submit(world: BuiltWorld, fleet: FleetCoordinator, spec: FleetSpec, warehouses: list[Warehouse], skus: list[SKU]):
+    env = world.env
+    for order in spec.orders:
+        yield env.timeout(order.time - env.now)
+        created = fleet.create_order(
+            sku=skus[order.sku],
+            quantity=order.quantity,
+            origin=warehouses[order.origin],
+            destination=warehouses[order.destination],
+        )
+        world.orders.append(created)
+        fleet.submit(created)
+
+
+def _disturb(world: BuiltWorld, fleet: FleetCoordinator, spec: FleetSpec):
+    env = world.env
+    for delay, choice, cancel in spec.disturbances:
+        yield env.timeout(delay)
+        live = [order for order in world.orders if order.id in fleet._active_missions]
+        if not live:
+            continue
+        order = live[int(choice * len(live))]
+        if cancel:
+            fleet.cancel(order)
+        else:
+            process = fleet._active_missions.get(order.id)
+            if process is not None and process.is_alive:
+                process.interrupt("breakdown")
+
+
+# --- recording --------------------------------------------------------------------------------------------------
+
+
+def normalize(event: Event) -> tuple[type, tuple[tuple[str, Any], ...]]:
+    """An event as ``(type, ((field, value), ...))`` without its envelope fields ``seq`` and ``ordinal``."""
+    return type(event), tuple((f.name, getattr(event, f.name)) for f in fields(event) if f.name not in EXCLUDED_FIELDS)
+
+
+class StreamRecorder:
+    """Records every event (domain and observer) emitted after the prelude, normalized.
+
+    The prelude is what is emitted before the initial state is captured at activation; it is not recorded, because
+    its attachment counts depend on when nodes are bound. ``initial_state`` is a copy of the environment's.
+    """
+
+    def __init__(self, env: Environment) -> None:
+        self.events: list[tuple[type, tuple[tuple[str, Any], ...]]] = []
+        self.initial_state: dict[str, dict[str, Any]] | None = None
+        env.request_projection(self._start)
+        env.bus.subscribe(self._record, "**")
+
+    def _start(self, state: Mapping[str, Mapping[str, Any]]) -> None:
+        self.initial_state = {entity: dict(fields) for entity, fields in state.items()}
+
+    def _record(self, event: Event) -> None:
+        if self.initial_state is not None:
+            self.events.append(normalize(event))
+
+
+@dataclass(frozen=True)
+class RunRecord:
+    """What a run of a world shows: equal for runs that cannot be told apart from their events and states."""
+
+    events: tuple[tuple[type, tuple[tuple[str, Any], ...]], ...]
+    initial_state: Mapping[str, Mapping[str, Any]]
+    final_state: Mapping[str, Mapping[str, Any]]
+    now: float
+    quiescent: bool
+    """Whether the event queue was empty when the run ended (always true without ``until``)."""
+    violations: tuple[tuple[Any, ...], ...]
+    fingerprint: str
+    """``env.fingerprint()`` at the end of the run, as the parity tests of ``tests/layout`` compare it."""
+
+
+def run_world(
+    spec: WorldSpec,
+    *,
+    router: str = "default",
+    controller: Literal["reservation", "free"] = "reservation",
+    until: float | None = None,
+) -> RunRecord:
+    """Build and run `spec` with a `Monitor`; the final checks run when the run ended with an empty queue."""
+    env = Environment(seed=spec.seed, log_level="CRITICAL")
+    with env:
+        world = build_world(env, spec, router=router, controller=controller)
+        monitor = Monitor(world)
+        recorder = StreamRecorder(env)
+        env.enable_digest()
+        # The horizon is an event that can be recognised: SimPy puts it back into the queue when it stops the run, so
+        # the run ended on its own when nothing else is left there.
+        horizon = None if until is None else env.timeout(until)
+        env.run(until=horizon)
+        quiescent = all(entry[-1] is horizon for entry in env._queue)
+        if quiescent:
+            monitor.final()
+        return RunRecord(
+            tuple(recorder.events),
+            recorder.initial_state or {},
+            {entity: dict(fields) for entity, fields in env.entities.snapshot().items()},
+            float(env.now),
+            quiescent,
+            tuple(monitor.violations),
+            env.fingerprint(),
+        )
+
+
+# --- what a run exercised ----------------------------------------------------------------------------------------
+
+FEATURES = (
+    "an AGV moves",
+    "the second fleet moves",
+    "a recorded length traversed",
+    "a block piece traversed",
+    "a one-way arc traversed",
+    "a passing segment traversed",
+    "a passing segment held by two",
+    "a node of capacity 2 held by two",
+    "a zone reserved",
+    "a zone waited for",
+    "a zone held by two",
+    "a hold-back zone reserved",
+    "a corridor reserved",
+    "parking entered",
+    "an order cancelled",
+    "a breakdown",
+    "charging",
+    "stranding",
+    "a traffic wait",
+    "a stuck wait",
+    "a deadlock",
+    "a make-way move",
+)
+"""What `present` and `exercised` name; waits, deadlocks and moves of the fleet have no counterpart in a spec."""
+
+
+def _recorded(spec: WorldSpec, graph: LayoutGraph) -> set[frozenset[str]]:
+    """The node pairs of `graph` (the reference graph) that carry a recorded length: the arcs declared with one, or
+    their pieces under a block length."""
+    pairs = set()
+    for arc in spec.arcs:
+        if arc.length is None:
+            continue
+        low, high = sorted((arc.source, arc.target))
+        inner = sorted(
+            (node.id for node in graph.nodes if node.id.startswith(f"{low}~{high}#")),
+            key=lambda node: int(node.rsplit("#", 1)[1]),
+        )
+        chain = [low, *inner, high]
+        pairs.update(frozenset(piece) for piece in zip(chain, chain[1:]))
+    return pairs
+
+
+def present(spec: WorldSpec) -> frozenset[str]:
+    """The features of `FEATURES` that `spec` contains, whether or not a run uses them."""
+    found = {"an AGV moves"}
+    graph = reference_graph(spec)
+    if _recorded(spec, graph):
+        found.add("a recorded length traversed")
+    for node in graph.nodes:
+        for other in graph.neighbors(node):
+            arc = graph.arc_between(node, other)
+            if "#" in node.id or "#" in other.id:
+                found.add("a block piece traversed")
+            if graph.arc_between(other, node) is None:
+                found.add("a one-way arc traversed")
+            if arc.passing:
+                found.update(("a passing segment traversed", "a passing segment held by two"))
+    if len(spec.fleets) > 1:
+        found.add("the second fleet moves")
+    if spec.capacities:
+        found.add("a node of capacity 2 held by two")
+    if spec.zones:
+        found.update(("a zone reserved", "a zone waited for", "a zone held by two"))
+    if any(zone.hold_back for zone in spec.zones):
+        found.add("a hold-back zone reserved")
+    if spec.derive_corridors:
+        found.add("a corridor reserved")
+    if spec.parking:
+        found.add("parking entered")
+    disturbances = [cancel for fleet in spec.fleets for _, _, cancel in fleet.disturbances]
+    if any(disturbances):
+        found.add("an order cancelled")
+    if not all(disturbances):
+        found.add("a breakdown")
+    if any(fleet.vehicle.battery_capacity < 1e9 for fleet in spec.fleets):
+        found.update(("charging", "stranding"))
+    return frozenset(found)
+
+
+def exercised(spec: WorldSpec, events: Sequence[tuple[type, tuple[tuple[str, Any], ...]]]) -> frozenset[str]:
+    """The features of `FEATURES` that the recorded `events` of a run of `spec` show."""
+    graph = reference_graph(spec)
+    nodes = {node.id: node for node in graph.nodes}
+    recorded = _recorded(spec, graph)
+    capacities = dict(spec.capacities)
+    recovered: set[str] = set()  # orders that went through mission recovery: after a breakdown or a cancellation
+    cancelled: set[str] = set()
+    zones = {zone.id: zone for zone in spec.zones}
+    holders: dict[str, set[str]] = {}
+    found: set[str] = set()
+    for kind, payload in events:
+        e = dict(payload)
+        if kind is AgvMoveStarted:
+            found.add("an AGV moves")
+            if e["agv"].startswith("bot-"):
+                found.add("the second fleet moves")
+            a, b = nodes[e["from_node"]], nodes[e["to_node"]]
+            if frozenset((a.id, b.id)) in recorded:
+                found.add("a recorded length traversed")
+            if "#" in a.id or "#" in b.id:
+                found.add("a block piece traversed")
+            if graph.arc_between(b, a) is None:
+                found.add("a one-way arc traversed")
+            if graph.arc_between(a, b).passing:
+                found.add("a passing segment traversed")
+        elif kind is TrafficReserved:
+            for resource in e["resources"]:
+                held = holders.setdefault(resource, set())
+                held.add(e["agv"])
+                if resource in zones:
+                    found.add("a zone reserved")
+                    if zones[resource].hold_back:
+                        found.add("a hold-back zone reserved")
+                    if len(held) > 1:
+                        found.add("a zone held by two")
+                elif resource.startswith("corridor:"):
+                    found.add("a corridor reserved")
+                elif len(held) > 1 and capacities.get(resource, 1) > 1:
+                    found.add("a node of capacity 2 held by two")
+                elif len(held) > 1 and resource not in nodes:
+                    a, b = (nodes[end] for end in _segment_ends(resource, nodes))
+                    arc = graph.arc_between(a, b) or graph.arc_between(b, a)
+                    if arc is not None and arc.passing:
+                        found.add("a passing segment held by two")
+        elif kind is TrafficReleased:
+            for resource in e["resources"]:
+                holders.get(resource, set()).discard(e["agv"])
+        elif kind is TrafficWaitStarted:
+            found.add("a traffic wait")
+            if any(resource in zones for resource in e["resources"]):
+                found.add("a zone waited for")
+        elif kind is OrderStatusChanged:
+            if e["reason"] == "cancelled":
+                found.add("an order cancelled")
+                cancelled.add(e["order"])
+            elif e["reason"] in ("interrupted", "load_recovery"):
+                recovered.add(e["order"])
+        elif kind is AgvMoveInterrupted and e["reason"] == "breakdown":
+            found.add("a breakdown")
+        elif kind is ParkingEntered:
+            found.add("parking entered")
+        elif kind is ChargingStarted:
+            found.add("charging")
+        elif kind is AgvStranded:
+            found.add("stranding")
+        elif kind is TrafficWaitStuck:
+            found.add("a stuck wait")
+        elif kind is TrafficDeadlock:
+            found.add("a deadlock")
+        elif kind is AgvRouted and e["reason"] == "make_way":
+            found.add("a make-way move")
+    if recovered - cancelled:
+        found.add("a breakdown")
+    return frozenset(found)
+
+
+def _segment_ends(segment: str, nodes: Mapping[str, Node]) -> tuple[str, str]:
+    """The two node ids of a segment id ``"<a>~<b>"`` whose ends may themselves contain ``~`` (block nodes)."""
+    parts = segment.split("~")
+    for cut in range(1, len(parts)):
+        a, b = "~".join(parts[:cut]), "~".join(parts[cut:])
+        if a in nodes and b in nodes:
+            return a, b
+    raise KeyError(segment)
+
+
+# --- the monitor ------------------------------------------------------------------------------------------------
+
+
+def covered(motion: Mapping[str, Any], duration: float, tau: float, length: float) -> float:
+    """Distance covered `tau` after the start of an arc of `length`, from the motion description of its move."""
+    if tau <= 0:
+        return 0.0
+    if tau >= duration:
+        return length
+    curve = motion.get("curve")
+    if curve == "piecewise":
+        s, v = 0.0, motion["v0"]
+        for d, a in motion["phases"]:
+            if tau <= d:
+                return min(length, s + v * tau + 0.5 * a * tau * tau)
+            s += v * d + 0.5 * a * d * d
+            v = max(0.0, v + a * d)
+            tau -= d
+        return length
+    if curve == "trapezoidal":
+        top, a, d, distance = motion["v_max"], motion["accel"], motion["decel"], motion["distance"]
+        da, dd = top * top / (2 * a), top * top / (2 * d)
+        if da + dd > distance:
+            top = math.sqrt(2 * distance * a * d / (a + d))
+            da, dd = top * top / (2 * a), top * top / (2 * d)
+        ta, tc = top / a, (distance - da - dd) / top
+        if tau <= ta:
+            return 0.5 * a * tau * tau
+        if tau <= ta + tc:
+            return da + top * (tau - ta)
+        t3 = tau - ta - tc
+        return min(distance, da + top * tc + top * t3 - 0.5 * d * t3 * t3)
+    return length * tau / duration
+
+
+def end_speed(motion: Mapping[str, Any]) -> float:
+    if motion.get("curve") != "piecewise":
+        return 0.0
+    v = motion["v0"]
+    for d, a in motion["phases"]:
+        v = max(0.0, v + a * d)
+    return v
+
+
+def seg_id(a: str, b: str) -> str:
+    low, high = sorted((a, b))
+    return f"{low}~{high}"
+
+
+class Body:
+    """The independent model of one vehicle: an odometer of its front and the clear-odometer of what it covers."""
+
+    def __init__(self, agv: AGV, extent: float) -> None:
+        self.extent = extent
+        self.odometer = 0.0
+        self.at: str | None = agv.current_node.id if agv.current_node is not None else None
+        self.arc: tuple[str, str, float, float, Mapping[str, Any], float, bool] | None = None
+        self.nodes: dict[str, float] = {}  # node id -> odometer at which the body clears it
+        self.segs: dict[str, tuple[float, tuple[str, str]]] = {}  # segment id -> (clear odometer, direction)
+
+    def front(self, t: float) -> float:
+        if self.arc is None:
+            return self.odometer
+        _, _, t0, t1, motion, length, stalled = self.arc
+        if stalled:
+            return self.odometer
+        return self.odometer + covered(motion, t1 - t0, t - t0, length)
+
+    def occupancy(self, t: float) -> tuple[set[str], set[str], dict[str, Any], dict[str, Any]]:
+        """``(sure nodes, maybe nodes, sure segments {id: direction}, maybe segments)``; maybe is within 1e-6."""
+        front = self.front(t)
+        tol = 1e-6 * max(1.0, abs(front))
+        sure_n: set[str] = set()
+        maybe_n: set[str] = set()
+        sure_s: dict[str, Any] = {}
+        maybe_s: dict[str, Any] = {}
+        if self.at is not None:
+            sure_n.add(self.at)
+        elif self.arc is not None and self.arc[6]:
+            sure_n.add(self.arc[0])
+        for n, clear in self.nodes.items():
+            if front < clear - tol:
+                sure_n.add(n)
+            elif front <= clear + tol and n not in sure_n:
+                maybe_n.add(n)
+        for s, (clear, direction) in self.segs.items():
+            if front < clear - tol:
+                sure_s[s] = direction
+            elif front <= clear + tol:
+                maybe_s[s] = direction
+        return sure_n, maybe_n - sure_n, sure_s, maybe_s
+
+
+Item = tuple[str, str, Any]
+"""A resource of a claim as the monitor rebuilds it: ``(kind, id, direction)``, kind one of ``node``, ``segment``,
+``zone`` and ``corridor``; the direction is ``forward`` or ``backward`` for a segment or corridor, None otherwise."""
+
+
+@dataclass
+class OpenWait:
+    """A wait as the traffic events tell it: open from its ``traffic.wait_started`` to its ``traffic.wait_ended``."""
+
+    since: float
+    items: tuple[Item, ...]
+    """What the claim still needs (``resources`` of the event), with the directions rebuilt from the route."""
+    reported: bool = False
+    """Whether a ``traffic.wait_stuck`` names it."""
+
+
+class Monitor:
+    """Checks a run of a built world after every domain event; see the module docstring. ``violations`` lists
+    ``(time, what, *details)``; ``events`` counts the domain events seen and ``checked`` those checked against the body
+    model.
+
+    What the monitor decides from the traffic events alone: ``waits`` holds the open waits (a ``traffic.wait_started``
+    and no ``traffic.wait_ended`` since), each with whether a ``traffic.wait_stuck`` reported it; ``standing`` holds the
+    sets of the ``traffic.deadlock`` reports with action ``unresolved`` that stand, each until the first
+    ``traffic.wait_ended`` of an AGV it lists. The holdings come from the replayed entity state (``state``), the
+    capacities, lengths and extents from the world's spec. It still reads the controller for the comparison of the
+    ledger with the entities (`_check_ledger`, the holdings of `_exact` and the bodies' coverage), for the pending claim
+    of an AGV that is not travelling (`_exact`), and for the review timers and pending claims at quiescence (`final`);
+    events cannot show those. It also waits for the ledger to have placed every AGV before it builds the bodies, and
+    wraps each fleet's travel executor to check the holdings at every exit of a travel.
+    """
+
+    def __init__(self, world: BuiltWorld, *, replay: bool = True) -> None:
+        self.world = world
+        self.env = world.env
+        self.controller = world.controller
+        self.reservation = isinstance(world.controller, ReservationController)
+        self.replay = replay
+        self.violations: list[tuple[Any, ...]] = []
+        self.events = 0
+        self.checked = 0
+        self.state = {entity: dict(fields) for entity, fields in self.env.entities.snapshot().items()}
+        self.seeded: dict[str, dict[str, Any]] | None = None
+        self.bodies: dict[str, Body] | None = None
+        self._ready = False
+        self._instant = 0.0
+        self.waits: dict[str, OpenWait] = {}
+        self.standing: list[tuple[str, ...]] = []
+        self._ended: dict[str, tuple[float, str, tuple[Item, ...]]] = {}  # the last wait of each AGV that ended
+        self._expected: list[tuple[str, ...]] = []  # deadlocked sets found at a wait event of this instant
+        self._waits_changed = False  # a wait opened or ended in this instant
+        self._left_over: set[tuple[str, ...]] = set()  # deadlocked sets left at the end of an instant, reported
+        self._placed: set[tuple[str, str]] = set()  # (resource, agv) held since the placement and not taken again
+        self._against: set[tuple[str, str, str]] = set()
+        self.routes: dict[str, tuple[str, ...]] = {}
+        self.goals: dict[str, str] = {}
+        self.slots: dict[tuple[str, str], None] = {}
+        self._slot_bad: dict[tuple[str, str], str] = {}
+        self._left: dict[tuple[str, str], bool] = {}  # slots given back in this instant: whether a travel ended since
+        self._departed: set[tuple[str, str]] = set()  # (agv, node) of the moves started in this instant
+        self._trips: dict[str, str] = {}  # AGVs routed in this instant to start a travel: the node each goes to
+        fleet_of = {agv_id: fleet.vehicle for fleet in world.spec.fleets for agv_id, _ in fleet.agvs}
+        self.extents = {agv_id: vehicle.length + vehicle.min_gap for agv_id, vehicle in fleet_of.items()}
+        # Vehicles without kinematic limits: their clear points inside an arc are released at the arrival (spec §6.6).
+        self.plain = {agv_id for agv_id, vehicle in fleet_of.items() if vehicle.profile[0] != "trapezoidal"}
+        self._sure: tuple[tuple[int, float], dict[str, dict[str, Any]]] = (
+            (-1, 0.0),
+            {},
+        )  # bodies on segments, by event
+        self._reversing: set[str] = set()  # segments granted and still held: the only ones that may have the state
+        self._reclaimed: dict[tuple[str, str], Any] = {}  # (agv, segment): the body's entry when it claimed it again
+        self._passing_state: set[tuple[str, str]] = set()  # (agv, segment) of the stretch of the passing check
+        self._against_record: set[tuple[str, str]] = set()  # (agv, segment) of the stretch of check M1'
+        self._sole: set[tuple[str, str]] = set()  # (agv, segment) of the stretch of check M2'
+        self._outlived: dict[tuple[str, str], list[Any]] = {}  # (agv, segment): [deadline, reported] of the stretch
+        self.env.bus.subscribe(self.on, "*")
+        if self.reservation:
+            self._patch_exits()
+
+    # The model, made once the network is bound
+
+    def _setup(self) -> None:
+        world = self.world
+        graph = reference_graph(world.spec)
+        self.graph = graph
+        self._compare_geometry(world.fleets[0].graph)
+        self.nodes = {node.id: node for node in graph.nodes}
+        facilities: dict[str, int] = {}  # every facility is the first fleet's, which uses them all
+        for _, node, capacity in (*world.spec.parking, *world.spec.chargers):
+            facilities[node] = facilities.get(node, 0) + capacity
+        declared = dict(world.spec.capacities)
+        self.cap = {n: declared.get(n, facilities.get(n, 1)) for n in self.nodes}
+        self.around: dict[str, set[str]] = {n: set() for n in self.nodes}
+        self.passing: dict[str, bool] = {}
+        self.lengths: dict[str, float] = {}
+        for node in graph.nodes:
+            for other in graph.neighbors(node):
+                self.around[node.id].add(other.id)
+                self.around[other.id].add(node.id)
+                self.passing[seg_id(node.id, other.id)] = graph.arc_between(node, other).passing
+                self.lengths.setdefault(seg_id(node.id, other.id), graph.length(node, other))
+        self.zone_members: dict[str, tuple[set[str], int]] = {}
+        for zone in world.spec.zones:
+            members = zone_members(world.spec, zone, graph)
+            ids = {m.id if isinstance(m, Node) else seg_id(m[0].id, m[1].id) for m in members}
+            self.zone_members[zone.id] = (ids, zone.capacity)
+        self.corridors = self._corridors() if world.spec.derive_corridors else []
+        self.corridor_steps: dict[str, dict[tuple[str, str], str]] = {}
+        for chain, _ in self.corridors:
+            # As the network orients a corridor: forward from the port with the smaller id, or, for a chain that
+            # returns to its port, towards the first interior node with the smaller id.
+            ends = (chain[0], chain[-1]) if chain[0] != chain[-1] else (chain[1], chain[-2])
+            forward = chain if ends[0] < ends[1] else chain[::-1]
+            steps = self.corridor_steps[f"corridor:{min(chain[1:-1])}"] = {}
+            for u, v in zip(forward, forward[1:]):
+                steps[u, v], steps[v, u] = "forward", "backward"
+        self.areas = {name: (node, capacity) for name, node, capacity in world.spec.parking}
+        chargers = {node for _, node, _ in world.spec.chargers}
+        # The AGVs that take parking slots (of a fleet that uses the parking areas), with the nodes they charge on.
+        self.parkers = {
+            agv_id: chargers if fleet.chargers else set()
+            for fleet in world.spec.fleets
+            if fleet.parking
+            for agv_id, _ in fleet.agvs
+        }
+        if self.reservation:
+            self.segments = {segment.id: segment for segment in self.controller.network.segments}
+            self._compare_traffic()
+        self._ready = True
+
+    def _compare_geometry(self, built: LayoutGraph) -> None:
+        """The graph the layout built against the one the spec describes, node by node and arc by arc."""
+
+        def arcs(graph: LayoutGraph) -> dict[tuple[str, str], tuple[float, float | None, bool]]:
+            found = {}
+            for node in graph.nodes:
+                for other in graph.neighbors(node):
+                    arc = graph.arc_between(node, other)
+                    found[node.id, other.id] = (graph.length(node, other), arc.speed_limit, arc.passing)
+            return found
+
+        expected = {(n.id, n.x, n.y) for n in self.graph.nodes}
+        found = {(n.id, n.x, n.y) for n in built.nodes}
+        if found != expected:
+            self.violation("built nodes differ from the spec", sorted(found ^ expected)[:4])
+        expected_arcs, found_arcs = arcs(self.graph), arcs(built)
+        if found_arcs != expected_arcs:
+            keys = sorted(
+                k for k in expected_arcs.keys() | found_arcs.keys() if expected_arcs.get(k) != found_arcs.get(k)
+            )
+            self.violation(
+                "built arcs differ from the spec", [(k, expected_arcs.get(k), found_arcs.get(k)) for k in keys[:4]]
+            )
+
+    def _compare_traffic(self) -> None:
+        """The capacities and zones the controller's network resolved against the ones the spec describes.
+
+        A layout that resolves a capacity or a zone wrongly is noticed here even when the run does not misbehave.
+        """
+        network = self.controller.network
+        found_caps = {node.id: network.capacity(node) for node in network.graph.nodes}
+        if found_caps != self.cap:
+            keys = sorted(k for k in found_caps.keys() | self.cap.keys() if found_caps.get(k) != self.cap.get(k))
+            self.violation(
+                "built node capacities differ from the spec",
+                [(k, self.cap.get(k), found_caps.get(k)) for k in keys[:4]],
+            )
+        expected = {
+            zone.id: (frozenset(self.zone_members[zone.id][0]), zone.capacity, zone.hold_back)
+            for zone in self.world.spec.zones
+        }
+        found = {
+            zone.id: (
+                frozenset(m.id if isinstance(m, Node) else seg_id(m[0].id, m[1].id) for m in zone.members),
+                zone.capacity,
+                zone.hold_back,
+            )
+            for zone in network.zones
+        }
+        if found != expected:
+            keys = sorted(k for k in expected.keys() | found.keys() if expected.get(k) != found.get(k))
+            self.violation("built zones differ from the spec", [(k, expected.get(k), found.get(k)) for k in keys[:4]])
+
+    def _corridors(self) -> list[tuple[list[str], set[str]]]:
+        """Maximal two-way chains of interior nodes (two neighbours, capacity 1) between two ports, without passing."""
+
+        def interior(n: str) -> bool:
+            return len(self.around[n]) == 2 and self.cap[n] == 1
+
+        def port(n: str) -> bool:
+            return len(self.around[n]) >= 3 or (self.cap[n] > 1 and len(self.around[n]) >= 2)
+
+        seen: set[str] = set()
+        found = []
+        for n in sorted(self.around):
+            if not interior(n) or n in seen:
+                continue
+            ends = []
+            for first in sorted(self.around[n]):
+                previous, current = n, first
+                side = []
+                while interior(current) and current != n:
+                    side.append(current)
+                    (following,) = self.around[current] - {previous} or {previous}
+                    previous, current = current, following
+                ends.append((side, current))
+            (side1, end1), (side2, end2) = ends
+            chain = [end1, *reversed(side1), n, *side2, end2]
+            seen.update(side1)
+            seen.update(side2)
+            seen.add(n)
+            if end1 == n or end2 == n or not (port(end1) and port(end2)):
+                continue  # a ring, or a chain that does not join two ports
+            segs = [seg_id(a, b) for a, b in zip(chain, chain[1:])]
+            two_way = all(
+                self.graph.arc_between(self.nodes[a], self.nodes[b]) is not None
+                and self.graph.arc_between(self.nodes[b], self.nodes[a]) is not None
+                for a, b in zip(chain, chain[1:])
+            )
+            if two_way and not any(self.passing[s] for s in segs):
+                found.append((chain, set(segs) | set(chain[1:-1])))
+        return found
+
+    def _patch_exits(self) -> None:
+        """Check the holdings exactly whenever a travel of any fleet returns or raises."""
+        monitor = self
+        for fleet in self.world.fleets:
+            executor = fleet._executor
+            original = executor.travel
+
+            def travel(agv, goal, *, loaded, purpose="travel", original=original):
+                try:
+                    outcome = yield from original(agv, goal, loaded=loaded, purpose=purpose)
+                except BaseException as exc:
+                    if not isinstance(exc, GeneratorExit):
+                        monitor._exit(agv, "raise:" + type(exc).__name__)
+                    raise
+                monitor._exit(agv, outcome.name)
+                return outcome
+
+            executor.travel = travel
+
+    def violation(self, *details: Any, at: float | None = None) -> None:
+        """Record a violation at `at`, by default now."""
+        self.violations.append((float(self.env.now) if at is None else at, *details))
+
+    # Per event
+
+    def on(self, event: Any) -> None:
+        env = self.env
+        self.events += 1
+        t = float(env.now)
+        if self.bodies is not None and t > self._instant:  # the clock moves: the instant before it is complete
+            self._close_instant()
+        self._instant = t
+        self._replay(event)
+        if isinstance(event, TrafficReserved | TrafficReleased):
+            self._track_placement(event, placing=not env._activated)
+        if not env._activated:
+            return
+        if not self._ready:
+            self._setup()
+        if self.bodies is None:
+            if self.reservation and len(self.controller.ledger.placed()) < len(self.world.agvs):
+                return
+            self.bodies = {
+                agv.id: Body(agv, agv.agv_type.length + agv.agv_type.min_gap) for agv in self.world.agvs.values()
+            }
+            if self.reservation and self.world.spec.derive_corridors:
+                mine = sorted(sorted(members) for _, members in self.corridors)
+                ledger = self.controller.ledger
+                theirs = sorted(sorted(m.id for m in ledger.members(c)) for c in self.controller.network.corridors)
+                if mine != theirs:
+                    self.violation("corridor derivation differs", mine, theirs)
+        if self.reservation and isinstance(event, TrafficReserved | TrafficReleased):
+            self._track_reclaims(event)
+        if isinstance(event, AgvMoveStarted):
+            self._departed.add((event.agv, event.from_node))
+            self._move_started(event, t)
+        elif isinstance(event, AgvMoveEnded):
+            self._move_ended(event, t)
+        elif isinstance(event, AgvRouted):
+            self.routes[event.agv] = event.nodes
+            if event.reason != "step_aside":  # a step aside is an excursion: the travel's goal stays
+                self.goals[event.agv] = event.destination
+            # A travel's first route (or its route again after a step aside), not a reroute in traffic.
+            if event.reason in ("travel", "make_way", "clear_node"):
+                self._trips[event.agv] = event.destination
+        elif isinstance(event, ParkingEntered | ParkingLeft):
+            self._track_slot(event)
+        elif isinstance(event, AgvStateChanged) and event.state not in TRAVELING:
+            for key in self._left:  # a travel that ends leaves the travelling state, at least for an instant
+                if key[1] == event.agv:
+                    self._left[key] = True
+        elif isinstance(event, TrafficWaitStarted | TrafficWaitEnded | TrafficWaitStuck | TrafficDeadlock):
+            self._track_wait(event, t)
+        self.checked += 1
+        if self.reservation:
+            self._check(event, t)
+
+    def _close_instant(self) -> None:
+        """The checks of a complete instant: events of one instant come in sequence, so a slot taken at a decision
+        before the route of its move, a slot given back before the move it is given back for, or a deadlock reported
+        after the stop that formed it, is judged at its end."""
+        self._check_slots()
+        self._check_detection()
+
+    def _replay(self, event: Any) -> None:
+        env = self.env
+        if not self.replay:
+            apply_deltas(self.state, event.deltas)
+            return
+        live = env.entities.snapshot()
+        apply_deltas(self.state, event.deltas)
+        if self.state != live:
+            self.violation("replay differs", event.type_name)
+            self.state = {entity: dict(fields) for entity, fields in live.items()}
+        initial = env._initial_state
+        if self.seeded is None and initial is not None:
+            self.seeded = {entity: dict(fields) for entity, fields in initial.items()}
+        if self.seeded is not None:
+            apply_deltas(self.seeded, event.deltas)
+            if self.seeded != live:
+                self.violation("seeded replay differs", event.type_name)
+                self.seeded = {entity: dict(fields) for entity, fields in live.items()}
+
+    def _move_started(self, event: AgvMoveStarted, t: float) -> None:
+        assert self.bodies is not None
+        body = self.bodies[event.agv]
+        try:
+            length = self.graph.length(self.nodes[event.from_node], self.nodes[event.to_node])
+        except (KeyError, ValueError):  # a move the spec's graph cannot make: report it, and let the run go on
+            self.violation("move on an arc the spec does not have", event.agv, event.from_node, event.to_node)
+            return
+        stalled = event.t_end == math.inf
+        if body.at != event.from_node:
+            self.violation("move started from a node the body is not at", event.agv, body.at, event.from_node)
+        body.arc = (event.from_node, event.to_node, t, event.t_end, event.motion, length, stalled)
+        body.at = None
+        if not stalled:
+            body.nodes.pop(event.from_node, None)
+            body.nodes[event.from_node] = body.odometer + body.extent
+            sid = seg_id(event.from_node, event.to_node)
+            body.segs.pop(sid, None)
+            body.segs[sid] = (body.odometer + length + body.extent, (event.from_node, event.to_node))
+
+    def _move_ended(self, event: AgvMoveEnded, t: float) -> None:
+        assert self.bodies is not None
+        body = self.bodies[event.agv]
+        if body.arc is None:
+            self.violation("move ended without a move", event.agv, event.node)
+            body.at = event.node
+            return
+        u, v, _, t1, motion, length, stalled = body.arc
+        if event.node == v and not stalled:
+            if abs(t - t1) > 1e-6 * max(1.0, abs(t)):
+                self.violation("move ended off its t_end", event.agv, t, t1)
+            body.odometer += length
+            if end_speed(motion) < 1e-9 and self._ready and self.cap[v] > 1:
+                body.nodes.clear()
+                body.segs.clear()
+        elif event.node != u:
+            self.violation("move ended at an unexpected node", event.agv, event.node, u, v)
+        body.arc = None
+        body.at = event.node
+        front = body.odometer
+        tol = 1e-6 * max(1.0, front)
+        for n in [n for n, clear in body.nodes.items() if clear <= front - tol]:
+            del body.nodes[n]
+        for s in [s for s, (clear, _) in body.segs.items() if clear <= front - tol]:
+            del body.segs[s]
+
+    # Parking slots (spec §7.10, "Parking (T13)"), from the parking events and the body model
+
+    def _track_slot(self, event: ParkingEntered | ParkingLeft) -> None:
+        key = (event.area, event.agv)
+        if isinstance(event, ParkingLeft):
+            if key not in self.slots:
+                self.violation("parking slot given back that was not held", event.area, event.agv)
+                return
+            del self.slots[key]
+            self._left[key] = False
+            return
+        self.slots[key] = None
+        if sum(area == event.area for area, _ in self.slots) > self.areas[event.area][1]:
+            self.violation("parking over capacity", event.area)
+
+    def _check_slots(self) -> None:
+        """At the end of an instant every slot is held by an AGV at rest on the area's node or travelling to it, and an
+        AGV whose trip to park started in the instant holds one.
+
+        A slot is taken at the decision of a move to the area's node and given back when the AGV next departs from that
+        node or the travel does not arrive; a travel that turns to charge elsewhere gives it back at the turn. So a slot
+        of an AGV that rests elsewhere, or that travels to another goal, is a violation from that instant, reported
+        once for as long as it lasts. The goal of a travel is the destination of the AGV's last ``agv.routed`` that is
+        not a step aside (an excursion of the same travel)."""
+        assert self.bodies is not None
+        bad: dict[tuple[str, str], str] = {}
+        for key in self.slots:
+            area, agv_id = key
+            node = self.areas[area][0]
+            if self.bodies[agv_id].at == node:
+                continue
+            state = self.state[agv_id]["state"]
+            if state not in TRAVELING:
+                bad[key] = "parking slot of an AGV resting elsewhere"
+                details: tuple[Any, ...] = (state,)
+            elif self.goals.get(agv_id) != node:
+                bad[key] = "parking slot held during a travel elsewhere"
+                details = (self.goals.get(agv_id),)
+            else:
+                continue
+            if self._slot_bad.get(key) != bad[key]:
+                self.violation(bad[key], area, agv_id, *details, at=self._instant)
+        self._slot_bad = bad
+        # A slot is given back when the AGV departs from the area's node, or when its travel there does not arrive (a
+        # turn to charge elsewhere included): never while it rests on the node or still travels to it. A travel that did
+        # not arrive may be followed in the same instant by a new travel to the same node, after a change of state.
+        for key, ended in self._left.items():
+            area, agv_id = key
+            node = self.areas[area][0]
+            if key in self.slots or (agv_id, node) in self._departed:
+                continue
+            if self.bodies[agv_id].at == node:
+                self.violation(
+                    "parking slot given back while the AGV rests on the area's node", area, agv_id, at=self._instant
+                )
+            elif not ended and self.state[agv_id]["state"] in TRAVELING and self.goals.get(agv_id) == node:
+                self.violation(
+                    "parking slot given back during a travel to the area's node", area, agv_id, at=self._instant
+                )
+        self._left.clear()
+        self._departed.clear()
+        # A trip to park holds a slot: the coordinator takes it at the decision of a repositioning, a clearance or a
+        # make-way move, and a full area is not a target. An AGV of a fleet that uses the parking areas, routed in this
+        # instant to a parking node that has none of its chargers (a charge on such a node takes no slot) and, at the
+        # end of the instant, travelling empty there with no live order (a mission's travel takes none), holds a slot
+        # of an area on that node. An AGV keeps a completed order until its mission's cleanup, which comes after the
+        # trip to park, so an order is live while it is not terminal and names the AGV.
+        for agv_id, goal in self._trips.items():
+            chargers = self.parkers.get(agv_id)
+            if chargers is None or goal in chargers or self.bodies[agv_id].at == goal:
+                continue
+            areas = [area for area, (node, _) in self.areas.items() if node == goal]
+            if not areas or self.state[agv_id]["state"] != "TRAVELING_EMPTY" or self._on_order(agv_id):
+                continue
+            if not any((area, agv_id) in self.slots for area in areas):
+                self.violation("trip to park without a slot", goal, agv_id, at=self._instant)
+        self._trips.clear()
+
+    def _on_order(self, agv_id: str) -> bool:
+        """Whether the AGV carries a live order: one that is not terminal and names the AGV."""
+        order = self.state[agv_id].get("order")
+        fields = None if order is None else self.state.get(order)
+        return fields is not None and fields["status"] not in TERMINAL and fields.get("agv") == agv_id
+
+    # Waits and their reports (spec §7.8, §7.9), from the traffic events
+
+    def _track_placement(self, event: TrafficReserved | TrafficReleased, *, placing: bool) -> None:
+        """A corridor held since the placement has no orientation (spec §7.1) until the AGV takes it again or lets it
+        go; placements are the grants recorded before activation."""
+        for resource in event.resources:
+            if placing:
+                self._placed.add((resource, event.agv))
+            else:
+                self._placed.discard((resource, event.agv))
+
+    def _track_wait(self, event: Any, t: float) -> None:
+        if isinstance(event, TrafficWaitStarted | TrafficWaitEnded):
+            self._waits_changed = True
+        if isinstance(event, TrafficWaitStarted):
+            self.waits[event.agv] = OpenWait(t, self._claim_items(event.agv, event.resources))
+            self._expect_report()
+        elif isinstance(event, TrafficWaitEnded):
+            wait = self.waits.pop(event.agv, None)
+            self._ended[event.agv] = (t, event.reason, () if wait is None else wait.items)
+            self.standing = [ids for ids in self.standing if event.agv not in ids]
+            if event.reason != "granted":
+                self._expect_report()
+        elif isinstance(event, TrafficWaitStuck):
+            self._check_stuck(event)
+        else:
+            self._check_deadlock(event, t)
+
+    def _claim_items(self, agv_id: str, resources: Sequence[str]) -> tuple[Item, ...]:
+        """The resources of a wait with their kinds and directions: a segment in the direction of the leg of the
+        remaining route that crosses it, a corridor with the orientation of the first leg of that route inside it
+        (spec §7.2). The remaining route is the AGV's last ``agv.routed`` from the node its body rests on."""
+        assert self.bodies is not None
+        route = self.routes.get(agv_id, ())
+        at = self.bodies[agv_id].at
+        rest = route[route.index(at) :] if at in route else ()
+        legs = list(zip(rest, rest[1:]))
+        items: list[Item] = []
+        for resource in resources:
+            if resource in self.nodes:
+                items.append(("node", resource, None))
+            elif resource in self.zone_members:
+                items.append(("zone", resource, None))
+            elif resource in self.corridor_steps:
+                steps = self.corridor_steps[resource]
+                items.append(("corridor", resource, next((steps[leg] for leg in legs if leg in steps), None)))
+            elif resource in self.passing:
+                ways = (("forward" if u < v else "backward") for u, v in legs if seg_id(u, v) == resource)
+                items.append(("segment", resource, next(ways, None)))
+            else:  # a network that differs from the spec: reported, and the item left out
+                self.violation("wait for a resource the spec does not have", agv_id, resource)
+        return tuple(items)
+
+    def _blockers(self, agv: str, item: Item, among: Collection[str] | None = None) -> list[str]:
+        """The holders that make `item` inadmissible for `agv` (spec §7.3), by the monitor's own test over the replayed
+        entity state; with `among`, only the holdings of those AGVs exist. The claimant's holdings never block it.
+
+        The rule of a segment claimed again (§7.2, "Both directions") is taken in the monitor's own terms, from the
+        events and its body model and not from the ledger's state: on a single-lane segment, a holder that claimed the
+        segment again while its body lay on it (`_track_reclaims`), and whose body still surely lies on it by the entry
+        it had then, blocks every other claimant, whatever direction is recorded for it by now. The entry ends when the
+        holder's own leg over the segment replaces it or the body clears it."""
+        kind, resource, direction = item
+        state = self.state.get(resource, {})
+        if kind == "segment":
+            others = [
+                (holder, way)
+                for way in ("forward", "backward")
+                for holder in state.get(way, ())
+                if holder != agv and (among is None or holder in among)
+            ]
+            against: set[str] = set()
+            if self.passing[resource]:  # opposite traffic passes: only the holders in the same direction count
+                others = [(holder, way) for holder, way in others if way == direction]
+            else:
+                against = {holder for holder, _ in others if self._lies_as_arrived(holder, resource)}
+            extents = math.fsum([*(self.extents[holder] for holder, _ in others), self.extents[agv]])
+            if others and extents > self.lengths[resource]:
+                return [holder for holder, _ in others]
+            return [holder for holder, way in others if way != direction or holder in against]
+        holders = [h for h in state.get("reserved_by", ()) if h != agv and (among is None or h in among)]
+        if kind == "corridor":  # holders placed inside hold it without orientation and do not count
+            if state["orientation"] in (None, direction):
+                return []
+            return [holder for holder in holders if (resource, holder) not in self._placed]
+        capacity = self.cap[resource] if kind == "node" else self.zone_members[resource][1]
+        return holders if len(holders) >= capacity else []
+
+    def _track_reclaims(self, event: TrafficReserved | TrafficReleased) -> None:
+        """A segment claimed again (spec §7.2) as the events tell it: a ``traffic.reserved`` whose deltas take the AGV
+        out of one list of a single-lane segment (and into the other). It is remembered with the body's entry for the
+        segment at that instant, its clear point and direction, which is the body as it arrived; a later re-claim, in
+        either direction, while that entry stands changes nothing. A ``traffic.released`` of the segment forgets it."""
+        assert self.bodies is not None
+        if isinstance(event, TrafficReleased):
+            for resource in event.resources:
+                self._reclaimed.pop((event.agv, resource), None)
+            return
+        for op in event.deltas.ops:
+            if op[0] == "remove" and op[1] in self.passing and not self.passing[op[1]]:
+                entry = self.bodies[op[3]].segs.get(op[1])
+                if entry is not None:
+                    self._reclaimed[op[3], op[1]] = entry
+
+    def _as_arrived(self, agv: str, segment: str) -> bool:
+        """Whether the body of `agv` still has the entry for `segment` it had when `agv` claimed the segment again."""
+        assert self.bodies is not None
+        entry = self._reclaimed.get((agv, segment))
+        return entry is not None and self.bodies[agv].segs.get(segment) == entry
+
+    def _lies_as_arrived(self, holder: str, segment: str) -> bool:
+        """Whether the body of `holder` surely lies on `segment`, at the instant looked at, as it arrived before
+        `holder` claimed the segment again (`_as_arrived`)."""
+        assert self.bodies is not None
+        if not self._as_arrived(holder, segment):
+            return False
+        key = (self.events, self._instant)
+        if self._sure[0] != key:
+            self._sure = (key, {})
+        found = self._sure[1]
+        lying = found.get(holder)
+        if lying is None:
+            lying = found[holder] = self.bodies[holder].occupancy(self._instant)[2]
+        return segment in lying
+
+    def _admissible(self, agv: str, items: Sequence[Item], among: Collection[str]) -> bool:
+        return not any(self._blockers(agv, item, among) for item in items)
+
+    def _deadlocked(self, claims: Mapping[str, Sequence[Item]]) -> set[str]:
+        """The reduction of spec §7.8 over `claims` (AGV id to what its claim needs): remove an AGV whose claim is
+        admissible given the holdings of those still in the set, until none is. Gates are ignored."""
+        remaining = set(claims)
+        while True:
+            free = next((agv for agv in sorted(remaining) if self._admissible(agv, claims[agv], remaining)), None)
+            if free is None:
+                return remaining
+            remaining.discard(free)
+
+    def _expect_report(self) -> None:
+        """At a wait that opens, or ends otherwise than by a grant, the deadlocked set of the open waits must be
+        reported in the same instant, unless the same set stands already (spec §7.8)."""
+        found = tuple(sorted(self._deadlocked({agv: wait.items for agv, wait in self.waits.items()})))
+        if found and found not in self.standing and found not in self._expected:
+            self._expected.append(found)
+
+    def _check_detection(self) -> None:
+        """Every deadlock is reported: each set expected in the instant was named by a ``traffic.deadlock`` of the
+        instant, or stands; and at the end of an instant in which a wait opened or ended, the deadlocked set of the
+        waits still open is empty or stands (once per set)."""
+        for found in self._expected:
+            if found not in self.standing:
+                self.violation("deadlock not reported", found, at=self._instant)
+        self._expected.clear()
+        if self._waits_changed:
+            self._waits_changed = False
+            left = tuple(sorted(self._deadlocked({agv: wait.items for agv, wait in self.waits.items()})))
+            if left and left not in self.standing and left not in self._left_over:
+                self._left_over.add(left)
+                self.violation("deadlock left at the end of the instant", left, at=self._instant)
+
+    def _check_deadlock(self, event: TrafficDeadlock, t: float) -> None:
+        """A ``traffic.deadlock`` lists AGVs with an open wait (the victim's ended just before, with the reason of the
+        action), and exactly the deadlocked set of those waits and the victim's; an unresolved report is not repeated
+        while the same set stands."""
+        ids = tuple(event.agvs)
+        if event.victim is not None:  # a resolution staged the victim's reaction, which ended its wait just before
+            ended = self._ended.get(event.victim)
+            if event.victim in self.waits or ended is None or ended[:2] != (t, ENDED_BY.get(event.action)):
+                self.violation("deadlock report names a victim whose wait did not end", event.victim, ids, event.action)
+        claims = {agv: wait.items for agv, wait in self.waits.items()}
+        for agv in ids:
+            ended = self._ended.get(agv)
+            if agv in claims:
+                continue
+            if agv == event.victim and ended is not None and ended[:2] == (t, ENDED_BY.get(event.action)):
+                claims[agv] = ended[2]
+            else:
+                self.violation("deadlock lists an AGV with no open wait", agv, ids, event.victim, event.action)
+        found = tuple(sorted(self._deadlocked(claims)))
+        if found != ids:
+            self.violation("deadlock report differs from the deadlocked set", ids, found, event.action)
+        if ids in self._expected:
+            self._expected.remove(ids)
+        if event.action == "unresolved":
+            if ids in self.standing:
+                self.violation("unresolved deadlock reported again while it stands", ids)
+            else:
+                self.standing.append(ids)
+
+    def _disposition(self, agv: str) -> str:
+        """What an observer knows of `agv`: ``STALLED`` on a stalled arc, else ``WAITING`` with an open wait, else the
+        state of its replayed entity."""
+        assert self.bodies is not None
+        arc = self.bodies[agv].arc
+        if arc is not None and arc[6]:
+            return "STALLED"
+        if agv in self.waits:
+            return "WAITING"
+        return self.state[agv]["state"]
+
+    def _check_stuck(self, event: TrafficWaitStuck) -> None:
+        """A ``traffic.wait_stuck`` names an open wait that had no report, at least one blocker, and each blocker in
+        the disposition it gives, as an observer knows it; and the rule of spec §7.9 holds as far as the holdings decide
+        it: every holder that blocks the wait is listed, and no wait reached from it through waiting blockers is
+        blocked by a holder that is neither stalled, waiting, idle nor stranded. The AGVs whose earlier claims gate a
+        wait (§7.4) emit nothing and are not checked."""
+        assert self.bodies is not None
+        wait = self.waits.get(event.agv)
+        if wait is None:
+            self.violation("stuck report of an AGV with no open wait", event.agv)
+        elif wait.reported:
+            self.violation("stuck report repeated for one wait", event.agv)
+        else:
+            wait.reported = True
+        blockers = dict(event.blockers)
+        if not blockers:
+            self.violation("stuck report with no blocker", event.agv)
+        for blocker, given in sorted(blockers.items()):
+            if blocker not in self.bodies:
+                self.violation("stuck report names an AGV the world does not have", event.agv, blocker)
+                continue
+            found = self._disposition(blocker)
+            if found != given:
+                self.violation("stuck report gives a blocker another disposition", event.agv, blocker, given, found)
+        if wait is None:
+            return
+        holding = {holder for item in wait.items for holder in self._blockers(event.agv, item)}
+        if not holding <= set(blockers):
+            self.violation(
+                "stuck report leaves out a holder that blocks the wait", event.agv, sorted(holding - set(blockers))
+            )
+        reached = {event.agv}
+        todo = sorted(blocker for blocker in blockers if blocker in self.waits)
+        while todo:
+            current = todo.pop()
+            if current in reached:
+                continue
+            reached.add(current)
+            for item in self.waits[current].items:
+                for holder in self._blockers(current, item):
+                    found = self._disposition(holder)
+                    if found == "WAITING":
+                        todo.append(holder)
+                    elif found not in ("STALLED", "IDLE", "STRANDED"):
+                        self.violation(
+                            "stuck report of a wait that reaches a blocker not at rest",
+                            event.agv,
+                            current,
+                            holder,
+                            found,
+                        )
+
+    # Reservation checks
+
+    def held_ids(self, agv: AGV) -> tuple[set[str], dict[str, Any], set[str]]:
+        ledger = self.controller.ledger
+        nodes: set[str] = set()
+        segs: dict[str, Any] = {}
+        containers: set[str] = set()
+        for resource in ledger.held(agv):
+            if isinstance(resource, Node):
+                nodes.add(resource.id)
+            elif isinstance(resource, Segment):
+                segs[resource.id] = ledger.direction(resource, agv)
+            else:
+                containers.add(resource.id)
+        return nodes, segs, containers
+
+    def _exact(self, agv: AGV, where: str) -> None:
+        """At rest or at the end of a travel the holdings are exactly the body (up to the 1e-6 band)."""
+        assert self.bodies is not None
+        sure_n, maybe_n, sure_s, maybe_s = self.bodies[agv.id].occupancy(float(self.env.now))
+        nodes, segs, containers = self.held_ids(agv)
+        if not (sure_n <= nodes <= sure_n | maybe_n):
+            self.violation("holdings != body (nodes)", where, agv.id, sorted(nodes), sorted(sure_n), sorted(maybe_n))
+        if not (set(sure_s) <= set(segs) <= set(sure_s) | set(maybe_s)):
+            self.violation("holdings != body (segments)", where, agv.id, sorted(segs), sorted(sure_s), sorted(maybe_s))
+        held = nodes | set(segs)
+        for zone, (members, _) in self.zone_members.items():
+            if (zone in containers) != bool(members & held):
+                self.violation("zone holding != members", where, agv.id, zone, sorted(held))
+        ledger = self.controller.ledger
+        for corridor in self.controller.network.corridors:
+            members = {m.id for m in ledger.members(corridor)}
+            ports = {corridor.nodes[0].id, corridor.nodes[-1].id}
+            if corridor.id in containers and not (members & held) and not (ports & nodes):
+                self.violation("corridor held without member or port", where, agv.id, corridor.id)
+            if corridor.id not in containers and members & held:
+                self.violation("member held without corridor", where, agv.id, corridor.id)
+        if agv in self.controller._pending:
+            self.violation("pending request while not travelling", where, agv.id)
+
+    def _exit(self, agv: AGV, outcome: str) -> None:
+        if self.bodies is not None:
+            self._exact(agv, "exit:" + outcome)
+
+    def _check(self, event: Any, t: float) -> None:
+        assert self.bodies is not None
+        occupancy = {}
+        for agv_id, body in self.bodies.items():
+            if body.at is not None or body.arc is not None:
+                occupancy[agv_id] = body.occupancy(t)
+        on_node: dict[str, list[str]] = {}
+        on_seg: dict[str, list[tuple[str, Any]]] = {}
+        for agv_id, (sure_n, _, sure_s, _) in occupancy.items():
+            for n in sure_n:
+                on_node.setdefault(n, []).append(agv_id)
+            for s, direction in sure_s.items():
+                on_seg.setdefault(s, []).append((agv_id, direction))
+        for n, who in on_node.items():
+            if len(who) > self.cap[n]:
+                self.violation("PHYSICAL node over capacity", n, who, self.cap[n])
+        for s, who in on_seg.items():
+            if not self.passing[s] and len({direction for _, direction in who}) > 1:
+                self.violation("PHYSICAL opposite directions on a segment", s, who)
+            if self.passing[s]:  # opposite traffic is admitted on a passing segment (Ruling A3-f)
+                continue
+            for agv_id, (a, b) in who:  # no other holder holds the segment against a body that lies on it
+                lies = "forward" if a < b else "backward"
+                against = "backward" if lies == "forward" else "forward"
+                for holder in self.state.get(s, {}).get(against, ()):
+                    if holder != agv_id and (s, agv_id, holder) not in self._against:
+                        self._against.add((s, agv_id, holder))
+                        self.violation("ADMITTED against a body on a segment", s, agv_id, lies, holder, against)
+        for zone, (members, capacity) in self.zone_members.items():
+            inside = [
+                agv_id for agv_id, (sure_n, _, sure_s, _) in occupancy.items() if members & (sure_n | set(sure_s))
+            ]
+            if len(inside) > capacity:
+                self.violation("PHYSICAL zone over capacity", zone, inside, capacity)
+        for chain, members in self.corridors:
+            steps = {}
+            for k in range(len(chain) - 1):
+                steps[chain[k], chain[k + 1]] = True
+                steps[chain[k + 1], chain[k]] = False
+            directions = {}
+            for agv_id, body in self.bodies.items():  # moving vehicles only: one at rest may be about to reverse
+                arc = body.arc
+                if arc is not None and not arc[6] and (arc[0], arc[1]) in steps and seg_id(arc[0], arc[1]) in members:
+                    directions[agv_id] = steps[arc[0], arc[1]]
+            if len(set(directions.values())) > 1:
+                self.violation("PHYSICAL opposite directions in a corridor", chain, directions)
+        agvs = self.world.agvs
+        ledger = self.controller.ledger
+        against_record: set[tuple[str, str]] = set()
+        for agv_id, (sure_n, _, sure_s, _) in occupancy.items():
+            agv = agvs[agv_id]
+            nodes, segs, _ = self.held_ids(agv)
+            if not sure_n <= nodes:
+                self.violation("body not covered (nodes)", agv_id, sorted(sure_n - nodes), event.type_name)
+            for s, (a, b) in sure_s.items():
+                if s not in segs:
+                    self.violation("body not covered (segment)", agv_id, s, event.type_name)
+                elif not self.passing[s] and (
+                    segs[s] != ("forward" if a < b else "backward") or self._lies_as_arrived(agv_id, s)
+                ):  # check M1': a body against its record, or as it arrived before a re-claim, needs the state
+                    if agv not in ledger.both_directions(self.segments[s]):
+                        against_record.add((agv_id, s))
+            if agv.state.name not in TRAVELING:
+                self._exact(agv, "state:" + agv.state.name)
+        for agv_id, s in sorted(against_record - self._against_record):
+            self.violation("LEDGER recorded direction against the body", s, agv_id, event.type_name)
+        self._against_record = against_record
+        if isinstance(event, TrafficReserved):
+            self._reversing.update(resource for resource in event.resources if resource in self.segments)
+        self._check_both_directions(occupancy, t)
+        self._check_ledger()
+
+    def _check_both_directions(self, occupancy: Mapping[str, Any], t: float) -> None:
+        """The both-directions state of spec §7.2, read through ``HoldingsLedger.both_directions``, against the bodies:
+        no segment with ``passing`` has it (Ruling A3-f); a holder in the state is the only holder of its segment (check
+        M2'); and the state does not outlive the body as it arrived. A holder in the state whose body no longer lies on
+        the segment (neither surely nor within the band) by the entry it had when it claimed the segment again
+        (`_as_arrived`: its own leg over the segment replaced it, or the body cleared it) is a violation from the next
+        instant on (the entry is replaced at ``agv.move_started`` and the state ends just after it, in the same
+        instant), and for a vehicle without kinematic limits seen so during an arc, from the instant after that arc's
+        arrival (its clear points inside an arc are released at the arrival, spec §6.6). A holder granted the segment
+        again in the direction its body lies in stays in the state with the same entry (§7.2), which is no violation.
+        Each is reported once per stretch. The check sees a state only at domain events: an outlasting state is
+        reported at an event of an instant later than the first event that saw it, so a state that outlasts the body
+        by less than the gap between such events goes unreported. A state can exist only on a held segment, so the
+        segments of the ``traffic.reserved`` seen are looked at until nobody holds them."""
+        assert self.bodies is not None
+        ledger = self.controller.ledger
+        sole: set[tuple[str, str]] = set()
+        passing: set[tuple[str, str]] = set()
+        outlived: dict[tuple[str, str], list[Any]] = {}
+        for s in sorted(self._reversing):
+            segment = self.segments[s]
+            held = ledger.holders(segment)
+            if not held:
+                self._reversing.discard(s)
+                continue
+            holders = ledger.both_directions(segment)
+            for agv in holders:
+                key = (agv.id, s)
+                if segment.passing:
+                    passing.add(key)
+                    if key not in self._passing_state:
+                        self.violation("LEDGER both directions on a passing segment", s, agv.id)
+                if held != (agv,):
+                    sole.add(key)
+                    if key not in self._sole:
+                        self.violation("LEDGER both directions with another holder", s, agv.id, [h.id for h in held])
+                _, _, sure_s, maybe_s = occupancy[agv.id]
+                if (s in sure_s or s in maybe_s) and self._as_arrived(agv.id, s):
+                    continue
+                seen = outlived[key] = self._outlived.get(key) or [t, False]
+                arc = self.bodies[agv.id].arc
+                if key not in self._outlived and agv.id in self.plain and arc is not None:
+                    seen[0] = arc[3]  # released at the arrival that ends the arc
+                if t > seen[0] and not seen[1]:
+                    seen[1] = True
+                    self.violation("LEDGER both directions outlived the body", s, agv.id, seen[0])
+        self._sole = sole
+        self._passing_state = passing
+        self._outlived = outlived
+
+    def _check_ledger(self) -> None:
+        """The ledger against the admission rules, and the entities against the ledger."""
+        ledger = self.controller.ledger
+        network = self.controller.network
+        entities = self.env.entities
+        for node in self.controller.graph.nodes:
+            holders = ledger.holders(node)
+            if len(holders) > self.cap.get(node.id, 1):
+                self.violation("LEDGER node over capacity", node.id)
+            binding = entities.node_binding(node)
+            if binding is not None and binding.reserved_by != [h.id for h in holders]:
+                self.violation("node entity != ledger", node.id, binding.reserved_by, [h.id for h in holders])
+        for segment in network.segments:
+            holders = ledger.holders(segment)
+            binding = ledger._bindings[segment]
+            by: dict[str, list[AGV]] = {"forward": [], "backward": []}
+            for holder in holders:
+                by[ledger.direction(segment, holder)].append(holder)
+            if not segment.passing and by["forward"] and by["backward"]:
+                self.violation("LEDGER both directions", segment.id)
+            for group in by.values():
+                together = group if segment.passing else holders
+                extents = math.fsum(a.agv_type.length + a.agv_type.min_gap for a in together)
+                if len(together) > 1 and extents > segment.length + 1e-12:
+                    self.violation("LEDGER extents exceed the segment", segment.id, [a.id for a in together])
+            if sorted(binding.forward) != sorted(h.id for h in by["forward"]) or sorted(binding.backward) != sorted(
+                h.id for h in by["backward"]
+            ):
+                self.violation("segment entity != ledger", segment.id)
+        for container in (*network.zones, *network.corridors):
+            holders = ledger.holders(container)
+            binding = ledger._bindings[container]
+            if binding.reserved_by != [h.id for h in holders]:
+                self.violation("zone entity != ledger", container.id)
+            if isinstance(container, Corridor):
+                orientations = {ledger.direction(container, h) for h in holders} - {None}
+                if len(orientations) > 1:
+                    self.violation("LEDGER corridor two orientations", container.id)
+                if binding.orientation != (next(iter(orientations)) if orientations else None):
+                    self.violation("corridor entity orientation != ledger", container.id)
+            elif len(holders) > container.capacity:
+                self.violation("LEDGER zone over capacity", container.id)
+            for member in ledger.members(container):
+                for holder in ledger.holders(member):
+                    if holder not in holders:
+                        self.violation("member held without container", container.id, holder.id)
+
+    # At the end
+
+    def final(self) -> None:
+        """Checks for a run that ended on its own, with nothing left to process.
+
+        Every wait open at the end carries a report of its own or is listed in an unresolved report that still stands,
+        by the events alone; whatever it is queued behind (Ruling A3-h). Two checks cannot come from events: a review
+        timer left, and a pending claim of an AGV that is moving (a look-ahead claim emits nothing, spec §11.2).
+        """
+        if self.bodies is not None:
+            self._close_instant()
+        if self.reservation:
+            for waiting in self.controller._queue:
+                if not waiting.stopped:
+                    self.violation("pending claim of a moving AGV at quiescence", waiting.agv.id)
+                if waiting.timer is not None:
+                    self.violation("review timer left", waiting.agv.id)
+            explained = {agv_id for agv_id, wait in self.waits.items() if wait.reported}
+            explained.update(agv_id for ids in self.standing for agv_id in ids)
+            if set(self.waits) - explained:
+                self.violation("open wait with no report", sorted(set(self.waits) - explained))
+        for agv in self.world.agvs.values():
+            if agv.motion is not None and not agv.motion.get("stalled"):
+                self.violation("motion left at quiescence", agv.id)

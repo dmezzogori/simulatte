@@ -171,6 +171,7 @@ records their detailed contracts. Approval records decisions, not implemented be
 enabled/directed/speed-limited arcs are supported, but segment reservations are outside SP2. The existing
 head-on passing limitation remains. This bounds changes to fleet traversal, cancellation and deadlock behavior.
 Amends C2.3/D6; rejected for SP2: segment locks or arc reservation attributes without enforcement.
+Superseded by `specs/2026-11-21-agv-traffic-design.md` (segment, zone and corridor reservations; 2026-11-21).
 
 **D62. Inserting a lane vertex makes removed-segment overrides stale (A2).** Inserting V between A and B
 replaces `(A,B)` with `(A,V)` and `(V,B)`; existing vertex ids and unaffected segment addresses remain stable.
@@ -645,3 +646,32 @@ experiment or editing a variant does not invalidate the interactive run.
 exact Python version (`.python-version` or the coordinator's) shared by supervisor and environment; provisioning
 has its own timeout (default 600 s) and a timeout is `provisioning_failed`, never `lost`. Windows coordinators
 keep local experiments; SSH from Windows is untested in 0.17 and Windows is never a remote host.
+
+## Overhead gate against stripped 0.12.0, 2026-11-24 (Davide)
+
+**D106. The CPython budget against 0.12.0 without its `env.debug` calls is 10.5 % (was 6.5 %); the limit is 12.5 %
+(was 8.5 %).** Davide decided on 2026-11-24 to widen the band of the no-subscriber gate against the stripped copy; the
+gate stays a gate. Cause: on the development machine (Apple M4 Pro, CPython 3.14.3) the base of the branch (`e1b3d1c`)
+and its head both measure +6.3 to +9.3 % against the stripped copy over eight rounds, so a whole gate passed in 4 of
+8 rounds at the old limit; the CI runner passed at +6.8 and +7.7 % (`e993ca8`), +8.3 % (`9cc5d64`) and failed once on
+`main` (`ea1292c`, a documentation tool bump that touched no source) with +9.6 and +10.4 %. Rule, unchanged from G3
+report §9 (D56): budget = worst pooled overhead over interleaved rounds plus 2.0 points of headroom. Measured at
+`7736e5d`, ten rounds, pooled medians of 150 samples per side and workload: +8.34 % (u90) and +8.45 % (u95);
+8.45 + 2.0 = 10.45. The rule states no rounding: 10.45 is written 10.5 as §9 wrote 6.5 for 6.54, and rounding to half a point
+gives the same; 10.5 + 2.0 = 12.5. The PyPy budget (3 %), both noise bands and the released-baseline limit (3 % + 2 %) are
+unchanged. The measurements are in `specs/research/2026-11-23-layout-only-models-acceptance.md`, Assignment 2, C.
+
+*The noise band stays 2 % (ruling of the controller, 2026-11-24).* `calibrate_noise.py` over the ten rounds gave upward
+bounds above 2 points in five of the 20 head-against-stripped rows (5.20 in the loaded round 5, 2.58, 2.58, 2.04, 2.02) and
+at or below 2 in the other 15. Read as the pre-0.13 calibration note reads it (the band covers the largest measured upward
+bound, rounded up), it gives a band of 3 % with the loaded round set aside (largest 2.58), so a limit of 10.5 + 3 = 13.5 %,
+or 6 % with every round kept (5.20), so 10.5 + 6 = 16.5 %. The band stays 2 % because the budget already rose by the
+measured worst case under the procedure's own rule; because the same reading would move the band against the released
+package, which the decision of 2026-11-24 does not cover; and because 12.5 % covers every CI run on record (largest
++10.4 %). The two alternatives stay on record for the maintainer to revisit.
+
+*Two facts of the measurement.* (1) The measured cost depends on the session with identical source: a reviewer's eight
+rounds at the same commit gave pooled +7.19 % (u90) and +6.70 % (u95), every comparison passing at 8.5 % too, against the
++8.34 % and +8.45 % above. (2) What the new limit leaves undetected: about 4 points of overhead above today's pooled worst
+case (1.125 over 1.0845 is +3.7 % of run time), which the released-package limit does not catch either, as the branch is
+23 to 25 % faster than released 0.12.0.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+import math
 import os
 import subprocess
 import sys
@@ -23,8 +25,11 @@ from simulatte.intralogistics.parking import ParkingArea
 from simulatte.intralogistics.policies import ReorderPointPolicy
 from simulatte.intralogistics.sku import SKU
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
 from simulatte.intralogistics.warehouse import Warehouse
+from simulatte.layout import LayoutError
+
+from tests.intralogistics.traffic_support import World, declare
 
 SKU_A = SKU(id="SKU-A", weight=1.0, volume=0.1)
 
@@ -47,13 +52,15 @@ def _line_graph() -> tuple[list[Node], LayoutGraph]:
     return nodes, LayoutGraph(nodes, arcs)
 
 
-def _warehouses(env: Environment, nodes: list[Node]) -> tuple[Warehouse, Warehouse]:
-    def make(name: str, bay: Node, level: int) -> Warehouse:
+def _warehouses(env: Environment, world: World) -> tuple[Warehouse, Warehouse]:
+    """WH-A on OUT, stocked, and WH-B on IN, empty."""
+
+    def make(name: str, bay: str, level: int) -> Warehouse:
         return Warehouse(
             env=env,
             name=name,
-            input_bays=[bay],
-            output_bays=[bay],
+            input_bays=[world.ref(bay)],
+            output_bays=[world.ref(bay)],
             n_slots=2,
             products=[SKU_A],
             initial_inventory={SKU_A: level},
@@ -61,21 +68,29 @@ def _warehouses(env: Environment, nodes: list[Node]) -> tuple[Warehouse, Warehou
             put_time=1.0,
         )
 
-    return make("WH-A", nodes[0], 100), make("WH-B", nodes[-1], 0)
+    return make("WH-A", "OUT", 100), make("WH-B", "IN", 0)
 
 
 def _system(
     env: Environment, *, n_agvs: int = 1, resource_traffic: bool = False
-) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, list[Node]]:
-    """A line OUT - C1 - C2 - IN with WH-A at OUT and WH-B at IN; AGVs start at C1, C2, ..."""
-    nodes, graph = _line_graph()
-    wh_a, wh_b = _warehouses(env, nodes)
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1 + i]) for i in range(n_agvs)]
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1) if resource_traffic else None
+) -> tuple[FleetCoordinator, list[AGV], Warehouse, Warehouse, World]:
+    """A line OUT - C1 - C2 - IN declared on the layout of `env`, with WH-A at OUT and WH-B at IN; AGVs start at
+    C1, C2, ..."""
+    world = declare(env, _line_graph()[1])
+    wh_a, wh_b = _warehouses(env, world)
+    agv_type = dataclasses.replace(_agv_type(), length=1.0) if resource_traffic else _agv_type()
+    starts = ["C1", "C2", "IN"]
+    agvs = [AGV(env=env, agv_type=agv_type, initial_node=world.ref(starts[i])) for i in range(n_agvs)]
+    traffic = ReservationController(graph=world.graph, env=env) if resource_traffic else None
     coordinator = FleetCoordinator(
-        env=env, graph=graph, fleet=agvs, warehouses=[wh_a, wh_b], charging_stations=[], traffic_manager=traffic
+        env=env,
+        graph=world.graph,
+        fleet=agvs,
+        warehouses=[wh_a, wh_b],
+        charging_stations=[],
+        traffic_controller=traffic,
     )
-    return coordinator, agvs, wh_a, wh_b, nodes
+    return coordinator, agvs, wh_a, wh_b, world
 
 
 class ReplayChecker:
@@ -107,27 +122,28 @@ def test_kinds_ids_and_initial_state() -> None:
     env = Environment(debug=True)  # validates every create delta against its kind's schema
     created: list[EntityCreated] = []
     env.bus.subscribe(created.append, (EntityCreated,))
-    coordinator, (agv,), wh_a, wh_b, nodes = _system(env)
-    ChargingStation(env=env, name="CS", node=nodes[2], n_slots=1, supports_swap=True, swap_pool_size=2)
-    ParkingArea(env=env, name="PARK", node=nodes[1], capacity=2)
+    coordinator, (agv,), wh_a, wh_b, world = _system(env)
+    ChargingStation(env=env, name="CS", node=world.ref("C2"), n_slots=1, supports_swap=True, swap_pool_size=2)
+    ParkingArea(env=env, name="PARK", node=world.ref("C1"), capacity=2)
     order = coordinator.create_order(sku=SKU_A, quantity=3, origin=wh_a, destination=wh_b)
+    env.activate()
 
+    # The layout binds the nodes at preparation, after the components, in id order.
     assert [(e.kind, e.entity) for e in created] == [
         ("warehouse", "WH-A"),
         ("warehouse", "WH-B"),
         ("agv", "agv-0"),
         ("fleet", "fleet-0"),
+        ("charging_station", "CS"),
+        ("parking_area", "PARK"),
+        ("order", "order-0"),
         ("node", "C1"),
         ("node", "C2"),
         ("node", "IN"),
         ("node", "OUT"),
-        ("charging_station", "CS"),
-        ("parking_area", "PARK"),
-        ("order", "order-0"),
     ]
     assert (agv.id, agv.agv_id, coordinator.id, order.id) == ("agv-0", "agv-0", "fleet-0", "order-0")
 
-    env.activate()
     state = env.initial_state
     assert state["agv-0"] == {
         "$kind": "agv",
@@ -138,6 +154,10 @@ def test_kinds_ids_and_initial_state() -> None:
         "order": None,
         "motion": None,
         "fleet": "fleet-0",
+        "heading": None,
+        "wait": None,
+        "route": None,
+        "battery_capacity": 1000.0,
         "label": "agv-0",
     }
     assert state["order-0"] == {
@@ -155,10 +175,17 @@ def test_kinds_ids_and_initial_state() -> None:
         "fleet": "fleet-0",
         "label": "order-0",
     }
-    assert state["fleet-0"] == {"$kind": "fleet", "pending": (), "label": "fleet-0"}
+    assert state["fleet-0"] == {
+        "$kind": "fleet",
+        "pending": (),
+        "waits": 0,
+        "stuck_waits": 0,
+        "deadlocks": 0,
+        "label": "fleet-0",
+    }
     assert state["WH-A"] == {"$kind": "warehouse", "inventory": {"SKU-A": 100.0}, "slots_in_use": 0, "label": "WH-A"}
-    assert state["CS"] == {"$kind": "charging_station", "slots_in_use": 0, "swap_pool": 2.0, "label": "CS"}
-    assert state["PARK"] == {"$kind": "parking_area", "parked": (), "label": "PARK"}
+    assert state["CS"] == {"$kind": "charging_station", "slots_in_use": 0, "swap_pool": 2.0, "slots": 1, "label": "CS"}
+    assert state["PARK"] == {"$kind": "parking_area", "parked": (), "capacity": 2, "label": "PARK"}
     assert state["C1"] == {"$kind": "node", "x": 5.0, "y": 0.0, "agvs": ("agv-0",), "reserved_by": (), "label": "C1"}
 
     agv.current_load = {SKU_A: 2}
@@ -167,10 +194,10 @@ def test_kinds_ids_and_initial_state() -> None:
 
 def test_facility_snapshots_follow_their_resources() -> None:
     env = Environment()
-    nodes, _ = _line_graph()
-    station = ChargingStation(env=env, name="CS", node=nodes[0], n_slots=1, label="Charger")
-    area = ParkingArea(env=env, name="PARK", node=nodes[0], capacity=2)
-    agvs = [AGV(env=env, agv_type=_agv_type(), agv_id=name, initial_node=nodes[0]) for name in ("B", "A")]
+    world = declare(env, _line_graph()[1])
+    station = ChargingStation(env=env, name="CS", node=world.ref("OUT"), n_slots=1, label="Charger")
+    area = ParkingArea(env=env, name="PARK", node=world.ref("OUT"), capacity=2)
+    agvs = [AGV(env=env, agv_type=_agv_type(), agv_id=name, initial_node=world.ref("OUT")) for name in ("B", "A")]
 
     def park() -> Any:
         for agv in agvs:
@@ -178,7 +205,7 @@ def test_facility_snapshots_follow_their_resources() -> None:
 
     env.process(park())
     env.run()
-    assert station.snapshot() == {"slots_in_use": 0, "swap_pool": None, "label": "Charger"}
+    assert station.snapshot() == {"slots_in_use": 0, "swap_pool": None, "slots": 1, "label": "Charger"}
     assert area.snapshot()["parked"] == ["B", "A"]  # arrival order
     area.leave(agvs[0])
     assert area.snapshot()["parked"] == ["A"]
@@ -188,9 +215,9 @@ def test_reserved_agv_names_rejected_and_custom_names_kept() -> None:
     env = Environment()
     with pytest.raises(ValueError, match="reserved"):
         AGV(env=env, agv_type=_agv_type(), agv_id="agv-7")
-    nodes, graph = _line_graph()
+    world = declare(env, _line_graph()[1])
     agv = AGV(env=env, agv_type=_agv_type(), agv_id="forklift", label="Forklift A")
-    fleet = FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[], name="yard")
+    fleet = FleetCoordinator(env=env, graph=world.graph, fleet=[agv], warehouses=[], charging_stations=[], name="yard")
     assert (agv.id, agv.label, fleet.id) == ("forklift", "Forklift A", "yard")
 
 
@@ -199,45 +226,63 @@ def test_reserved_agv_names_rejected_and_custom_names_kept() -> None:
 
 def test_shared_graph_two_fleets_one_binding_per_node() -> None:
     env = Environment()
-    nodes, graph = _line_graph()
-    first = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1])
-    fleet_a = FleetCoordinator(env=env, graph=graph, fleet=[first], warehouses=[], charging_stations=[])
-    second = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1])  # created after the binding exists
-    fleet_b = FleetCoordinator(env=env, graph=graph, fleet=[second], warehouses=[], charging_stations=[])
+    world = declare(env, _line_graph()[1])
+    first = AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("C1"))
+    fleet_a = FleetCoordinator(env=env, graph=world.graph, fleet=[first], warehouses=[], charging_stations=[])
+    second = AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("C1"))  # created after the first fleet
+    fleet_b = FleetCoordinator(env=env, graph=world.graph, fleet=[second], warehouses=[], charging_stations=[])
+    c1 = world.node("C1")  # prepares the layout, which binds the nodes
 
     bindings = [entity for entity in env.entities.live() if isinstance(entity, NodeBinding)]
     assert sorted(binding.id for binding in bindings) == ["C1", "C2", "IN", "OUT"]
     assert repr(bindings[0]) == f"NodeBinding(id={bindings[0].id!r})"
-    assert env.entities.bind_node(nodes[1]) is env.entities.bind_node(Node(id="C1", x=5.0, y=0.0))
-    assert env.entities.bind_node(nodes[1]).agvs == [first.id, second.id]
+    equal = Node(id="C1", x=5.0, y=0.0)  # equal to the canonical node, another object
+    assert env.entities.node_binding(equal) is env.entities.bind_node(c1)
+    with pytest.raises(LayoutError, match="exact canonical"):  # a layout binds only its canonical nodes
+        env.entities.bind_node(equal)
+    assert env.entities.bind_node(c1).agvs == [first.id, second.id]
     assert (first.fleet, second.fleet) == (fleet_a, fleet_b)
 
 
 def test_same_id_different_node_raises() -> None:
+    """The layout binds every node of its network at preparation, and only those: binding a canonical node again
+    returns its binding, a node equal to it finds the binding, a different node with a bound id is refused, and a
+    network node with a reserved id fails the preparation."""
     env = Environment()
-    env.entities.bind_node(Node(id="A", x=0.0, y=0.0))
-    with pytest.raises(ValueError, match="already bound to a different node"):
-        env.entities.bind_node(Node(id="A", x=1.0, y=0.0))
-    assert env.entities.node_binding(Node(id="A", x=1.0, y=0.0)) is None
+    world = declare(env, _line_graph()[1])
+    out = world.node("OUT")  # prepares the layout
+    bound = env.entities.node_binding(out)
+    assert bound is not None and env.entities.bind_node(out) is bound  # bound at preparation: the existing binding
+    assert env.entities.node_binding(Node(id="OUT", x=0.0, y=0.0)) is bound  # an equal node
+    with pytest.raises(LayoutError, match="exact canonical"):
+        env.entities.bind_node(Node(id="OUT", x=1.0, y=0.0))
+    assert env.entities.node_binding(Node(id="OUT", x=1.0, y=0.0)) is None
     assert env.entities.node_binding(Node(id="B", x=0.0, y=0.0)) is None
-    with pytest.raises(ValueError, match="reserved"):
-        env.entities.bind_node(Node(id="node-3", x=0.0, y=0.0))
+    reserved = Environment()
+    a, b = Node(id="node-3", x=0.0, y=0.0), Node(id="B", x=1.0, y=0.0)
+    declare(reserved, LayoutGraph([a, b], [Arc(a, b)]))
+    with pytest.raises(LayoutError, match="reserved"):
+        reserved.layout.prepare()
+    assert not any(entity.kind == "node" for entity in reserved.entities.live())
 
 
 def test_agv_moves_update_node_agvs() -> None:
     env = Environment()
-    nodes, graph = _line_graph()
+    world = declare(env, _line_graph()[1])
     agv = AGV(env=env, agv_type=_agv_type())  # no starting node
-    loose = Node(id="LOOSE", x=9.0, y=9.0)  # never bound
-    FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[])
+    loose = Node(id="LOOSE", x=9.0, y=9.0)  # not a node of the network
+    FleetCoordinator(env=env, graph=world.graph, fleet=[agv], warehouses=[], charging_stations=[])
+    nodes = [world.node(name) for name in ("OUT", "C1", "C2", "IN")]  # prepares the layout
     binding = env.entities.bind_node
 
     agv.current_node = nodes[0]
     agv.current_node = nodes[0]
     assert binding(nodes[0]).agvs == [agv.id]
-    agv.current_node = loose
-    assert binding(nodes[0]).agvs == []
+    with pytest.raises(LayoutError, match="exact canonical"):  # the layout refuses a node outside its network
+        agv.current_node = loose
+    assert binding(nodes[0]).agvs == [agv.id] and agv.current_node is nodes[0]
     agv.current_node = nodes[3]
+    assert binding(nodes[0]).agvs == []
     assert binding(nodes[3]).agvs == [agv.id]
     agv.current_node = None
     assert all(not binding(node).agvs for node in nodes)
@@ -245,25 +290,25 @@ def test_agv_moves_update_node_agvs() -> None:
 
 def test_node_state_tracks_positions_and_reservations_during_a_run() -> None:
     env = Environment()
-    coordinator, agvs, wh_a, wh_b, nodes = _system(env, resource_traffic=True)  # one AGV: a line has no passing
+    coordinator, agvs, wh_a, wh_b, world = _system(env, resource_traffic=True)  # one AGV: a line has no passing
     orders = [coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b) for _ in range(3)]
     for order in orders:
         coordinator.submit(order)
-    traffic = coordinator._traffic_manager
-    assert isinstance(traffic, ResourceBasedTrafficManager)
+    traffic = coordinator.traffic_controller
+    assert isinstance(traffic, ReservationController)
 
     env.activate()
     assert env.initial_state["C1"]["reserved_by"] == ("agv-0",)
+    nodes = [world.node(name) for name in ("OUT", "C1", "C2", "IN")]
 
     def check(*, quiescent: bool) -> None:
         for node in nodes:
             fields = env.entities.bind_node(node).snapshot()
             assert fields["agvs"] == [agv.id for agv in agvs if agv.current_node == node]
-            requests = traffic._node_requests.items()
-            held = {agv.id for (agv, held_node), req in requests if held_node == node and req.triggered}
-            assert set(fields["reserved_by"]) <= held
+            held = {agv.id for agv in agvs if node in traffic.ledger.held(agv)}
+            assert set(fields["reserved_by"]) == held
             if quiescent:
-                assert set(fields["reserved_by"]) == held == set(fields["agvs"])
+                assert held == set(fields["agvs"])
 
     moved = 0
     while env.peek() < float("inf"):
@@ -279,7 +324,8 @@ def test_placement_bookkeeping_changes_no_entity_state() -> None:
     env = Environment()
     _system(env, n_agvs=2, resource_traffic=True)
     env.activate()
-    assert env.peek() == 0  # the grant events of place_now
+    assert env.peek() == math.inf  # placement schedules nothing
+    assert env.initial_state["C1"]["reserved_by"] == ("agv-0",)
     before = env.entities.snapshot()
     env.run(until=1)
     assert env.entities.snapshot() == before == dict(env.initial_state)
@@ -293,22 +339,24 @@ from simulatte.intralogistics.agv import AGV, AGVType
 from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
 from simulatte.intralogistics.fleet import FleetCoordinator
 from simulatte.intralogistics.speed import TrapezoidalProfile
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.layout import Explicit
 
 names = ["n%02d" % i for i in (7, 3, 11, 0, 5, 9, 1, 12, 4, 8, 2, 10, 6)]
 nodes = [Node(id=name, x=float(i), y=0.0) for i, name in enumerate(names)]
-graph = LayoutGraph(nodes, [Arc(source=a, target=b) for a, b in zip(nodes, nodes[1:])])
 env = Environment(seed=1)
+env.layout.set_network(Explicit(LayoutGraph(nodes, [Arc(source=a, target=b) for a, b in zip(nodes, nodes[1:])])))
 agv_type = AGVType(name="t", speed_profile=TrapezoidalProfile(max_speed=1.0, acceleration=1.0, deceleration=1.0),
-                   battery_capacity=1.0, weight_capacity=1.0, volume_capacity=1.0)
+                   battery_capacity=1.0, weight_capacity=1.0, volume_capacity=1.0, length=0.5)
 first, second = AGV(env=env, agv_type=agv_type), AGV(env=env, agv_type=agv_type)
-traffic = ResourceBasedTrafficManager(graph=graph, env=env)
-FleetCoordinator(env=env, graph=graph, fleet=[first, second], warehouses=[], charging_stations=[],
-                 traffic_manager=traffic)
-traffic.register_intent(first, nodes)
-result = traffic.check_path(second, list(reversed(nodes)))
+traffic = ReservationController(graph=env.layout.graph(), env=env)
+FleetCoordinator(env=env, graph=env.layout.graph(), fleet=[first, second], warehouses=[], charging_stations=[],
+                 traffic_controller=traffic)
+env.activate()
+graph = env.layout.prepare().network.graph
+claim = traffic.next_claim(second, list(reversed(graph.nodes)), 0)
 print([n.id for n in graph.nodes])
-print([n.id for n in result.conflict_nodes])
+print([item.resource.id for item in claim.items])
 print([entity.id for entity in env.entities.live()])
 """
 
@@ -327,11 +375,13 @@ def test_graph_nodes_order_stable_across_hash_seeds() -> None:
         assert completed.returncode == 0, completed.stderr
         outputs.add(completed.stdout)
     assert len(outputs) == 1
-    graph_nodes, conflicts, live = outputs.pop().splitlines()
+    graph_nodes, claim, live = outputs.pop().splitlines()
     names = ["n07", "n03", "n11", "n00", "n05", "n09", "n01", "n12", "n04", "n08", "n02", "n10", "n06"]
     assert graph_nodes == repr(names)  # insertion order
-    assert conflicts == repr(list(reversed(names))[1:-1])  # path order of the checked path
-    assert live == repr(["agv-0", "agv-1", "fleet-0", *sorted(names)])  # nodes bound sorted by id
+    assert claim == repr(["n06~n10", "n10"])  # the first leg of the reversed line: its segment, then its end node
+    segments = sorted("~".join(sorted(pair)) for pair in zip(names, names[1:]))
+    # Nodes bound sorted by id, then the segment entities attached at activation in id order.
+    assert live == repr(["agv-0", "agv-1", "fleet-0", *sorted(names), *segments])
 
 
 # --- order retirement --------------------------------------------------------------------------------------
@@ -413,11 +463,11 @@ def test_cancelled_and_failed_orders_retire() -> None:
 def test_discarded_mission_does_not_retire_its_order(phase: str) -> None:
     """A mission generator closed unfinished (garbage collection) must not emit a retirement."""
     env = Environment()
-    coordinator, (agv,), wh_a, wh_b, nodes = _system(env)
+    coordinator, (agv,), wh_a, wh_b, world = _system(env)
 
     class Return:
         def reposition(self, agv: AGV, context: Any) -> Node:
-            return nodes[0]
+            return world.node("OUT")
 
     coordinator._repositioning_policy = Return()
     order = coordinator.create_order(sku=SKU_A, quantity=1, origin=wh_a, destination=wh_b)
@@ -487,7 +537,7 @@ def test_replenishment_orders_are_attached_and_retired() -> None:
 def test_replay_equals_live_for_creation_and_retirement() -> None:
     env = Environment(seed=3, debug=True)
     replay = ReplayChecker(env)  # subscribed before any entity exists: replay starts from {}
-    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2)
+    coordinator, agvs, wh_a, wh_b, _ = build_simple_system(env, n_agvs=2, layout=env.layout)
     orders = [coordinator.create_order(sku=sku, quantity=2, origin=wh_a, destination=wh_b) for sku in wh_a.inventory]
     for order in orders:
         coordinator.submit(order)

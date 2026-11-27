@@ -1,8 +1,19 @@
-from simulatte import Environment, Layout
+import sys
+import threading
+
+from simulatte import Environment, Layout, TraceRecorder
 from simulatte.layout import LayoutError
 from simulatte.entities import Entity, FieldSpec, StateSchema
 from simulatte.layout import Footprint, Grid, Lattice, Point
-from tests.layout.test_binding import line, system, vehicle
+from simulatte.layout import bundle as bundle_module
+from simulatte.layout import identity, lifecycle
+from simulatte.layout import layout as facade_module
+from simulatte.layout.lifecycle import PreparationCoordinator
+from simulatte.builders import build_immediate_release_system
+from simulatte.job import ProductionJob
+from simulatte.scenario import Scenario
+from simulatte.server import Server
+from tests.layout.test_binding import SKU_A, line, system, vehicle
 import pytest
 from typing import Any
 
@@ -342,7 +353,7 @@ def test_facade_file_roundtrip_load_once_flows_and_validation(tmp_path):
             {"schema_version": "1.0", "placements": {"a": {"kind": "server"}, "b": {"kind": "server"}}},
             limits=LayoutLimits(max_placements=1),
         )
-    assert empty.layout is None
+    assert empty._layout is None
 
 
 @pytest.mark.parametrize("change", ["existing_target", "obstacle_after_barrier", "network_after_barrier"])
@@ -399,18 +410,18 @@ def test_facade_rejects_invalid_arguments_and_foreign_object_ownership():
 
 
 def test_graph_reference_without_network_fails_before_binding():
-    from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+    from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
     layout = Layout(env)
-    ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    ReservationController(env=env, graph=layout.graph())
     with pytest.raises(LayoutError, match="declared network"):
         layout.prepare()
 
 
 def test_port_binding_aliases_share_canonical_graph_node_and_capacity():
     from simulatte.layout import Connector, Port
-    from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+    from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
     layout = line(env)
@@ -424,23 +435,22 @@ def test_port_binding_aliases_share_canonical_graph_node_and_capacity():
     )
     ref = layout.port(area, "out")
     cart = vehicle(env, ref)
-    manager = ResourceBasedTrafficManager(env=env, graph=layout.graph())
+    manager = ReservationController(env=env, graph=layout.graph())
     result = layout.prepare()
     assert cart.current_node is result.network.node(ref.address)
-    assert cart.current_node in manager._node_resources
+    assert cart.current_node in manager.graph.nodes
     assert result.auto.derived_positions[cart.id] == Point(-1, 0)
 
 
-def test_rejected_constructor_does_not_register_explicit_graph_use():
-    from simulatte.intralogistics.graph import LayoutGraph, Node
-    from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+def test_rejected_constructors_leave_the_layout_usable():
+    from simulatte.intralogistics.reservation import ReservationController
 
     env = Environment()
-    with pytest.raises(ValueError):
-        vehicle(env, Node("A", 0, 0), "")
-    with pytest.raises(ValueError):
-        ResourceBasedTrafficManager(env=env, graph=LayoutGraph([], []), node_capacity=0)
-    assert Layout(env).prepare() is not None
+    with pytest.raises(ValueError, match="name"):
+        vehicle(env, env.layout.node("A"), "")
+    with pytest.raises(LayoutError):
+        ReservationController(env=env, graph="not a graph")  # ty: ignore[invalid-argument-type]
+    assert env.layout.prepare() is not None and env.entities.live() == ()
 
 
 def test_retired_targets_are_not_final_static_entities():
@@ -567,3 +577,264 @@ def test_d30_identical_file_predicate_restatements_still_require_names(named, pr
     else:
         with pytest.raises(LayoutError, match="explicitly named"):
             layout.prepare()
+
+
+# --- cost of a layout (spec §9) ---------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("model", ["timeouts", "shop"])
+def test_step_after_activation_reads_nothing_of_the_layout(monkeypatch, model):
+    if model == "timeouts":
+        env = Environment()
+        layout = line(env)
+        vehicle(env, layout.node("A"), "cart")
+        for delay in range(1, 6):
+            env.timeout(delay)
+        steps = 5
+    else:  # jobs arrive and are created during the steps (spec §5.5: they cost nothing)
+        env = Environment(seed=1)
+        layout = Layout(env)
+        build_immediate_release_system(env=env, scenario=Scenario.pure_job_shop(n_servers=4))
+        steps = 2_000
+    env.activate()
+    jobs = env.entities._counters.get("job", 0)
+    reads = []
+
+    class Counted:
+        """Count the reads of the coordinator's state; data descriptors take precedence over the instance field."""
+
+        def __get__(self, coordinator, owner):
+            reads.append(coordinator)
+            return coordinator.__dict__["state"]
+
+        def __set__(self, coordinator, value):
+            coordinator.__dict__["state"] = value
+
+    monkeypatch.setattr(PreparationCoordinator, "state", Counted(), raising=False)
+    layout_modules = [
+        name for name in sys.modules if name == "simulatte.layout" or name.startswith("simulatte.layout.")
+    ]
+    for name in layout_modules:
+        monkeypatch.delitem(sys.modules, name)  # an import during the steps would load them again
+    calls = []
+
+    def profile(frame, event, arg):
+        if event == "call" and "/simulatte/layout/" in frame.f_code.co_filename.replace("\\", "/"):
+            calls.append(frame.f_code.co_name)
+
+    previous = sys.getprofile()
+    sys.setprofile(profile)
+    try:
+        for _ in range(steps):
+            env.step()
+    finally:
+        sys.setprofile(previous)
+    if model == "timeouts":
+        assert env.now == 5
+    else:
+        assert env.entities._counters["job"] > jobs + 10  # jobs were created during the steps
+    assert calls == [] and reads == []
+    assert not [name for name in layout_modules if name in sys.modules]
+    assert layout._coordinator.state == "finalized" and reads == [layout._coordinator]  # the counter counts
+
+
+@pytest.mark.parametrize("layout_first", [True, False])
+def test_attaching_entities_resolves_the_layers_a_number_of_times_that_does_not_grow(monkeypatch, layout_first):
+    calls = []
+    for module in (lifecycle, facade_module):
+        resolve = module.resolve_layers
+
+        def counted(*args, resolve=resolve, **kwargs):
+            calls.append(1)
+            return resolve(*args, **kwargs)
+
+        monkeypatch.setattr(module, "resolve_layers", counted)
+
+    def counts(n):
+        calls.clear()
+        env = Environment()
+        layout = Layout(env) if layout_first else None
+        servers = [Server(env=env, capacity=1) for _ in range(n)]
+        for server in servers:
+            ProductionJob(env=env, sku="A", servers=[server], processing_times=[1.0], due_date=10.0)
+        if layout is None:
+            layout = Layout(env)
+        attached = len(calls)
+        result = layout.prepare()
+        assert len(result.values.targets) == 2 * n
+        return attached, len(calls) - attached
+
+    assert counts(400) == counts(40)
+
+
+@pytest.mark.unchecked_bundles
+def test_an_unobserved_run_builds_no_bundle_and_a_read_builds_it_once(monkeypatch, tmp_path):
+    built = []
+    hashed = []
+    build, hashes = bundle_module._build_bundle, identity.hashes
+
+    def counted_build(resolved):
+        built.append(resolved)
+        return build(resolved)
+
+    def counted_hashes(data):
+        hashed.append(1)
+        return hashes(data)
+
+    monkeypatch.setattr(bundle_module, "_build_bundle", counted_build)
+    monkeypatch.setattr(bundle_module, "hashes", counted_hashes)
+
+    def model(env):
+        layout = line(env)
+        fleet, _, origin, destination, *_ = system(env, layout)
+        fleet.submit(fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination))
+        return layout
+
+    env = Environment()
+    layout = model(env)
+    env.run(until=50)
+    result = layout.prepare()
+    assert built == [] and hashed == []
+    manifest = env.manifest().requested["layout"]
+    assert len(built) == 1 and built[0] is result and hashed == [1]
+    assert manifest == result.bundle.manifest() and result.full_hash == result.bundle.full_hash
+    assert len(built) == 1 and hashed == [1]
+
+    recorded = Environment()
+    TraceRecorder(recorded, tmp_path / "run.trace")
+    model(recorded)
+    built.clear()
+    recorded.run(until=50)
+    recorded.close()
+    assert len(built) == 1 and built[0] is recorded.layout.prepare()
+
+
+def test_a_bundle_read_late_describes_the_layout_as_prepared():
+    def model():
+        env = Environment(seed=3)
+        layout = line(env)
+        fleet, _, origin, destination, *_ = system(env, layout)
+        for _ in range(3):
+            fleet.submit(fleet.create_order(sku=SKU_A, quantity=1, origin=origin, destination=destination))
+        Server(env=env, capacity=1, name="machine")
+        return env, layout
+
+    _, early_layout = model()
+    early = early_layout.prepare().bundle.to_dict()
+    late_env, late_layout = model()
+    late_env.run()  # AGVs move, orders are created and finish, entities are created during the run
+    late_layout.prepare().network  # the result is read, the bundle is not
+    assert late_env.now > 0
+    assert late_layout.prepare().bundle.to_dict() == early
+
+
+def test_concurrent_first_reads_get_the_same_bundle():
+    result = line(Environment()).prepare()
+    barrier = threading.Barrier(4)
+    seen = []
+
+    def read():
+        barrier.wait()
+        seen.append(result.bundle)
+
+    threads = [threading.Thread(target=read) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(seen) == 4 and all(bundle is result.bundle for bundle in seen)
+
+
+@pytest.mark.unchecked_bundles
+def test_model_errors_still_raise_at_prepare(monkeypatch):
+    monkeypatch.setattr(bundle_module, "_build_bundle", lambda resolved: pytest.fail("bundle built"))
+    env = Environment()
+    layout = line(env)
+    vehicle(env, layout.node("absent"), "cart")
+    with pytest.raises(LayoutError, match="missing or disabled required node") as caught:
+        layout.prepare()
+    assert caught.value.diagnostics[0].code == "missing-handle"
+
+    env = Environment()
+    layout = Layout.from_dict(
+        env,
+        {
+            "schema_version": "1.0",
+            "placements": {"layout_test_area-0": {"kind": "layout_test_area", "obstacle": False}},
+        },
+    )
+    layout.place(Area(env), obstacle=False)  # a physical file override of an auto-named entity
+    with pytest.raises(LayoutError, match="explicitly named"):
+        layout.prepare()
+
+    env = Environment()
+    layout = Layout(env)
+    layout.place("ghost", kind="bogus", position=Point(0, 0))
+    result = layout.prepare()  # an unknown kind is a diagnostic, available without the bundle
+    assert [item.code for item in result.diagnostics] == ["orphan-placement"]
+
+
+@pytest.mark.unchecked_bundles
+@pytest.mark.parametrize("name", [5, ("a", "b"), "s\ud800", "a\0b"])
+@pytest.mark.parametrize("kind", ["stage", "binder", "after"])
+def test_an_invalid_stage_or_binder_name_raises_where_it_is_declared(monkeypatch, kind, name):
+    """The names are saved in the bundle, which is built on first read: they are checked when declared (spec §9)."""
+    monkeypatch.setattr(bundle_module, "_build_bundle", lambda resolved: pytest.fail("bundle built"))
+    layout = Layout(Environment())
+    with pytest.raises(LayoutError, match="invalid stage name"):
+        if kind == "stage":
+            layout.stage(name, reads=())(lambda ctx: None)
+        elif kind == "binder":
+            layout.on_bind(name, lambda ctx: None)
+        else:
+            layout.stage("valid", reads=(), after=(name,))(lambda ctx: None)
+    layout.prepare()
+
+
+@pytest.mark.parametrize(
+    ("kind", "size", "views"),
+    [("explicit", 4, 1), ("explicit", 40, 1), ("lattice", 4, 2), ("lattice", 40, 2), ("none", 4, 2), ("none", 40, 2)],
+)
+def test_preparing_checks_no_declared_patch_again_and_resolves_the_network_view_as_often_as_it_must(
+    monkeypatch, kind, size, views
+):
+    """A patch is checked against the schema when it is declared (spec §9: validation of the declared inputs stays at
+    declaration and preparation); the resolutions of a preparation take the checked patches as they are. The network
+    view, which preparation asks for twice, is resolved once when the second ask has the layers and targets of the
+    first (an explicit network) and twice otherwise: for a lattice the targets of the second ask include the nodes the
+    first ask built, and a model without a network keeps nothing (`views` is how many times the view is resolved)."""
+    from simulatte.intralogistics.graph import Arc, LayoutGraph, Node
+    from simulatte.layout import Explicit
+    from simulatte.layout import layers as layers_module
+
+    checks, resolutions = [], []
+    parse = layers_module.parse_patch
+    monkeypatch.setattr(layers_module, "parse_patch", lambda data, **k: checks.append(data) or parse(data, **k))
+    for module in (lifecycle, facade_module):
+        resolve = module.resolve_layers
+
+        def counted(*args, resolve=resolve, **kwargs):
+            resolutions.append((kwargs.get("final", False), len(args) > 2 and args[2] is not None))
+            return resolve(*args, **kwargs)
+
+        monkeypatch.setattr(module, "resolve_layers", counted)
+
+    env = Environment()
+    if kind == "explicit":
+        path = [Node(f"n{i}", float(i), 0.0) for i in range(size)]
+        env.layout.set_network(Explicit(LayoutGraph(path, [Arc(a, b) for a, b in zip(path, path[1:])])))
+    elif kind == "lattice":
+        env.layout.set_grid(Grid(1, 1))
+        env.layout.set_network(Lattice((0, 0, size - 1, 0)))
+    else:
+        for _ in range(size):
+            Server(env=env, capacity=1)
+    assert bool([data for data in checks if "network" in data]) == (kind != "none")  # declaring checked its patch
+    checks.clear()
+    resolutions.clear()
+    result = env.layout.prepare()
+    assert not [data for data in checks if "network" in data]  # preparing checked it no more
+    assert len(result.network.graph.nodes) == (0 if kind == "none" else size)
+    # the layers with the final targets, the network view (once or twice) and the one with the auto layer
+    assert resolutions.count((True, False)) == 1 + views
+    assert resolutions.count((True, True)) == 1

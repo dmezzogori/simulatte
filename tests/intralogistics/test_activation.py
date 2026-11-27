@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import pytest
@@ -11,11 +12,14 @@ from simulatte.environment import Environment
 from simulatte.events import DomainEvent
 from simulatte.intralogistics.agv import AGV, AGVState
 from simulatte.intralogistics.fleet import FleetCoordinator
+from simulatte.intralogistics.graph import Node
 from simulatte.intralogistics.order import OrderStatus, TransferOrder
-from simulatte.intralogistics.traffic import ResourceBasedTrafficManager
+from simulatte.intralogistics.reservation import ReservationController
+from simulatte.intralogistics.traffic import FreeFlowController
 
 from tests.intralogistics.test_entities import SKU_A, _agv_type, _line_graph, _system
 from tests.intralogistics.test_fleet_events import FleetReplay
+from tests.intralogistics.traffic_support import declare
 
 
 def test_pending_activation_status() -> None:
@@ -77,6 +81,12 @@ def test_submit_then_cancel_before_run_cancels() -> None:
     assert [describe(e) for e in seen] == [
         (0, "order.status_changed", order.id, "PENDING_ACTIVATION", "PENDING", "awaiting_activation"),
         (0, "order.status_changed", queued.id, "PENDING_ACTIVATION", "PENDING", "awaiting_activation"),
+        # preparation: the layout binds the nodes in id order and places the AGV
+        (0, "entity.created", "C1", "node", "C1"),
+        (0, "entity.created", "C2", "node", "C2"),
+        (0, "entity.created", "IN", "node", "IN"),
+        (0, "entity.created", "OUT", "node", "OUT"),
+        (0, "agv.placed", agv.id, "C1", None),
         # activation: the queued commands run in call order
         (0, "order.status_changed", order.id, "DISPATCHED", "PENDING_ACTIVATION", "dispatched"),
         (0, "order.assigned", order.id, agv.id),
@@ -87,36 +97,57 @@ def test_submit_then_cancel_before_run_cancels() -> None:
         (0, "fleet.pending_changed", coordinator.id, queued.id, "removed", 0),
         (0, "order.status_changed", queued.id, "CANCELLED", "PENDING", "cancelled"),
         (0, "entity.retired", queued.id, "order"),
-        # the mission starts its first segment, then receives the interrupt
-        (0, "agv.move_started", agv.id, "C1", "OUT"),
-        (0, "agv.move_interrupted", agv.id, "C1", "cancelled"),
-        (0, "order.status_changed", order.id, "CANCELLED", "CANCELLED", "cancelled"),
+        # the mission was cancelled before it ran: it ends at once, without moving the AGV or touching the order
         (0, "agv.state_changed", agv.id, "IDLE", "TRAVELING_EMPTY"),
         (0, "order.unassigned", order.id, agv.id),
         (0, "entity.retired", order.id, "order"),
     ]
-    dispatched = seen[2]
+    dispatched = seen[7]
     assert dispatched.deltas.ops == (("set", order.id, "status", "DISPATCHED"), ("set", order.id, "dispatched_at", 0.0))
 
 
 def test_placement_conflict_raises_at_activation() -> None:
     env = Environment()
-    nodes, graph = _line_graph()
-    agvs = [AGV(env=env, agv_type=_agv_type(), initial_node=nodes[1]) for _ in range(2)]
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-    FleetCoordinator(env=env, graph=graph, fleet=agvs, warehouses=[], charging_stations=[], traffic_manager=traffic)
+    world = declare(env, _line_graph()[1])
+    agv_type = dataclasses.replace(_agv_type(), length=1.0)
+    agvs = [AGV(env=env, agv_type=agv_type, initial_node=world.ref("C1")) for _ in range(2)]
+    traffic = ReservationController(graph=world.graph, env=env)
+    FleetCoordinator(
+        env=env, graph=world.graph, fleet=agvs, warehouses=[], charging_stations=[], traffic_controller=traffic
+    )
 
-    with pytest.raises(RuntimeError, match="cannot place agv-1 at node C1"):
+    with pytest.raises(RuntimeError, match="cannot place agv-1 at node C1: C1 is fully reserved"):
         env.run()
-    assert traffic._node_resources[nodes[1]].count == 1
+    assert env.entities.bind_node(world.node("C1")).reserved_by == ["agv-0"]
+
+
+def test_a_fleet_built_after_activation_cannot_register_with_a_reservation_controller() -> None:
+    """The controller builds its network at activation, so no fleet built afterwards can register.
+
+    A layout is final at activation and takes no new controller then: the controller is constructed before it."""
+    env = Environment()
+    world = declare(env, _line_graph()[1])
+    agv = AGV(env=env, agv_type=dataclasses.replace(_agv_type(), length=1.0), initial_node=world.ref("C2"))
+    traffic = ReservationController(graph=world.graph, env=env)
+    env.activate()
+    with pytest.raises(RuntimeError, match="register before activation"):
+        FleetCoordinator(
+            env=env, graph=world.graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_controller=traffic
+        )
 
 
 def test_placement_after_activation_runs_at_construction() -> None:
     env = Environment()
+    world = declare(env, _line_graph()[1])  # the network is declared before activation (ruling T4-a)
+    agv = AGV(env=env, agv_type=_agv_type(), initial_node=world.ref("C2"))
     env.activate()
-    nodes, graph = _line_graph()
-    agv = AGV(env=env, agv_type=_agv_type(), initial_node=nodes[2])
-    traffic = ResourceBasedTrafficManager(graph=graph, env=env, node_capacity=1)
-    FleetCoordinator(env=env, graph=graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_manager=traffic)
-    assert traffic._node_resources[nodes[2]].count == 1
-    assert env.entities.bind_node(nodes[2]).reserved_by == [agv.id]
+    placed: list[tuple[str, str]] = []
+
+    class Recording(FreeFlowController):
+        def place(self, agv: AGV, node: Node) -> None:
+            placed.append((agv.id, node.id))
+
+    FleetCoordinator(
+        env=env, graph=world.graph, fleet=[agv], warehouses=[], charging_stations=[], traffic_controller=Recording()
+    )
+    assert placed == [(agv.id, "C2")]

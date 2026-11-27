@@ -8,6 +8,7 @@ They replace the old ``OrderMetricsCollector`` and ``IntralogisticsTimeSeriesCol
   time (``fleet_utilization_ts``, ``pending_orders_ts``, ``throughput_ts``, ``inventory_ts``) with ``plot_*``
   helpers.
 - :class:`FleetKPIs`: window-aware KPIs (spec §12.1-§12.2) of a fleet.
+- :class:`TrafficKPIs`: blocked time, waits, deadlocks, reroutes and re-queued orders of a fleet (traffic spec §11.4).
 
 Each collector is bound to its fleet coordinator (its scope), takes only the events of that fleet's AGVs and
 orders, and is attached with ``collector.attach(env)``; ``env.collectors`` lists the attached ones. Collectors are
@@ -23,7 +24,16 @@ from typing import TYPE_CHECKING, ClassVar
 from simulatte._optional import import_optional
 
 from simulatte.intralogistics.agv import _UTILIZED_STATES
-from simulatte.intralogistics.events import AgvStateChanged, FleetPendingChanged, OrderStatusChanged
+from simulatte.intralogistics.events import (
+    AgvRouted,
+    AgvStateChanged,
+    FleetPendingChanged,
+    OrderStatusChanged,
+    TrafficDeadlock,
+    TrafficWaitEnded,
+    TrafficWaitStarted,
+    TrafficWaitStuck,
+)
 from simulatte.kpi import KPI, Collector, TimeWeighted
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -34,7 +44,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from simulatte.intralogistics.order import TransferOrder
     from simulatte.intralogistics.warehouse import Warehouse
 
-__all__ = ["FleetKPIs", "FleetTimeSeries", "OrderEMACollector"]
+__all__ = ["FleetKPIs", "FleetTimeSeries", "OrderEMACollector", "TrafficKPIs"]
 
 _UTILIZED: frozenset[str] = frozenset(state.name for state in _UTILIZED_STATES)
 """Names of the AGV states that count as utilized (``AGV.utilization``)."""
@@ -413,3 +423,119 @@ class FleetKPIs(Collector):
             "utilization": mean_busy / size if mean_busy is not None and size else None,
             "pending_orders": None if pending is None else pending.mean(window.start, window.end),
         }
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Traffic KPIs
+# ---------------------------------------------------------------------------------------------------------
+
+
+def _count_kpi(name: str, description: str) -> KPI:
+    return KPI(
+        name,
+        unit="count",
+        observation="event",
+        cohort="completed_in_window",
+        aggregation="count",
+        description=description,
+    )
+
+
+class TrafficKPIs(Collector):
+    """Traffic KPIs of a fleet (traffic spec §11.4), keyed ``"<fleet id>/<name>"``.
+
+    Events of AGVs outside the fleet are ignored. The counts include the events at or after the warm-up:
+
+    - ``blocked_time``: the time the fleet's AGVs spent in waits (``traffic.wait_started`` to
+      ``traffic.wait_ended``), clipped to the observation window; a wait still open at the end counts up to the
+      window end;
+    - ``waits``: ``traffic.wait_started``; ``stuck_waits``: ``traffic.wait_stuck``;
+    - ``deadlocks_resolved``: ``traffic.deadlock`` events with a victim; ``deadlocks_unresolved``: those with the
+      action ``unresolved``. A detection that resolves several victims counts one per event; a deadlock belongs to
+      the fleet when any of its AGVs does;
+    - ``reroutes``: ``agv.routed`` with reason ``blocked`` or ``deadlock``; ``make_way_moves``: reason ``make_way``;
+    - ``requeued_orders``: ``order.status_changed`` with reason ``traffic_requeued``.
+
+    A KPI without observations is left out of :meth:`scalars`, so a fleet under ``FreeFlowController`` has none.
+    ``blocked_time`` is reported, possibly 0.0, once any wait of the fleet has started. Deadlocks are counted as
+    resolved or unresolved, not by action; the action is in each ``traffic.deadlock`` event. Attach the collector
+    before the run.
+    """
+
+    kpis: ClassVar = (
+        KPI(
+            "blocked_time",
+            unit="time",
+            observation="time_weighted",
+            cohort="all",
+            aggregation="sum",
+            clip="window",
+            description="Total time AGVs spent waiting on traffic claims.",
+        ),
+        _count_kpi("waits", "Waits started."),
+        _count_kpi(
+            "stuck_waits",
+            "Waits reported stuck behind idle, stranded or stalled blockers, or behind waiters whose waits are stuck.",
+        ),
+        _count_kpi("deadlocks_resolved", "Deadlock events with a victim."),
+        _count_kpi("deadlocks_unresolved", "Deadlock events where no reaction succeeded."),
+        _count_kpi("reroutes", "Routes staged by traffic because of a block or a deadlock."),
+        _count_kpi("make_way_moves", "Moves of idle AGVs to make way."),
+        _count_kpi("requeued_orders", "Orders re-queued because their AGV gave up its travel in traffic."),
+    )
+    subscribes: ClassVar = (
+        TrafficWaitStarted,
+        TrafficWaitEnded,
+        TrafficWaitStuck,
+        TrafficDeadlock,
+        AgvRouted,
+        OrderStatusChanged,
+    )
+
+    def __init__(self, fleet: FleetCoordinator) -> None:
+        super().__init__(fleet)
+        self._agvs = frozenset(agv.id for agv in fleet.fleet)
+        self._open: dict[str, float] = {}  # agv id -> start of its open wait
+        self._closed = 0.0  # closed waits, clipped to the window start
+        self._seen = False
+
+    def on_event(self, event: Event) -> None:
+        if isinstance(event, TrafficDeadlock):
+            if self._agvs.isdisjoint(event.agvs):
+                return
+            if event.victim is not None:
+                self.observe("deadlocks_resolved", 1.0)
+            if event.action == "unresolved":
+                self.observe("deadlocks_unresolved", 1.0)
+        elif isinstance(event, OrderStatusChanged):
+            if event.reason == "traffic_requeued" and _own_order(self, event) is not None:
+                self.observe("requeued_orders", 1.0)
+        else:
+            assert isinstance(event, (TrafficWaitStarted, TrafficWaitEnded, TrafficWaitStuck, AgvRouted))
+            if event.agv in self._agvs:
+                self._agv_event(event)
+
+    def _agv_event(self, event: TrafficWaitStarted | TrafficWaitEnded | TrafficWaitStuck | AgvRouted) -> None:
+        if isinstance(event, TrafficWaitStarted):
+            self._seen = True
+            self._open[event.agv] = event.t
+            self.observe("waits", 1.0)
+        elif isinstance(event, TrafficWaitEnded):
+            started = self._open.pop(event.agv, None)
+            if started is not None:
+                self._closed += max(0.0, event.t - max(started, self.env.warmup))
+        elif isinstance(event, TrafficWaitStuck):
+            self.observe("stuck_waits", 1.0)
+        else:
+            assert isinstance(event, AgvRouted)
+            if event.reason in ("blocked", "deadlock"):
+                self.observe("reroutes", 1.0)
+            elif event.reason == "make_way":
+                self.observe("make_way_moves", 1.0)
+
+    def scalar_values(self) -> Mapping[str, float | None]:
+        if not self._seen:
+            return {}
+        window = self.window
+        open_time = sum(max(0.0, window.end - max(started, window.start)) for started in self._open.values())
+        return {"blocked_time": self._closed + open_time}
